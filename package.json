@@ -1,12 +1,12 @@
 {
-	"name": "visualjj-range-diff-helper",
-	"displayName": "VisualJJ Range Diff Helper",
-	"version": "0.0.6",
+	"name": "jj-range-diff",
+	"displayName": "JJ Range Diff",
+	"version": "0.0.7",
 	"private": true,
 	"description": "Open JJ multi-diff views for revision ranges.",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/astahmer/visualjj-range-diff-helper.git"
+		"url": "https://github.com/astahmer/jj-range-diff.git"
 	},
 	"categories": [
 		"Other",
@@ -20,7 +20,7 @@
 	],
 	"main": "./extension.js",
 	"bin": {
-		"visualjj-range-diff-helper": "./bin.js"
+		"jj-range-diff": "./bin.js"
 	},
 	"devDependencies": {
 		"@vscode/vsce": "3.7.1"
@@ -28,8 +28,8 @@
 	"contributes": {
 		"commands": [
 			{
-				"command": "visualjj.openRangeMultiDiff",
-				"title": "VisualJJ: Open Range Multi Diff"
+				"command": "jj-range-diff.openRangeMultiDiff",
+				"title": "JJ: Open Range Multi Diff"
 			}
 		]
 	},

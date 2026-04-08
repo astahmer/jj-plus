@@ -8,11 +8,11 @@ const vscode = require('vscode');
 
 const execFileAsync = promisify(execFile);
 
-const EXTENSION_ID = 'astahmer.visualjj-range-diff-helper';
-const HELPER_COMMAND = 'visualjj.openRangeMultiDiff';
+const EXTENSION_ID = 'astahmer.jj-range-diff';
+const HELPER_COMMAND = 'jj-range-diff.openRangeMultiDiff';
 const OPEN_RANGE_DIFF_URI_PATH = '/open-range-multi-diff';
 const OPEN_MULTI_DIFF_COMMAND = '_workbench.openMultiDiffEditor';
-const SNAPSHOT_SCHEME = 'visualjj-range-diff-helper';
+const SNAPSHOT_SCHEME = 'jj-range-diff';
 const PENDING_RANGE_DIFF_KEY = 'pendingRangeDiffArgs';
 const CLI_SOURCE = 'cli';
 const DEFAULT_FROM_REVSET = 'closest_bookmark(@)';
@@ -45,7 +45,7 @@ let outputChannel;
  * @param {vscode.ExtensionContext} context
  */
 function activate(context) {
-  outputChannel = vscode.window.createOutputChannel('VisualJJ Range Diff Helper');
+  outputChannel = vscode.window.createOutputChannel('JJ Range Diff');
   const provider = new SnapshotContentProvider();
 
   const openRangeMultiDiff =

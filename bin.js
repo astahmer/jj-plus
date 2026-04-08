@@ -5,7 +5,7 @@
 const { spawnSync } = require('node:child_process');
 const path = require('node:path');
 
-const EXTENSION_ID = 'astahmer.visualjj-range-diff-helper';
+const EXTENSION_ID = 'astahmer.jj-range-diff';
 const URI_PATH = '/open-range-multi-diff';
 const DEFAULT_IDE = 'code';
 const IDE_PRESETS = {
@@ -112,7 +112,7 @@ function parseArgs(argv) {
 		help: false,
 		confirm: false,
 		from: undefined,
-		ide: process.env.VISUALJJ_RANGE_DIFF_HELPER_IDE || undefined,
+		ide: process.env.JJ_RANGE_DIFF_IDE || undefined,
 		to: undefined,
 		title: undefined,
 		verbose: false,
@@ -311,7 +311,7 @@ function quoteShellArg(value) {
 
 function usage() {
 	return [
-		'Usage: visualjj-range-diff-helper [options]',
+		'Usage: jj-range-diff [options]',
 		'',
 		'Options:',
 		'      --confirm                    Prompt before opening when launched from the CLI',
@@ -327,6 +327,6 @@ function usage() {
 		'  -h, --help                       Show this help message',
 		'',
 		'Environment:',
-		'      VISUALJJ_RANGE_DIFF_HELPER_IDE  Default IDE preset or command',
+		'      JJ_RANGE_DIFF_IDE  Default IDE preset or command',
 	].join('\n');
 }

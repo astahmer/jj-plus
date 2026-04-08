@@ -1,6 +1,6 @@
-# VisualJJ Range Diff Helper
+# JJ Range Diff
 
-Minimal no-build VS Code extension that opens JJ range multi-diff views directly from `jj`, without depending on the VisualJJ extension runtime.
+Minimal VS Code extension that opens JJ range multi-diff.
 
 ## Files
 
@@ -11,12 +11,12 @@ Minimal no-build VS Code extension that opens JJ range multi-diff views directly
 
 1. Open this folder as a VS Code extension project, or add it to a multi-root workspace.
 2. Press `F5` to launch an Extension Development Host.
-3. Run `VisualJJ: Open Range Multi Diff` from the command palette.
+3. Run `JJ: Open Range Multi Diff` from the command palette.
 
 ## Optional Programmatic Invocation
 
 ```js
-await vscode.commands.executeCommand('visualjj.openRangeMultiDiff', {
+await vscode.commands.executeCommand('jj-range-diff.openRangeMultiDiff', {
 	workspacePath: '/Users/astahmer/dev/work-related/welii',
 	from: 'yvspkqrx',
 	to: 'mvvosnsv',
@@ -39,18 +39,18 @@ CLI launches now skip the extension input prompts and open the diff directly. Ad
 ./bin.js -f closest_bookmark(@) -t @ -w /path/to/workspace
 ```
 
-If you install the package with `npm link`, the `visualjj-range-diff-helper` command is also available on your `PATH`.
+If you install the package with `npm link`, the `jj-range-diff` command is also available on your `PATH`.
 
-`--ide` accepts known presets like `code`, `code-insiders`, `cursor`, `cursor-insiders`, `zed`, `windsurf`, and `codium`. You can also set `VISUALJJ_RANGE_DIFF_HELPER_IDE` to change the default launcher.
+`--ide` accepts known presets like `code`, `code-insiders`, `cursor`, `cursor-insiders`, `zed`, `windsurf`, and `codium`. You can also set `JJ_RANGE_DIFF_IDE` to change the default launcher.
 
 ## Logs
 
-The extension writes the exact `jj` commands it runs to the `VisualJJ Range Diff Helper` output channel in VS Code. When you run the CLI with `--verbose`, the CLI also logs the IDE/open-url commands it used and opens that output channel so you can see the `jj` commands immediately.
+The extension writes the exact `jj` commands it runs to the `JJ Range Diff` output channel in VS Code. When you run the CLI with `--verbose`, the CLI also logs the IDE/open-url commands it used and opens that output channel so you can see the `jj` commands immediately.
 
 ## Install
 
 ```sh
-cd /Users/astahmer/dev/work-related/welii/tools/visualjj-range-diff-helper
+cd /Users/astahmer/dev/work-related/welii/tools/jj-range-diff
 npx @vscode/vsce package
 ```
 
