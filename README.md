@@ -1,6 +1,6 @@
 # VisualJJ Range Diff Helper
 
-Minimal no-build VS Code extension that exposes the hidden VisualJJ range multi-diff command.
+Minimal no-build VS Code extension that opens JJ range multi-diff views directly from `jj`, without depending on the VisualJJ extension runtime.
 
 ## Files
 
@@ -26,7 +26,7 @@ await vscode.commands.executeCommand('visualjj.openRangeMultiDiff', {
 
 ## CLI
 
-`bin.js` can open the same flow from your shell by forwarding a deep link into VS Code.
+`bin.js` opens the same flow from your shell by forwarding a deep link into VS Code.
 
 ```sh
 ./bin.js -b branch_start(@) -t @
@@ -43,5 +43,4 @@ cd /Users/astahmer/dev/work-related/welii/tools/visualjj-range-diff-helper
 npx @vscode/vsce package
 ```
 
-Then install the generated `visualjj-range-diff-helper-0.0.1.vsix` file in your VS Code instance:
-`code --install-extension visualjj-range-diff-helper-0.0.1.vsix`
+Then install the generated `.vsix` file in your VS Code instance.
