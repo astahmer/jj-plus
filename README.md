@@ -28,17 +28,24 @@ await vscode.commands.executeCommand('visualjj.openRangeMultiDiff', {
 
 `bin.js` opens the same flow from your shell by forwarding a deep link into VS Code.
 
+CLI launches now skip the extension input prompts and open the diff directly. Add `--confirm` if you want the prompt flow before opening.
+
 ```sh
-./bin.js -f branch_start(@) -t @
+./bin.js -f closest_bookmark(@) -t @
 ./bin.js --from yvspkqrx --to mvvosnsv --title 'range diff'
-./bin.js -f branch_start(@) -t @ -w /path/to/workspace
+./bin.js --confirm -f closest_bookmark(@) -t @
+./bin.js --ide cursor -f closest_bookmark(@) -t @
+./bin.js --verbose --ide zed -f closest_bookmark(@) -t @
+./bin.js -f closest_bookmark(@) -t @ -w /path/to/workspace
 ```
 
 If you install the package with `npm link`, the `visualjj-range-diff-helper` command is also available on your `PATH`.
 
+`--ide` accepts known presets like `code`, `code-insiders`, `cursor`, `cursor-insiders`, `zed`, `windsurf`, and `codium`. You can also set `VISUALJJ_RANGE_DIFF_HELPER_IDE` to change the default launcher.
+
 ## Logs
 
-The extension writes the exact `jj` commands it runs to the `VisualJJ Range Diff Helper` output channel in VS Code.
+The extension writes the exact `jj` commands it runs to the `VisualJJ Range Diff Helper` output channel in VS Code. When you run the CLI with `--verbose`, the CLI also logs the IDE/open-url commands it used and opens that output channel so you can see the `jj` commands immediately.
 
 ## Install
 

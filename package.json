@@ -1,7 +1,7 @@
 {
 	"name": "visualjj-range-diff-helper",
 	"displayName": "VisualJJ Range Diff Helper",
-	"version": "0.0.5",
+	"version": "0.0.6",
 	"private": true,
 	"description": "Open JJ multi-diff views for revision ranges.",
 	"repository": {

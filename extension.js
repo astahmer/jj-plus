@@ -14,6 +14,7 @@ const OPEN_RANGE_DIFF_URI_PATH = '/open-range-multi-diff';
 const OPEN_MULTI_DIFF_COMMAND = '_workbench.openMultiDiffEditor';
 const SNAPSHOT_SCHEME = 'visualjj-range-diff-helper';
 const PENDING_RANGE_DIFF_KEY = 'pendingRangeDiffArgs';
+const CLI_SOURCE = 'cli';
 const DEFAULT_FROM_REVSET = 'closest_bookmark(@)';
 const DEFAULT_TO_REVSET = '@';
 
@@ -28,6 +29,9 @@ let outputChannel;
  * @property {string=} target
  * @property {string=} title
  * @property {string=} workspacePath
+ * @property {boolean=} confirm
+ * @property {boolean=} verbose
+ * @property {string=} source
  */
 
 /**
@@ -47,6 +51,10 @@ function activate(context) {
   const openRangeMultiDiff =
     /** @param {RangeDiffArgs=} args */
     async (args) => {
+      if (args?.verbose) {
+        outputChannel?.show(true);
+      }
+
       const workspaceUri = await resolveWorkspaceUri(context, args);
       if (workspaceUri === 'redirected') {
         return;
@@ -57,20 +65,24 @@ function activate(context) {
         return;
       }
 
-      const base = await resolveInput({
-        value: getFromValue(args),
-        prompt: 'From change id or revset',
-        placeHolder: DEFAULT_FROM_REVSET,
-      });
+      const base = shouldPromptForInputs(args)
+        ? await resolveInput({
+            value: getFromValue(args),
+            prompt: 'From change id or revset',
+            placeHolder: DEFAULT_FROM_REVSET,
+          })
+        : getFromValue(args);
       if (!base) {
         return;
       }
 
-      const target = await resolveInput({
-        value: getToValue(args),
-        prompt: 'To change id or revset',
-        placeHolder: DEFAULT_TO_REVSET,
-      });
+      const target = shouldPromptForInputs(args)
+        ? await resolveInput({
+            value: getToValue(args),
+            prompt: 'To change id or revset',
+            placeHolder: DEFAULT_TO_REVSET,
+          })
+        : getToValue(args);
       if (!target) {
         return;
       }
@@ -396,6 +408,9 @@ function sanitizeRangeDiffArgs(args) {
     target: args.target,
     title: args.title,
     workspacePath: args.workspacePath,
+    confirm: args.confirm,
+    verbose: args.verbose,
+    source: args.source,
   };
 }
 
@@ -443,6 +458,9 @@ function parseRangeDiffUri(uri) {
     target: getQueryParam(params, 'target'),
     title: getQueryParam(params, 'title'),
     workspacePath: getQueryParam(params, 'workspacePath'),
+    confirm: getBooleanQueryParam(params, 'confirm'),
+    verbose: getBooleanQueryParam(params, 'verbose'),
+    source: getQueryParam(params, 'source'),
   };
 }
 
@@ -465,6 +483,28 @@ function getQueryParam(params, name) {
 }
 
 /**
+ * @param {URLSearchParams} params
+ * @param {string} name
+ * @returns {boolean | undefined}
+ */
+function getBooleanQueryParam(params, name) {
+  const value = params.get(name)?.trim().toLowerCase();
+  if (!value) {
+    return undefined;
+  }
+
+  if (value === '1' || value === 'true' || value === 'yes') {
+    return true;
+  }
+
+  if (value === '0' || value === 'false' || value === 'no') {
+    return false;
+  }
+
+  return undefined;
+}
+
+/**
  * @param {RangeDiffArgs | undefined} args
  * @returns {string | undefined}
  */
@@ -478,6 +518,14 @@ function getFromValue(args) {
  */
 function getToValue(args) {
   return args?.to?.trim() || args?.target?.trim() || DEFAULT_TO_REVSET;
+}
+
+/**
+ * @param {RangeDiffArgs | undefined} args
+ * @returns {boolean}
+ */
+function shouldPromptForInputs(args) {
+  return args?.source !== CLI_SOURCE || args?.confirm === true;
 }
 
 /**
