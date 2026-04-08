@@ -6,6 +6,7 @@ const EXTENSION_ID = 'astahmer.visualjj-range-diff-helper';
 const HELPER_COMMAND = 'visualjj.openRangeMultiDiff';
 const VISUALJJ_COMMAND = 'visualjj.open-multi-diff';
 const OPEN_RANGE_DIFF_URI_PATH = '/open-range-multi-diff';
+const PENDING_RANGE_DIFF_KEY = 'pendingRangeDiffArgs';
 
 /**
  * @typedef {object} RangeDiffArgs
@@ -22,7 +23,11 @@ function activate(context) {
   const openRangeMultiDiff =
     /** @param {RangeDiffArgs=} args */
     async (args) => {
-      const workspaceUri = await resolveWorkspaceUri(args);
+      const workspaceUri = await resolveWorkspaceUri(context, args);
+      if (workspaceUri === 'redirected') {
+        return;
+      }
+
       if (!workspaceUri) {
         void vscode.window.showErrorMessage('No workspace folder available');
         return;
@@ -76,6 +81,8 @@ function activate(context) {
       },
     })
   );
+
+  void resumePendingRangeDiff(context, openRangeMultiDiff);
 }
 
 function deactivate() {}
@@ -103,13 +110,25 @@ async function resolveInput(options) {
 }
 
 /**
+ * @param {vscode.ExtensionContext} context
  * @param {RangeDiffArgs | undefined} args
- * @returns {Promise<vscode.Uri | undefined>}
+ * @returns {Promise<vscode.Uri | 'redirected' | undefined>}
  */
-async function resolveWorkspaceUri(args) {
+async function resolveWorkspaceUri(context, args) {
   const explicitUri = getExplicitWorkspaceUri(args?.workspacePath);
   if (explicitUri) {
-    return explicitUri;
+    const openWorkspaceUri = getOpenWorkspaceUri(explicitUri);
+    if (openWorkspaceUri) {
+      return openWorkspaceUri;
+    }
+
+    await context.globalState.update(PENDING_RANGE_DIFF_KEY, sanitizeRangeDiffArgs(args));
+    await vscode.commands.executeCommand('vscode.openFolder', explicitUri, {
+      forceReuseWindow: true,
+      noRecentEntry: true,
+    });
+
+    return 'redirected';
   }
 
   const activeEditorFolder = vscode.window.activeTextEditor
@@ -131,6 +150,77 @@ async function resolveWorkspaceUri(args) {
     placeHolder: 'Select the workspace to open the VisualJJ range diff in',
   });
   return selected?.uri;
+}
+
+/**
+ * @param {vscode.ExtensionContext} context
+ * @param {(args?: RangeDiffArgs) => Promise<void>} openRangeMultiDiff
+ */
+async function resumePendingRangeDiff(context, openRangeMultiDiff) {
+  const pendingArgs = context.globalState.get(PENDING_RANGE_DIFF_KEY);
+  if (!pendingArgs || typeof pendingArgs !== 'object') {
+    return;
+  }
+
+  const args = /** @type {RangeDiffArgs} */ (pendingArgs);
+  const explicitUri = getExplicitWorkspaceUri(args.workspacePath);
+  if (!explicitUri) {
+    await context.globalState.update(PENDING_RANGE_DIFF_KEY, undefined);
+    return;
+  }
+
+  if (!getOpenWorkspaceUri(explicitUri)) {
+    return;
+  }
+
+  await context.globalState.update(PENDING_RANGE_DIFF_KEY, undefined);
+  await openRangeMultiDiff(args);
+}
+
+/**
+ * @param {vscode.Uri} explicitUri
+ * @returns {vscode.Uri | undefined}
+ */
+function getOpenWorkspaceUri(explicitUri) {
+  const matchingFolder = vscode.workspace.workspaceFolders?.find((folder) =>
+    areSamePath(folder.uri.fsPath, explicitUri.fsPath)
+  );
+
+  return matchingFolder?.uri;
+}
+
+/**
+ * @param {RangeDiffArgs | undefined} args
+ * @returns {RangeDiffArgs | undefined}
+ */
+function sanitizeRangeDiffArgs(args) {
+  if (!args) {
+    return undefined;
+  }
+
+  return {
+    base: args.base,
+    target: args.target,
+    title: args.title,
+    workspacePath: args.workspacePath,
+  };
+}
+
+/**
+ * @param {string} left
+ * @param {string} right
+ * @returns {boolean}
+ */
+function areSamePath(left, right) {
+  return normalizePath(left) === normalizePath(right);
+}
+
+/**
+ * @param {string} value
+ * @returns {string}
+ */
+function normalizePath(value) {
+  return value.replace(/\\/g, '/').replace(/\/+$/, '') || '/';
 }
 
 /**

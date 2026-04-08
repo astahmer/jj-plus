@@ -36,6 +36,8 @@ function main() {
 		params.set('title', options.title);
 	}
 
+	openWorkspace(resolvedWorkspacePath);
+
 	const launchers = getLaunchers(params.toString());
 	let lastFailure;
 
@@ -62,6 +64,18 @@ function main() {
 		`Failed to open VS Code for ${EXTENSION_ID}. ${lastFailure || 'No supported launcher was found.'}\n`
 	);
 	process.exitCode = 1;
+}
+
+/**
+ * @param {string} workspacePath
+ */
+function openWorkspace(workspacePath) {
+	const command = process.env.VSCODE_BIN || 'code';
+	const result = spawnSync(command, ['-r', workspacePath], { stdio: 'ignore' });
+
+	if (result.error && result.error.code !== 'ENOENT') {
+		process.stderr.write(`Warning: failed to focus workspace via ${command}: ${result.error.message}\n`);
+	}
 }
 
 /**
@@ -161,23 +175,17 @@ function requireValue(flag, value) {
 function getLaunchers(query) {
 	const stableUri = buildUri('vscode', query);
 	const insidersUri = buildUri('vscode-insiders', query);
-	const launchers = [
-		{
-			command: process.env.VSCODE_BIN || 'code',
-			args: ['--open-url', stableUri],
-		},
-		{
-			command: process.env.VSCODE_INSIDERS_BIN || 'code-insiders',
-			args: ['--open-url', insidersUri],
-		},
-	];
+	const launchers = [];
 
 	if (process.platform === 'darwin') {
 		launchers.push({ command: 'open', args: [stableUri] });
+		launchers.push({ command: 'open', args: [insidersUri] });
 	} else if (process.platform === 'win32') {
 		launchers.push({ command: 'cmd', args: ['/c', 'start', '', stableUri] });
+		launchers.push({ command: 'cmd', args: ['/c', 'start', '', insidersUri] });
 	} else {
 		launchers.push({ command: 'xdg-open', args: [stableUri] });
+		launchers.push({ command: 'xdg-open', args: [insidersUri] });
 	}
 
 	return launchers;
