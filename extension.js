@@ -70,14 +70,19 @@ function activate(context) {
       const title = args?.title?.trim() || `${base}..${target}`;
 
       try {
-        const resources = await buildMultiDiffResources(workspaceUri.fsPath, base, target);
+        const { resources, resolvedTitle } = await buildMultiDiffResources(
+          workspaceUri.fsPath,
+          base,
+          target,
+          title
+        );
         if (!resources.length) {
           void vscode.window.showInformationMessage(`No changes found for ${title}`);
           return;
         }
 
         await vscode.commands.executeCommand(OPEN_MULTI_DIFF_COMMAND, {
-          title,
+          title: resolvedTitle,
           resources,
         });
       } catch (error) {
@@ -125,17 +130,38 @@ class SnapshotContentProvider {
  * @param {string} workspacePath
  * @param {string} base
  * @param {string} target
- * @returns {Promise<Array<{ originalUri: vscode.Uri, modifiedUri: vscode.Uri }>>}
+ * @param {string} title
+ * @returns {Promise<{ resources: Array<{ originalUri: vscode.Uri, modifiedUri: vscode.Uri }>, resolvedTitle: string }>}
  */
-async function buildMultiDiffResources(workspacePath, base, target) {
-  const changedFiles = await listChangedFiles(workspacePath, base, target);
+async function buildMultiDiffResources(workspacePath, base, target, title) {
+  let changedFiles = await listChangedFiles(workspacePath, base, target);
+  let originalRevset = base;
+  let modifiedRevset = target;
+  let resolvedTitle = title;
 
-  return Promise.all(
+  if (!changedFiles.length && target === '@' && base !== target) {
+    const revisionFiles = await listRevisionFiles(workspacePath, base);
+    if (revisionFiles.length) {
+      changedFiles = revisionFiles;
+      originalRevset = `${base}-`;
+      modifiedRevset = base;
+      if (title === `${base}..${target}`) {
+        resolvedTitle = base;
+      }
+    }
+  }
+
+  const resources = await Promise.all(
     changedFiles.map(async (relativePath) => ({
-      originalUri: createSnapshotUri(workspacePath, base, relativePath),
-      modifiedUri: await createTargetUri(workspacePath, target, relativePath),
+      originalUri: createSnapshotUri(workspacePath, originalRevset, relativePath),
+      modifiedUri: await createTargetUri(workspacePath, modifiedRevset, relativePath),
     }))
   );
+
+  return {
+    resources,
+    resolvedTitle,
+  };
 }
 
 /**
@@ -149,6 +175,20 @@ async function listChangedFiles(workspacePath, base, target) {
     workspacePath,
     ['diff', '--name-only', '--from', base, '--to', target]
   );
+
+  return stdout
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+/**
+ * @param {string} workspacePath
+ * @param {string} revset
+ * @returns {Promise<string[]>}
+ */
+async function listRevisionFiles(workspacePath, revset) {
+  const { stdout } = await runJj(workspacePath, ['diff', '--name-only', '-r', revset]);
 
   return stdout
     .split(/\r?\n/u)
