@@ -3,6 +3,7 @@
 'use strict';
 
 const { spawnSync } = require('node:child_process');
+const path = require('node:path');
 
 const EXTENSION_ID = 'astahmer.visualjj-range-diff-helper';
 const URI_PATH = '/open-range-multi-diff';
@@ -18,9 +19,10 @@ function main() {
 	}
 
 	const workspacePath = options.workspacePath || process.cwd();
+	const resolvedWorkspacePath = path.resolve(workspacePath);
 	const params = new URLSearchParams();
 
-	params.set('workspacePath', workspacePath);
+	params.set('workspacePath', resolvedWorkspacePath);
 
 	if (options.base) {
 		params.set('base', options.base);

@@ -22,8 +22,8 @@ function activate(context) {
   const openRangeMultiDiff =
     /** @param {RangeDiffArgs=} args */
     async (args) => {
-      const folder = await resolveWorkspaceFolder(args);
-      if (!folder) {
+      const workspaceUri = await resolveWorkspaceUri(args);
+      if (!workspaceUri) {
         void vscode.window.showErrorMessage('No workspace folder available');
         return;
       }
@@ -51,7 +51,7 @@ function activate(context) {
       try {
         await vscode.commands.executeCommand(
           VISUALJJ_COMMAND,
-          folder.uri,
+          workspaceUri,
           target,
           base,
           title
@@ -104,25 +104,23 @@ async function resolveInput(options) {
 
 /**
  * @param {RangeDiffArgs | undefined} args
- * @returns {Promise<vscode.WorkspaceFolder | undefined>}
+ * @returns {Promise<vscode.Uri | undefined>}
  */
-async function resolveWorkspaceFolder(args) {
-  const explicitFolder = args?.workspacePath
-    ? vscode.workspace.getWorkspaceFolder(vscode.Uri.file(args.workspacePath))
-    : undefined;
-  if (explicitFolder) {
-    return explicitFolder;
+async function resolveWorkspaceUri(args) {
+  const explicitUri = getExplicitWorkspaceUri(args?.workspacePath);
+  if (explicitUri) {
+    return explicitUri;
   }
 
   const activeEditorFolder = vscode.window.activeTextEditor
     ? vscode.workspace.getWorkspaceFolder(vscode.window.activeTextEditor.document.uri)
     : undefined;
   if (activeEditorFolder) {
-    return activeEditorFolder;
+    return activeEditorFolder.uri;
   }
 
   if (vscode.workspace.workspaceFolders?.length === 1) {
-    return vscode.workspace.workspaceFolders[0];
+    return vscode.workspace.workspaceFolders[0].uri;
   }
 
   if (!vscode.workspace.workspaceFolders?.length) {
@@ -132,7 +130,20 @@ async function resolveWorkspaceFolder(args) {
   const selected = await vscode.window.showWorkspaceFolderPick({
     placeHolder: 'Select the workspace to open the VisualJJ range diff in',
   });
-  return selected || undefined;
+  return selected?.uri;
+}
+
+/**
+ * @param {string | undefined} workspacePath
+ * @returns {vscode.Uri | undefined}
+ */
+function getExplicitWorkspaceUri(workspacePath) {
+  const trimmed = workspacePath?.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  return vscode.Uri.file(trimmed);
 }
 
 /**
