@@ -14,9 +14,16 @@ const OPEN_RANGE_DIFF_URI_PATH = '/open-range-multi-diff';
 const OPEN_MULTI_DIFF_COMMAND = '_workbench.openMultiDiffEditor';
 const SNAPSHOT_SCHEME = 'visualjj-range-diff-helper';
 const PENDING_RANGE_DIFF_KEY = 'pendingRangeDiffArgs';
+const DEFAULT_FROM_REVSET = 'branch_start(@)';
+const DEFAULT_TO_REVSET = '@';
+
+/** @type {vscode.OutputChannel | undefined} */
+let outputChannel;
 
 /**
  * @typedef {object} RangeDiffArgs
+ * @property {string=} from
+ * @property {string=} to
  * @property {string=} base
  * @property {string=} target
  * @property {string=} title
@@ -34,6 +41,7 @@ const PENDING_RANGE_DIFF_KEY = 'pendingRangeDiffArgs';
  * @param {vscode.ExtensionContext} context
  */
 function activate(context) {
+  outputChannel = vscode.window.createOutputChannel('VisualJJ Range Diff Helper');
   const provider = new SnapshotContentProvider();
 
   const openRangeMultiDiff =
@@ -50,18 +58,18 @@ function activate(context) {
       }
 
       const base = await resolveInput({
-        value: args?.base,
-        prompt: 'Base change id or revset',
-        placeHolder: 'branch_start(@)',
+        value: getFromValue(args),
+        prompt: 'From change id or revset',
+        placeHolder: DEFAULT_FROM_REVSET,
       });
       if (!base) {
         return;
       }
 
       const target = await resolveInput({
-        value: args?.target,
-        prompt: 'Target change id or revset',
-        placeHolder: '@',
+        value: getToValue(args),
+        prompt: 'To change id or revset',
+        placeHolder: DEFAULT_TO_REVSET,
       });
       if (!target) {
         return;
@@ -92,6 +100,7 @@ function activate(context) {
     };
 
   context.subscriptions.push(
+    outputChannel,
     vscode.workspace.registerTextDocumentContentProvider(SNAPSHOT_SCHEME, provider),
     vscode.commands.registerCommand(HELPER_COMMAND, openRangeMultiDiff),
     vscode.window.registerUriHandler({
@@ -140,6 +149,7 @@ async function buildMultiDiffResources(workspacePath, base, target, title) {
   let resolvedTitle = title;
 
   if (!changedFiles.length && target === '@' && base !== target) {
+    // JJ range semantics can be empty even when the selected revision has its own patch.
     const revisionFiles = await listRevisionFiles(workspacePath, base);
     if (revisionFiles.length) {
       changedFiles = revisionFiles;
@@ -248,6 +258,8 @@ async function showFileAtRevision(workspacePath, revset, filePath) {
  * @returns {Promise<{ stdout: string, stderr: string }>}
  */
 async function runJj(workspacePath, args) {
+  logJjCommand(workspacePath, args);
+
   return execFileAsync('jj', args, {
     cwd: workspacePath,
     encoding: 'utf8',
@@ -274,13 +286,11 @@ async function fileExists(filePath) {
  */
 async function resolveInput(options) {
   const trimmed = options.value?.trim();
-  if (trimmed) {
-    return trimmed;
-  }
 
   const input = await vscode.window.showInputBox({
     prompt: options.prompt,
     placeHolder: options.placeHolder,
+    value: trimmed || options.placeHolder,
     ignoreFocusOut: true,
     validateInput(value) {
       return value.trim() ? undefined : 'Value is required';
@@ -380,6 +390,8 @@ function sanitizeRangeDiffArgs(args) {
   }
 
   return {
+    from: args.from,
+    to: args.to,
     base: args.base,
     target: args.target,
     title: args.title,
@@ -425,6 +437,8 @@ function parseRangeDiffUri(uri) {
   const params = new URLSearchParams(uri.query);
 
   return {
+    from: getQueryParam(params, 'from') || getQueryParam(params, 'base'),
+    to: getQueryParam(params, 'to') || getQueryParam(params, 'target'),
     base: getQueryParam(params, 'base'),
     target: getQueryParam(params, 'target'),
     title: getQueryParam(params, 'title'),
@@ -448,6 +462,47 @@ function parseSnapshotUri(uri) {
 function getQueryParam(params, name) {
   const value = params.get(name)?.trim();
   return value || undefined;
+}
+
+/**
+ * @param {RangeDiffArgs | undefined} args
+ * @returns {string | undefined}
+ */
+function getFromValue(args) {
+  return args?.from?.trim() || args?.base?.trim() || DEFAULT_FROM_REVSET;
+}
+
+/**
+ * @param {RangeDiffArgs | undefined} args
+ * @returns {string | undefined}
+ */
+function getToValue(args) {
+  return args?.to?.trim() || args?.target?.trim() || DEFAULT_TO_REVSET;
+}
+
+/**
+ * @param {string} workspacePath
+ * @param {string[]} args
+ */
+function logJjCommand(workspacePath, args) {
+  if (!outputChannel) {
+    return;
+  }
+
+  outputChannel.appendLine(`[${new Date().toISOString()}] cwd=${workspacePath}`);
+  outputChannel.appendLine(`jj ${args.map(quoteShellArg).join(' ')}`);
+}
+
+/**
+ * @param {string} value
+ * @returns {string}
+ */
+function quoteShellArg(value) {
+  if (/^[a-zA-Z0-9_@./:-]+$/u.test(value)) {
+    return value;
+  }
+
+  return `'${value.replace(/'/g, `'\\''`)}'`;
 }
 
 module.exports = {

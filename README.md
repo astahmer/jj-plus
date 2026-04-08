@@ -18,8 +18,8 @@ Minimal no-build VS Code extension that opens JJ range multi-diff views directly
 ```js
 await vscode.commands.executeCommand('visualjj.openRangeMultiDiff', {
 	workspacePath: '/Users/astahmer/dev/work-related/welii',
-	base: 'yvspkqrx',
-	target: 'mvvosnsv',
+	from: 'yvspkqrx',
+	to: 'mvvosnsv',
 	title: 'yvspkqrx::mvvosnsv',
 });
 ```
@@ -29,12 +29,16 @@ await vscode.commands.executeCommand('visualjj.openRangeMultiDiff', {
 `bin.js` opens the same flow from your shell by forwarding a deep link into VS Code.
 
 ```sh
-./bin.js -b branch_start(@) -t @
-./bin.js --base yvspkqrx --target mvvosnsv --title 'range diff'
-./bin.js -b branch_start(@) -t @ -w /path/to/workspace
+./bin.js -f branch_start(@) -t @
+./bin.js --from yvspkqrx --to mvvosnsv --title 'range diff'
+./bin.js -f branch_start(@) -t @ -w /path/to/workspace
 ```
 
 If you install the package with `npm link`, the `visualjj-range-diff-helper` command is also available on your `PATH`.
+
+## Logs
+
+The extension writes the exact `jj` commands it runs to the `VisualJJ Range Diff Helper` output channel in VS Code.
 
 ## Install
 

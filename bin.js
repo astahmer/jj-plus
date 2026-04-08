@@ -24,12 +24,12 @@ function main() {
 
 	params.set('workspacePath', resolvedWorkspacePath);
 
-	if (options.base) {
-		params.set('base', options.base);
+	if (options.from) {
+		params.set('from', options.from);
 	}
 
-	if (options.target) {
-		params.set('target', options.target);
+	if (options.to) {
+		params.set('to', options.to);
 	}
 
 	if (options.title) {
@@ -84,8 +84,8 @@ function openWorkspace(workspacePath) {
 function parseArgs(argv) {
 	const options = {
 		help: false,
-		base: undefined,
-		target: undefined,
+		from: undefined,
+		to: undefined,
 		title: undefined,
 		workspacePath: undefined,
 	};
@@ -98,25 +98,35 @@ function parseArgs(argv) {
 			continue;
 		}
 
-		if (arg === '-b' || arg === '--base') {
-			options.base = requireValue(arg, argv[index + 1]);
+		if (arg === '-f' || arg === '--from' || arg === '-b' || arg === '--base') {
+			options.from = requireValue(arg, argv[index + 1]);
 			index += 1;
+			continue;
+		}
+
+		if (arg.startsWith('--from=')) {
+			options.from = requireValue('--from', arg.slice('--from='.length));
 			continue;
 		}
 
 		if (arg.startsWith('--base=')) {
-			options.base = requireValue('--base', arg.slice('--base='.length));
+			options.from = requireValue('--base', arg.slice('--base='.length));
 			continue;
 		}
 
-		if (arg === '-t' || arg === '--target') {
-			options.target = requireValue(arg, argv[index + 1]);
+		if (arg === '-t' || arg === '--to' || arg === '--target') {
+			options.to = requireValue(arg, argv[index + 1]);
 			index += 1;
 			continue;
 		}
 
+		if (arg.startsWith('--to=')) {
+			options.to = requireValue('--to', arg.slice('--to='.length));
+			continue;
+		}
+
 		if (arg.startsWith('--target=')) {
-			options.target = requireValue('--target', arg.slice('--target='.length));
+			options.to = requireValue('--target', arg.slice('--target='.length));
 			continue;
 		}
 
@@ -204,8 +214,10 @@ function usage() {
 		'Usage: visualjj-range-diff-helper [options]',
 		'',
 		'Options:',
-		'  -b, --base <revset>              Base change id or revset',
-		'  -t, --target <revset>            Target change id or revset',
+		'  -f, --from <revset>              From change id or revset',
+		'  -t, --to <revset>                To change id or revset',
+		'      --base <revset>              Alias for --from',
+		'      --target <revset>            Alias for --to',
 		'      --title <title>              Override the tab title',
 		'  -w, --workspace <path>           Workspace path to resolve in VS Code',
 		'      --workspace-path <path>      Alias for --workspace',
