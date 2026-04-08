@@ -1,7 +1,7 @@
 {
 	"name": "visualjj-range-diff-helper",
 	"displayName": "VisualJJ Range Diff Helper",
-	"version": "0.0.1",
+	"version": "0.0.2",
 	"private": true,
 	"description": "Open VisualJJ multi-diff views for revision ranges.",
 	"categories": [
@@ -10,7 +10,13 @@
 		"Visualization"
 	],
 	"publisher": "astahmer",
+	"activationEvents": [
+		"onUri"
+	],
 	"main": "./extension.js",
+	"bin": {
+		"visualjj-range-diff-helper": "./bin.js"
+	},
 	"devDependencies": {
 		"@vscode/vsce": "3.7.1"
 	},
@@ -24,5 +30,8 @@
 	},
 	"engines": {
 		"vscode": "^1.86.0"
+	},
+	"scripts": {
+		"build": "pnpx @vscode/vsce package"
 	}
 }

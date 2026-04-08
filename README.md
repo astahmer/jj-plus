@@ -24,6 +24,18 @@ await vscode.commands.executeCommand('visualjj.openRangeMultiDiff', {
 });
 ```
 
+## CLI
+
+`bin.js` can open the same flow from your shell by forwarding a deep link into VS Code.
+
+```sh
+./bin.js -b branch_start(@) -t @
+./bin.js --base yvspkqrx --target mvvosnsv --title 'range diff'
+./bin.js -b branch_start(@) -t @ -w /path/to/workspace
+```
+
+If you install the package with `npm link`, the `visualjj-range-diff-helper` command is also available on your `PATH`.
+
 ## Install
 
 ```sh
