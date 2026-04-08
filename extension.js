@@ -14,7 +14,7 @@ const OPEN_RANGE_DIFF_URI_PATH = '/open-range-multi-diff';
 const OPEN_MULTI_DIFF_COMMAND = '_workbench.openMultiDiffEditor';
 const SNAPSHOT_SCHEME = 'visualjj-range-diff-helper';
 const PENDING_RANGE_DIFF_KEY = 'pendingRangeDiffArgs';
-const DEFAULT_FROM_REVSET = 'branch_start(@)';
+const DEFAULT_FROM_REVSET = 'closest_bookmark(@)';
 const DEFAULT_TO_REVSET = '@';
 
 /** @type {vscode.OutputChannel | undefined} */
