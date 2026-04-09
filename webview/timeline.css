@@ -278,7 +278,8 @@ input {
 
 .menu-button,
 .menu-item,
-.segment {
+.segment,
+.step-button {
   border: 1px solid var(--border);
   background: rgba(255, 255, 255, 0.04);
   color: var(--text);
@@ -323,15 +324,46 @@ input {
 .menu-button:hover,
 .menu-item:hover,
 .segment:hover,
+.step-button:hover,
 .skip-button:hover {
   border-color: rgba(255, 255, 255, 0.16);
   background: rgba(255, 255, 255, 0.06);
+}
+
+.step-button {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.step-button:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
 .range-label {
   font-size: 14px;
   font-weight: 600;
   letter-spacing: -0.02em;
+}
+
+.range-steps {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.step-status {
+  min-width: 0;
+  color: var(--muted);
+  font-size: 11px;
+  text-align: center;
 }
 
 .segmented {
@@ -410,6 +442,11 @@ input {
   border-radius: 999px;
   border: 1px solid rgba(93, 145, 255, 0.35);
   background: linear-gradient(90deg, rgba(113, 183, 255, 0.28), rgba(93, 145, 255, 0.55));
+  cursor: grab;
+}
+
+.range-fill.is-dragging {
+  cursor: grabbing;
 }
 
 .selection-pill {
@@ -424,6 +461,11 @@ input {
   font-size: 11px;
   white-space: nowrap;
   z-index: 1;
+  cursor: grab;
+}
+
+.selection-pill.is-dragging {
+  cursor: grabbing;
 }
 
 .selection-pill.from {
@@ -634,6 +676,10 @@ input[type='range']::-moz-range-thumb {
   .timeline-labels {
     display: grid;
     grid-template-columns: 1fr;
+  }
+
+  .range-steps {
+    grid-template-columns: auto 1fr auto;
   }
 
   .workspace.is-collapsed {

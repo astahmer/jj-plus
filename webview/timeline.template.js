@@ -46,10 +46,17 @@
                 <div class="range-subtitle" id="rangeSubtitle"></div>
               </div>
               <div class="control-row">
+                <div class="segmented" id="comparisonModes"></div>
                 <div class="segmented" id="layoutModes"></div>
                 <div class="segmented" id="contentModes"></div>
                 <div class="segmented" id="presets"></div>
               </div>
+            </div>
+
+            <div class="range-steps">
+              <button class="step-button" id="stepBackwardButton" type="button" aria-label="Previous step">&#x2039;</button>
+              <div class="step-status" id="stepStatus">Range view</div>
+              <button class="step-button" id="stepForwardButton" type="button" aria-label="Next step">&#x203A;</button>
             </div>
 
             <div class="timeline">

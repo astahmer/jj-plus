@@ -98,6 +98,7 @@ let extensionContext;
  * @property {boolean=} sidebarCollapsed
  * @property {'split' | 'unified'=} layoutMode
  * @property {'diffs' | 'full'=} contentMode
+ * @property {'range' | 'step'=} comparisonMode
  * @property {string=} preset
  */
 
@@ -447,6 +448,7 @@ async function handleTimelineMessage(panel, session, message) {
       sidebarCollapsed: Boolean(Reflect.get(message, 'sidebarCollapsed')),
       layoutMode: getLayoutMode(Reflect.get(message, 'layoutMode')),
       contentMode: getContentMode(Reflect.get(message, 'contentMode')),
+      comparisonMode: getComparisonMode(Reflect.get(message, 'comparisonMode')),
       preset: getPresetName(Reflect.get(message, 'preset')),
     });
     return;
@@ -491,6 +493,14 @@ function getLayoutMode(value) {
  */
 function getContentMode(value) {
   return value === 'full' ? 'full' : 'diffs';
+}
+
+/**
+ * @param {unknown} value
+ * @returns {'range' | 'step'}
+ */
+function getComparisonMode(value) {
+  return value === 'step' ? 'step' : 'range';
 }
 
 /**
@@ -915,6 +925,7 @@ function getTimelinePreferences(context) {
       sidebarCollapsed: false,
       layoutMode: 'split',
       contentMode: 'diffs',
+      comparisonMode: 'range',
       preset: '90d',
     };
   }
@@ -925,6 +936,7 @@ function getTimelinePreferences(context) {
     sidebarCollapsed: value.sidebarCollapsed === true,
     layoutMode: getLayoutMode(value.layoutMode),
     contentMode: getContentMode(value.contentMode),
+    comparisonMode: getComparisonMode(value.comparisonMode),
     preset: getPresetName(value.preset),
   };
 }

@@ -37,3 +37,24 @@ few things to change:
 ---
 
 - can we make the split the webview from the extension.js file so we can run it locally and test it?
+
+---
+
+- how far can we go without a build-step? shall we swap to vite for the webview with somth like solidjs (2.0 ideally) rather than vanilla js? maybe we could then use vite+tailwindcss for the extension itself?
+
+---
+
+- when looking at a revision range (that goes from A to D), I also need directional buttons that allow me to see the diff of each nodes inside the range itself (A->B, B->C, C->D) so I can see the granular changes in the file (and maybe even the diffs of the individual changes)
+- we should be able to drag/drop the revision range bar itself so we can move the range; ex: we're looking at A->D but now I might want to look at C->F (same range size but different position)
+- we should have a button that easily swaps the "range mode" (current behaviour) back to what we had at first (= just a single diff shown at a time, just A->B or B->C but never A->C). that can internally work using a range of size 1 if that makes it easier implementation wise
+
+---
+
+- when coming from a small editor (due to opening the revision timeline using split editors); somehow the revision items on the sidebar have broken styles (way too big). this does not happen when directly maximizing the window i think? not sure how to 100% repro
+- there should be a button to display the revisions that are chronogically in-between 2 revisions that affect the currently viewed file, example: im looking at file XXX.tsx. it was edited in revision A, D, E and G but not in B, C or F. by default B C and G are not shown (which is the current behaviour and its fine) but i now need an option to show them (styled slightly differently) for information purpose.
+- btw we should have a button in the revision item in the sidebar (maybe on the revision id?) that should open a vscode multidiff tab (with all files diff changed in that revision)
+
+---
+
+- when using a jj backend, we could have a way to show the snapshots diffs (implicit diff based on each change in each file) in addition to the revision diffs (explicit change based on user manual command) so we could see the granular changes / how the file evolved over time; we could even have a play button to animate this evolution
+- "Open a file in the editor to browse its revision timeline" when no file is currently open we should probably show an input field with the list of files to select from the workspace no?
