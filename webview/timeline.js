@@ -26,13 +26,13 @@
     previewTimer: undefined,
     persistTimer: undefined,
     menuOpen: false,
+    compactViewport: false,
+    sidebarShownOnCompact: false,
   };
 
   const elements = {
     workspace: document.getElementById('workspace'),
     resizeHandle: document.getElementById('resizeHandle'),
-    fileName: document.getElementById('fileName'),
-    filePath: document.getElementById('filePath'),
     fileSwitcher: document.getElementById('fileSwitcher'),
     workspaceFilesList: document.getElementById('workspaceFilesList'),
     actionsButton: document.getElementById('actionsButton'),
@@ -83,6 +83,8 @@
     full: 'Whole file',
   };
 
+  const compactViewportQuery = window.matchMedia('(max-width: 980px)');
+
   window.addEventListener('message', (event) => {
     const message = event.data;
     if (message && message.type === 'timeline-data') {
@@ -99,9 +101,8 @@
         return;
       }
 
-      elements.fileName.textContent = state.data.fileName;
-      elements.filePath.textContent = state.data.relativePath;
       elements.fileSwitcher.value = state.data.relativePath;
+      syncViewportState(true);
       renderWorkspaceFiles();
       applySidebarState();
       renderControlGroups();
@@ -184,7 +185,13 @@
 
   elements.toggleSidebarAction.addEventListener('click', () => {
     closeMenu();
-    state.sidebarCollapsed = !state.sidebarCollapsed;
+    if (state.compactViewport) {
+      const nextCollapsed = !getSidebarCollapsed();
+      state.sidebarCollapsed = false;
+      state.sidebarShownOnCompact = !nextCollapsed;
+    } else {
+      state.sidebarCollapsed = !state.sidebarCollapsed;
+    }
     applySidebarState();
     persistPreferences();
   });
@@ -197,7 +204,7 @@
   });
 
   elements.resizeHandle.addEventListener('pointerdown', (event) => {
-    if (window.matchMedia('(max-width: 980px)').matches || state.sidebarCollapsed) {
+    if (state.compactViewport || getSidebarCollapsed()) {
       return;
     }
 
@@ -221,6 +228,12 @@
       persistPreferences();
     }
   });
+
+  if (typeof compactViewportQuery.addEventListener === 'function') {
+    compactViewportQuery.addEventListener('change', () => syncViewportState(false));
+  } else if (typeof compactViewportQuery.addListener === 'function') {
+    compactViewportQuery.addListener(() => syncViewportState(false));
+  }
 
   function renderControlGroups() {
     renderSegmentedControl(elements.layoutModes, layoutModeLabels, state.layoutMode, (value) => {
@@ -262,8 +275,10 @@
 
   function applySidebarState() {
     document.documentElement.style.setProperty('--sidebar-width', String(state.sidebarWidth) + 'px');
-    elements.workspace.classList.toggle('is-collapsed', state.sidebarCollapsed);
-    elements.toggleSidebarAction.textContent = state.sidebarCollapsed ? 'Show Sidebar' : 'Hide Sidebar';
+    const isCollapsed = getSidebarCollapsed();
+    elements.workspace.classList.toggle('is-collapsed', isCollapsed);
+    elements.workspace.classList.toggle('is-compact', state.compactViewport);
+    elements.toggleSidebarAction.textContent = isCollapsed ? 'Show Revisions' : 'Hide Revisions';
   }
 
   function applyPreferences(preferences) {
@@ -298,6 +313,22 @@
   function closeMenu() {
     state.menuOpen = false;
     renderMenu();
+  }
+
+  function getSidebarCollapsed() {
+    return state.sidebarCollapsed || (state.compactViewport && !state.sidebarShownOnCompact);
+  }
+
+  function syncViewportState(isInitialLoad) {
+    const nextCompactViewport = compactViewportQuery.matches;
+    if (nextCompactViewport && (isInitialLoad || !state.compactViewport)) {
+      state.sidebarShownOnCompact = false;
+    }
+    if (!nextCompactViewport) {
+      state.sidebarShownOnCompact = false;
+    }
+    state.compactViewport = nextCompactViewport;
+    applySidebarState();
   }
 
   function submitFileSwitch() {
@@ -377,7 +408,7 @@
     elements.toHandleLabel.textContent = 'To ' + toEntry.shortRevision;
     elements.rangeLabel.textContent = fromEntry.shortRevision + ' -> ' + toEntry.shortRevision;
     elements.rangeSubtitle.textContent = String(state.visibleEntries.length) + ' revisions in ' + state.data.backend.toUpperCase() + ' history · ' + first.shortDate + ' - ' + (last.isWorkingTree ? 'Today' : last.shortDate);
-    elements.sidebarHint.textContent = state.sidebarCollapsed ? '' : 'Range';
+    elements.sidebarHint.textContent = getSidebarCollapsed() ? '' : 'Range';
     elements.selectionMeta.textContent = formatSelectionMeta(fromEntry, toEntry, knownPreview);
     elements.diffModeEyebrow.textContent = layoutModeLabels[state.layoutMode] + ' · ' + contentModeLabels[state.contentMode] + ' · range';
 
@@ -462,14 +493,13 @@
 
       button.innerHTML = [
         '<div class="history-top">',
-        '<strong>' + escapeHtml(entry.shortRevision) + '</strong>',
+        '<div class="history-primary"><strong>' + escapeHtml(entry.shortRevision) + '</strong>' + renderHistoryBadges(isFrom, isTo) + '</div>',
         '<span>' + escapeHtml(entry.shortDate) + '</span>',
         '</div>',
-        '<div class="history-badges">' + renderHistoryBadges(isFrom, isTo) + '</div>',
         '<div class="history-description' + (descriptionExpanded || !showMore ? '' : ' is-truncated') + '">' + escapeHtml(entry.description) + '</div>',
         '<div class="history-bottom">',
         '<span class="history-meta">' + escapeHtml(entry.relativeDate) + '</span>',
-        '<span class="history-stats">' + (preview ? renderStatChips(preview) : '') + '</span>',
+        '<span class="history-stats">' + (preview ? renderHistoryStats(preview) : '') + '</span>',
         '</div>',
         showMore ? '<button class="history-more" type="button">' + (descriptionExpanded ? 'Less' : 'More') + '</button>' : '',
       ].join('');
@@ -498,6 +528,13 @@
       parts.push('<span class="mini-badge to">TO</span>');
     }
     return parts.join('');
+  }
+
+  function renderHistoryStats(preview) {
+    return [
+      '<span class="stat stat--plus">+' + String(preview.additions) + '</span>',
+      '<span class="stat stat--minus">-' + String(preview.deletions) + '</span>',
+    ].join('');
   }
 
   function renderPreview() {
@@ -765,5 +802,6 @@
       .replaceAll("'", '&#39;');
   }
 
+  syncViewportState(true);
   vscode.postMessage({ command: 'ready' });
 })();

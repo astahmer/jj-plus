@@ -123,8 +123,7 @@ input {
 .range-subtitle,
 .selection-meta,
 .diff-subtitle,
-.history-meta,
-.title-path {
+.history-meta {
   color: var(--muted);
   font-size: 11px;
 }
@@ -140,11 +139,11 @@ input {
   border: 1px solid transparent;
   background: rgba(255, 255, 255, 0.02);
   border-radius: 10px;
-  padding: 8px 9px;
+  padding: 8px 9px 7px;
   cursor: pointer;
   text-align: left;
   display: grid;
-  gap: 4px;
+  gap: 3px;
 }
 
 .history-item:hover {
@@ -178,11 +177,18 @@ input {
   font-weight: 600;
 }
 
+.history-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
 .history-description {
   color: var(--muted);
   font-size: 11px;
   line-height: 1.35;
-  min-height: 15px;
+  min-height: 0;
 }
 
 .history-description.is-truncated {
@@ -191,22 +197,15 @@ input {
   text-overflow: ellipsis;
 }
 
-.history-stats,
-.history-badges {
+.history-stats {
   display: inline-grid;
   grid-auto-flow: column;
-  gap: 6px;
+  gap: 5px;
   align-items: center;
 }
 
-.history-badges {
-  display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
-}
-
 .mini-badge {
-  padding: 2px 5px;
+  padding: 1px 5px;
   border-radius: 999px;
   border: 1px solid var(--border);
   background: rgba(255, 255, 255, 0.04);
@@ -240,32 +239,15 @@ input {
 }
 
 .diff-head-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: start;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.file-switcher {
-  min-width: min(440px, 100%);
-  flex: 1 1 420px;
   display: grid;
-  gap: 5px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
 }
 
 .file-switcher-row {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  min-width: 0;
-  flex-wrap: wrap;
-}
-
-.file-title {
-  font-size: 18px;
-  font-weight: 650;
-  letter-spacing: -0.02em;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   min-width: 0;
 }
 
@@ -287,7 +269,7 @@ input {
 .head-actions {
   display: flex;
   gap: 8px;
-  align-items: start;
+  align-items: center;
 }
 
 .menu-wrap {
@@ -376,6 +358,7 @@ input {
   position: relative;
   display: grid;
   gap: 6px;
+  overflow: hidden;
 }
 
 .handle-pills {
@@ -541,6 +524,10 @@ input[type='range']::-moz-range-thumb {
   line-height: 1.55;
 }
 
+.workspace.is-compact .sidebar {
+  max-height: min(34vh, 320px);
+}
+
 .diff-row,
 .split-row {
   display: grid;
@@ -643,10 +630,22 @@ input[type='range']::-moz-range-thumb {
     border-radius: 12px;
   }
 
-  .diff-head-top,
   .timeline-head,
   .timeline-labels {
     display: grid;
     grid-template-columns: 1fr;
+  }
+
+  .workspace.is-collapsed {
+    gap: 0;
+  }
+
+  .diff-head-top {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+  }
+
+  .menu-wrap {
+    justify-self: end;
   }
 }

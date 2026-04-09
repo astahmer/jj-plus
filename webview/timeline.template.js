@@ -20,14 +20,10 @@
         <div class="resize-handle" id="resizeHandle"></div>
         <section class="panel diff-panel">
           <div class="diff-head">
+            <div class="eyebrow">Revision Timeline</div>
             <div class="diff-head-top">
-              <div class="file-switcher">
-                <div class="eyebrow">Revision Timeline</div>
-                <div class="file-switcher-row">
-                  <div class="file-title" id="fileName">Loading...</div>
-                  <div class="title-path" id="filePath"></div>
-                </div>
-                <input class="file-input" id="fileSwitcher" list="workspaceFilesList" placeholder="Switch file..." />
+              <div class="file-switcher-row">
+                <input class="file-input" id="fileSwitcher" list="workspaceFilesList" placeholder="Switch file..." autocomplete="off" />
                 <datalist id="workspaceFilesList"></datalist>
               </div>
               <div class="head-actions">

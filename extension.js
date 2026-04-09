@@ -615,6 +615,11 @@ async function buildTimelineSession(workspacePath, absolutePath) {
  * @returns {Promise<string[]>}
  */
 async function listWorkspaceFiles(workspacePath) {
+  const gitFiles = await listGitVisibleFiles(workspacePath);
+  if (gitFiles) {
+    return gitFiles;
+  }
+
   const matches = await vscode.workspace.findFiles(
     new vscode.RelativePattern(workspacePath, '**/*'),
     '**/{.git,.jj,node_modules,dist,build,out,coverage}/**',
@@ -625,6 +630,30 @@ async function listWorkspaceFiles(workspacePath) {
     .filter((uri) => uri.scheme === 'file')
     .map((uri) => path.relative(workspacePath, uri.fsPath).replace(/\\/g, '/'))
     .sort((left, right) => left.localeCompare(right));
+}
+
+/**
+ * @param {string} workspacePath
+ * @returns {Promise<string[] | undefined>}
+ */
+async function listGitVisibleFiles(workspacePath) {
+  try {
+    const { stdout } = await runGit(workspacePath, [
+      'ls-files',
+      '--cached',
+      '--others',
+      '--exclude-standard',
+      '-z',
+    ]);
+
+    return stdout
+      .split('\u0000')
+      .map((value) => value.trim())
+      .filter(Boolean)
+      .sort((left, right) => left.localeCompare(right));
+  } catch {
+    return undefined;
+  }
 }
 
 /**
