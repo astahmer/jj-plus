@@ -81,6 +81,28 @@ let currentTimelineSession;
  * @property {string} absolutePath
  * @property {string} fileName
  * @property {FileRevisionEntry[]} entries
+ * @property {Map<string, string>} contentCache
+ * @property {Map<number, DiffPreview>} previewCache
+ */
+
+/**
+ * @typedef {object} DiffRow
+ * @property {'context' | 'add' | 'remove' | 'skip'} type
+ * @property {number | null} leftNumber
+ * @property {number | null} rightNumber
+ * @property {string} text
+ */
+
+/**
+ * @typedef {object} DiffPreview
+ * @property {number} index
+ * @property {string} title
+ * @property {string} subtitle
+ * @property {number} additions
+ * @property {number} deletions
+ * @property {number} hunkCount
+ * @property {boolean} hasChanges
+ * @property {DiffRow[]} rows
  */
 
 /**
@@ -289,7 +311,7 @@ function getOrCreateTimelinePanel(context, fileName) {
 
 /**
  * @param {TimelineSession} session
- * @returns {{ backend: HistoryBackend, workspacePath: string, relativePath: string, fileName: string, presets: typeof TIMELINE_PRESET_DAYS, entries: Array<Record<string, unknown>> }}
+ * @returns {{ backend: HistoryBackend, workspacePath: string, relativePath: string, fileName: string, presets: typeof TIMELINE_PRESET_DAYS, defaultIndex: number, entries: Array<Record<string, unknown>> }}
  */
 function buildTimelinePayload(session) {
   return {
@@ -298,6 +320,7 @@ function buildTimelinePayload(session) {
     relativePath: session.relativePath,
     fileName: session.fileName,
     presets: TIMELINE_PRESET_DAYS,
+    defaultIndex: Math.max(0, session.entries.length - 1),
     entries: session.entries.map((entry, index) => ({
       ...entry,
       index,
@@ -327,37 +350,74 @@ async function handleTimelineMessage(panel, session, message) {
       type: 'timeline-data',
       payload: buildTimelinePayload(session),
     });
+    await sendTimelinePreview(panel, session, Math.max(0, session.entries.length - 1));
     return;
   }
 
-  if (command === 'open-selection') {
+  if (command === 'select-entry') {
     const nextIndex = Number(Reflect.get(message, 'index'));
     if (!Number.isInteger(nextIndex)) {
       return;
     }
 
-    await openTimelineSelection(session, nextIndex);
+    await sendTimelinePreview(panel, session, nextIndex);
+    return;
+  }
+
+  if (command === 'open-editor-diff') {
+    const nextIndex = Number(Reflect.get(message, 'index'));
+    if (!Number.isInteger(nextIndex)) {
+      return;
+    }
+
+    await openTimelineSelectionInEditor(session, nextIndex);
     return;
   }
 
   if (command === 'refresh') {
     const nextSession = await buildTimelineSession(session.workspacePath, session.absolutePath);
-    session.backend = nextSession.backend;
-    session.entries = nextSession.entries;
-    session.fileName = nextSession.fileName;
-    session.relativePath = nextSession.relativePath;
+    syncTimelineSession(session, nextSession);
+    currentTimelineSession = session;
     await panel.webview.postMessage({
       type: 'timeline-data',
       payload: buildTimelinePayload(session),
     });
+    await sendTimelinePreview(panel, session, Math.max(0, session.entries.length - 1));
   }
+}
+
+/**
+ * @param {vscode.WebviewPanel} panel
+ * @param {TimelineSession} session
+ * @param {number} index
+ */
+async function sendTimelinePreview(panel, session, index) {
+  await panel.webview.postMessage({
+    type: 'diff-preview',
+    payload: await getDiffPreview(session, index),
+  });
+}
+
+/**
+ * @param {TimelineSession} target
+ * @param {TimelineSession} source
+ */
+function syncTimelineSession(target, source) {
+  target.backend = source.backend;
+  target.workspacePath = source.workspacePath;
+  target.relativePath = source.relativePath;
+  target.absolutePath = source.absolutePath;
+  target.fileName = source.fileName;
+  target.entries = source.entries;
+  target.contentCache = source.contentCache;
+  target.previewCache = source.previewCache;
 }
 
 /**
  * @param {TimelineSession} session
  * @param {number} index
  */
-async function openTimelineSelection(session, index) {
+async function openTimelineSelectionInEditor(session, index) {
   const entry = session.entries[index];
   if (!entry) {
     return;
@@ -415,6 +475,8 @@ async function buildTimelineSession(workspacePath, absolutePath) {
     relativePath,
     fileName: path.basename(absolutePath),
     entries: await appendWorkingTreeEntry(absolutePath, entries),
+    contentCache: new Map(),
+    previewCache: new Map(),
   };
 }
 
@@ -549,6 +611,340 @@ async function appendWorkingTreeEntry(absolutePath, entries) {
   }
 
   return [...entries, workingTreeEntry];
+}
+
+/**
+ * @param {TimelineSession} session
+ * @param {number} index
+ * @returns {Promise<DiffPreview>}
+ */
+async function getDiffPreview(session, index) {
+  const cached = session.previewCache.get(index);
+  if (cached) {
+    return cached;
+  }
+
+  const currentEntry = session.entries[index];
+  if (!currentEntry) {
+    return {
+      index,
+      title: 'No revision selected',
+      subtitle: '',
+      additions: 0,
+      deletions: 0,
+      hunkCount: 0,
+      hasChanges: false,
+      rows: [],
+    };
+  }
+
+  const previousEntry = index > 0 ? session.entries[index - 1] : undefined;
+  const beforeText = previousEntry ? await getRevisionContent(session, previousEntry) : '';
+  const afterText = await getRevisionContent(session, currentEntry);
+  const preview = buildDiffPreview(index, previousEntry, currentEntry, beforeText, afterText);
+  session.previewCache.set(index, preview);
+  return preview;
+}
+
+/**
+ * @param {TimelineSession} session
+ * @param {FileRevisionEntry} entry
+ * @returns {Promise<string>}
+ */
+async function getRevisionContent(session, entry) {
+  const cacheKey = entry.id;
+  const cached = session.contentCache.get(cacheKey);
+  if (cached !== undefined) {
+    return cached;
+  }
+
+  let content = '';
+  if (entry.isWorkingTree) {
+    content = await fs.readFile(session.absolutePath, 'utf8');
+  } else {
+    content = await showFileAtRevision(
+      session.workspacePath,
+      entry.revision,
+      session.relativePath,
+      session.backend
+    );
+  }
+
+  session.contentCache.set(cacheKey, content);
+  return content;
+}
+
+/**
+ * @param {number} index
+ * @param {FileRevisionEntry | undefined} previousEntry
+ * @param {FileRevisionEntry} currentEntry
+ * @param {string} beforeText
+ * @param {string} afterText
+ * @returns {DiffPreview}
+ */
+function buildDiffPreview(index, previousEntry, currentEntry, beforeText, afterText) {
+  const beforeLines = splitIntoLines(beforeText);
+  const afterLines = splitIntoLines(afterText);
+  const operations = diffLineOperations(beforeLines, afterLines);
+  const numberedRows = materializeDiffRows(operations);
+  const rows = collapseDiffRows(numberedRows, 3);
+  const additions = rows.filter((row) => row.type === 'add').length;
+  const deletions = rows.filter((row) => row.type === 'remove').length;
+  const hunkCount = rows.filter((row) => row.type === 'skip').length + (additions || deletions ? 1 : 0);
+  const title = previousEntry
+    ? `${previousEntry.shortRevision} -> ${currentEntry.shortRevision}`
+    : `Initial revision -> ${currentEntry.shortRevision}`;
+  const subtitle = currentEntry.isWorkingTree
+    ? 'Comparing the working tree with the previous recorded revision.'
+    : `${new Date(currentEntry.authorDate).toLocaleString()} · ${currentEntry.description}`;
+
+  return {
+    index,
+    title,
+    subtitle,
+    additions,
+    deletions,
+    hunkCount: additions || deletions ? hunkCount : 0,
+    hasChanges: additions > 0 || deletions > 0,
+    rows: additions > 0 || deletions > 0 ? rows : buildNoChangeRows(afterLines),
+  };
+}
+
+/**
+ * @param {string} value
+ * @returns {string[]}
+ */
+function splitIntoLines(value) {
+  if (!value) {
+    return [];
+  }
+
+  const normalized = value.replace(/\r\n/g, '\n');
+  const lines = normalized.split('\n');
+  if (lines[lines.length - 1] === '') {
+    lines.pop();
+  }
+  return lines;
+}
+
+/**
+ * @param {string[]} beforeLines
+ * @param {string[]} afterLines
+ * @returns {Array<{ type: 'context' | 'add' | 'remove', text: string }>}
+ */
+function diffLineOperations(beforeLines, afterLines) {
+  if (!beforeLines.length) {
+    return afterLines.map((text) => ({ type: 'add', text }));
+  }
+
+  if (!afterLines.length) {
+    return beforeLines.map((text) => ({ type: 'remove', text }));
+  }
+
+  if (beforeLines.length * afterLines.length > 1200000) {
+    return buildFallbackOperations(beforeLines, afterLines);
+  }
+
+  const matrix = Array.from(
+    { length: beforeLines.length + 1 },
+    () => new Uint32Array(afterLines.length + 1)
+  );
+
+  for (let leftIndex = beforeLines.length - 1; leftIndex >= 0; leftIndex -= 1) {
+    for (let rightIndex = afterLines.length - 1; rightIndex >= 0; rightIndex -= 1) {
+      if (beforeLines[leftIndex] === afterLines[rightIndex]) {
+        matrix[leftIndex][rightIndex] = matrix[leftIndex + 1][rightIndex + 1] + 1;
+      } else {
+        matrix[leftIndex][rightIndex] = Math.max(
+          matrix[leftIndex + 1][rightIndex],
+          matrix[leftIndex][rightIndex + 1]
+        );
+      }
+    }
+  }
+
+  /** @type {Array<{ type: 'context' | 'add' | 'remove', text: string }>} */
+  const operations = [];
+  let leftIndex = 0;
+  let rightIndex = 0;
+
+  while (leftIndex < beforeLines.length && rightIndex < afterLines.length) {
+    if (beforeLines[leftIndex] === afterLines[rightIndex]) {
+      operations.push({ type: 'context', text: beforeLines[leftIndex] });
+      leftIndex += 1;
+      rightIndex += 1;
+    } else if (matrix[leftIndex + 1][rightIndex] >= matrix[leftIndex][rightIndex + 1]) {
+      operations.push({ type: 'remove', text: beforeLines[leftIndex] });
+      leftIndex += 1;
+    } else {
+      operations.push({ type: 'add', text: afterLines[rightIndex] });
+      rightIndex += 1;
+    }
+  }
+
+  while (leftIndex < beforeLines.length) {
+    operations.push({ type: 'remove', text: beforeLines[leftIndex] });
+    leftIndex += 1;
+  }
+
+  while (rightIndex < afterLines.length) {
+    operations.push({ type: 'add', text: afterLines[rightIndex] });
+    rightIndex += 1;
+  }
+
+  return operations;
+}
+
+/**
+ * @param {string[]} beforeLines
+ * @param {string[]} afterLines
+ * @returns {Array<{ type: 'context' | 'add' | 'remove', text: string }>}
+ */
+function buildFallbackOperations(beforeLines, afterLines) {
+  /** @type {Array<{ type: 'context' | 'add' | 'remove', text: string }>} */
+  const operations = [];
+  let prefix = 0;
+  while (
+    prefix < beforeLines.length &&
+    prefix < afterLines.length &&
+    beforeLines[prefix] === afterLines[prefix]
+  ) {
+    prefix += 1;
+  }
+
+  let beforeSuffix = beforeLines.length - 1;
+  let afterSuffix = afterLines.length - 1;
+  while (
+    beforeSuffix >= prefix &&
+    afterSuffix >= prefix &&
+    beforeLines[beforeSuffix] === afterLines[afterSuffix]
+  ) {
+    beforeSuffix -= 1;
+    afterSuffix -= 1;
+  }
+
+  for (const text of beforeLines.slice(0, prefix)) {
+    operations.push({ type: 'context', text });
+  }
+
+  for (const text of beforeLines.slice(prefix, beforeSuffix + 1)) {
+    operations.push({ type: 'remove', text });
+  }
+
+  for (const text of afterLines.slice(prefix, afterSuffix + 1)) {
+    operations.push({ type: 'add', text });
+  }
+
+  for (const text of beforeLines.slice(beforeSuffix + 1)) {
+    operations.push({ type: 'context', text });
+  }
+
+  return operations;
+}
+
+/**
+ * @param {Array<{ type: 'context' | 'add' | 'remove', text: string }>} operations
+ * @returns {DiffRow[]}
+ */
+function materializeDiffRows(operations) {
+  /** @type {DiffRow[]} */
+  const rows = [];
+  let leftNumber = 1;
+  let rightNumber = 1;
+
+  for (const operation of operations) {
+    if (operation.type === 'context') {
+      rows.push({
+        type: 'context',
+        leftNumber,
+        rightNumber,
+        text: operation.text,
+      });
+      leftNumber += 1;
+      rightNumber += 1;
+      continue;
+    }
+
+    if (operation.type === 'remove') {
+      rows.push({
+        type: 'remove',
+        leftNumber,
+        rightNumber: null,
+        text: operation.text,
+      });
+      leftNumber += 1;
+      continue;
+    }
+
+    rows.push({
+      type: 'add',
+      leftNumber: null,
+      rightNumber,
+      text: operation.text,
+    });
+    rightNumber += 1;
+  }
+
+  return rows;
+}
+
+/**
+ * @param {DiffRow[]} rows
+ * @param {number} contextSize
+ * @returns {DiffRow[]}
+ */
+function collapseDiffRows(rows, contextSize) {
+  const changeIndexes = rows
+    .map((row, index) => (row.type === 'add' || row.type === 'remove' ? index : -1))
+    .filter((index) => index >= 0);
+
+  if (!changeIndexes.length) {
+    return rows.slice(0, 80);
+  }
+
+  /** @type {Array<[number, number]>} */
+  const ranges = [];
+  for (const changeIndex of changeIndexes) {
+    const start = Math.max(0, changeIndex - contextSize);
+    const end = Math.min(rows.length - 1, changeIndex + contextSize);
+    const previousRange = ranges[ranges.length - 1];
+    if (!previousRange || start > previousRange[1] + 1) {
+      ranges.push([start, end]);
+    } else {
+      previousRange[1] = Math.max(previousRange[1], end);
+    }
+  }
+
+  /** @type {DiffRow[]} */
+  const collapsed = [];
+  for (const [rangeIndex, range] of ranges.entries()) {
+    const [start, end] = range;
+    if (rangeIndex > 0) {
+      collapsed.push({
+        type: 'skip',
+        leftNumber: null,
+        rightNumber: null,
+        text: `… ${start - ranges[rangeIndex - 1][1] - 1} unchanged lines`,
+      });
+    }
+
+    collapsed.push(...rows.slice(start, end + 1));
+  }
+
+  return collapsed;
+}
+
+/**
+ * @param {string[]} afterLines
+ * @returns {DiffRow[]}
+ */
+function buildNoChangeRows(afterLines) {
+  return afterLines.slice(0, 80).map((text, index) => ({
+    type: 'context',
+    leftNumber: index + 1,
+    rightNumber: index + 1,
+    text,
+  }));
 }
 
 /**
@@ -1002,16 +1398,25 @@ function getTimelineWebviewHtml(webview) {
     <style>
       :root {
         color-scheme: dark;
-        --bg: #0b0f19;
-        --panel: rgba(19, 26, 40, 0.92);
-        --panel-strong: rgba(28, 36, 54, 0.98);
-        --line: rgba(136, 160, 201, 0.16);
-        --text: #edf3ff;
-        --muted: #90a3c4;
-        --accent: #79d2a6;
-        --accent-soft: rgba(121, 210, 166, 0.18);
-        --chip: rgba(255, 255, 255, 0.06);
-        --shadow: 0 28px 90px rgba(0, 0, 0, 0.34);
+        --bg: var(--vscode-editor-background, #11151c);
+        --panel: var(--vscode-sideBar-background, #171c24);
+        --panel-alt: var(--vscode-editorWidget-background, #1d232d);
+        --panel-soft: rgba(255, 255, 255, 0.03);
+        --text: var(--vscode-foreground, #e8ecf3);
+        --muted: var(--vscode-descriptionForeground, #9da7b5);
+        --border: var(--vscode-panel-border, rgba(255, 255, 255, 0.08));
+        --accent: var(--vscode-focusBorder, #5d91ff);
+        --accent-soft: rgba(93, 145, 255, 0.14);
+        --success: #4cc38a;
+        --danger: #ff7b72;
+        --shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+        --code-font: "SFMono-Regular", "Cascadia Code", "JetBrains Mono", monospace;
+        --ui-font: "SF Pro Text", "Segoe UI Variable", "Aptos", sans-serif;
+      }
+
+      html,
+      body {
+        height: 100%;
       }
 
       * {
@@ -1020,136 +1425,159 @@ function getTimelineWebviewHtml(webview) {
 
       body {
         margin: 0;
-        min-height: 100vh;
-        font-family: ui-rounded, "SF Pro Rounded", "Avenir Next", sans-serif;
+        font-family: var(--ui-font);
         color: var(--text);
-        background:
-          radial-gradient(circle at top left, rgba(96, 129, 255, 0.22), transparent 30%),
-          radial-gradient(circle at top right, rgba(121, 210, 166, 0.18), transparent 28%),
-          linear-gradient(180deg, #121826 0%, #0b0f19 100%);
-        padding: 24px;
+        background: var(--bg);
+        padding: 10px;
       }
 
-      .shell {
-        max-width: 1100px;
-        margin: 0 auto;
-        padding: 22px 22px 18px;
-        border: 1px solid rgba(255, 255, 255, 0.06);
-        border-radius: 28px;
-        background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+      .app {
+        height: calc(100vh - 20px);
+        display: grid;
+        grid-template-rows: auto auto minmax(0, 1fr);
+        gap: 10px;
+      }
+
+      .panel {
+        background: linear-gradient(180deg, var(--panel), var(--panel-alt));
+        border: 1px solid var(--border);
+        border-radius: 14px;
         box-shadow: var(--shadow);
-        backdrop-filter: blur(20px);
+        min-width: 0;
       }
 
       .topbar {
         display: flex;
         justify-content: space-between;
-        gap: 16px;
+        gap: 10px;
         align-items: center;
-        margin-bottom: 18px;
+        padding: 12px 14px;
       }
 
       .title {
         display: grid;
-        gap: 4px;
+        gap: 2px;
+        min-width: 0;
+      }
+
+      .eyebrow {
+        color: var(--muted);
+        font-size: 11px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
       }
 
       .title strong {
-        font-size: 22px;
-        letter-spacing: -0.03em;
+        font-size: 20px;
+        letter-spacing: -0.02em;
+        font-weight: 650;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
 
-      .title span {
+      .title-path {
         color: var(--muted);
         font-size: 12px;
-        text-transform: uppercase;
-        letter-spacing: 0.16em;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .toolbar {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .button {
+        border: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.04);
+        color: var(--text);
+        border-radius: 999px;
+        padding: 6px 11px;
+        font: inherit;
+        font-size: 12px;
+        cursor: pointer;
+      }
+
+      .button:hover {
+        border-color: rgba(255, 255, 255, 0.16);
+        background: rgba(255, 255, 255, 0.06);
+      }
+
+      .timeline-wrap {
+        padding: 12px 14px 14px;
+        display: grid;
+        gap: 10px;
+      }
+
+      .timeline-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .range-label {
+        font-size: 15px;
+        letter-spacing: -0.02em;
+        font-weight: 600;
+      }
+
+      .supporting {
+        color: var(--muted);
+        font-size: 12px;
       }
 
       .preset-row {
         display: inline-flex;
-        gap: 6px;
-        background: rgba(255,255,255,0.04);
-        border: 1px solid rgba(255,255,255,0.06);
-        padding: 5px;
-        border-radius: 16px;
+        gap: 4px;
+        padding: 3px;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid var(--border);
+        border-radius: 999px;
       }
 
       .preset {
         border: 0;
         color: var(--muted);
         background: transparent;
-        border-radius: 12px;
-        padding: 10px 14px;
+        border-radius: 999px;
+        padding: 5px 10px;
         font: inherit;
+        font-size: 12px;
         cursor: pointer;
       }
 
       .preset.active {
-        background: rgba(255,255,255,0.08);
+        background: var(--accent-soft);
         color: var(--text);
-      }
-
-      .timeline-card {
-        border: 1px solid rgba(255,255,255,0.06);
-        background: var(--panel);
-        border-radius: 22px;
-        padding: 18px;
-      }
-
-      .meta-row {
-        display: flex;
-        justify-content: space-between;
-        gap: 12px;
-        align-items: start;
-        margin-bottom: 18px;
-      }
-
-      .range-label {
-        font-size: 18px;
-        letter-spacing: -0.02em;
-      }
-
-      .range-subtitle {
-        color: var(--muted);
-        font-size: 13px;
-      }
-
-      .actions {
-        display: flex;
-        gap: 8px;
-      }
-
-      .ghost {
-        border: 1px solid rgba(255,255,255,0.08);
-        color: var(--text);
-        background: rgba(255,255,255,0.04);
-        border-radius: 999px;
-        padding: 10px 14px;
-        font: inherit;
-        cursor: pointer;
       }
 
       .scrubber {
         position: relative;
-        padding: 14px 0 8px;
+        display: grid;
+        gap: 8px;
       }
 
       .track {
         position: absolute;
-        inset: 31px 16px auto;
-        height: 14px;
+        left: 0;
+        right: 0;
+        top: 24px;
+        height: 8px;
         border-radius: 999px;
         background:
-          linear-gradient(90deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02)),
+          linear-gradient(90deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03)),
           repeating-linear-gradient(
             90deg,
-            rgba(255,255,255,0.08) 0,
-            rgba(255,255,255,0.08) 1px,
+            rgba(255,255,255,0.06) 0,
+            rgba(255,255,255,0.06) 1px,
             transparent 1px,
-            transparent 10px
+            transparent 8px
           );
-        border: 1px solid rgba(255,255,255,0.08);
+        border: 1px solid var(--border);
       }
 
       input[type='range'] {
@@ -1159,240 +1587,398 @@ function getTimelineWebviewHtml(webview) {
         background: transparent;
         position: relative;
         z-index: 2;
+        padding-top: 14px;
       }
 
       input[type='range']::-webkit-slider-runnable-track {
-        height: 14px;
+        height: 8px;
         background: transparent;
       }
 
       input[type='range']::-webkit-slider-thumb {
         appearance: none;
-        width: 20px;
-        height: 20px;
-        margin-top: -3px;
+        width: 16px;
+        height: 16px;
+        margin-top: -4px;
         border-radius: 999px;
-        background: linear-gradient(180deg, #ffffff, #b2ebd0);
-        border: 2px solid #12382a;
-        box-shadow: 0 6px 18px rgba(121, 210, 166, 0.35);
+        background: var(--accent);
+        border: 2px solid var(--bg);
+        box-shadow: 0 0 0 3px rgba(93, 145, 255, 0.16);
       }
 
       input[type='range']::-moz-range-track {
-        height: 14px;
+        height: 8px;
         background: transparent;
       }
 
       input[type='range']::-moz-range-thumb {
-        width: 20px;
-        height: 20px;
+        width: 16px;
+        height: 16px;
         border-radius: 999px;
-        background: linear-gradient(180deg, #ffffff, #b2ebd0);
-        border: 2px solid #12382a;
-        box-shadow: 0 6px 18px rgba(121, 210, 166, 0.35);
+        background: var(--accent);
+        border: 2px solid var(--bg);
+        box-shadow: 0 0 0 3px rgba(93, 145, 255, 0.16);
       }
 
       .selection-pill {
         position: absolute;
-        top: 20px;
+        top: -2px;
         transform: translateX(-50%);
-        background: rgba(17, 24, 39, 0.94);
-        border: 1px solid rgba(255,255,255,0.08);
+        background: var(--panel-alt);
+        border: 1px solid var(--border);
         border-radius: 999px;
-        padding: 10px 16px;
+        padding: 4px 10px;
         color: var(--text);
-        font-size: 13px;
+        font-size: 11px;
         white-space: nowrap;
         z-index: 1;
-        box-shadow: 0 10px 28px rgba(0,0,0,0.3);
       }
 
       .month-row {
-        display: grid;
-        grid-template-columns: repeat(4, minmax(0, 1fr));
+        display: flex;
+        justify-content: space-between;
+        flex-wrap: wrap;
         gap: 10px;
-        margin-top: 18px;
         color: var(--muted);
-        font-size: 13px;
+        font-size: 11px;
       }
 
       .month-row strong {
         color: var(--text);
       }
 
-      .detail-grid {
+      .layout {
         display: grid;
-        grid-template-columns: 1.4fr 0.9fr;
-        gap: 16px;
-        margin-top: 18px;
-      }
-
-      .detail-card,
-      .history-card {
-        background: var(--panel-strong);
-        border: 1px solid rgba(255,255,255,0.06);
-        border-radius: 20px;
-        padding: 18px;
-      }
-
-      .eyebrow {
-        color: var(--muted);
-        text-transform: uppercase;
-        letter-spacing: 0.14em;
-        font-size: 11px;
-        margin-bottom: 8px;
-      }
-
-      .revision-line {
-        display: flex;
-        align-items: center;
+        grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
         gap: 10px;
-        margin-bottom: 10px;
-        flex-wrap: wrap;
+        min-height: 0;
       }
 
-      .badge {
+      .sidebar,
+      .diff-panel {
+        min-height: 0;
+        display: grid;
+      }
+
+      .sidebar {
+        grid-template-rows: auto minmax(0, 1fr);
+        gap: 10px;
+      }
+
+      .selection-card {
+        padding: 12px 14px;
+        display: grid;
+        gap: 8px;
+      }
+
+      .chip-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+
+      .chip {
         display: inline-flex;
         align-items: center;
         gap: 6px;
+        padding: 4px 8px;
+        font-size: 11px;
         border-radius: 999px;
-        background: var(--accent-soft);
-        color: var(--accent);
-        padding: 7px 10px;
-        font-size: 12px;
-      }
-
-      .headline {
-        font-size: 20px;
-        line-height: 1.2;
-        margin: 0 0 12px;
-      }
-
-      .supporting {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid var(--border);
         color: var(--muted);
-        font-size: 13px;
-        line-height: 1.6;
       }
 
-      .history-list {
-        display: grid;
-        gap: 10px;
-        max-height: 320px;
-        overflow: auto;
+      .chip--accent {
+        background: var(--accent-soft);
+        color: var(--text);
+        border-color: transparent;
       }
 
-      .history-item {
-        border: 1px solid rgba(255,255,255,0.06);
-        background: rgba(255,255,255,0.02);
-        border-radius: 16px;
-        padding: 12px 14px;
-        cursor: pointer;
-      }
-
-      .history-item.active {
-        border-color: rgba(121, 210, 166, 0.4);
-        background: rgba(121, 210, 166, 0.12);
-      }
-
-      .history-item-top {
-        display: flex;
-        justify-content: space-between;
-        gap: 10px;
-        margin-bottom: 6px;
-        font-size: 13px;
-      }
-
-      .history-item p {
+      .selection-title {
         margin: 0;
+        font-size: 18px;
+        line-height: 1.25;
+        letter-spacing: -0.02em;
+      }
+
+      .selection-copy {
         color: var(--muted);
         font-size: 12px;
         line-height: 1.5;
       }
 
-      .empty {
-        text-align: center;
-        color: var(--muted);
-        padding: 28px;
+      .history-panel {
+        min-height: 0;
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr);
       }
 
-      @media (max-width: 860px) {
+      .history-head {
+        padding: 10px 14px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .history-list {
+        overflow: auto;
+        padding: 8px;
+        display: grid;
+        gap: 6px;
+      }
+
+      .history-item {
+        border: 1px solid transparent;
+        background: rgba(255, 255, 255, 0.02);
+        border-radius: 12px;
+        padding: 10px 11px;
+        cursor: pointer;
+        text-align: left;
+      }
+
+      .history-item:hover {
+        border-color: var(--border);
+      }
+
+      .history-item.active {
+        border-color: rgba(93, 145, 255, 0.34);
+        background: rgba(93, 145, 255, 0.09);
+      }
+
+      .history-top,
+      .history-bottom {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .history-top {
+        margin-bottom: 4px;
+        font-size: 12px;
+        font-weight: 600;
+      }
+
+      .history-description {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.45;
+        min-height: 18px;
+      }
+
+      .history-meta {
+        color: var(--muted);
+        font-size: 11px;
+      }
+
+      .history-stats {
+        display: grid;
+        grid-auto-flow: column;
+        gap: 8px;
+        justify-content: start;
+      }
+
+      .diff-panel {
+        grid-template-rows: auto minmax(0, 1fr);
+      }
+
+      .diff-head {
+        padding: 12px 14px;
+        display: grid;
+        gap: 8px;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .diff-title-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+
+      .diff-title {
+        margin: 0;
+        font-size: 16px;
+        letter-spacing: -0.02em;
+      }
+
+      .stat {
+        font-family: var(--code-font);
+        font-size: 11px;
+        color: var(--muted);
+      }
+
+      .stat--plus {
+        color: var(--success);
+      }
+
+      .stat--minus {
+        color: var(--danger);
+      }
+
+      .diff-subtitle {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .diff-rows {
+        min-height: 0;
+        overflow: auto;
+        font-family: var(--code-font);
+        font-size: 12px;
+        line-height: 1.55;
+      }
+
+      .diff-row {
+        display: grid;
+        grid-template-columns: 18px 52px 52px minmax(0, 1fr);
+        align-items: start;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+      }
+
+      .diff-row--context {
+        background: transparent;
+      }
+
+      .diff-row--add {
+        background: rgba(76, 195, 138, 0.08);
+      }
+
+      .diff-row--remove {
+        background: rgba(255, 123, 114, 0.08);
+      }
+
+      .diff-row--skip {
+        grid-template-columns: 1fr;
+        background: rgba(255, 255, 255, 0.03);
+        color: var(--muted);
+      }
+
+      .cell {
+        padding: 3px 8px;
+        min-width: 0;
+      }
+
+      .marker,
+      .line-number {
+        color: var(--muted);
+        text-align: right;
+        user-select: none;
+      }
+
+      .line-number {
+        font-variant-numeric: tabular-nums;
+      }
+
+      .diff-row--add .marker {
+        color: var(--success);
+      }
+
+      .diff-row--remove .marker {
+        color: var(--danger);
+      }
+
+      .code {
+        white-space: pre;
+        overflow-x: auto;
+      }
+
+      .empty,
+      .empty-diff {
+        text-align: center;
+        color: var(--muted);
+        padding: 28px 16px;
+      }
+
+      @media (max-width: 980px) {
         body {
-          padding: 14px;
+          padding: 8px;
         }
 
-        .topbar,
-        .meta-row,
-        .detail-grid {
+        .layout {
           grid-template-columns: 1fr;
-          display: grid;
         }
 
-        .preset-row,
-        .actions {
-          justify-content: start;
-          flex-wrap: wrap;
+        .sidebar {
+          grid-template-rows: auto auto;
         }
 
-        .month-row {
-          grid-template-columns: repeat(2, minmax(0, 1fr));
+        .history-panel {
+          max-height: 240px;
         }
       }
     </style>
   </head>
   <body>
-    <div class="shell">
-      <div class="topbar">
+    <div class="app">
+      <section class="panel topbar">
         <div class="title">
-          <span id="filePath">Revision timeline</span>
+          <div class="eyebrow">Revision Timeline</div>
           <strong id="fileName">Loading…</strong>
+          <div class="title-path" id="filePath"></div>
         </div>
-        <div class="preset-row" id="presets"></div>
-      </div>
+        <div class="toolbar">
+          <button class="button" id="openEditorButton">Open In Editor</button>
+          <button class="button" id="refreshButton">Refresh</button>
+        </div>
+      </section>
 
-      <div class="timeline-card">
-        <div class="meta-row">
+      <section class="panel timeline-wrap">
+        <div class="timeline-head">
           <div>
             <div class="range-label" id="rangeLabel">Loading revisions…</div>
-            <div class="range-subtitle" id="rangeSubtitle"></div>
+            <div class="supporting" id="rangeSubtitle"></div>
           </div>
-          <div class="actions">
-            <button class="ghost" id="openButton">Open diff</button>
-            <button class="ghost" id="refreshButton">Refresh</button>
-          </div>
+          <div class="preset-row" id="presets"></div>
         </div>
-
         <div class="scrubber">
           <div class="track"></div>
           <div class="selection-pill" id="selectionPill">Select a revision</div>
           <input id="slider" type="range" min="0" max="0" value="0" />
           <div class="month-row" id="monthRow"></div>
         </div>
+      </section>
 
-        <div class="detail-grid">
-          <section class="detail-card">
-            <div class="eyebrow">Selected revision</div>
-            <div class="revision-line">
-              <span class="badge" id="backendBadge"></span>
-              <span class="badge" id="revisionBadge"></span>
-            </div>
-            <h2 class="headline" id="headline"></h2>
-            <div class="supporting" id="supporting"></div>
+      <section class="layout">
+        <div class="sidebar">
+          <section class="panel selection-card">
+            <div class="eyebrow">Selected Revision</div>
+            <div class="chip-row" id="selectedChips"></div>
+            <h2 class="selection-title" id="headline"></h2>
+            <div class="selection-copy" id="supporting"></div>
           </section>
 
-          <aside class="history-card">
-            <div class="eyebrow">Visible revisions</div>
+          <section class="panel history-panel">
+            <div class="history-head">
+              <div class="eyebrow">Visible Revisions</div>
+            </div>
             <div class="history-list" id="historyList"></div>
-          </aside>
+          </section>
         </div>
-      </div>
+
+        <section class="panel diff-panel">
+          <div class="diff-head">
+            <div class="diff-title-row">
+              <h3 class="diff-title" id="diffTitle">Loading diff…</h3>
+              <div class="history-stats" id="diffStats"></div>
+            </div>
+            <div class="diff-subtitle" id="diffSubtitle"></div>
+          </div>
+          <div class="diff-rows" id="diffRows"></div>
+        </section>
+      </section>
     </div>
 
     <script nonce="${nonce}">
       const vscode = acquireVsCodeApi();
       const state = {
         data: null,
+        preview: null,
+        previewByIndex: {},
         preset: '90d',
         visibleEntries: [],
         selectedIndex: 0,
+        previewTimer: undefined,
       };
 
       const elements = {
@@ -1407,10 +1993,13 @@ function getTimelineWebviewHtml(webview) {
         supporting: document.getElementById('supporting'),
         historyList: document.getElementById('historyList'),
         presets: document.getElementById('presets'),
-        openButton: document.getElementById('openButton'),
+        openEditorButton: document.getElementById('openEditorButton'),
         refreshButton: document.getElementById('refreshButton'),
-        backendBadge: document.getElementById('backendBadge'),
-        revisionBadge: document.getElementById('revisionBadge'),
+        selectedChips: document.getElementById('selectedChips'),
+        diffTitle: document.getElementById('diffTitle'),
+        diffSubtitle: document.getElementById('diffSubtitle'),
+        diffStats: document.getElementById('diffStats'),
+        diffRows: document.getElementById('diffRows'),
       };
 
       const presetLabels = {
@@ -1423,21 +2012,30 @@ function getTimelineWebviewHtml(webview) {
 
       window.addEventListener('message', (event) => {
         const message = event.data;
-        if (message?.type !== 'timeline-data') {
+        if (message?.type === 'timeline-data') {
+          state.data = message.payload;
+          state.selectedIndex = state.data.defaultIndex || 0;
+          state.preview = null;
+
+          if (!state.data.entries.length) {
+            renderEmpty();
+            return;
+          }
+
+          elements.fileName.textContent = state.data.fileName;
+          elements.filePath.textContent = state.data.relativePath;
+          applyPreset(state.preset, true, true);
           return;
         }
 
-        state.data = message.payload;
-        if (!state.data.entries.length) {
-          renderEmpty();
+        if (message?.type !== 'diff-preview') {
           return;
         }
 
-        renderPresets();
-        elements.fileName.textContent = state.data.fileName;
-        elements.filePath.textContent = state.data.relativePath;
-        state.selectedIndex = state.data.entries.length - 1;
-        applyPreset(state.preset, false);
+        state.preview = message.payload;
+        state.previewByIndex[String(message.payload.index)] = message.payload;
+        renderPreview();
+        renderHistoryList();
       });
 
       elements.slider.addEventListener('input', () => {
@@ -1449,14 +2047,15 @@ function getTimelineWebviewHtml(webview) {
 
         state.selectedIndex = nextEntry.index;
         renderSelection();
+        requestPreview(70);
       });
 
       elements.slider.addEventListener('change', () => {
-        vscode.postMessage({ command: 'open-selection', index: state.selectedIndex });
+        requestPreview(0);
       });
 
-      elements.openButton.addEventListener('click', () => {
-        vscode.postMessage({ command: 'open-selection', index: state.selectedIndex });
+      elements.openEditorButton.addEventListener('click', () => {
+        vscode.postMessage({ command: 'open-editor-diff', index: state.selectedIndex });
       });
 
       elements.refreshButton.addEventListener('click', () => {
@@ -1474,7 +2073,7 @@ function getTimelineWebviewHtml(webview) {
         }
       }
 
-      function applyPreset(preset, resetSelection) {
+      function applyPreset(preset, resetSelection, suppressPreviewRequest) {
         state.preset = preset;
         const allEntries = state.data.entries;
         const lastEntry = allEntries[allEntries.length - 1];
@@ -1492,6 +2091,9 @@ function getTimelineWebviewHtml(webview) {
 
         renderPresets();
         renderSelection();
+        if (!suppressPreviewRequest) {
+          requestPreview(0);
+        }
       }
 
       function renderSelection() {
@@ -1508,6 +2110,7 @@ function getTimelineWebviewHtml(webview) {
         const first = state.visibleEntries[0];
         const last = state.visibleEntries[state.visibleEntries.length - 1];
         const previous = state.data.entries[Math.max(0, selected.index - 1)];
+        const knownPreview = state.previewByIndex[String(selected.index)];
 
         elements.slider.max = String(Math.max(0, state.visibleEntries.length - 1));
         elements.slider.value = String(selectedVisibleIndex);
@@ -1521,17 +2124,21 @@ function getTimelineWebviewHtml(webview) {
           : selected.shortDate + ' · ' + selected.shortRevision;
         elements.rangeLabel.textContent = first.shortDate + ' - ' + (last.isWorkingTree ? 'Today' : last.shortDate);
         elements.rangeSubtitle.textContent = String(state.visibleEntries.length) + ' revisions in ' + state.data.backend.toUpperCase() + ' history';
-        elements.backendBadge.textContent = state.data.backend.toUpperCase() + ' backend';
-        elements.revisionBadge.textContent = selected.isWorkingTree
-          ? 'Current working tree'
-          : selected.shortRevision + (selected.changeId ? ' · ' + selected.revision : '');
         elements.headline.textContent = selected.description;
         elements.supporting.textContent = selected.isWorkingTree
           ? 'Comparing the current file on disk against the previous recorded revision.'
           : selected.relativeDate + ' · ' + new Date(selected.authorDate).toLocaleString() + (previous && previous.id !== selected.id ? ' · Diff target: ' + previous.shortRevision : '');
 
+        elements.selectedChips.innerHTML = [
+          renderChip(state.data.backend.toUpperCase() + ' backend', false),
+          renderChip(selected.isWorkingTree ? 'Current working tree' : selected.shortRevision, true),
+          knownPreview ? renderChip('+' + String(knownPreview.additions), false, 'stat--plus') : '',
+          knownPreview ? renderChip('-' + String(knownPreview.deletions), false, 'stat--minus') : '',
+        ].join('');
+
         renderMonths();
         renderHistoryList();
+        renderPreview();
       }
 
       function renderMonths() {
@@ -1557,26 +2164,70 @@ function getTimelineWebviewHtml(webview) {
       }
 
       function renderHistoryList() {
+        if (!state.visibleEntries.length) {
+          elements.historyList.innerHTML = '<div class="empty">No revisions in the current filter.</div>';
+          return;
+        }
+
         elements.historyList.innerHTML = '';
         for (const entry of state.visibleEntries.slice().reverse()) {
+          const preview = state.previewByIndex[String(entry.index)];
           const button = document.createElement('button');
           button.className = 'history-item' + (entry.index === state.selectedIndex ? ' active' : '');
           button.type = 'button';
           button.addEventListener('click', () => {
             state.selectedIndex = entry.index;
             renderSelection();
-            vscode.postMessage({ command: 'open-selection', index: state.selectedIndex });
+            requestPreview(0);
           });
 
           button.innerHTML = [
-            '<div class="history-item-top">',
+            '<div class="history-top">',
             '<strong>' + escapeHtml(entry.shortRevision) + '</strong>',
             '<span>' + escapeHtml(entry.shortDate) + '</span>',
             '</div>',
-            '<p>' + escapeHtml(entry.description) + '</p>',
+            '<div class="history-description">' + escapeHtml(entry.description) + '</div>',
+            '<div class="history-bottom">',
+            '<span class="history-meta">' + escapeHtml(entry.relativeDate) + '</span>',
+            '<span class="history-stats">' + (preview ? renderStatChips(preview) : '') + '</span>',
+            '</div>',
           ].join('');
           elements.historyList.appendChild(button);
         }
+      }
+
+      function renderPreview() {
+        if (!state.data) {
+          return;
+        }
+
+        const selected = state.data.entries[state.selectedIndex];
+        if (!selected) {
+          elements.diffTitle.textContent = 'No diff available';
+          elements.diffSubtitle.textContent = '';
+          elements.diffStats.innerHTML = '';
+          elements.diffRows.innerHTML = '<div class="empty-diff">Pick a revision to inspect it.</div>';
+          return;
+        }
+
+        if (!state.preview || state.preview.index !== state.selectedIndex) {
+          elements.diffTitle.textContent = 'Loading diff…';
+          elements.diffSubtitle.textContent = selected.description;
+          elements.diffStats.innerHTML = '';
+          elements.diffRows.innerHTML = '<div class="empty-diff">Computing diff preview…</div>';
+          return;
+        }
+
+        elements.diffTitle.textContent = state.preview.title;
+        elements.diffSubtitle.textContent = state.preview.subtitle;
+        elements.diffStats.innerHTML = renderStatChips(state.preview);
+
+        if (!state.preview.rows.length) {
+          elements.diffRows.innerHTML = '<div class="empty-diff">No textual changes in this selection.</div>';
+          return;
+        }
+
+        elements.diffRows.innerHTML = state.preview.rows.map((row) => renderDiffRow(row)).join('');
       }
 
       function renderEmpty() {
@@ -1585,6 +2236,52 @@ function getTimelineWebviewHtml(webview) {
         elements.headline.textContent = 'No recorded history for this file';
         elements.supporting.textContent = '';
         elements.historyList.innerHTML = '<div class="empty">Make a change and commit it, then reopen the timeline.</div>';
+        elements.diffTitle.textContent = 'No diff available';
+        elements.diffSubtitle.textContent = '';
+        elements.diffStats.innerHTML = '';
+        elements.diffRows.innerHTML = '<div class="empty-diff">Make a change and commit it, then reopen the timeline.</div>';
+      }
+
+      function requestPreview(delay) {
+        if (state.previewTimer) {
+          window.clearTimeout(state.previewTimer);
+        }
+
+        state.previewTimer = window.setTimeout(() => {
+          vscode.postMessage({ command: 'select-entry', index: state.selectedIndex });
+        }, delay);
+      }
+
+      function renderChip(text, accent, extraClass) {
+        return '<span class="chip' + (accent ? ' chip--accent' : '') + (extraClass ? ' ' + extraClass : '') + '">' + escapeHtml(text) + '</span>';
+      }
+
+      function renderStatChips(preview) {
+        return [
+          '<span class="stat stat--plus">+' + String(preview.additions) + '</span>',
+          '<span class="stat stat--minus">-' + String(preview.deletions) + '</span>',
+          '<span class="stat">' + String(preview.hunkCount) + ' hunks</span>',
+        ].join('');
+      }
+
+      function renderDiffRow(row) {
+        if (row.type === 'skip') {
+          return '<div class="diff-row diff-row--skip"><div class="cell">' + escapeHtml(row.text) + '</div></div>';
+        }
+
+        const marker = row.type === 'add' ? '+' : row.type === 'remove' ? '-' : ' ';
+        return [
+          '<div class="diff-row diff-row--' + row.type + '">',
+          '<div class="cell marker">' + marker + '</div>',
+          '<div class="cell line-number">' + formatLineNumber(row.leftNumber) + '</div>',
+          '<div class="cell line-number">' + formatLineNumber(row.rightNumber) + '</div>',
+          '<div class="cell code">' + escapeHtml(row.text || ' ') + '</div>',
+          '</div>',
+        ].join('');
+      }
+
+      function formatLineNumber(value) {
+        return value == null ? '' : String(value);
       }
 
       function escapeHtml(value) {
