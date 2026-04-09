@@ -35,6 +35,8 @@
     sidebarShownOnCompact: false,
     showIntermediateRevisions: false,
     focusedHistoryOrderIndex: -1,
+    diffFocusMode: false,
+    pendingRangeResolutionKey: '',
   };
 
   const elements = {
@@ -44,6 +46,7 @@
     timelineChrome: document.getElementById('timelineChrome'),
     timelineResizeHandle: document.getElementById('timelineResizeHandle'),
     toggleTimelinePaneButton: document.getElementById('toggleTimelinePaneButton'),
+    toggleDiffFocusButton: document.getElementById('toggleDiffFocusButton'),
     fileSwitcher: document.getElementById('fileSwitcher'),
     workspaceFilesList: document.getElementById('workspaceFilesList'),
     fromRevisionInput: document.getElementById('fromRevisionInput'),
@@ -135,6 +138,19 @@
       return;
     }
 
+    if (message && message.type === 'resolved-range') {
+      state.pendingRangeResolutionKey = '';
+      if (!message.payload) {
+        return;
+      }
+
+      state.fromIndex = message.payload.fromIndex;
+      state.toIndex = message.payload.toIndex;
+      renderSelection();
+      requestPreview(0);
+      return;
+    }
+
     if (!message || message.type !== 'diff-preview') {
       return;
     }
@@ -145,6 +161,17 @@
 
     state.preview = message.payload;
     state.previewByRange[getPreviewKey(message.payload.fromIndex, message.payload.toIndex)] = message.payload;
+
+    if (
+      !state.showIntermediateRevisions
+      && state.comparisonMode === 'range'
+      && !message.payload.hasChanges
+      && state.fromIndex !== state.toIndex
+    ) {
+      maybeResolveHiddenRangeToNonEmpty(message.payload);
+      return;
+    }
+
     renderPreview();
     renderHistoryList();
   });
@@ -212,6 +239,11 @@
     persistPreferences();
   });
 
+  elements.toggleDiffFocusButton.addEventListener('click', () => {
+    state.diffFocusMode = !state.diffFocusMode;
+    applyDiffFocusState();
+  });
+
   elements.fileSwitcher.addEventListener('change', submitFileSwitch);
   elements.fileSwitcher.addEventListener('keydown', (event) => {
     if (event.key === 'Enter') {
@@ -267,20 +299,21 @@
   });
 
   elements.timelineResizeHandle.addEventListener('pointerdown', (event) => {
-    if (state.timelinePaneCollapsed) {
-      return;
-    }
-
     event.preventDefault();
     const startY = event.clientY;
-    const startHeight = state.timelinePaneHeight;
+    const startHeight = state.timelinePaneCollapsed ? 196 : state.timelinePaneHeight;
+    if (state.timelinePaneCollapsed) {
+      state.timelinePaneCollapsed = false;
+      state.timelinePaneHeight = startHeight;
+      applyTimelinePaneState();
+    }
     elements.timelineResizeHandle.classList.add('is-dragging');
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', onPointerUp);
 
     function onPointerMove(moveEvent) {
       const delta = moveEvent.clientY - startY;
-      state.timelinePaneHeight = Math.max(182, Math.min(420, startHeight + delta));
+      state.timelinePaneHeight = Math.max(196, Math.min(420, startHeight + delta));
       applyTimelinePaneState();
     }
 
@@ -342,27 +375,41 @@
       return;
     }
 
+    const jumpAmount = event.shiftKey ? 5 : 1;
+
     if (event.key === 'ArrowLeft') {
       event.preventDefault();
-      navigateSelection(-1);
+      if (event.altKey) {
+        nudgeRangeBoundary('to', -jumpAmount);
+      } else if (event.ctrlKey) {
+        nudgeRangeBoundary('from', -jumpAmount);
+      } else {
+        navigateSelection(-jumpAmount);
+      }
       return;
     }
 
     if (event.key === 'ArrowRight') {
       event.preventDefault();
-      navigateSelection(1);
+      if (event.altKey) {
+        nudgeRangeBoundary('to', jumpAmount);
+      } else if (event.ctrlKey) {
+        nudgeRangeBoundary('from', jumpAmount);
+      } else {
+        navigateSelection(jumpAmount);
+      }
       return;
     }
 
     if (event.key === 'ArrowUp') {
       event.preventDefault();
-      nudgeSidebarSelection(-1);
+      nudgeSidebarSelection(-jumpAmount);
       return;
     }
 
     if (event.key === 'ArrowDown') {
       event.preventDefault();
-      nudgeSidebarSelection(1);
+      nudgeSidebarSelection(jumpAmount);
     }
   }
 
@@ -438,9 +485,14 @@
   }
 
   function applyTimelinePaneState() {
-    document.documentElement.style.setProperty('--timeline-pane-height', String(state.timelinePaneCollapsed ? 134 : state.timelinePaneHeight) + 'px');
+    document.documentElement.style.setProperty('--timeline-pane-height', String(state.timelinePaneCollapsed ? 118 : state.timelinePaneHeight) + 'px');
     elements.timelinePane.classList.toggle('is-collapsed', state.timelinePaneCollapsed);
-    elements.toggleTimelinePaneButton.textContent = state.timelinePaneCollapsed ? 'Expand' : 'Collapse';
+    elements.toggleTimelinePaneButton.textContent = state.timelinePaneCollapsed ? 'Expand' : 'Timeline only';
+  }
+
+  function applyDiffFocusState() {
+    elements.workspace.classList.toggle('is-diff-focus', state.diffFocusMode);
+    elements.toggleDiffFocusButton.textContent = state.diffFocusMode ? 'Exit focus' : 'Focus diff';
   }
 
   function applyPreferences(preferences) {
@@ -1019,28 +1071,61 @@
   }
 
   function moveSingleSelection(direction) {
-    if (!canNavigateSelection(direction)) {
-      return;
+    const stepDirection = Math.sign(direction);
+    let remaining = Math.abs(direction);
+    while (remaining > 0 && canNavigateSelection(stepDirection)) {
+      const toVisibleIndex = getVisibleIndexForAbsoluteIndex(state.toIndex);
+      const nextToVisibleIndex = toVisibleIndex + stepDirection;
+      state.fromIndex = state.visibleEntries[nextToVisibleIndex - 1].index;
+      state.toIndex = state.visibleEntries[nextToVisibleIndex].index;
+      remaining -= 1;
     }
-
-    const toVisibleIndex = getVisibleIndexForAbsoluteIndex(state.toIndex);
-    const nextToVisibleIndex = toVisibleIndex + direction;
-    state.fromIndex = state.visibleEntries[nextToVisibleIndex - 1].index;
-    state.toIndex = state.visibleEntries[nextToVisibleIndex].index;
   }
 
   function moveRangeSelection(direction) {
-    if (!canNavigateSelection(direction)) {
-      return;
+    const stepDirection = Math.sign(direction);
+    let remaining = Math.abs(direction);
+    while (remaining > 0 && canNavigateSelection(stepDirection)) {
+      const fromVisibleIndex = getVisibleIndexForAbsoluteIndex(state.fromIndex);
+      const toVisibleIndex = getVisibleIndexForAbsoluteIndex(state.toIndex);
+      const width = toVisibleIndex - fromVisibleIndex;
+      const nextFromVisibleIndex = fromVisibleIndex + stepDirection;
+      const nextToVisibleIndex = nextFromVisibleIndex + width;
+      state.fromIndex = state.visibleEntries[nextFromVisibleIndex].index;
+      state.toIndex = state.visibleEntries[nextToVisibleIndex].index;
+      remaining -= 1;
+    }
+  }
+
+  function nudgeRangeBoundary(side, direction) {
+    state.comparisonMode = 'range';
+    renderControlGroups();
+    const stepDirection = Math.sign(direction);
+    let remaining = Math.abs(direction);
+    while (remaining > 0) {
+      const currentVisibleIndex = getVisibleIndexForAbsoluteIndex(side === 'from' ? state.fromIndex : state.toIndex);
+      const nextVisibleIndex = currentVisibleIndex + stepDirection;
+      if (nextVisibleIndex < 0 || nextVisibleIndex >= state.visibleEntries.length) {
+        break;
+      }
+
+      if (side === 'from') {
+        if (nextVisibleIndex > getVisibleIndexForAbsoluteIndex(state.toIndex)) {
+          break;
+        }
+        state.fromIndex = state.visibleEntries[nextVisibleIndex].index;
+      } else {
+        if (nextVisibleIndex < getVisibleIndexForAbsoluteIndex(state.fromIndex)) {
+          break;
+        }
+        state.toIndex = state.visibleEntries[nextVisibleIndex].index;
+      }
+      remaining -= 1;
     }
 
-    const fromVisibleIndex = getVisibleIndexForAbsoluteIndex(state.fromIndex);
-    const toVisibleIndex = getVisibleIndexForAbsoluteIndex(state.toIndex);
-    const width = toVisibleIndex - fromVisibleIndex;
-    const nextFromVisibleIndex = fromVisibleIndex + direction;
-    const nextToVisibleIndex = nextFromVisibleIndex + width;
-    state.fromIndex = state.visibleEntries[nextFromVisibleIndex].index;
-    state.toIndex = state.visibleEntries[nextToVisibleIndex].index;
+    renderSelection();
+    persistPreferences();
+    requestPreview(0);
   }
 
   function beginRangeDrag(event) {
@@ -1122,6 +1207,31 @@
     }
 
     renderSelection();
+  }
+
+  function maybeResolveHiddenRangeToNonEmpty(preview) {
+    const candidateIndexes = state.visibleEntries
+      .filter((entry) => entry.index >= Math.min(preview.fromIndex, preview.toIndex) && entry.index <= Math.max(preview.fromIndex, preview.toIndex))
+      .map((entry) => entry.index);
+
+    if (candidateIndexes.length < 2) {
+      renderPreview();
+      renderHistoryList();
+      return;
+    }
+
+    const resolutionKey = candidateIndexes.join(':');
+    if (state.pendingRangeResolutionKey === resolutionKey) {
+      renderPreview();
+      renderHistoryList();
+      return;
+    }
+
+    state.pendingRangeResolutionKey = resolutionKey;
+    vscode.postMessage({
+      command: 'resolve-nonempty-range',
+      candidateIndexes,
+    });
   }
 
   function getPreviewKey(fromIndex, toIndex) {

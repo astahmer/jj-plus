@@ -22,7 +22,7 @@
           <div class="timeline-pane" id="timelinePane">
             <div class="timeline-pane-head">
               <div class="eyebrow">Revision Timeline</div>
-              <button class="collapse-button" id="toggleTimelinePaneButton" type="button">Collapse</button>
+              <button class="collapse-button" id="toggleTimelinePaneButton" type="button">Timeline only</button>
             </div>
             <div class="diff-head" id="timelineChrome">
               <div class="diff-head-top">
@@ -36,8 +36,8 @@
                     <div class="menu" id="actionsMenu">
                       <button class="menu-item" id="toggleSidebarAction" type="button">Hide Sidebar</button>
                       <button class="menu-item" id="openCurrentFileAction" type="button">Open File</button>
-                      <button class="menu-item" id="openEditorButton" type="button">Open File Range Diff</button>
-                      <button class="menu-item" id="openRangeFilesButton" type="button">Open Range Files Diff</button>
+                      <button class="menu-item" id="openEditorButton" type="button">Open diff</button>
+                      <button class="menu-item" id="openRangeFilesButton" type="button">Open diffs</button>
                       <button class="menu-item" id="refreshButton" type="button">Refresh</button>
                     </div>
                   </div>
@@ -95,11 +95,14 @@
                   <div class="eyebrow" id="diffModeEyebrow">Diff</div>
                   <h3 class="diff-title" id="diffTitle">Loading diff...</h3>
                 </div>
-                <div class="history-stats" id="diffStats"></div>
+                <div class="diff-actions">
+                  <div class="history-stats" id="diffStats"></div>
+                  <button class="collapse-button" id="toggleDiffFocusButton" type="button">Focus diff</button>
+                </div>
               </div>
               <div class="diff-subtitle" id="diffSubtitle"></div>
             </div>
-          <div class="diff-rows" id="diffRows"></div>
+            <div class="diff-rows" id="diffRows"></div>
           </div>
         </section>
       </section>

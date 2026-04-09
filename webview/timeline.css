@@ -56,6 +56,10 @@ input {
   grid-template-columns: 0 0 minmax(0, 1fr);
 }
 
+.workspace.is-diff-focus {
+  grid-template-columns: 0 0 minmax(0, 1fr);
+}
+
 .panel {
   min-width: 0;
   min-height: 0;
@@ -96,11 +100,15 @@ input {
 
 .diff-panel {
   display: grid;
-  grid-template-rows: minmax(134px, var(--timeline-pane-height)) 6px minmax(0, 1fr);
+  grid-template-rows: minmax(196px, var(--timeline-pane-height)) 6px minmax(0, 1fr);
   border-radius: 0 12px 12px 0;
 }
 
 .workspace.is-collapsed .diff-panel {
+  border-radius: 12px;
+}
+
+.workspace.is-diff-focus .diff-panel {
   border-radius: 12px;
 }
 
@@ -288,6 +296,8 @@ input {
   min-height: 0;
   overflow: hidden;
   border-bottom: 1px solid var(--border);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
 }
 
 .timeline-pane-head {
@@ -306,6 +316,13 @@ input {
 
 .timeline-pane.is-collapsed .diff-head {
   padding-top: 6px;
+}
+
+.workspace.is-diff-focus .timeline-pane,
+.workspace.is-diff-focus .timeline-resize-handle,
+.workspace.is-diff-focus .sidebar,
+.workspace.is-diff-focus .resize-handle {
+  display: none;
 }
 
 .collapse-button {
@@ -343,6 +360,12 @@ input {
   min-height: 0;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
+}
+
+.diff-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .diff-summary {
@@ -542,9 +565,11 @@ input {
 .timeline {
   position: relative;
   display: grid;
+  grid-template-rows: auto minmax(54px, 1fr) auto;
   gap: 6px;
-  overflow: hidden;
+  overflow: visible;
   padding-top: 8px;
+  min-height: 92px;
 }
 
 .handle-pills {
@@ -634,6 +659,7 @@ input {
   flex-wrap: wrap;
   color: var(--muted);
   font-size: 11px;
+  padding-top: 38px;
 }
 
 .month-row strong {
@@ -768,6 +794,10 @@ input {
   .workspace.is-collapsed {
     grid-template-columns: 1fr;
     gap: 8px;
+  }
+
+  .workspace.is-diff-focus {
+    grid-template-columns: 1fr;
   }
 
   .resize-handle {

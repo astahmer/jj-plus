@@ -407,6 +407,26 @@ async function handleTimelineMessage(panel, session, message) {
     return;
   }
 
+  if (command === 'resolve-nonempty-range') {
+    const candidateIndexes = Reflect.get(message, 'candidateIndexes');
+    if (!Array.isArray(candidateIndexes)) {
+      return;
+    }
+
+    const resolvedRange = await findNearestNonEmptyVisibleRange(
+      session,
+      candidateIndexes
+        .map((value) => Number(value))
+        .filter((value) => Number.isInteger(value))
+    );
+
+    await panel.webview.postMessage({
+      type: 'resolved-range',
+      payload: resolvedRange,
+    });
+    return;
+  }
+
   if (command === 'open-editor-diff') {
     const fromIndex = Number(Reflect.get(message, 'fromIndex'));
     const toIndex = Number(Reflect.get(message, 'toIndex'));
@@ -502,6 +522,28 @@ async function sendTimelinePreview(panel, session, fromIndex, toIndex) {
     type: 'diff-preview',
     payload: await getDiffPreview(session, fromIndex, toIndex),
   });
+}
+
+/**
+ * @param {TimelineSession} session
+ * @param {number[]} candidateIndexes
+ * @returns {Promise<{ fromIndex: number, toIndex: number } | null>}
+ */
+async function findNearestNonEmptyVisibleRange(session, candidateIndexes) {
+  if (candidateIndexes.length < 2) {
+    return null;
+  }
+
+  for (let index = candidateIndexes.length - 1; index > 0; index -= 1) {
+    const fromIndex = candidateIndexes[index - 1];
+    const toIndex = candidateIndexes[index];
+    const preview = await getDiffPreview(session, fromIndex, toIndex);
+    if (preview.hasChanges) {
+      return { fromIndex, toIndex };
+    }
+  }
+
+  return null;
 }
 
 /**

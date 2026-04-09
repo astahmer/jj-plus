@@ -89,3 +89,13 @@ few things to change:
 - when hiding the in-between revision the timeline bar should never allow selecting a revision that do not impact the currently selected file (im often seeing "No textual changes in this selection."; if that message is true that means SOMETHING must have changed (file name? whitespace?) OR there's a bug
 - rather than "All files" as label to open the diff we should just name it "Open diffs"
 - lets make the timeline and everything around it except the diff in its own section that should be resizable/collapsable (just like the left sidebar, also with a minsize) so we can focus on the diff. when collapsed we should always show at least the timeline.
+
+---
+
+- im still getting "No textual changes in this selection.", example with 9680be84 -> 4e61b4d1; how can I even end up in this state? it shouldnt be possible to have a selected range WITHOUT changes impacting the currently seen file AS LONG as im in the "hide in between" mode. cause that mode's whole purpose is to see only revisions that actually IMPACTS that file. fix the bug
+- since allowing to resize/collapse the timeline section the styles are a bit weird: the timeline itself seems cropped (due to an overflow issue?) / when resizing to the minsize i end up seeing the exact opposite of what i asked: i see everything BUT the timeline. tho when clicking the "collapse" button i *almost* have the expected styles -> only (mostly) the timeline bar itself is shown and the rest of the timeline section is properly hidden
+- when the timeline section is collapsed (through the button) we should be able to "un-collapse" (as if clicking the button) by resizing (clicking/dragging the horizontal bar)
+- we should have a fullscreen icon button in the diff section to make it (mostly) fullscreen (so i can focus the diffs)
+- if using the "shift" modifier we should be able to jump by 5 or 10 rather than 1, both with up/down and left/right directions
+- when using the "alt" modifier (option for mac) we should be able to move the "end" marker of the range using the left/right arrow key (rather than move the range to the right); and kinda the same for the "start" marker but with the (macos) "ctrl" modifier
+- using shift + either ctrl/alt should move the start/end markers by 5/10 as well
