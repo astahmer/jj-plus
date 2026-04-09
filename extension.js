@@ -15,6 +15,7 @@ const OPEN_RANGE_DIFF_URI_PATH = '/open-range-multi-diff';
 const OPEN_MULTI_DIFF_COMMAND = '_workbench.openMultiDiffEditor';
 const SNAPSHOT_SCHEME = 'jj-range-diff';
 const PENDING_RANGE_DIFF_KEY = 'pendingRangeDiffArgs';
+const TIMELINE_PREFERENCES_KEY = 'timelinePanelPreferences';
 const CLI_SOURCE = 'cli';
 const DEFAULT_FROM_REVSET = 'closest_bookmark(@)';
 const DEFAULT_TO_REVSET = '@';
@@ -35,6 +36,9 @@ let timelinePanel;
 
 /** @type {TimelineSession | undefined} */
 let currentTimelineSession;
+
+/** @type {vscode.ExtensionContext | undefined} */
+let extensionContext;
 
 /**
  * @typedef {object} RangeDiffArgs
@@ -62,9 +66,6 @@ let currentTimelineSession;
  */
 
 /**
- * @typedef {'step' | 'cumulative'} CompareMode
- */
-
 /**
  * @typedef {object} FileRevisionEntry
  * @property {string} id
@@ -85,8 +86,18 @@ let currentTimelineSession;
  * @property {string} absolutePath
  * @property {string} fileName
  * @property {FileRevisionEntry[]} entries
+ * @property {string[]} workspaceFiles
  * @property {Map<string, string>} contentCache
  * @property {Map<string, DiffPreview>} previewCache
+ */
+
+/**
+ * @typedef {object} TimelinePreferences
+ * @property {number=} sidebarWidth
+ * @property {boolean=} sidebarCollapsed
+ * @property {'split' | 'unified'=} layoutMode
+ * @property {'diffs' | 'full'=} contentMode
+ * @property {string=} preset
  */
 
 /**
@@ -106,7 +117,6 @@ let currentTimelineSession;
  * @property {number} deletions
  * @property {number} hunkCount
  * @property {boolean} hasChanges
- * @property {CompareMode} compareMode
  * @property {number} fromIndex
  * @property {number} toIndex
  * @property {DiffRow[]} rows
@@ -116,6 +126,7 @@ let currentTimelineSession;
  * @param {vscode.ExtensionContext} context
  */
 function activate(context) {
+  extensionContext = context;
   outputChannel = vscode.window.createOutputChannel('JJ Range Diff');
   const provider = new SnapshotContentProvider();
 
@@ -186,9 +197,7 @@ function activate(context) {
     outputChannel,
     vscode.workspace.registerTextDocumentContentProvider(SNAPSHOT_SCHEME, provider),
     vscode.commands.registerCommand(HELPER_COMMAND, openRangeMultiDiff),
-    vscode.commands.registerCommand(OPEN_FILE_TIMELINE_COMMAND, () =>
-      openFileRevisionTimeline(context)
-    ),
+    vscode.commands.registerCommand(OPEN_FILE_TIMELINE_COMMAND, () => openFileRevisionTimeline(context)),
     vscode.window.registerUriHandler({
       async handleUri(uri) {
         if (uri.authority !== EXTENSION_ID || uri.path !== OPEN_RANGE_DIFF_URI_PATH) {
@@ -229,14 +238,19 @@ class SnapshotContentProvider {
 /**
  * @param {vscode.ExtensionContext} context
  */
-async function openFileRevisionTimeline(context) {
+/**
+ * @param {vscode.ExtensionContext} context
+ * @param {string=} absolutePath
+ */
+async function openFileRevisionTimeline(context, absolutePath) {
   const activeEditor = vscode.window.activeTextEditor;
-  if (!activeEditor || activeEditor.document.isUntitled) {
+  const initialPath = absolutePath || activeEditor?.document.uri.fsPath;
+  if (!initialPath) {
     void vscode.window.showErrorMessage('Open a file in the editor to browse its revision timeline');
     return;
   }
 
-  const documentUri = activeEditor.document.uri;
+  const documentUri = vscode.Uri.file(initialPath);
   const workspaceFolder = vscode.workspace.getWorkspaceFolder(documentUri);
   if (!workspaceFolder) {
     void vscode.window.showErrorMessage('The active file must belong to a workspace folder');
@@ -261,7 +275,7 @@ async function openFileRevisionTimeline(context) {
 
   void panel.webview.postMessage({
     type: 'timeline-data',
-    payload: buildTimelinePayload(session),
+    payload: buildTimelinePayload(session, getTimelinePreferences(context)),
   });
 }
 
@@ -284,6 +298,9 @@ function getOrCreateTimelinePanel(context, fileName) {
       enableScripts: true,
       retainContextWhenHidden: true,
       enableFindWidget: true,
+      localResourceRoots: extensionContext
+        ? [vscode.Uri.joinPath(extensionContext.extensionUri, 'webview')]
+        : undefined,
     }
   );
 
@@ -318,9 +335,10 @@ function getOrCreateTimelinePanel(context, fileName) {
 
 /**
  * @param {TimelineSession} session
- * @returns {{ backend: HistoryBackend, workspacePath: string, relativePath: string, fileName: string, presets: typeof TIMELINE_PRESET_DAYS, defaultIndex: number, latestIndex: number, entries: Array<Record<string, unknown>> }}
+ * @param {TimelinePreferences} preferences
+ * @returns {{ backend: HistoryBackend, workspacePath: string, relativePath: string, fileName: string, presets: typeof TIMELINE_PRESET_DAYS, defaultIndex: number, latestIndex: number, preferences: TimelinePreferences, workspaceFiles: string[], entries: Array<Record<string, unknown>> }}
  */
-function buildTimelinePayload(session) {
+function buildTimelinePayload(session, preferences) {
   return {
     backend: session.backend,
     workspacePath: session.workspacePath,
@@ -329,6 +347,8 @@ function buildTimelinePayload(session) {
     presets: TIMELINE_PRESET_DAYS,
     defaultIndex: Math.max(0, session.entries.length - 1),
     latestIndex: Math.max(0, session.entries.length - 1),
+    preferences,
+    workspaceFiles: session.workspaceFiles,
     entries: session.entries.map((entry, index) => ({
       ...entry,
       index,
@@ -356,33 +376,78 @@ async function handleTimelineMessage(panel, session, message) {
   if (command === 'ready') {
     await panel.webview.postMessage({
       type: 'timeline-data',
-      payload: buildTimelinePayload(session),
+      payload: buildTimelinePayload(session, getTimelinePreferences(extensionContext)),
     });
-    await sendTimelinePreview(panel, session, Math.max(0, session.entries.length - 1), 'step');
+    await sendTimelinePreview(panel, session, Math.max(0, session.entries.length - 2), Math.max(0, session.entries.length - 1));
     return;
   }
 
   if (command === 'select-entry') {
-    const nextIndex = Number(Reflect.get(message, 'index'));
-    if (!Number.isInteger(nextIndex)) {
+    const fromIndex = Number(Reflect.get(message, 'fromIndex'));
+    const toIndex = Number(Reflect.get(message, 'toIndex'));
+    if (!Number.isInteger(fromIndex) || !Number.isInteger(toIndex)) {
       return;
     }
 
-    const compareMode = getCompareMode(Reflect.get(message, 'compareMode'));
-
-    await sendTimelinePreview(panel, session, nextIndex, compareMode);
+    await sendTimelinePreview(panel, session, fromIndex, toIndex);
     return;
   }
 
   if (command === 'open-editor-diff') {
-    const nextIndex = Number(Reflect.get(message, 'index'));
-    if (!Number.isInteger(nextIndex)) {
+    const fromIndex = Number(Reflect.get(message, 'fromIndex'));
+    const toIndex = Number(Reflect.get(message, 'toIndex'));
+    if (!Number.isInteger(fromIndex) || !Number.isInteger(toIndex)) {
       return;
     }
 
-    const compareMode = getCompareMode(Reflect.get(message, 'compareMode'));
+    await openRangeDiffInEditor(session, fromIndex, toIndex);
+    return;
+  }
 
-    await openTimelineSelectionInEditor(session, nextIndex, compareMode);
+  if (command === 'open-current-file') {
+    await vscode.commands.executeCommand('vscode.open', vscode.Uri.file(session.absolutePath), {
+      preview: true,
+    });
+    return;
+  }
+
+  if (command === 'open-range-files-diff') {
+    const fromIndex = Number(Reflect.get(message, 'fromIndex'));
+    const toIndex = Number(Reflect.get(message, 'toIndex'));
+    if (!Number.isInteger(fromIndex) || !Number.isInteger(toIndex)) {
+      return;
+    }
+
+    await openRangeFilesDiff(session, fromIndex, toIndex);
+    return;
+  }
+
+  if (command === 'switch-file') {
+    const relativePath = String(Reflect.get(message, 'relativePath') || '').trim();
+    if (!relativePath) {
+      return;
+    }
+
+    if (!extensionContext) {
+      return;
+    }
+
+    await openFileRevisionTimeline(extensionContext, path.join(session.workspacePath, relativePath));
+    return;
+  }
+
+  if (command === 'persist-state') {
+    if (!extensionContext) {
+      return;
+    }
+
+    await saveTimelinePreferences(extensionContext, {
+      sidebarWidth: Number(Reflect.get(message, 'sidebarWidth')),
+      sidebarCollapsed: Boolean(Reflect.get(message, 'sidebarCollapsed')),
+      layoutMode: getLayoutMode(Reflect.get(message, 'layoutMode')),
+      contentMode: getContentMode(Reflect.get(message, 'contentMode')),
+      preset: getPresetName(Reflect.get(message, 'preset')),
+    });
     return;
   }
 
@@ -392,31 +457,48 @@ async function handleTimelineMessage(panel, session, message) {
     currentTimelineSession = session;
     await panel.webview.postMessage({
       type: 'timeline-data',
-      payload: buildTimelinePayload(session),
+      payload: buildTimelinePayload(session, getTimelinePreferences(extensionContext)),
     });
-    await sendTimelinePreview(panel, session, Math.max(0, session.entries.length - 1), 'step');
+    await sendTimelinePreview(panel, session, Math.max(0, session.entries.length - 2), Math.max(0, session.entries.length - 1));
   }
 }
 
 /**
  * @param {vscode.WebviewPanel} panel
  * @param {TimelineSession} session
- * @param {number} index
- * @param {CompareMode} compareMode
+ * @param {number} fromIndex
+ * @param {number} toIndex
  */
-async function sendTimelinePreview(panel, session, index, compareMode) {
+async function sendTimelinePreview(panel, session, fromIndex, toIndex) {
   await panel.webview.postMessage({
     type: 'diff-preview',
-    payload: await getDiffPreview(session, index, compareMode),
+    payload: await getDiffPreview(session, fromIndex, toIndex),
   });
 }
 
 /**
  * @param {unknown} value
- * @returns {CompareMode}
+ * @returns {'split' | 'unified'}
  */
-function getCompareMode(value) {
-  return value === 'cumulative' ? 'cumulative' : 'step';
+function getLayoutMode(value) {
+  return value === 'unified' ? 'unified' : 'split';
+}
+
+/**
+ * @param {unknown} value
+ * @returns {'diffs' | 'full'}
+ */
+function getContentMode(value) {
+  return value === 'full' ? 'full' : 'diffs';
+}
+
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
+function getPresetName(value) {
+  const preset = String(value || '').trim();
+  return Object.hasOwn(TIMELINE_PRESET_DAYS, preset) ? preset : '90d';
 }
 
 /**
@@ -430,17 +512,18 @@ function syncTimelineSession(target, source) {
   target.absolutePath = source.absolutePath;
   target.fileName = source.fileName;
   target.entries = source.entries;
+  target.workspaceFiles = source.workspaceFiles;
   target.contentCache = source.contentCache;
   target.previewCache = source.previewCache;
 }
 
 /**
  * @param {TimelineSession} session
- * @param {number} index
- * @param {CompareMode} compareMode
+ * @param {number} fromIndex
+ * @param {number} toIndex
  */
-async function openTimelineSelectionInEditor(session, index, compareMode) {
-  const comparison = getComparisonEntries(session, index, compareMode);
+async function openRangeDiffInEditor(session, fromIndex, toIndex) {
+  const comparison = getComparisonEntries(session, fromIndex, toIndex);
   if (!comparison) {
     return;
   }
@@ -465,27 +548,22 @@ async function openTimelineSelectionInEditor(session, index, compareMode) {
 
 /**
  * @param {TimelineSession} session
- * @param {number} index
- * @param {CompareMode} compareMode
- * @returns {{ fromEntry: FileRevisionEntry | undefined, toEntry: FileRevisionEntry } | undefined}
+ * @param {number} fromIndex
+ * @param {number} toIndex
+ * @returns {{ fromEntry: FileRevisionEntry, toEntry: FileRevisionEntry } | undefined}
  */
-function getComparisonEntries(session, index, compareMode) {
-  const targetEntry = session.entries[index];
-  if (!targetEntry) {
+function getComparisonEntries(session, fromIndex, toIndex) {
+  const normalizedFromIndex = Math.max(0, Math.min(fromIndex, toIndex));
+  const normalizedToIndex = Math.max(normalizedFromIndex, Math.max(fromIndex, toIndex));
+  const fromEntry = session.entries[normalizedFromIndex];
+  const toEntry = session.entries[normalizedToIndex];
+  if (!fromEntry || !toEntry) {
     return undefined;
   }
 
-  if (compareMode === 'cumulative') {
-    const latestEntry = session.entries[session.entries.length - 1];
-    return {
-      fromEntry: targetEntry,
-      toEntry: latestEntry,
-    };
-  }
-
   return {
-    fromEntry: index > 0 ? session.entries[index - 1] : undefined,
-    toEntry: targetEntry,
+    fromEntry,
+    toEntry,
   };
 }
 
@@ -513,6 +591,7 @@ async function createRevisionUri(session, entry) {
 async function buildTimelineSession(workspacePath, absolutePath) {
   const relativePath = path.relative(workspacePath, absolutePath).replace(/\\/g, '/');
   const backend = await resolveHistoryBackend(workspacePath);
+  const workspaceFiles = await listWorkspaceFiles(workspacePath);
   const entries = backend === 'jj'
     ? await getJjFileRevisionHistory(workspacePath, relativePath)
     : await getGitFileRevisionHistory(workspacePath, relativePath);
@@ -524,9 +603,27 @@ async function buildTimelineSession(workspacePath, absolutePath) {
     relativePath,
     fileName: path.basename(absolutePath),
     entries: await appendWorkingTreeEntry(absolutePath, entries),
+    workspaceFiles,
     contentCache: new Map(),
     previewCache: new Map(),
   };
+}
+
+/**
+ * @param {string} workspacePath
+ * @returns {Promise<string[]>}
+ */
+async function listWorkspaceFiles(workspacePath) {
+  const matches = await vscode.workspace.findFiles(
+    new vscode.RelativePattern(workspacePath, '**/*'),
+    '**/{.git,.jj,node_modules,dist,build,out,coverage}/**',
+    5000
+  );
+
+  return matches
+    .filter((uri) => uri.scheme === 'file')
+    .map((uri) => path.relative(workspacePath, uri.fsPath).replace(/\\/g, '/'))
+    .sort((left, right) => left.localeCompare(right));
 }
 
 /**
@@ -664,30 +761,31 @@ async function appendWorkingTreeEntry(absolutePath, entries) {
 
 /**
  * @param {TimelineSession} session
- * @param {number} index
- * @param {CompareMode} compareMode
+ * @param {number} fromIndex
+ * @param {number} toIndex
  * @returns {Promise<DiffPreview>}
  */
-async function getDiffPreview(session, index, compareMode) {
-  const cacheKey = `${compareMode}:${index}`;
+async function getDiffPreview(session, fromIndex, toIndex) {
+  const normalizedFromIndex = Math.max(0, Math.min(fromIndex, toIndex));
+  const normalizedToIndex = Math.max(normalizedFromIndex, Math.max(fromIndex, toIndex));
+  const cacheKey = `${normalizedFromIndex}:${normalizedToIndex}`;
   const cached = session.previewCache.get(cacheKey);
   if (cached) {
     return cached;
   }
 
-  const comparison = getComparisonEntries(session, index, compareMode);
+  const comparison = getComparisonEntries(session, normalizedFromIndex, normalizedToIndex);
   if (!comparison) {
     return {
-      index,
+      index: normalizedToIndex,
       title: 'No revision selected',
       subtitle: '',
       additions: 0,
       deletions: 0,
       hunkCount: 0,
       hasChanges: false,
-      compareMode,
-      fromIndex: index,
-      toIndex: index,
+      fromIndex: normalizedFromIndex,
+      toIndex: normalizedToIndex,
       rows: [],
     };
   }
@@ -696,12 +794,12 @@ async function getDiffPreview(session, index, compareMode) {
   const beforeText = fromEntry ? await getRevisionContent(session, fromEntry) : '';
   const afterText = await getRevisionContent(session, toEntry);
   const preview = buildDiffPreview(
-    index,
+    normalizedToIndex,
     fromEntry,
     toEntry,
     beforeText,
     afterText,
-    compareMode,
+    normalizedFromIndex,
     session.entries.findIndex((entry) => entry.id === toEntry.id)
   );
   session.previewCache.set(cacheKey, preview);
@@ -742,11 +840,11 @@ async function getRevisionContent(session, entry) {
  * @param {FileRevisionEntry} currentEntry
  * @param {string} beforeText
  * @param {string} afterText
- * @param {CompareMode} compareMode
+ * @param {number} fromIndex
  * @param {number} toIndex
  * @returns {DiffPreview}
  */
-function buildDiffPreview(index, previousEntry, currentEntry, beforeText, afterText, compareMode, toIndex) {
+function buildDiffPreview(index, previousEntry, currentEntry, beforeText, afterText, fromIndex, toIndex) {
   const beforeLines = splitIntoLines(beforeText);
   const afterLines = splitIntoLines(afterText);
   const operations = diffLineOperations(beforeLines, afterLines);
@@ -757,12 +855,9 @@ function buildDiffPreview(index, previousEntry, currentEntry, beforeText, afterT
   const title = previousEntry
     ? `${previousEntry.shortRevision} -> ${currentEntry.shortRevision}`
     : `Initial revision -> ${currentEntry.shortRevision}`;
-  const subtitleBase = currentEntry.isWorkingTree
+  const subtitle = currentEntry.isWorkingTree
     ? 'Working tree'
     : `${new Date(currentEntry.authorDate).toLocaleString()} · ${currentEntry.description}`;
-  const subtitle = compareMode === 'cumulative'
-    ? `${subtitleBase} · Cumulative to current`
-    : subtitleBase;
 
   return {
     index,
@@ -772,11 +867,124 @@ function buildDiffPreview(index, previousEntry, currentEntry, beforeText, afterT
     deletions,
     hunkCount,
     hasChanges: additions > 0 || deletions > 0,
-    compareMode,
-    fromIndex: compareMode === 'cumulative' ? index : previousEntry ? Math.max(0, index - 1) : 0,
+    fromIndex,
     toIndex,
     rows,
   };
+}
+
+/**
+ * @param {vscode.ExtensionContext | undefined} context
+ * @returns {TimelinePreferences}
+ */
+function getTimelinePreferences(context) {
+  const rawValue = context?.globalState.get(TIMELINE_PREFERENCES_KEY);
+  if (!rawValue || typeof rawValue !== 'object') {
+    return {
+      sidebarWidth: 276,
+      sidebarCollapsed: false,
+      layoutMode: 'split',
+      contentMode: 'diffs',
+      preset: '90d',
+    };
+  }
+
+  const value = /** @type {TimelinePreferences} */ (rawValue);
+  return {
+    sidebarWidth: typeof value.sidebarWidth === 'number' ? value.sidebarWidth : 276,
+    sidebarCollapsed: value.sidebarCollapsed === true,
+    layoutMode: getLayoutMode(value.layoutMode),
+    contentMode: getContentMode(value.contentMode),
+    preset: getPresetName(value.preset),
+  };
+}
+
+/**
+ * @param {vscode.ExtensionContext} context
+ * @param {TimelinePreferences} nextValue
+ */
+async function saveTimelinePreferences(context, nextValue) {
+  const currentValue = getTimelinePreferences(context);
+  await context.globalState.update(TIMELINE_PREFERENCES_KEY, {
+    ...currentValue,
+    ...nextValue,
+  });
+}
+
+/**
+ * @param {TimelineSession} session
+ * @param {number} fromIndex
+ * @param {number} toIndex
+ */
+async function openRangeFilesDiff(session, fromIndex, toIndex) {
+  const comparison = getComparisonEntries(session, fromIndex, toIndex);
+  if (!comparison) {
+    return;
+  }
+
+  const { fromEntry, toEntry } = comparison;
+  const title = `${fromEntry.shortRevision}..${toEntry.shortRevision}`;
+
+  if (session.backend === 'jj') {
+    const { resources, resolvedTitle } = await buildMultiDiffResources(
+      session.workspacePath,
+      fromEntry.revision,
+      toEntry.isWorkingTree ? '@' : toEntry.revision,
+      title
+    );
+
+    await vscode.commands.executeCommand(OPEN_MULTI_DIFF_COMMAND, {
+      title: resolvedTitle,
+      resources,
+    });
+    return;
+  }
+
+  const resources = await buildGitMultiDiffResources(session, fromEntry, toEntry);
+  if (!resources.length) {
+    void vscode.window.showInformationMessage(`No changes found for ${title}`);
+    return;
+  }
+
+  await vscode.commands.executeCommand(OPEN_MULTI_DIFF_COMMAND, {
+    title,
+    resources,
+  });
+}
+
+/**
+ * @param {TimelineSession} session
+ * @param {FileRevisionEntry} fromEntry
+ * @param {FileRevisionEntry} toEntry
+ * @returns {Promise<Array<{ originalUri: vscode.Uri, modifiedUri: vscode.Uri }>>}
+ */
+async function buildGitMultiDiffResources(session, fromEntry, toEntry) {
+  const changedFiles = await listGitChangedFiles(session.workspacePath, fromEntry, toEntry);
+  return Promise.all(
+    changedFiles.map(async (relativePath) => ({
+      originalUri: createSnapshotUri(session.workspacePath, fromEntry.revision, relativePath, 'git'),
+      modifiedUri: toEntry.isWorkingTree
+        ? await createTargetUri(session.workspacePath, '@', relativePath, 'git')
+        : createSnapshotUri(session.workspacePath, toEntry.revision, relativePath, 'git'),
+    }))
+  );
+}
+
+/**
+ * @param {string} workspacePath
+ * @param {FileRevisionEntry} fromEntry
+ * @param {FileRevisionEntry} toEntry
+ * @returns {Promise<string[]>}
+ */
+async function listGitChangedFiles(workspacePath, fromEntry, toEntry) {
+  const args = toEntry.isWorkingTree
+    ? ['diff', '--name-only', fromEntry.revision, '--']
+    : ['diff', '--name-only', fromEntry.revision, toEntry.revision, '--'];
+  const { stdout } = await runGit(workspacePath, args);
+  return stdout
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .filter(Boolean);
 }
 
 /**
@@ -1115,9 +1323,10 @@ async function listRevisionFiles(workspacePath, revset) {
  * @param {string} workspacePath
  * @param {string} target
  * @param {string} relativePath
+ * @param {HistoryBackend=} backend
  * @returns {Promise<vscode.Uri>}
  */
-async function createTargetUri(workspacePath, target, relativePath) {
+async function createTargetUri(workspacePath, target, relativePath, backend = 'jj') {
   if (target === '@') {
     const fileUri = vscode.Uri.file(path.join(workspacePath, relativePath));
     if (await fileExists(fileUri.fsPath)) {
@@ -1125,7 +1334,7 @@ async function createTargetUri(workspacePath, target, relativePath) {
     }
   }
 
-  return createSnapshotUri(workspacePath, target, relativePath);
+  return createSnapshotUri(workspacePath, target, relativePath, backend);
 }
 
 /**
@@ -1477,670 +1686,31 @@ function formatRelativeTime(timestamp) {
  * @returns {string}
  */
 function getTimelineWebviewHtml(webview) {
-  const nonce = String(Date.now());
+  if (!extensionContext) {
+    return '<!DOCTYPE html><html><body>Extension context unavailable.</body></html>';
+  }
+
+  const styleUri = webview.asWebviewUri(
+    vscode.Uri.joinPath(extensionContext.extensionUri, 'webview', 'timeline.css')
+  );
+  const scriptUri = webview.asWebviewUri(
+    vscode.Uri.joinPath(extensionContext.extensionUri, 'webview', 'timeline.js')
+  );
+
   return `<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'none'; img-src ${webview.cspSource} https: data:; style-src 'unsafe-inline' ${webview.cspSource}; script-src 'nonce-${nonce}';"
+      content="default-src 'none'; img-src ${webview.cspSource} https: data:; style-src ${webview.cspSource}; script-src ${webview.cspSource};"
     />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Revision Timeline</title>
-    <style>
-      :root {
-        color-scheme: dark;
-        --sidebar-width: 276px;
-        --bg: var(--vscode-editor-background, #11151c);
-        --panel: var(--vscode-sideBar-background, #171c24);
-        --panel-alt: var(--vscode-editorWidget-background, #1d232d);
-        --panel-soft: rgba(255, 255, 255, 0.025);
-        --text: var(--vscode-foreground, #e8ecf3);
-        --muted: var(--vscode-descriptionForeground, #9da7b5);
-        --border: var(--vscode-panel-border, rgba(255, 255, 255, 0.08));
-        --accent: var(--vscode-focusBorder, #5d91ff);
-        --accent-soft: rgba(93, 145, 255, 0.14);
-        --success: #4cc38a;
-        --danger: #ff7b72;
-        --shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
-        --code-font: "SFMono-Regular", "Cascadia Code", "JetBrains Mono", monospace;
-        --ui-font: "SF Pro Text", "Segoe UI Variable", "Aptos", sans-serif;
-      }
-
-      html,
-      body {
-        height: 100%;
-      }
-
-      * {
-        box-sizing: border-box;
-      }
-
-      body {
-        margin: 0;
-        font-family: var(--ui-font);
-        color: var(--text);
-        background: var(--bg);
-        padding: 8px;
-      }
-
-      .app {
-        height: calc(100vh - 16px);
-        display: grid;
-        grid-template-rows: auto minmax(0, 1fr);
-        gap: 8px;
-      }
-
-      .panel {
-        background: linear-gradient(180deg, var(--panel), var(--panel-alt));
-        border: 1px solid var(--border);
-        border-radius: 12px;
-        box-shadow: var(--shadow);
-        min-width: 0;
-      }
-
-      .timeline-shell {
-        display: grid;
-        gap: 8px;
-        padding: 10px 12px 12px;
-      }
-
-      .timeline-top {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
-        gap: 12px;
-      }
-
-      .eyebrow {
-        color: var(--muted);
-        font-size: 11px;
-        letter-spacing: 0.16em;
-        text-transform: uppercase;
-      }
-
-      .title-block {
-        min-width: 0;
-        display: grid;
-        gap: 1px;
-      }
-
-      .title-line {
-        display: flex;
-        align-items: baseline;
-        gap: 10px;
-        min-width: 0;
-        flex-wrap: wrap;
-      }
-
-      .title-line strong {
-        font-size: 19px;
-        letter-spacing: -0.02em;
-        font-weight: 650;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
-
-      .title-path {
-        color: var(--muted);
-        font-size: 11px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
-
-      .toolbar {
-        display: flex;
-        gap: 6px;
-        flex-wrap: wrap;
-        justify-content: flex-end;
-      }
-
-      .button {
-        border: 1px solid var(--border);
-        background: rgba(255, 255, 255, 0.04);
-        color: var(--text);
-        border-radius: 999px;
-        padding: 5px 10px;
-        font: inherit;
-        font-size: 11px;
-        cursor: pointer;
-        white-space: nowrap;
-      }
-
-      .button:hover {
-        border-color: rgba(255, 255, 255, 0.16);
-        background: rgba(255, 255, 255, 0.06);
-      }
-
-      .timeline-head {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 12px;
-        flex-wrap: wrap;
-      }
-
-      .range-label {
-        font-size: 14px;
-        letter-spacing: -0.02em;
-        font-weight: 600;
-      }
-
-      .range-subtitle {
-        color: var(--muted);
-        font-size: 12px;
-      }
-
-      .control-row {
-        display: flex;
-        gap: 6px;
-        flex-wrap: wrap;
-      }
-
-      .segmented {
-        display: inline-flex;
-        gap: 3px;
-        padding: 3px;
-        background: rgba(255, 255, 255, 0.03);
-        border: 1px solid var(--border);
-        border-radius: 999px;
-      }
-
-      .preset-row {
-        display: contents;
-      }
-
-      .segment {
-        border: 0;
-        color: var(--muted);
-        background: transparent;
-        border-radius: 999px;
-        padding: 4px 9px;
-        font: inherit;
-        font-size: 11px;
-        cursor: pointer;
-        white-space: nowrap;
-      }
-
-      .segment.active {
-        background: var(--accent-soft);
-        color: var(--text);
-      }
-
-      .scrubber {
-        position: relative;
-        display: grid;
-        gap: 6px;
-      }
-
-      .track {
-        position: absolute;
-        left: 0;
-        right: 0;
-        top: 20px;
-        height: 7px;
-        border-radius: 999px;
-        background:
-          linear-gradient(90deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03)),
-          repeating-linear-gradient(
-            90deg,
-            rgba(255,255,255,0.06) 0,
-            rgba(255,255,255,0.06) 1px,
-            transparent 1px,
-            transparent 8px
-          );
-        border: 1px solid var(--border);
-      }
-
-      input[type='range'] {
-        appearance: none;
-        width: 100%;
-        margin: 0;
-        background: transparent;
-        position: relative;
-        z-index: 2;
-        padding-top: 10px;
-      }
-
-      input[type='range']::-webkit-slider-runnable-track {
-        height: 7px;
-        background: transparent;
-      }
-
-      input[type='range']::-webkit-slider-thumb {
-        appearance: none;
-        width: 14px;
-        height: 14px;
-        margin-top: -3px;
-        border-radius: 999px;
-        background: var(--accent);
-        border: 2px solid var(--bg);
-        box-shadow: 0 0 0 3px rgba(93, 145, 255, 0.16);
-      }
-
-      input[type='range']::-moz-range-track {
-        height: 7px;
-        background: transparent;
-      }
-
-      input[type='range']::-moz-range-thumb {
-        width: 14px;
-        height: 14px;
-        border-radius: 999px;
-        background: var(--accent);
-        border: 2px solid var(--bg);
-        box-shadow: 0 0 0 3px rgba(93, 145, 255, 0.16);
-      }
-
-      .selection-pill {
-        position: absolute;
-        top: -4px;
-        transform: translateX(-50%);
-        background: var(--panel-alt);
-        border: 1px solid var(--border);
-        border-radius: 999px;
-        padding: 4px 10px;
-        color: var(--text);
-        font-size: 11px;
-        white-space: nowrap;
-        z-index: 1;
-      }
-
-      .month-row {
-        display: flex;
-        justify-content: space-between;
-        flex-wrap: wrap;
-        gap: 10px;
-        color: var(--muted);
-        font-size: 11px;
-        margin-top: 2px;
-      }
-
-      .month-row strong {
-        color: var(--text);
-      }
-
-      .workspace {
-        display: grid;
-        grid-template-columns: minmax(0, var(--sidebar-width)) 6px minmax(0, 1fr);
-        gap: 0;
-        min-height: 0;
-      }
-
-      .workspace.is-collapsed {
-        grid-template-columns: 0 0 minmax(0, 1fr);
-      }
-
-      .sidebar,
-      .diff-panel {
-        min-height: 0;
-        display: grid;
-      }
-
-      .sidebar {
-        grid-template-rows: auto minmax(0, 1fr);
-        overflow: hidden;
-        border-radius: 12px 0 0 12px;
-        border-right: 0;
-      }
-
-      .workspace.is-collapsed .sidebar,
-      .workspace.is-collapsed .resize-handle {
-        display: none;
-      }
-
-      .resize-handle {
-        cursor: col-resize;
-        position: relative;
-      }
-
-      .resize-handle::before {
-        content: '';
-        position: absolute;
-        inset: 0 2px;
-        background: rgba(255, 255, 255, 0.04);
-      }
-
-      .resize-handle:hover::before,
-      .resize-handle.is-dragging::before {
-        background: var(--accent);
-      }
-
-      .sidebar-head {
-        padding: 10px 12px 8px;
-        border-bottom: 1px solid var(--border);
-        display: flex;
-        justify-content: space-between;
-        gap: 8px;
-        align-items: center;
-      }
-
-      .sidebar-hint {
-        color: var(--muted);
-        font-size: 11px;
-      }
-
-      .history-list {
-        overflow: auto;
-        padding: 6px;
-        display: grid;
-        gap: 4px;
-      }
-
-      .history-item {
-        border: 1px solid transparent;
-        background: rgba(255, 255, 255, 0.02);
-        border-radius: 10px;
-        padding: 8px 9px;
-        cursor: pointer;
-        text-align: left;
-        display: grid;
-        gap: 4px;
-      }
-
-      .history-item:hover {
-        border-color: var(--border);
-      }
-
-      .history-item.active {
-        border-color: rgba(93, 145, 255, 0.34);
-        background: rgba(93, 145, 255, 0.09);
-      }
-
-      .history-top,
-      .history-bottom {
-        display: flex;
-        justify-content: space-between;
-        gap: 8px;
-        align-items: center;
-      }
-
-      .history-top {
-        font-size: 11px;
-        font-weight: 600;
-      }
-
-      .history-description {
-        color: var(--muted);
-        font-size: 11px;
-        line-height: 1.35;
-        min-height: 15px;
-      }
-
-      .history-description.is-truncated {
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
-
-      .history-meta {
-        color: var(--muted);
-        font-size: 11px;
-      }
-
-      .history-stats {
-        display: grid;
-        grid-auto-flow: column;
-        gap: 6px;
-        justify-content: start;
-        align-items: center;
-      }
-
-      .history-more {
-        border: 0;
-        padding: 0;
-        background: transparent;
-        color: var(--accent);
-        font: inherit;
-        font-size: 11px;
-        cursor: pointer;
-      }
-
-      .diff-panel {
-        grid-template-rows: auto minmax(0, 1fr);
-        border-radius: 0 12px 12px 0;
-      }
-
-      .diff-head {
-        padding: 10px 12px;
-        display: grid;
-        gap: 7px;
-        border-bottom: 1px solid var(--border);
-      }
-
-      .diff-title-row {
-        display: flex;
-        justify-content: space-between;
-        gap: 12px;
-        align-items: center;
-        flex-wrap: wrap;
-      }
-
-      .diff-title {
-        margin: 0;
-        font-size: 15px;
-        letter-spacing: -0.02em;
-      }
-
-      .stat {
-        font-family: var(--code-font);
-        font-size: 11px;
-        color: var(--muted);
-      }
-
-      .stat--plus {
-        color: var(--success);
-      }
-
-      .stat--minus {
-        color: var(--danger);
-      }
-
-      .diff-subtitle {
-        color: var(--muted);
-        font-size: 12px;
-      }
-
-      .diff-toolbar {
-        display: flex;
-        justify-content: space-between;
-        gap: 8px;
-        flex-wrap: wrap;
-      }
-
-      .diff-rows {
-        min-height: 0;
-        overflow: auto;
-        font-family: var(--code-font);
-        font-size: 12px;
-        line-height: 1.55;
-      }
-
-      .diff-row,
-      .split-row {
-        display: grid;
-        align-items: start;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.02);
-      }
-
-      .diff-row {
-        grid-template-columns: 18px 52px 52px minmax(0, 1fr);
-      }
-
-      .split-row {
-        grid-template-columns: 46px minmax(0, 1fr) 46px minmax(0, 1fr);
-      }
-
-      .diff-row--context {
-        background: transparent;
-      }
-
-      .diff-row--add {
-        background: rgba(76, 195, 138, 0.08);
-      }
-
-      .diff-row--remove {
-        background: rgba(255, 123, 114, 0.08);
-      }
-
-      .diff-row--skip {
-        grid-template-columns: 1fr;
-        background: rgba(255, 255, 255, 0.03);
-        color: var(--muted);
-      }
-
-      .split-row--skip {
-        grid-template-columns: 1fr;
-      }
-
-      .split-row--change .split-code--left {
-        background: rgba(255, 123, 114, 0.08);
-      }
-
-      .split-row--change .split-code--right {
-        background: rgba(76, 195, 138, 0.08);
-      }
-
-      .cell {
-        padding: 3px 8px;
-        min-width: 0;
-      }
-
-      .split-cell {
-        min-width: 0;
-        padding: 3px 8px;
-      }
-
-      .marker,
-      .line-number {
-        color: var(--muted);
-        text-align: right;
-        user-select: none;
-      }
-
-      .line-number {
-        font-variant-numeric: tabular-nums;
-      }
-
-      .diff-row--add .marker {
-        color: var(--success);
-      }
-
-      .diff-row--remove .marker {
-        color: var(--danger);
-      }
-
-      .code,
-      .split-code {
-        white-space: pre;
-        overflow-x: auto;
-      }
-
-      .split-number {
-        color: var(--muted);
-        text-align: right;
-        font-variant-numeric: tabular-nums;
-      }
-
-      .skip-button {
-        width: 100%;
-        border: 0;
-        padding: 7px 10px;
-        background: transparent;
-        color: var(--muted);
-        font: inherit;
-        font-size: 11px;
-        cursor: pointer;
-        text-align: left;
-      }
-
-      .skip-button:hover {
-        color: var(--text);
-      }
-
-      .empty,
-      .empty-diff {
-        text-align: center;
-        color: var(--muted);
-        padding: 28px 16px;
-      }
-
-      @media (max-width: 980px) {
-        body {
-          padding: 8px;
-        }
-
-        .timeline-top,
-        .timeline-head,
-        .diff-toolbar {
-          grid-template-columns: 1fr;
-          display: grid;
-        }
-
-        .toolbar,
-        .control-row {
-          justify-content: flex-start;
-        }
-
-        .workspace,
-        .workspace.is-collapsed {
-          grid-template-columns: 1fr;
-          gap: 8px;
-        }
-
-        .resize-handle {
-          display: none;
-        }
-
-        .sidebar,
-        .diff-panel {
-          border-radius: 12px;
-        }
-      }
-    </style>
+    <link rel="stylesheet" href="${styleUri}" />
   </head>
   <body>
     <div class="app">
-      <section class="panel timeline-shell">
-        <div class="timeline-top">
-          <div class="title-block">
-            <div class="eyebrow">Revision Timeline</div>
-            <div class="title-line">
-              <strong id="fileName">Loading…</strong>
-              <span class="title-path" id="filePath"></span>
-            </div>
-          </div>
-          <div class="toolbar">
-            <button class="button" id="toggleSidebarButton">Hide Sidebar</button>
-            <button class="button" id="openEditorButton">Open In Editor</button>
-            <button class="button" id="refreshButton">Refresh</button>
-          </div>
-        </div>
-
-        <div class="timeline-head">
-          <div>
-            <div class="range-label" id="rangeLabel">Loading revisions…</div>
-            <div class="range-subtitle" id="rangeSubtitle"></div>
-          </div>
-          <div class="control-row">
-            <div class="segmented" id="compareModes"></div>
-            <div class="segmented" id="layoutModes"></div>
-            <div class="segmented" id="contentModes"></div>
-            <div class="segmented" id="presets"></div>
-          </div>
-        </div>
-
-        <div class="scrubber">
-          <div class="track"></div>
-          <div class="selection-pill" id="selectionPill">Select a revision</div>
-          <input id="slider" type="range" min="0" max="0" value="0" />
-          <div class="month-row" id="monthRow"></div>
-        </div>
-      </section>
-
       <section class="workspace" id="workspace">
         <aside class="panel sidebar" id="sidebar">
           <div class="sidebar-head">
@@ -2152,640 +1722,75 @@ function getTimelineWebviewHtml(webview) {
         <div class="resize-handle" id="resizeHandle"></div>
         <section class="panel diff-panel">
           <div class="diff-head">
+            <div class="diff-head-top">
+              <div class="file-switcher">
+                <div class="eyebrow">Revision Timeline</div>
+                <div class="file-switcher-row">
+                  <div class="file-title" id="fileName">Loading...</div>
+                  <div class="title-path" id="filePath"></div>
+                </div>
+                <input class="file-input" id="fileSwitcher" list="workspaceFilesList" placeholder="Switch file..." />
+                <datalist id="workspaceFilesList"></datalist>
+              </div>
+              <div class="head-actions">
+                <div class="menu-wrap">
+                  <button class="menu-button" id="actionsButton" type="button">...</button>
+                  <div class="menu" id="actionsMenu">
+                    <button class="menu-item" id="toggleSidebarAction" type="button">Hide Sidebar</button>
+                    <button class="menu-item" id="openCurrentFileAction" type="button">Open File</button>
+                    <button class="menu-item" id="openEditorButton" type="button">Open File Range Diff</button>
+                    <button class="menu-item" id="openRangeFilesButton" type="button">Open Range Files Diff</button>
+                    <button class="menu-item" id="refreshButton" type="button">Refresh</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="timeline-head">
+              <div>
+                <div class="range-label" id="rangeLabel">Loading revisions...</div>
+                <div class="range-subtitle" id="rangeSubtitle"></div>
+              </div>
+              <div class="control-row">
+                <div class="segmented" id="layoutModes"></div>
+                <div class="segmented" id="contentModes"></div>
+                <div class="segmented" id="presets"></div>
+              </div>
+            </div>
+
+            <div class="timeline">
+              <div class="timeline-labels">
+                <div class="handle-pills">
+                  <span class="handle-pill from" id="fromHandleLabel">From</span>
+                  <span class="handle-pill to" id="toHandleLabel">To</span>
+                </div>
+                <div class="selection-meta" id="selectionMeta"></div>
+              </div>
+              <div class="track"></div>
+              <div class="range-fill" id="rangeFill"></div>
+              <div class="selection-pill from" id="fromPill">From</div>
+              <div class="selection-pill to" id="toPill">To</div>
+              <div class="sliders">
+                <input id="fromSlider" type="range" min="0" max="0" value="0" />
+                <input id="toSlider" type="range" min="0" max="0" value="0" />
+              </div>
+              <div class="month-row" id="monthRow"></div>
+            </div>
+
             <div class="diff-title-row">
               <div>
                 <div class="eyebrow" id="diffModeEyebrow">Diff</div>
-                <h3 class="diff-title" id="diffTitle">Loading diff…</h3>
+                <h3 class="diff-title" id="diffTitle">Loading diff...</h3>
               </div>
               <div class="history-stats" id="diffStats"></div>
             </div>
             <div class="diff-subtitle" id="diffSubtitle"></div>
-            <div class="diff-toolbar">
-              <div class="supporting" id="selectionMeta"></div>
-            </div>
           </div>
           <div class="diff-rows" id="diffRows"></div>
         </section>
       </section>
     </div>
-
-    <script nonce="${nonce}">
-      const vscode = acquireVsCodeApi();
-      const state = {
-        data: null,
-        preview: null,
-        previewByIndex: {},
-        preset: '90d',
-        visibleEntries: [],
-        selectedIndex: 0,
-        compareMode: 'step',
-        layoutMode: 'split',
-        contentMode: 'diffs',
-        sidebarWidth: 276,
-        sidebarCollapsed: false,
-        expandedDescriptions: {},
-        expandedRanges: {},
-        previewTimer: undefined,
-      };
-
-      const elements = {
-        workspace: document.getElementById('workspace'),
-        sidebar: document.getElementById('sidebar'),
-        resizeHandle: document.getElementById('resizeHandle'),
-        fileName: document.getElementById('fileName'),
-        filePath: document.getElementById('filePath'),
-        rangeLabel: document.getElementById('rangeLabel'),
-        rangeSubtitle: document.getElementById('rangeSubtitle'),
-        selectionPill: document.getElementById('selectionPill'),
-        slider: document.getElementById('slider'),
-        monthRow: document.getElementById('monthRow'),
-        sidebarHint: document.getElementById('sidebarHint'),
-        historyList: document.getElementById('historyList'),
-        presets: document.getElementById('presets'),
-        compareModes: document.getElementById('compareModes'),
-        layoutModes: document.getElementById('layoutModes'),
-        contentModes: document.getElementById('contentModes'),
-        toggleSidebarButton: document.getElementById('toggleSidebarButton'),
-        openEditorButton: document.getElementById('openEditorButton'),
-        refreshButton: document.getElementById('refreshButton'),
-        diffModeEyebrow: document.getElementById('diffModeEyebrow'),
-        diffTitle: document.getElementById('diffTitle'),
-        diffSubtitle: document.getElementById('diffSubtitle'),
-        diffStats: document.getElementById('diffStats'),
-        selectionMeta: document.getElementById('selectionMeta'),
-        diffRows: document.getElementById('diffRows'),
-      };
-
-      const presetLabels = {
-        month: 'This month',
-        '7d': 'Last 7D',
-        '30d': '30D',
-        '90d': '90D',
-        all: 'All',
-      };
-
-      const compareModeLabels = {
-        step: 'Revision',
-        cumulative: 'To now',
-      };
-
-      const layoutModeLabels = {
-        split: 'Split',
-        unified: 'Unified',
-      };
-
-      const contentModeLabels = {
-        diffs: 'Diffs',
-        full: 'Whole file',
-      };
-
-      window.addEventListener('message', (event) => {
-        const message = event.data;
-        if (message?.type === 'timeline-data') {
-          state.data = message.payload;
-          state.selectedIndex = state.data.defaultIndex || 0;
-          state.preview = null;
-          state.previewByIndex = {};
-          state.expandedRanges = {};
-
-          if (!state.data.entries.length) {
-            renderEmpty();
-            return;
-          }
-
-          elements.fileName.textContent = state.data.fileName;
-          elements.filePath.textContent = state.data.relativePath;
-          renderControlGroups();
-          applySidebarState();
-          applyPreset(state.preset, true, true);
-          return;
-        }
-
-        if (message?.type !== 'diff-preview') {
-          return;
-        }
-
-        if (message.payload.compareMode !== state.compareMode) {
-          return;
-        }
-
-        state.preview = message.payload;
-        state.previewByIndex[getPreviewKey(message.payload.index, message.payload.compareMode)] = message.payload;
-        renderPreview();
-        renderHistoryList();
-      });
-
-      elements.slider.addEventListener('input', () => {
-        const nextVisibleIndex = Number(elements.slider.value);
-        const nextEntry = state.visibleEntries[nextVisibleIndex];
-        if (!nextEntry) {
-          return;
-        }
-
-        state.selectedIndex = nextEntry.index;
-        renderSelection();
-        requestPreview(70);
-      });
-
-      elements.slider.addEventListener('change', () => {
-        requestPreview(0);
-      });
-
-      elements.openEditorButton.addEventListener('click', () => {
-        vscode.postMessage({
-          command: 'open-editor-diff',
-          index: state.selectedIndex,
-          compareMode: state.compareMode,
-        });
-      });
-
-      elements.refreshButton.addEventListener('click', () => {
-        vscode.postMessage({ command: 'refresh' });
-      });
-
-      elements.toggleSidebarButton.addEventListener('click', () => {
-        state.sidebarCollapsed = !state.sidebarCollapsed;
-        applySidebarState();
-      });
-
-      elements.resizeHandle.addEventListener('pointerdown', (event) => {
-        if (window.matchMedia('(max-width: 980px)').matches || state.sidebarCollapsed) {
-          return;
-        }
-
-        event.preventDefault();
-        const startX = event.clientX;
-        const startWidth = state.sidebarWidth;
-        elements.resizeHandle.classList.add('is-dragging');
-        window.addEventListener('pointermove', onPointerMove);
-        window.addEventListener('pointerup', onPointerUp);
-
-        function onPointerMove(moveEvent) {
-          const delta = moveEvent.clientX - startX;
-          state.sidebarWidth = Math.max(180, Math.min(420, startWidth + delta));
-          applySidebarState();
-        }
-
-        function onPointerUp() {
-          elements.resizeHandle.classList.remove('is-dragging');
-          window.removeEventListener('pointermove', onPointerMove);
-          window.removeEventListener('pointerup', onPointerUp);
-        }
-      });
-
-      function renderControlGroups() {
-        renderSegmentedControl(elements.compareModes, compareModeLabels, state.compareMode, (value) => {
-          state.compareMode = value;
-          state.preview = null;
-          renderControlGroups();
-          renderSelection();
-          requestPreview(0);
-        });
-        renderSegmentedControl(elements.layoutModes, layoutModeLabels, state.layoutMode, (value) => {
-          state.layoutMode = value;
-          renderControlGroups();
-          renderPreview();
-        });
-        renderSegmentedControl(elements.contentModes, contentModeLabels, state.contentMode, (value) => {
-          state.contentMode = value;
-          renderControlGroups();
-          renderPreview();
-        });
-        renderSegmentedControl(elements.presets, presetLabels, state.preset, (value) => {
-          applyPreset(value, true);
-        });
-      }
-
-      function renderSegmentedControl(container, labels, activeValue, onSelect) {
-        container.innerHTML = '';
-        for (const [value, label] of Object.entries(labels)) {
-          const button = document.createElement('button');
-          button.className = 'segment' + (activeValue === value ? ' active' : '');
-          button.textContent = label;
-          button.type = 'button';
-          button.addEventListener('click', () => onSelect(value));
-          container.appendChild(button);
-        }
-      }
-
-      function applySidebarState() {
-        document.documentElement.style.setProperty('--sidebar-width', String(state.sidebarWidth) + 'px');
-        elements.workspace.classList.toggle('is-collapsed', state.sidebarCollapsed);
-        elements.toggleSidebarButton.textContent = state.sidebarCollapsed ? 'Show Sidebar' : 'Hide Sidebar';
-      }
-
-      function applyPreset(preset, resetSelection, suppressPreviewRequest) {
-        state.preset = preset;
-        const allEntries = state.data.entries;
-        const lastEntry = allEntries[allEntries.length - 1];
-        const windowDays = state.data.presets[preset];
-        const cutoff = Number.isFinite(windowDays)
-          ? lastEntry.timestamp - windowDays * 24 * 60 * 60 * 1000
-          : Number.NEGATIVE_INFINITY;
-
-        const filtered = allEntries.filter((entry) => entry.timestamp >= cutoff);
-        state.visibleEntries = filtered.length >= 2 ? filtered : allEntries;
-
-        if (resetSelection || !state.visibleEntries.some((entry) => entry.index === state.selectedIndex)) {
-          state.selectedIndex = state.visibleEntries[state.visibleEntries.length - 1].index;
-        }
-
-        renderControlGroups();
-        renderSelection();
-        if (!suppressPreviewRequest) {
-          requestPreview(0);
-        }
-      }
-
-      function renderSelection() {
-        if (!state.visibleEntries.length) {
-          renderEmpty();
-          return;
-        }
-
-        const selectedVisibleIndex = Math.max(
-          0,
-          state.visibleEntries.findIndex((entry) => entry.index === state.selectedIndex)
-        );
-        const selected = state.visibleEntries[selectedVisibleIndex];
-        const first = state.visibleEntries[0];
-        const last = state.visibleEntries[state.visibleEntries.length - 1];
-        const previous = state.data.entries[Math.max(0, selected.index - 1)];
-        const knownPreview = state.previewByIndex[getPreviewKey(selected.index, state.compareMode)];
-
-        elements.slider.max = String(Math.max(0, state.visibleEntries.length - 1));
-        elements.slider.value = String(selectedVisibleIndex);
-        elements.selectionPill.style.left = String(
-          state.visibleEntries.length === 1
-            ? 0
-            : (selectedVisibleIndex / Math.max(1, state.visibleEntries.length - 1)) * 100
-        ) + '%';
-        elements.selectionPill.textContent = selected.isWorkingTree
-          ? 'Working tree'
-          : selected.shortDate + ' · ' + selected.shortRevision;
-        elements.rangeLabel.textContent = first.shortDate + ' - ' + (last.isWorkingTree ? 'Today' : last.shortDate);
-        elements.rangeSubtitle.textContent = String(state.visibleEntries.length) + ' revisions in ' + state.data.backend.toUpperCase() + ' history · ' + compareModeLabels[state.compareMode].toLowerCase();
-        elements.sidebarHint.textContent = state.sidebarCollapsed ? '' : compareModeLabels[state.compareMode];
-        elements.selectionMeta.textContent = selected.isWorkingTree
-          ? 'Current working tree'
-          : selected.relativeDate + ' · ' + new Date(selected.authorDate).toLocaleString() + (previous && previous.id !== selected.id ? ' · Step base: ' + previous.shortRevision : '');
-        elements.diffModeEyebrow.textContent = layoutModeLabels[state.layoutMode] + ' · ' + contentModeLabels[state.contentMode] + ' · ' + compareModeLabels[state.compareMode];
-
-        renderMonths();
-        renderHistoryList();
-        renderPreview();
-      }
-
-      function renderMonths() {
-        const labels = [];
-        const seen = new Set();
-        for (const entry of state.visibleEntries) {
-          if (seen.has(entry.monthLabel)) {
-            continue;
-          }
-          seen.add(entry.monthLabel);
-          labels.push(entry.monthLabel);
-        }
-
-        const compact = labels.slice(-4);
-        elements.monthRow.innerHTML = compact
-          .map((label) => {
-            const active = state.visibleEntries.some(
-              (entry) => entry.index === state.selectedIndex && entry.monthLabel === label
-            );
-            return '<div>' + (active ? '<strong>' + label + '</strong>' : label) + '</div>';
-          })
-          .join('');
-      }
-
-      function renderHistoryList() {
-        if (!state.visibleEntries.length) {
-          elements.historyList.innerHTML = '<div class="empty">No revisions in the current filter.</div>';
-          return;
-        }
-
-        elements.historyList.innerHTML = '';
-        for (const entry of state.visibleEntries.slice().reverse()) {
-          const preview = state.previewByIndex[getPreviewKey(entry.index, state.compareMode)];
-          const descriptionExpanded = Boolean(state.expandedDescriptions[String(entry.index)]);
-          const showMore = entry.description.length > 48;
-          const button = document.createElement('button');
-          button.className = 'history-item' + (entry.index === state.selectedIndex ? ' active' : '');
-          button.type = 'button';
-          button.addEventListener('click', () => {
-            state.selectedIndex = entry.index;
-            renderSelection();
-            requestPreview(0);
-          });
-
-          button.innerHTML = [
-            '<div class="history-top">',
-            '<strong>' + escapeHtml(entry.shortRevision) + '</strong>',
-            '<span>' + escapeHtml(entry.shortDate) + '</span>',
-            '</div>',
-            '<div class="history-description' + (descriptionExpanded || !showMore ? '' : ' is-truncated') + '">' + escapeHtml(entry.description) + '</div>',
-            '<div class="history-bottom">',
-            '<span class="history-meta">' + escapeHtml(entry.relativeDate) + '</span>',
-            '<span class="history-stats">' + (preview ? renderStatChips(preview) : '') + '</span>',
-            '</div>',
-            showMore ? '<button class="history-more" type="button">' + (descriptionExpanded ? 'Less' : 'More') + '</button>' : '',
-          ].join('');
-
-          if (showMore) {
-            const moreButton = button.querySelector('.history-more');
-            if (moreButton) {
-              moreButton.addEventListener('click', (event) => {
-                event.stopPropagation();
-                state.expandedDescriptions[String(entry.index)] = !descriptionExpanded;
-                renderHistoryList();
-              });
-            }
-          }
-
-          elements.historyList.appendChild(button);
-        }
-      }
-
-      function renderPreview() {
-        if (!state.data) {
-          return;
-        }
-
-        const selected = state.data.entries[state.selectedIndex];
-        if (!selected) {
-          elements.diffTitle.textContent = 'No diff available';
-          elements.diffSubtitle.textContent = '';
-          elements.diffStats.innerHTML = '';
-          elements.diffRows.innerHTML = '<div class="empty-diff">Pick a revision to inspect it.</div>';
-          return;
-        }
-
-        if (!state.preview || state.preview.index !== state.selectedIndex) {
-          elements.diffTitle.textContent = 'Loading diff…';
-          elements.diffSubtitle.textContent = selected.description;
-          elements.diffStats.innerHTML = '';
-          elements.diffRows.innerHTML = '<div class="empty-diff">Computing diff preview…</div>';
-          return;
-        }
-
-        elements.diffTitle.textContent = state.preview.title;
-        elements.diffSubtitle.textContent = state.preview.subtitle;
-        elements.diffStats.innerHTML = renderStatChips(state.preview);
-
-        const visibleRows = getDisplayRows(state.preview);
-        if (!visibleRows.length) {
-          elements.diffRows.innerHTML = state.contentMode === 'full'
-            ? '<div class="empty-diff">The file has no content at this revision.</div>'
-            : '<div class="empty-diff">No textual changes in this selection.</div>';
-          return;
-        }
-
-        elements.diffRows.innerHTML = state.layoutMode === 'split'
-          ? renderSplitRows(visibleRows)
-          : visibleRows.map((row) => renderUnifiedRow(row)).join('');
-
-        for (const button of elements.diffRows.querySelectorAll('.skip-button')) {
-          button.addEventListener('click', () => {
-            toggleRange(button.dataset.previewKey, button.dataset.rangeKey);
-          });
-        }
-      }
-
-      function renderEmpty() {
-        elements.rangeLabel.textContent = 'No revisions found';
-        elements.rangeSubtitle.textContent = '';
-        elements.sidebarHint.textContent = '';
-        elements.selectionMeta.textContent = '';
-        elements.historyList.innerHTML = '<div class="empty">Make a change and commit it, then reopen the timeline.</div>';
-        elements.diffTitle.textContent = 'No diff available';
-        elements.diffSubtitle.textContent = '';
-        elements.diffStats.innerHTML = '';
-        elements.diffRows.innerHTML = '<div class="empty-diff">Make a change and commit it, then reopen the timeline.</div>';
-      }
-
-      function requestPreview(delay) {
-        if (state.previewTimer) {
-          window.clearTimeout(state.previewTimer);
-        }
-
-        state.previewTimer = window.setTimeout(() => {
-          vscode.postMessage({
-            command: 'select-entry',
-            index: state.selectedIndex,
-            compareMode: state.compareMode,
-          });
-        }, delay);
-      }
-
-      function getPreviewKey(index, compareMode) {
-        return compareMode + ':' + String(index);
-      }
-
-      function renderStatChips(preview) {
-        return [
-          '<span class="stat stat--plus">+' + String(preview.additions) + '</span>',
-          '<span class="stat stat--minus">-' + String(preview.deletions) + '</span>',
-          '<span class="stat">' + String(preview.hunkCount) + ' hunks</span>',
-        ].join('');
-      }
-
-      function getDisplayRows(preview) {
-        if (state.contentMode === 'full') {
-          return preview.rows;
-        }
-
-        if (!preview.hasChanges) {
-          return [];
-        }
-
-        return collapseRowsForPreview(preview.rows, getPreviewKey(preview.index, preview.compareMode), 3);
-      }
-
-      function collapseRowsForPreview(rows, previewKey, contextSize) {
-        const changedIndexes = [];
-        for (let index = 0; index < rows.length; index += 1) {
-          const row = rows[index];
-          if (row.type === 'add' || row.type === 'remove') {
-            changedIndexes.push(index);
-          }
-        }
-
-        if (!changedIndexes.length) {
-          return [];
-        }
-
-        const ranges = [];
-        for (const changeIndex of changedIndexes) {
-          const start = Math.max(0, changeIndex - contextSize);
-          const end = Math.min(rows.length - 1, changeIndex + contextSize);
-          const previousRange = ranges[ranges.length - 1];
-          if (!previousRange || start > previousRange[1] + 1) {
-            ranges.push([start, end]);
-          } else {
-            previousRange[1] = Math.max(previousRange[1], end);
-          }
-        }
-
-        const visible = [];
-        let previousEnd = -1;
-        for (const range of ranges) {
-          const start = range[0];
-          const end = range[1];
-          visible.push(...buildCollapsedSection(rows, previousEnd + 1, start - 1, previewKey));
-          visible.push(...rows.slice(start, end + 1));
-          previousEnd = end;
-        }
-        visible.push(...buildCollapsedSection(rows, previousEnd + 1, rows.length - 1, previewKey));
-        return visible;
-      }
-
-      function buildCollapsedSection(rows, start, end, previewKey) {
-        if (end < start) {
-          return [];
-        }
-
-        const rangeKey = String(start) + ':' + String(end);
-        const expandedState = state.expandedRanges[previewKey] || {};
-        if (!expandedState[rangeKey]) {
-          return [{
-            type: 'skip',
-            leftNumber: null,
-            rightNumber: null,
-            text: 'Show ' + String(end - start + 1) + ' unchanged lines',
-            rangeKey,
-            previewKey,
-          }];
-        }
-
-        return rows.slice(start, end + 1).concat([{
-          type: 'skip',
-          leftNumber: null,
-          rightNumber: null,
-          text: 'Hide ' + String(end - start + 1) + ' unchanged lines',
-          rangeKey,
-          previewKey,
-        }]);
-      }
-
-      function toggleRange(previewKey, rangeKey) {
-        if (!state.expandedRanges[previewKey]) {
-          state.expandedRanges[previewKey] = {};
-        }
-
-        state.expandedRanges[previewKey][rangeKey] = !state.expandedRanges[previewKey][rangeKey];
-        renderPreview();
-      }
-
-      function renderUnifiedRow(row) {
-        if (row.type === 'skip') {
-          return renderSkipRow(row, 'diff-row');
-        }
-
-        const marker = row.type === 'add' ? '+' : row.type === 'remove' ? '-' : ' ';
-        return [
-          '<div class="diff-row diff-row--' + row.type + '">',
-          '<div class="cell marker">' + marker + '</div>',
-          '<div class="cell line-number">' + formatLineNumber(row.leftNumber) + '</div>',
-          '<div class="cell line-number">' + formatLineNumber(row.rightNumber) + '</div>',
-          '<div class="cell code">' + escapeHtml(row.text || ' ') + '</div>',
-          '</div>',
-        ].join('');
-      }
-
-      function renderSplitRows(rows) {
-        return buildSplitRows(rows).map((row) => renderSplitRow(row)).join('');
-      }
-
-      function buildSplitRows(rows) {
-        const splitRows = [];
-        for (let index = 0; index < rows.length; index += 1) {
-          const row = rows[index];
-          if (row.type === 'skip') {
-            splitRows.push({ type: 'skip', skip: row });
-            continue;
-          }
-
-          if (row.type === 'context') {
-            splitRows.push({ type: 'context', left: row, right: row });
-            continue;
-          }
-
-          const leftRows = [];
-          const rightRows = [];
-          while (index < rows.length && rows[index].type === 'remove') {
-            leftRows.push(rows[index]);
-            index += 1;
-          }
-          while (index < rows.length && rows[index].type === 'add') {
-            rightRows.push(rows[index]);
-            index += 1;
-          }
-          index -= 1;
-
-          const pairCount = Math.max(leftRows.length, rightRows.length);
-          for (let pairIndex = 0; pairIndex < pairCount; pairIndex += 1) {
-            splitRows.push({
-              type: 'change',
-              left: leftRows[pairIndex] || null,
-              right: rightRows[pairIndex] || null,
-            });
-          }
-        }
-
-        return splitRows;
-      }
-
-      function renderSplitRow(row) {
-        if (row.type === 'skip') {
-          return renderSkipRow(row.skip, 'split-row');
-        }
-
-        if (row.type === 'context') {
-          return [
-            '<div class="split-row">',
-            '<div class="split-cell split-number">' + formatLineNumber(row.left.leftNumber) + '</div>',
-            '<div class="split-cell split-code">' + escapeHtml(row.left.text || ' ') + '</div>',
-            '<div class="split-cell split-number">' + formatLineNumber(row.right.rightNumber) + '</div>',
-            '<div class="split-cell split-code">' + escapeHtml(row.right.text || ' ') + '</div>',
-            '</div>',
-          ].join('');
-        }
-
-        return [
-          '<div class="split-row split-row--change">',
-          '<div class="split-cell split-number">' + formatLineNumber(row.left ? row.left.leftNumber : null) + '</div>',
-          '<div class="split-cell split-code split-code--left">' + escapeHtml(row.left ? row.left.text || ' ' : ' ') + '</div>',
-          '<div class="split-cell split-number">' + formatLineNumber(row.right ? row.right.rightNumber : null) + '</div>',
-          '<div class="split-cell split-code split-code--right">' + escapeHtml(row.right ? row.right.text || ' ' : ' ') + '</div>',
-          '</div>',
-        ].join('');
-      }
-
-      function renderSkipRow(row, className) {
-        return [
-          '<div class="' + className + ' ' + className + '--skip">',
-          '<button class="skip-button" type="button" data-preview-key="' + escapeHtml(row.previewKey) + '" data-range-key="' + escapeHtml(row.rangeKey) + '">',
-          escapeHtml(row.text),
-          '</button>',
-          '</div>',
-        ].join('');
-      }
-
-      function formatLineNumber(value) {
-        return value == null ? '' : String(value);
-      }
-
-      function escapeHtml(value) {
-        return String(value)
-          .replaceAll('&', '&amp;')
-          .replaceAll('<', '&lt;')
-          .replaceAll('>', '&gt;')
-          .replaceAll('"', '&quot;')
-          .replaceAll("'", '&#39;');
-      }
-
-      vscode.postMessage({ command: 'ready' });
-    </script>
+    <script src="${scriptUri}"></script>
   </body>
 </html>`;
 }
