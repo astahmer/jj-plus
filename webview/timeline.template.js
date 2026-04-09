@@ -49,6 +49,7 @@
                 <div class="segmented" id="comparisonModes"></div>
                 <div class="segmented" id="layoutModes"></div>
                 <div class="segmented" id="contentModes"></div>
+                <button class="toggle-chip" id="intermediateToggle" type="button">Show In-Between</button>
                 <div class="segmented" id="presets"></div>
               </div>
             </div>
@@ -69,6 +70,8 @@
               </div>
               <div class="track"></div>
               <div class="range-fill" id="rangeFill"></div>
+              <div class="handle-marker from" id="fromMarker" aria-hidden="true"></div>
+              <div class="handle-marker to" id="toMarker" aria-hidden="true"></div>
               <div class="selection-pill from" id="fromPill">From</div>
               <div class="selection-pill to" id="toPill">To</div>
               <div class="sliders">

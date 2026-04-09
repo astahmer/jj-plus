@@ -13,7 +13,7 @@
     data: null,
     preview: null,
     previewByRange: {},
-    preset: '90d',
+    preset: 'year',
     visibleEntries: [],
     fromIndex: 0,
     toIndex: 0,
@@ -32,6 +32,7 @@
     menuOpen: false,
     compactViewport: false,
     sidebarShownOnCompact: false,
+    showIntermediateRevisions: false,
   };
 
   const elements = {
@@ -51,6 +52,8 @@
     fromPill: document.getElementById('fromPill'),
     toPill: document.getElementById('toPill'),
     rangeFill: document.getElementById('rangeFill'),
+    fromMarker: document.getElementById('fromMarker'),
+    toMarker: document.getElementById('toMarker'),
     fromSlider: document.getElementById('fromSlider'),
     toSlider: document.getElementById('toSlider'),
     fromHandleLabel: document.getElementById('fromHandleLabel'),
@@ -63,6 +66,7 @@
     comparisonModes: document.getElementById('comparisonModes'),
     layoutModes: document.getElementById('layoutModes'),
     contentModes: document.getElementById('contentModes'),
+    intermediateToggle: document.getElementById('intermediateToggle'),
     stepBackwardButton: document.getElementById('stepBackwardButton'),
     stepForwardButton: document.getElementById('stepForwardButton'),
     stepStatus: document.getElementById('stepStatus'),
@@ -75,7 +79,7 @@
   };
 
   const presetLabels = {
-    month: 'This month',
+    year: 'This year',
     '7d': 'Last 7D',
     '30d': '30D',
     '90d': '90D',
@@ -257,6 +261,23 @@
     });
   });
 
+  elements.track.addEventListener('pointerdown', (event) => {
+    const fromVisibleIndex = getVisibleIndexForAbsoluteIndex(state.fromIndex);
+    const toVisibleIndex = getVisibleIndexForAbsoluteIndex(state.toIndex);
+    if (fromVisibleIndex < 0 || toVisibleIndex < 0) {
+      return;
+    }
+
+    const trackRect = elements.track.getBoundingClientRect();
+    const denominator = Math.max(1, state.visibleEntries.length - 1);
+    const fromPercent = fromVisibleIndex / denominator;
+    const toPercent = toVisibleIndex / denominator;
+    const pointerPercent = (event.clientX - trackRect.left) / Math.max(1, trackRect.width);
+    if (pointerPercent >= Math.min(fromPercent, toPercent) && pointerPercent <= Math.max(fromPercent, toPercent)) {
+      beginRangeDrag(event);
+    }
+  });
+
   if (typeof compactViewportQuery.addEventListener === 'function') {
     compactViewportQuery.addEventListener('change', () => syncViewportState(false));
   } else if (typeof compactViewportQuery.addListener === 'function') {
@@ -270,7 +291,12 @@
       }
       state.comparisonMode = value;
       if (state.comparisonMode === 'step') {
-        ensureStepRange();
+        alignSingleSelection();
+      } else if (state.fromIndex === state.toIndex) {
+        const nextEntry = state.visibleEntries.find((entry) => entry.index > state.fromIndex);
+        if (nextEntry) {
+          state.toIndex = nextEntry.index;
+        }
         state.stepStartIndex = state.fromIndex;
       }
       syncActivePreviewRange();
@@ -297,6 +323,10 @@
     renderSegmentedControl(elements.presets, presetLabels, state.preset, (value) => {
       applyPreset(value, true);
     });
+
+    elements.intermediateToggle.disabled = !state.data || !state.data.hasIntermediateRevisions;
+    elements.intermediateToggle.classList.toggle('active', state.showIntermediateRevisions);
+    elements.intermediateToggle.textContent = state.showIntermediateRevisions ? 'Hide In-Between' : 'Show In-Between';
   }
 
   function renderSegmentedControl(container, labels, activeValue, onSelect) {
@@ -331,7 +361,8 @@
     state.layoutMode = preferences.layoutMode === 'unified' ? 'unified' : 'split';
     state.contentMode = preferences.contentMode === 'full' ? 'full' : 'diffs';
     state.comparisonMode = preferences.comparisonMode === 'step' ? 'step' : 'range';
-    state.preset = presetLabels[preferences.preset] ? preferences.preset : '90d';
+    state.showIntermediateRevisions = preferences.showIntermediateRevisions === true;
+    state.preset = presetLabels[preferences.preset] ? preferences.preset : 'year';
   }
 
   function persistPreferences() {
@@ -347,10 +378,20 @@
         layoutMode: state.layoutMode,
         contentMode: state.contentMode,
         comparisonMode: state.comparisonMode,
+        showIntermediateRevisions: state.showIntermediateRevisions,
         preset: state.preset,
       });
     }, 80);
   }
+
+  elements.intermediateToggle.addEventListener('click', () => {
+    if (!state.data || !state.data.hasIntermediateRevisions) {
+      return;
+    }
+    state.showIntermediateRevisions = !state.showIntermediateRevisions;
+    renderControlGroups();
+    applyPreset(state.preset, false);
+  });
 
   function renderMenu() {
     elements.actionsMenu.classList.toggle('open', state.menuOpen);
@@ -411,7 +452,9 @@
       : Number.NEGATIVE_INFINITY;
 
     const filtered = allEntries.filter((entry) => entry.timestamp >= cutoff);
-    state.visibleEntries = filtered.length >= 2 ? filtered : allEntries;
+    const filteredVisibleEntries = filtered.filter((entry) => state.showIntermediateRevisions || entry.touchesFile);
+    const fallbackEntries = allEntries.filter((entry) => state.showIntermediateRevisions || entry.touchesFile);
+    state.visibleEntries = filteredVisibleEntries.length >= 2 ? filteredVisibleEntries : fallbackEntries;
 
     if (resetSelection || !state.visibleEntries.some((entry) => entry.index === state.toIndex)) {
       state.toIndex = state.visibleEntries[state.visibleEntries.length - 1].index;
@@ -421,7 +464,9 @@
     }
 
     state.fromIndex = Math.min(state.fromIndex, state.toIndex);
-    ensureStepRange();
+    if (state.comparisonMode === 'step') {
+      alignSingleSelection();
+    }
     syncActivePreviewRange();
     renderControlGroups();
     renderSelection();
@@ -437,7 +482,9 @@
       return;
     }
 
-    ensureStepRange();
+    if (state.comparisonMode === 'step') {
+      alignSingleSelection();
+    }
     syncActivePreviewRange();
 
     const fromVisibleIndex = Math.max(0, state.visibleEntries.findIndex((entry) => entry.index === state.fromIndex));
@@ -463,7 +510,7 @@
     elements.toHandleLabel.textContent = 'To ' + toEntry.shortRevision;
     elements.rangeLabel.textContent = activeFromEntry.shortRevision + ' -> ' + activeToEntry.shortRevision;
     elements.rangeSubtitle.textContent = formatRangeSubtitle(fromEntry, toEntry, first, last);
-    elements.sidebarHint.textContent = getSidebarCollapsed() ? '' : 'Range';
+    elements.sidebarHint.textContent = getSidebarCollapsed() ? '' : (state.comparisonMode === 'step' ? 'Single' : 'Range');
     elements.selectionMeta.textContent = formatSelectionMeta(activeFromEntry, activeToEntry, knownPreview, fromEntry, toEntry);
     elements.diffModeEyebrow.textContent = layoutModeLabels[state.layoutMode] + ' · ' + contentModeLabels[state.contentMode] + ' · ' + comparisonModeLabels[state.comparisonMode];
     renderStepControls();
@@ -479,6 +526,8 @@
     const toPercent = (toVisibleIndex / denominator) * 100;
     elements.fromPill.style.left = String(fromPercent) + '%';
     elements.toPill.style.left = String(toPercent) + '%';
+    elements.fromMarker.style.left = String(fromPercent) + '%';
+    elements.toMarker.style.left = String(toPercent) + '%';
     elements.rangeFill.style.left = String(fromPercent) + '%';
     elements.rangeFill.style.width = String(Math.max(0, toPercent - fromPercent)) + '%';
   }
@@ -489,9 +538,8 @@
 
   function formatSelectionMeta(fromEntry, toEntry, preview, selectedFromEntry, selectedToEntry) {
     const parts = [];
-    if (state.comparisonMode === 'step' && selectedFromEntry && selectedToEntry && selectedFromEntry.index !== selectedToEntry.index) {
+    if (state.comparisonMode === 'step') {
       parts.push(formatMetaLabel(fromEntry, 'from') + ' -> ' + formatMetaLabel(toEntry, 'to'));
-      parts.push('inside ' + selectedFromEntry.shortRevision + ' -> ' + selectedToEntry.shortRevision);
     } else {
       parts.push(formatMetaLabel(fromEntry, 'from'));
       parts.push(formatMetaLabel(toEntry, 'to'));
@@ -515,7 +563,7 @@
     if (state.comparisonMode !== 'step' || fromEntry.index === toEntry.index) {
       return base;
     }
-    return 'Step ' + String(getStepPosition() + 1) + ' of ' + String(getStepCount()) + ' inside ' + fromEntry.shortRevision + ' -> ' + toEntry.shortRevision + ' · ' + base;
+    return 'Single diff ' + String(getSingleStepPosition() + 1) + ' of ' + String(getSingleStepCount()) + ' · ' + base;
   }
 
   function getEntryFromVisiblePosition(position) {
@@ -555,23 +603,13 @@
       const isFrom = entry.index === state.fromIndex;
       const isTo = entry.index === state.toIndex;
       const inRange = entry.index >= Math.min(state.fromIndex, state.toIndex) && entry.index <= Math.max(state.fromIndex, state.toIndex);
-      const button = document.createElement('button');
-      button.className = 'history-item' + (isFrom || isTo ? ' active' : '') + (inRange ? ' in-range' : '');
-      button.type = 'button';
-      button.addEventListener('click', () => {
-        if (Math.abs(entry.index - state.fromIndex) <= Math.abs(entry.index - state.toIndex)) {
-          state.fromIndex = Math.min(entry.index, state.toIndex);
-        } else {
-          state.toIndex = Math.max(entry.index, state.fromIndex);
-        }
-        renderSelection();
-        requestPreview(0);
-      });
+      const item = document.createElement('article');
+      item.className = 'history-item' + (isFrom || isTo ? ' active' : '') + (inRange ? ' in-range' : '') + (!entry.touchesFile ? ' is-intermediate' : '');
 
-      button.innerHTML = [
+      item.innerHTML = [
         '<div class="history-top">',
-        '<div class="history-primary"><strong>' + escapeHtml(entry.shortRevision) + '</strong>' + renderHistoryBadges(isFrom, isTo) + '</div>',
-        '<span>' + escapeHtml(entry.shortDate) + '</span>',
+        '<div class="history-primary"><strong>' + escapeHtml(entry.shortRevision) + '</strong>' + renderHistoryBadges(entry, isFrom, isTo) + '</div>',
+        '<div class="history-actions"><span>' + escapeHtml(entry.shortDate) + '</span>' + (entry.hasPreviousEntry ? '<button class="history-action" type="button" title="Open multi-diff for this revision">All Files</button>' : '') + '</div>',
         '</div>',
         '<div class="history-description' + (descriptionExpanded || !showMore ? '' : ' is-truncated') + '">' + escapeHtml(entry.description) + '</div>',
         '<div class="history-bottom">',
@@ -581,8 +619,20 @@
         showMore ? '<button class="history-more" type="button">' + (descriptionExpanded ? 'Less' : 'More') + '</button>' : '',
       ].join('');
 
+      item.addEventListener('click', () => {
+        if (state.comparisonMode === 'step') {
+          selectSingleEntry(entry.index);
+        } else if (Math.abs(entry.index - state.fromIndex) <= Math.abs(entry.index - state.toIndex)) {
+          state.fromIndex = Math.min(entry.index, state.toIndex);
+        } else {
+          state.toIndex = Math.max(entry.index, state.fromIndex);
+        }
+        renderSelection();
+        requestPreview(0);
+      });
+
       if (showMore) {
-        const moreButton = button.querySelector('.history-more');
+        const moreButton = item.querySelector('.history-more');
         if (moreButton) {
           moreButton.addEventListener('click', (event) => {
             event.stopPropagation();
@@ -592,12 +642,26 @@
         }
       }
 
-      elements.historyList.appendChild(button);
+      const actionButton = item.querySelector('.history-action');
+      if (actionButton) {
+        actionButton.addEventListener('click', (event) => {
+          event.stopPropagation();
+          vscode.postMessage({
+            command: 'open-revision-files-diff',
+            entryIndex: entry.index,
+          });
+        });
+      }
+
+      elements.historyList.appendChild(item);
     });
   }
 
-  function renderHistoryBadges(isFrom, isTo) {
+  function renderHistoryBadges(entry, isFrom, isTo) {
     const parts = [];
+    if (!entry.touchesFile) {
+      parts.push('<span class="mini-badge other">OTHER</span>');
+    }
     if (isFrom) {
       parts.push('<span class="mini-badge from">FROM</span>');
     }
@@ -707,20 +771,59 @@
     return getActivePreviewRange();
   }
 
-  function ensureStepRange() {
+  function alignSingleSelection() {
     if (!state.visibleEntries.length) {
       return;
     }
 
-    if (state.comparisonMode === 'step' && state.fromIndex === state.toIndex) {
-      const nextEntry = state.visibleEntries.find((entry) => entry.index > state.fromIndex);
-      if (nextEntry) {
-        state.toIndex = nextEntry.index;
-      } else if (state.visibleEntries.length >= 2) {
-        state.fromIndex = state.visibleEntries[state.visibleEntries.length - 2].index;
-        state.toIndex = state.visibleEntries[state.visibleEntries.length - 1].index;
-      }
+    if (state.visibleEntries.length < 2) {
+      state.fromIndex = state.visibleEntries[0].index;
+      state.toIndex = state.visibleEntries[0].index;
+      return;
     }
+
+    const fromVisibleIndex = getVisibleIndexForAbsoluteIndex(state.fromIndex);
+    const toVisibleIndex = getVisibleIndexForAbsoluteIndex(state.toIndex);
+    const selectedVisibleIndex = Math.max(fromVisibleIndex, toVisibleIndex, 0);
+    const clampedToVisibleIndex = Math.min(Math.max(selectedVisibleIndex, 1), state.visibleEntries.length - 1);
+    state.fromIndex = state.visibleEntries[clampedToVisibleIndex - 1].index;
+    state.toIndex = state.visibleEntries[clampedToVisibleIndex].index;
+  }
+
+  function selectSingleEntry(entryIndex) {
+    const visibleIndex = getVisibleIndexForAbsoluteIndex(entryIndex);
+    if (visibleIndex < 0 || state.visibleEntries.length < 2) {
+      return;
+    }
+
+    const toVisibleIndex = Math.min(Math.max(visibleIndex, 1), state.visibleEntries.length - 1);
+    state.fromIndex = state.visibleEntries[toVisibleIndex - 1].index;
+    state.toIndex = state.visibleEntries[toVisibleIndex].index;
+  }
+
+  function getVisibleIndexForAbsoluteIndex(index) {
+    return state.visibleEntries.findIndex((entry) => entry.index === index);
+  }
+
+  function getSingleStepCount() {
+    return Math.max(0, state.visibleEntries.length - 1);
+  }
+
+  function getSingleStepPosition() {
+    const toVisibleIndex = getVisibleIndexForAbsoluteIndex(state.toIndex);
+    return Math.max(0, toVisibleIndex - 1);
+  }
+
+  function moveSingleSelection(direction) {
+    const toVisibleIndex = getVisibleIndexForAbsoluteIndex(state.toIndex);
+    if (toVisibleIndex < 0) {
+      alignSingleSelection();
+      return;
+    }
+
+    const nextToVisibleIndex = Math.min(Math.max(toVisibleIndex + direction, 1), state.visibleEntries.length - 1);
+    state.fromIndex = state.visibleEntries[nextToVisibleIndex - 1].index;
+    state.toIndex = state.visibleEntries[nextToVisibleIndex].index;
   }
 
   function syncActivePreviewRange() {
@@ -731,10 +834,9 @@
       return;
     }
 
-    const maxStepStart = Math.max(state.fromIndex, state.toIndex - 1);
-    state.stepStartIndex = Math.min(Math.max(state.stepStartIndex, state.fromIndex), maxStepStart);
-    state.previewFromIndex = state.stepStartIndex;
-    state.previewToIndex = Math.min(state.toIndex, state.stepStartIndex + 1);
+    alignSingleSelection();
+    state.previewFromIndex = state.fromIndex;
+    state.previewToIndex = state.toIndex;
   }
 
   function renderStepControls() {
@@ -750,9 +852,9 @@
       return;
     }
 
-    elements.stepStatus.textContent = 'Step ' + String(getStepPosition() + 1) + ' of ' + String(Math.max(1, stepCount));
-    elements.stepBackwardButton.disabled = getStepPosition() <= 0;
-    elements.stepForwardButton.disabled = getStepPosition() >= stepCount - 1;
+    elements.stepStatus.textContent = 'Single diff ' + String(getSingleStepPosition() + 1) + ' of ' + String(Math.max(1, getSingleStepCount()));
+    elements.stepBackwardButton.disabled = getSingleStepPosition() <= 0;
+    elements.stepForwardButton.disabled = getSingleStepPosition() >= getSingleStepCount() - 1;
   }
 
   function getStepCount() {
@@ -764,17 +866,23 @@
   }
 
   function navigateStep(direction) {
-    const stepCount = getStepCount();
+    const stepCount = state.comparisonMode === 'step' ? getSingleStepCount() : getStepCount();
     if (!stepCount) {
       return;
     }
 
     if (state.comparisonMode !== 'step') {
       state.comparisonMode = 'step';
-      state.stepStartIndex = direction < 0 ? Math.max(state.fromIndex, state.toIndex - 1) : state.fromIndex;
+      const fromVisibleIndex = getVisibleIndexForAbsoluteIndex(state.fromIndex);
+      const toVisibleIndex = getVisibleIndexForAbsoluteIndex(state.toIndex);
+      if (direction > 0 && fromVisibleIndex >= 0 && fromVisibleIndex < state.visibleEntries.length - 1) {
+        state.fromIndex = state.visibleEntries[fromVisibleIndex].index;
+        state.toIndex = state.visibleEntries[fromVisibleIndex + 1].index;
+      } else {
+        alignSingleSelection();
+      }
     } else {
-      const maxStepStart = Math.max(state.fromIndex, state.toIndex - 1);
-      state.stepStartIndex = Math.min(Math.max(state.stepStartIndex + direction, state.fromIndex), maxStepStart);
+      moveSingleSelection(direction);
     }
 
     syncActivePreviewRange();
@@ -800,7 +908,6 @@
     const startFromVisibleIndex = Math.max(0, state.visibleEntries.findIndex((entry) => entry.index === state.fromIndex));
     const startToVisibleIndex = Math.max(0, state.visibleEntries.findIndex((entry) => entry.index === state.toIndex));
     const rangeSize = Math.max(0, startToVisibleIndex - startFromVisibleIndex);
-    const stepOffset = state.stepStartIndex - state.fromIndex;
     const denominator = Math.max(1, state.visibleEntries.length - 1);
     const startX = event.clientX;
 
@@ -826,7 +933,7 @@
       state.fromIndex = nextFromEntry.index;
       state.toIndex = nextToEntry.index;
       if (state.comparisonMode === 'step') {
-        state.stepStartIndex = Math.min(Math.max(state.fromIndex + stepOffset, state.fromIndex), Math.max(state.fromIndex, state.toIndex - 1));
+        alignSingleSelection();
       }
       syncActivePreviewRange();
       renderSelection();

@@ -133,6 +133,8 @@ input {
   padding: 6px;
   display: grid;
   gap: 4px;
+  align-content: start;
+  grid-auto-rows: max-content;
 }
 
 .history-item {
@@ -144,6 +146,11 @@ input {
   text-align: left;
   display: grid;
   gap: 3px;
+}
+
+.history-item.is-intermediate {
+  border-style: dashed;
+  background: rgba(255, 255, 255, 0.015);
 }
 
 .history-item:hover {
@@ -184,6 +191,12 @@ input {
   min-width: 0;
 }
 
+.history-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .history-description {
   color: var(--muted);
   font-size: 11px;
@@ -221,6 +234,24 @@ input {
   color: var(--accent);
 }
 
+.mini-badge.other {
+  color: var(--muted);
+}
+
+.history-action,
+.toggle-chip {
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.history-action {
+  padding: 3px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+}
+
 .history-more {
   border: 0;
   padding: 0;
@@ -229,6 +260,22 @@ input {
   font-size: 11px;
   cursor: pointer;
   justify-self: start;
+}
+
+.toggle-chip {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.toggle-chip.active {
+  background: var(--accent-soft);
+}
+
+.toggle-chip:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .diff-head {
@@ -386,6 +433,12 @@ input {
   background: var(--accent-soft);
 }
 
+.history-action:hover,
+.toggle-chip:hover {
+  border-color: rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+}
+
 .timeline {
   position: relative;
   display: grid;
@@ -449,9 +502,31 @@ input {
   cursor: grabbing;
 }
 
+.handle-marker {
+  position: absolute;
+  top: 31.5px;
+  width: 14px;
+  height: 14px;
+  transform: translate(-50%, -50%);
+  border-radius: 999px;
+  border: 2px solid var(--bg);
+  z-index: 3;
+  pointer-events: none;
+}
+
+.handle-marker.from {
+  background: var(--accent-alt);
+  box-shadow: 0 0 0 4px rgba(113, 183, 255, 0.18);
+}
+
+.handle-marker.to {
+  background: var(--accent);
+  box-shadow: 0 0 0 4px rgba(93, 145, 255, 0.18);
+}
+
 .selection-pill {
   position: absolute;
-  top: 0;
+  top: -2px;
   transform: translateX(-50%);
   padding: 3px 8px;
   border-radius: 999px;

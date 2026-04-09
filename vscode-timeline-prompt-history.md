@@ -58,3 +58,17 @@ few things to change:
 
 - when using a jj backend, we could have a way to show the snapshots diffs (implicit diff based on each change in each file) in addition to the revision diffs (explicit change based on user manual command) so we could see the granular changes / how the file evolved over time; we could even have a play button to animate this evolution
 - "Open a file in the editor to browse its revision timeline" when no file is currently open we should probably show an input field with the list of files to select from the workspace no?
+
+
+---
+
+- when opening the revision timeline (through vscode command palette) we should open it maximized (just like my vscode shortcut i guess?)
+- rather than defaulting to "This month" we should default to "This year" for the visible revisions
+- when there arent many visible revisions (happens for example on some files when looking at "This month") the revision items are big that really sucks; fix their styling so they always take the same compact height
+- when selecting the "single" mode clicking on a revision item should just show the diff between the from & to, the range should always have a size of 1. then the left/right arrow in single mode should allow moving the range (just like when drag/dropping the range bar)
+- when coming from a small editor (due to opening the revision timeline using split editors); somehow the revision items on the sidebar have broken styles (way too big). this does not happen when directly maximizing the window i think? not sure how to 100% repro
+- there should be a button to display the revisions that are chronogically in-between 2 revisions that affect the currently viewed file, example: im looking at file XXX.tsx. it was edited in revision A, D, E and G but not in B, C or F. by default B C and G are not shown (which is the current behaviour and its fine) but i now need an option to show them (styled slightly differently) for information purpose.
+- btw we should have a button in the revision item in the sidebar (maybe on the revision id?) that should open a vscode multidiff tab (with all files diff changed in that revision)
+- sometimes when drag/droppping the selected range bar in the timeline; im getting vscode error notifications (see screenshot) about git not finding some files (maybe they were renamed? idk)
+- can we also drag/drop the bar ITSELF (in addition to the from/to marker right above)
+- the from/to circles that makes it possible to change the start/end of the range are really hard to see + they should be positioning on the same y axis as the bar itself rather than being below
