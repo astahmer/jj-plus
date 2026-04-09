@@ -19,78 +19,88 @@
         </aside>
         <div class="resize-handle" id="resizeHandle"></div>
         <section class="panel diff-panel">
-          <div class="diff-head">
-            <div class="eyebrow">Revision Timeline</div>
-            <div class="diff-head-top">
-              <div class="file-switcher-row">
-                <input class="file-input" id="fileSwitcher" list="workspaceFilesList" placeholder="Switch file..." autocomplete="off" />
-                <datalist id="workspaceFilesList"></datalist>
-              </div>
-              <div class="head-actions">
-                <div class="menu-wrap">
-                  <button class="menu-button" id="actionsButton" type="button">...</button>
-                  <div class="menu" id="actionsMenu">
-                    <button class="menu-item" id="toggleSidebarAction" type="button">Hide Sidebar</button>
-                    <button class="menu-item" id="openCurrentFileAction" type="button">Open File</button>
-                    <button class="menu-item" id="openEditorButton" type="button">Open File Range Diff</button>
-                    <button class="menu-item" id="openRangeFilesButton" type="button">Open Range Files Diff</button>
-                    <button class="menu-item" id="refreshButton" type="button">Refresh</button>
+          <div class="timeline-pane" id="timelinePane">
+            <div class="timeline-pane-head">
+              <div class="eyebrow">Revision Timeline</div>
+              <button class="collapse-button" id="toggleTimelinePaneButton" type="button">Collapse</button>
+            </div>
+            <div class="diff-head" id="timelineChrome">
+              <div class="diff-head-top">
+                <div class="file-switcher-row">
+                  <input class="file-input" id="fileSwitcher" list="workspaceFilesList" placeholder="Switch file..." autocomplete="off" />
+                  <datalist id="workspaceFilesList"></datalist>
+                </div>
+                <div class="head-actions">
+                  <div class="menu-wrap">
+                    <button class="menu-button" id="actionsButton" type="button">...</button>
+                    <div class="menu" id="actionsMenu">
+                      <button class="menu-item" id="toggleSidebarAction" type="button">Hide Sidebar</button>
+                      <button class="menu-item" id="openCurrentFileAction" type="button">Open File</button>
+                      <button class="menu-item" id="openEditorButton" type="button">Open File Range Diff</button>
+                      <button class="menu-item" id="openRangeFilesButton" type="button">Open Range Files Diff</button>
+                      <button class="menu-item" id="refreshButton" type="button">Refresh</button>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
 
-            <div class="timeline-head">
-              <div>
+              <div class="timeline-head">
+                <div class="revision-picker-row">
+                  <input class="revision-input" id="fromRevisionInput" list="revisionOptionsList" placeholder="From revision" autocomplete="off" />
+                  <span class="revision-arrow">&#8594;</span>
+                  <input class="revision-input" id="toRevisionInput" list="revisionOptionsList" placeholder="To revision" autocomplete="off" />
+                  <datalist id="revisionOptionsList"></datalist>
+                </div>
+                <div class="control-row">
+                  <div class="segmented" id="comparisonModes"></div>
+                  <div class="segmented" id="layoutModes"></div>
+                  <div class="segmented" id="contentModes"></div>
+                  <button class="toggle-chip" id="intermediateToggle" type="button">Show In-Between</button>
+                  <div class="segmented" id="presets"></div>
+                </div>
+              </div>
+
+              <div class="range-steps">
+                <button class="step-button" id="stepBackwardButton" type="button" aria-label="Previous range">&#x2039;</button>
+                <div class="step-center">
+                  <div class="step-status" id="stepStatus">Range view</div>
+                  <div class="handle-pills">
+                    <button class="handle-pill from" id="fromHandleLabel" type="button">From</button>
+                    <button class="handle-pill to" id="toHandleLabel" type="button">To</button>
+                  </div>
+                </div>
+                <button class="step-button" id="stepForwardButton" type="button" aria-label="Next range">&#x203A;</button>
+              </div>
+
+              <div class="timeline">
+                <div class="selection-meta" id="selectionMeta"></div>
+                <div class="track" id="track"></div>
+                <div class="range-fill" id="rangeFill"></div>
+                <button class="handle-marker from" id="fromMarker" type="button" aria-label="Adjust from revision"></button>
+                <button class="handle-marker to" id="toMarker" type="button" aria-label="Adjust to revision"></button>
+                <div class="month-row" id="monthRow"></div>
+              </div>
+
+              <div class="range-summary">
                 <div class="range-label" id="rangeLabel">Loading revisions...</div>
                 <div class="range-subtitle" id="rangeSubtitle"></div>
               </div>
-              <div class="control-row">
-                <div class="segmented" id="comparisonModes"></div>
-                <div class="segmented" id="layoutModes"></div>
-                <div class="segmented" id="contentModes"></div>
-                <button class="toggle-chip" id="intermediateToggle" type="button">Show In-Between</button>
-                <div class="segmented" id="presets"></div>
-              </div>
             </div>
-
-            <div class="range-steps">
-              <button class="step-button" id="stepBackwardButton" type="button" aria-label="Previous step">&#x2039;</button>
-              <div class="step-status" id="stepStatus">Range view</div>
-              <button class="step-button" id="stepForwardButton" type="button" aria-label="Next step">&#x203A;</button>
-            </div>
-
-            <div class="timeline">
-              <div class="timeline-labels">
-                <div class="handle-pills">
-                  <span class="handle-pill from" id="fromHandleLabel">From</span>
-                  <span class="handle-pill to" id="toHandleLabel">To</span>
-                </div>
-                <div class="selection-meta" id="selectionMeta"></div>
-              </div>
-              <div class="track"></div>
-              <div class="range-fill" id="rangeFill"></div>
-              <div class="handle-marker from" id="fromMarker" aria-hidden="true"></div>
-              <div class="handle-marker to" id="toMarker" aria-hidden="true"></div>
-              <div class="selection-pill from" id="fromPill">From</div>
-              <div class="selection-pill to" id="toPill">To</div>
-              <div class="sliders">
-                <input id="fromSlider" type="range" min="0" max="0" value="0" />
-                <input id="toSlider" type="range" min="0" max="0" value="0" />
-              </div>
-              <div class="month-row" id="monthRow"></div>
-            </div>
-
-            <div class="diff-title-row">
-              <div>
-                <div class="eyebrow" id="diffModeEyebrow">Diff</div>
-                <h3 class="diff-title" id="diffTitle">Loading diff...</h3>
-              </div>
-              <div class="history-stats" id="diffStats"></div>
-            </div>
-            <div class="diff-subtitle" id="diffSubtitle"></div>
           </div>
+          <div class="timeline-resize-handle" id="timelineResizeHandle"></div>
+          <div class="diff-content">
+            <div class="diff-summary">
+              <div class="diff-title-row">
+                <div>
+                  <div class="eyebrow" id="diffModeEyebrow">Diff</div>
+                  <h3 class="diff-title" id="diffTitle">Loading diff...</h3>
+                </div>
+                <div class="history-stats" id="diffStats"></div>
+              </div>
+              <div class="diff-subtitle" id="diffSubtitle"></div>
+            </div>
           <div class="diff-rows" id="diffRows"></div>
+          </div>
         </section>
       </section>
     </div>`;

@@ -1,6 +1,7 @@
 :root {
   color-scheme: dark;
   --sidebar-width: 280px;
+  --timeline-pane-height: 278px;
   --bg: var(--vscode-editor-background, #11151c);
   --panel: var(--vscode-sideBar-background, #171c24);
   --panel-alt: var(--vscode-editorWidget-background, #1d232d);
@@ -95,7 +96,7 @@ input {
 
 .diff-panel {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: minmax(134px, var(--timeline-pane-height)) 6px minmax(0, 1fr);
   border-radius: 0 12px 12px 0;
 }
 
@@ -169,7 +170,6 @@ input {
 .history-top,
 .history-bottom,
 .timeline-head,
-.timeline-labels,
 .control-row,
 .diff-title-row {
   display: flex;
@@ -280,9 +280,75 @@ input {
 
 .diff-head {
   padding: 10px 12px;
-  border-bottom: 1px solid var(--border);
   display: grid;
   gap: 8px;
+}
+
+.timeline-pane {
+  min-height: 0;
+  overflow: hidden;
+  border-bottom: 1px solid var(--border);
+}
+
+.timeline-pane-head {
+  padding: 10px 12px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.timeline-pane.is-collapsed .diff-head-top,
+.timeline-pane.is-collapsed .timeline-head,
+.timeline-pane.is-collapsed .range-summary {
+  display: none;
+}
+
+.timeline-pane.is-collapsed .diff-head {
+  padding-top: 6px;
+}
+
+.collapse-button {
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.collapse-button:hover {
+  border-color: rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.timeline-resize-handle {
+  position: relative;
+  cursor: row-resize;
+}
+
+.timeline-resize-handle::before {
+  content: "";
+  position: absolute;
+  inset: 2px 0;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.timeline-resize-handle:hover::before,
+.timeline-resize-handle.is-dragging::before {
+  background: var(--accent);
+}
+
+.diff-content {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.diff-summary {
+  padding: 10px 12px 0;
+  display: grid;
+  gap: 6px;
 }
 
 .diff-head-top {
@@ -296,6 +362,34 @@ input {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   min-width: 0;
+}
+
+.revision-picker-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.revision-input {
+  width: 100%;
+  min-width: 0;
+  padding: 7px 10px;
+  border-radius: 9px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--text);
+  outline: none;
+}
+
+.revision-input:focus {
+  border-color: var(--accent);
+}
+
+.revision-arrow {
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .file-input {
@@ -406,6 +500,12 @@ input {
   gap: 8px;
 }
 
+.step-center {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
 .step-status {
   min-width: 0;
   color: var(--muted);
@@ -444,12 +544,14 @@ input {
   display: grid;
   gap: 6px;
   overflow: hidden;
+  padding-top: 8px;
 }
 
 .handle-pills {
   display: flex;
   gap: 6px;
   flex-wrap: wrap;
+  justify-content: center;
 }
 
 .handle-pill {
@@ -459,6 +561,7 @@ input {
   background: rgba(255, 255, 255, 0.03);
   color: var(--muted);
   font-size: 11px;
+  cursor: pointer;
 }
 
 .handle-pill.from {
@@ -473,7 +576,7 @@ input {
   position: absolute;
   left: 0;
   right: 0;
-  top: 28px;
+  top: 38px;
   height: 7px;
   border-radius: 999px;
   border: 1px solid var(--border);
@@ -490,7 +593,7 @@ input {
 
 .range-fill {
   position: absolute;
-  top: 28px;
+  top: 38px;
   height: 7px;
   border-radius: 999px;
   border: 1px solid rgba(93, 145, 255, 0.35);
@@ -504,14 +607,14 @@ input {
 
 .handle-marker {
   position: absolute;
-  top: 31.5px;
+  top: 41.5px;
   width: 14px;
   height: 14px;
   transform: translate(-50%, -50%);
   border-radius: 999px;
   border: 2px solid var(--bg);
   z-index: 3;
-  pointer-events: none;
+  cursor: ew-resize;
 }
 
 .handle-marker.from {
@@ -522,82 +625,6 @@ input {
 .handle-marker.to {
   background: var(--accent);
   box-shadow: 0 0 0 4px rgba(93, 145, 255, 0.18);
-}
-
-.selection-pill {
-  position: absolute;
-  top: -2px;
-  transform: translateX(-50%);
-  padding: 3px 8px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--panel-alt);
-  color: var(--text);
-  font-size: 11px;
-  white-space: nowrap;
-  z-index: 1;
-  cursor: grab;
-}
-
-.selection-pill.is-dragging {
-  cursor: grabbing;
-}
-
-.selection-pill.from {
-  color: var(--accent-alt);
-}
-
-.selection-pill.to {
-  color: var(--accent);
-}
-
-.sliders {
-  position: relative;
-  padding-top: 16px;
-}
-
-input[type='range'] {
-  appearance: none;
-  width: 100%;
-  margin: 0;
-  padding-top: 10px;
-  background: transparent;
-  position: relative;
-  z-index: 2;
-}
-
-input[type='range']::-webkit-slider-runnable-track,
-input[type='range']::-moz-range-track {
-  height: 7px;
-  background: transparent;
-}
-
-input[type='range']::-webkit-slider-thumb {
-  appearance: none;
-  width: 14px;
-  height: 14px;
-  margin-top: -3px;
-  border-radius: 999px;
-  border: 2px solid var(--bg);
-}
-
-input[type='range']::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
-  border-radius: 999px;
-  border: 2px solid var(--bg);
-}
-
-#fromSlider::-webkit-slider-thumb,
-#fromSlider::-moz-range-thumb {
-  background: var(--accent-alt);
-  box-shadow: 0 0 0 3px rgba(113, 183, 255, 0.16);
-}
-
-#toSlider::-webkit-slider-thumb,
-#toSlider::-moz-range-thumb {
-  background: var(--accent);
-  box-shadow: 0 0 0 3px rgba(93, 145, 255, 0.16);
 }
 
 .month-row {
@@ -611,6 +638,11 @@ input[type='range']::-moz-range-thumb {
 
 .month-row strong {
   color: var(--text);
+}
+
+.range-summary {
+  display: grid;
+  gap: 2px;
 }
 
 .diff-title {
@@ -636,6 +668,7 @@ input[type='range']::-moz-range-thumb {
 .diff-rows {
   min-height: 0;
   overflow: auto;
+  padding-top: 8px;
   font-family: var(--code-font);
   font-size: 12px;
   line-height: 1.55;
@@ -748,7 +781,7 @@ input[type='range']::-moz-range-thumb {
   }
 
   .timeline-head,
-  .timeline-labels {
+  .revision-picker-row {
     display: grid;
     grid-template-columns: 1fr;
   }

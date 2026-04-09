@@ -72,3 +72,20 @@ few things to change:
 - sometimes when drag/droppping the selected range bar in the timeline; im getting vscode error notifications (see screenshot) about git not finding some files (maybe they were renamed? idk)
 - can we also drag/drop the bar ITSELF (in addition to the from/to marker right above)
 - the from/to circles that makes it possible to change the start/end of the range are really hard to see + they should be positioning on the same y axis as the bar itself rather than being below
+
+---
+
+- the maximizeTimelinePanel fn using the same command as my shortcut was a fallback IF there was no way; that seems a bit fishy no? ideally IF there's no split editor we can just open a new tab that isnt in split editor. BUT if the user is already using a split editor then its fine to use the workbench.action.toggleMaximizeEditorGroup to force the timeline in fullscreen while preserving the user's layout.
+- we should be able to navigate in the sidebar using up/down arrow keys
+- when in range mode; the arrow icons almost has the correct behaviour but not exactly! it currently swaps to
+- when in range mode; trying to/dragging the start/end markers should automatically change to range mode again
+- we should be able to move the range using the left/right arrow keys (same action as clicking the left/right arrow icons)
+- right below the "<-" arrow icon there are tags like "from {revisionId}" and "to {revisionId}"; those should be clickable so that the sidebar on the left scrolls to those items
+- right above the "<-" arrow icon there is a {revisionId} -> {revisionId}; we should instead have 2 datalist there are can be changed so that if we already know what start/end we're looking for we can just change it rather than searching for it either in the sidebar or moving the range manually
+- while the revision bar has nice markers correctly positioned; it still is not directly drag/droppable (tho i can currently drag/drop the y-axis aligned markers; those with the labels "from {xx date} - {commitId}" & same for the "to" marker on the right) i want to be able to drag/drop BOTH the from/to markers (current behaviour) AND the bar itself (not done yet)
+- the from/to range (that are nice looking and properly y-axis aligned with the bar itself) are currently not drag/droppable; only the below markers (that are almost invisible) are. we should remove the below markers entirely and focus on the nice looking ones
+- btw displaying some months below the timeline is a great idea but then we should also display the year so its not ambiguous
+- near the title theres a "204 revisions in GIT history · Apr 22 - Today" which is a bit confusing. we should display a X/Y where X is the revision count in the selected range (excluding or not the in between revisions that do not impact the current file) and Y is the total number of revisions impacting that file
+- when hiding the in-between revision the timeline bar should never allow selecting a revision that do not impact the currently selected file (im often seeing "No textual changes in this selection."; if that message is true that means SOMETHING must have changed (file name? whitespace?) OR there's a bug
+- rather than "All files" as label to open the diff we should just name it "Open diffs"
+- lets make the timeline and everything around it except the diff in its own section that should be resizable/collapsable (just like the left sidebar, also with a minsize) so we can focus on the diff. when collapsed we should always show at least the timeline.

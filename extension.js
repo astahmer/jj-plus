@@ -97,6 +97,8 @@ let extensionContext;
  * @typedef {object} TimelinePreferences
  * @property {number=} sidebarWidth
  * @property {boolean=} sidebarCollapsed
+ * @property {number=} timelinePaneHeight
+ * @property {boolean=} timelinePaneCollapsed
  * @property {'split' | 'unified'=} layoutMode
  * @property {'diffs' | 'full'=} contentMode
  * @property {'range' | 'step'=} comparisonMode
@@ -273,12 +275,13 @@ async function openFileRevisionTimeline(context, absolutePath) {
   }
 
   const hadExistingPanel = Boolean(timelinePanel);
+  const shouldMaximize = shouldMaximizeTimelinePanel();
   const panel = getOrCreateTimelinePanel(context, session.fileName);
   currentTimelineSession = session;
   panel.webview.html = getTimelineWebviewHtml(panel.webview);
   panel.title = `Revision Timeline: ${session.fileName}`;
 
-  if (!hadExistingPanel) {
+  if (!hadExistingPanel && shouldMaximize) {
     await maximizeTimelinePanel();
   }
 
@@ -295,14 +298,14 @@ async function openFileRevisionTimeline(context, absolutePath) {
  */
 function getOrCreateTimelinePanel(context, fileName) {
   if (timelinePanel) {
-    timelinePanel.reveal(vscode.ViewColumn.Beside, true);
+    timelinePanel.reveal(timelinePanel.viewColumn, true);
     return timelinePanel;
   }
 
   timelinePanel = vscode.window.createWebviewPanel(
     'jjRangeDiffTimeline',
     `Revision Timeline: ${fileName}`,
-    vscode.ViewColumn.Beside,
+    getTimelineViewColumn(),
     {
       enableScripts: true,
       retainContextWhenHidden: true,
@@ -465,6 +468,8 @@ async function handleTimelineMessage(panel, session, message) {
     await saveTimelinePreferences(extensionContext, {
       sidebarWidth: Number(Reflect.get(message, 'sidebarWidth')),
       sidebarCollapsed: Boolean(Reflect.get(message, 'sidebarCollapsed')),
+      timelinePaneHeight: Number(Reflect.get(message, 'timelinePaneHeight')),
+      timelinePaneCollapsed: Boolean(Reflect.get(message, 'timelinePaneCollapsed')),
       layoutMode: getLayoutMode(Reflect.get(message, 'layoutMode')),
       contentMode: getContentMode(Reflect.get(message, 'contentMode')),
       comparisonMode: getComparisonMode(Reflect.get(message, 'comparisonMode')),
@@ -1068,6 +1073,8 @@ function getTimelinePreferences(context) {
     return {
       sidebarWidth: 276,
       sidebarCollapsed: false,
+      timelinePaneHeight: 278,
+      timelinePaneCollapsed: false,
       layoutMode: 'split',
       contentMode: 'diffs',
       comparisonMode: 'range',
@@ -1080,6 +1087,8 @@ function getTimelinePreferences(context) {
   return {
     sidebarWidth: typeof value.sidebarWidth === 'number' ? value.sidebarWidth : 276,
     sidebarCollapsed: value.sidebarCollapsed === true,
+    timelinePaneHeight: typeof value.timelinePaneHeight === 'number' ? value.timelinePaneHeight : 278,
+    timelinePaneCollapsed: value.timelinePaneCollapsed === true,
     layoutMode: getLayoutMode(value.layoutMode),
     contentMode: getContentMode(value.contentMode),
     comparisonMode: getComparisonMode(value.comparisonMode),
@@ -2008,6 +2017,28 @@ async function maximizeTimelinePanel() {
   } catch {
     // Ignore if the command is unavailable in the current host.
   }
+}
+
+/**
+ * @returns {boolean}
+ */
+function shouldMaximizeTimelinePanel() {
+  return getEditorGroupCount() > 1;
+}
+
+/**
+ * @returns {vscode.ViewColumn}
+ */
+function getTimelineViewColumn() {
+  return shouldMaximizeTimelinePanel() ? vscode.ViewColumn.Beside : vscode.ViewColumn.Active;
+}
+
+/**
+ * @returns {number}
+ */
+function getEditorGroupCount() {
+  const groups = vscode.window.tabGroups?.all;
+  return Array.isArray(groups) && groups.length ? groups.length : 1;
 }
 
 /**

@@ -19,12 +19,13 @@
     toIndex: 0,
     previewFromIndex: 0,
     previewToIndex: 0,
-    stepStartIndex: 0,
     layoutMode: 'split',
     contentMode: 'diffs',
     comparisonMode: 'range',
     sidebarWidth: 280,
     sidebarCollapsed: false,
+    timelinePaneHeight: 278,
+    timelinePaneCollapsed: false,
     expandedDescriptions: {},
     expandedRanges: {},
     previewTimer: undefined,
@@ -33,13 +34,21 @@
     compactViewport: false,
     sidebarShownOnCompact: false,
     showIntermediateRevisions: false,
+    focusedHistoryOrderIndex: -1,
   };
 
   const elements = {
     workspace: document.getElementById('workspace'),
     resizeHandle: document.getElementById('resizeHandle'),
+    timelinePane: document.getElementById('timelinePane'),
+    timelineChrome: document.getElementById('timelineChrome'),
+    timelineResizeHandle: document.getElementById('timelineResizeHandle'),
+    toggleTimelinePaneButton: document.getElementById('toggleTimelinePaneButton'),
     fileSwitcher: document.getElementById('fileSwitcher'),
     workspaceFilesList: document.getElementById('workspaceFilesList'),
+    fromRevisionInput: document.getElementById('fromRevisionInput'),
+    toRevisionInput: document.getElementById('toRevisionInput'),
+    revisionOptionsList: document.getElementById('revisionOptionsList'),
     actionsButton: document.getElementById('actionsButton'),
     actionsMenu: document.getElementById('actionsMenu'),
     toggleSidebarAction: document.getElementById('toggleSidebarAction'),
@@ -49,16 +58,12 @@
     refreshButton: document.getElementById('refreshButton'),
     rangeLabel: document.getElementById('rangeLabel'),
     rangeSubtitle: document.getElementById('rangeSubtitle'),
-    fromPill: document.getElementById('fromPill'),
-    toPill: document.getElementById('toPill'),
     rangeFill: document.getElementById('rangeFill'),
     fromMarker: document.getElementById('fromMarker'),
     toMarker: document.getElementById('toMarker'),
-    fromSlider: document.getElementById('fromSlider'),
-    toSlider: document.getElementById('toSlider'),
     fromHandleLabel: document.getElementById('fromHandleLabel'),
     toHandleLabel: document.getElementById('toHandleLabel'),
-    track: document.querySelector('.track'),
+    track: document.getElementById('track'),
     monthRow: document.getElementById('monthRow'),
     sidebarHint: document.getElementById('sidebarHint'),
     historyList: document.getElementById('historyList'),
@@ -108,8 +113,6 @@
     if (message && message.type === 'timeline-data') {
       state.data = message.payload;
       applyPreferences(message.payload.preferences || {});
-      state.fromIndex = Math.max(0, state.data.defaultIndex - 1);
-      state.toIndex = state.data.defaultIndex || 0;
       state.preview = null;
       state.previewByRange = {};
       state.expandedRanges = {};
@@ -119,10 +122,14 @@
         return;
       }
 
+      state.fromIndex = Math.max(0, state.data.defaultIndex - 1);
+      state.toIndex = state.data.defaultIndex || 0;
       elements.fileSwitcher.value = state.data.relativePath;
       syncViewportState(true);
-      renderWorkspaceFiles();
       applySidebarState();
+      applyTimelinePaneState();
+      renderWorkspaceFiles();
+      renderRevisionOptions();
       renderControlGroups();
       applyPreset(state.preset, true, true);
       return;
@@ -142,37 +149,12 @@
     renderHistoryList();
   });
 
-  elements.fromSlider.addEventListener('input', () => {
-    const nextEntry = getEntryFromVisiblePosition(Number(elements.fromSlider.value));
-    if (!nextEntry) {
-      return;
-    }
-
-    state.fromIndex = Math.min(nextEntry.index, state.toIndex);
-    renderSelection();
-    requestPreview(70);
-  });
-
-  elements.toSlider.addEventListener('input', () => {
-    const nextEntry = getEntryFromVisiblePosition(Number(elements.toSlider.value));
-    if (!nextEntry) {
-      return;
-    }
-
-    state.toIndex = Math.max(nextEntry.index, state.fromIndex);
-    renderSelection();
-    requestPreview(70);
-  });
-
-  elements.fromSlider.addEventListener('change', () => requestPreview(0));
-  elements.toSlider.addEventListener('change', () => requestPreview(0));
-
   elements.stepBackwardButton.addEventListener('click', () => {
-    navigateStep(-1);
+    navigateSelection(-1);
   });
 
   elements.stepForwardButton.addEventListener('click', () => {
-    navigateStep(1);
+    navigateSelection(1);
   });
 
   elements.actionsButton.addEventListener('click', (event) => {
@@ -188,6 +170,8 @@
     state.menuOpen = false;
     renderMenu();
   });
+
+  document.addEventListener('keydown', handleGlobalKeydown);
 
   elements.openEditorButton.addEventListener('click', () => {
     closeMenu();
@@ -222,11 +206,38 @@
     persistPreferences();
   });
 
+  elements.toggleTimelinePaneButton.addEventListener('click', () => {
+    state.timelinePaneCollapsed = !state.timelinePaneCollapsed;
+    applyTimelinePaneState();
+    persistPreferences();
+  });
+
   elements.fileSwitcher.addEventListener('change', submitFileSwitch);
   elements.fileSwitcher.addEventListener('keydown', (event) => {
     if (event.key === 'Enter') {
       submitFileSwitch();
     }
+  });
+
+  elements.fromRevisionInput.addEventListener('change', () => submitRevisionInput('from'));
+  elements.toRevisionInput.addEventListener('change', () => submitRevisionInput('to'));
+  elements.fromRevisionInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      submitRevisionInput('from');
+    }
+  });
+  elements.toRevisionInput.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      submitRevisionInput('to');
+    }
+  });
+
+  elements.fromHandleLabel.addEventListener('click', () => {
+    scrollSidebarToEntry(state.fromIndex, true);
+  });
+
+  elements.toHandleLabel.addEventListener('click', () => {
+    scrollSidebarToEntry(state.toIndex, true);
   });
 
   elements.resizeHandle.addEventListener('pointerdown', (event) => {
@@ -255,27 +266,64 @@
     }
   });
 
-  [elements.rangeFill, elements.fromPill, elements.toPill].forEach((element) => {
-    element.addEventListener('pointerdown', (event) => {
-      beginRangeDrag(event);
-    });
-  });
-
-  elements.track.addEventListener('pointerdown', (event) => {
-    const fromVisibleIndex = getVisibleIndexForAbsoluteIndex(state.fromIndex);
-    const toVisibleIndex = getVisibleIndexForAbsoluteIndex(state.toIndex);
-    if (fromVisibleIndex < 0 || toVisibleIndex < 0) {
+  elements.timelineResizeHandle.addEventListener('pointerdown', (event) => {
+    if (state.timelinePaneCollapsed) {
       return;
     }
 
-    const trackRect = elements.track.getBoundingClientRect();
-    const denominator = Math.max(1, state.visibleEntries.length - 1);
-    const fromPercent = fromVisibleIndex / denominator;
-    const toPercent = toVisibleIndex / denominator;
-    const pointerPercent = (event.clientX - trackRect.left) / Math.max(1, trackRect.width);
-    if (pointerPercent >= Math.min(fromPercent, toPercent) && pointerPercent <= Math.max(fromPercent, toPercent)) {
+    event.preventDefault();
+    const startY = event.clientY;
+    const startHeight = state.timelinePaneHeight;
+    elements.timelineResizeHandle.classList.add('is-dragging');
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+
+    function onPointerMove(moveEvent) {
+      const delta = moveEvent.clientY - startY;
+      state.timelinePaneHeight = Math.max(182, Math.min(420, startHeight + delta));
+      applyTimelinePaneState();
+    }
+
+    function onPointerUp() {
+      elements.timelineResizeHandle.classList.remove('is-dragging');
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      persistPreferences();
+    }
+  });
+
+  elements.rangeFill.addEventListener('pointerdown', (event) => {
+    beginRangeDrag(event);
+  });
+
+  elements.track.addEventListener('pointerdown', (event) => {
+    const pointerIndex = getVisibleIndexFromClientX(event.clientX);
+    if (pointerIndex < 0) {
+      return;
+    }
+
+    const fromVisibleIndex = getVisibleIndexForAbsoluteIndex(state.fromIndex);
+    const toVisibleIndex = getVisibleIndexForAbsoluteIndex(state.toIndex);
+    if (pointerIndex >= Math.min(fromVisibleIndex, toVisibleIndex) && pointerIndex <= Math.max(fromVisibleIndex, toVisibleIndex)) {
       beginRangeDrag(event);
     }
+  });
+
+  elements.fromMarker.addEventListener('pointerdown', (event) => {
+    beginMarkerDrag('from', event);
+  });
+
+  elements.toMarker.addEventListener('pointerdown', (event) => {
+    beginMarkerDrag('to', event);
+  });
+
+  elements.intermediateToggle.addEventListener('click', () => {
+    if (!state.data || !state.data.hasIntermediateRevisions) {
+      return;
+    }
+    state.showIntermediateRevisions = !state.showIntermediateRevisions;
+    renderControlGroups();
+    applyPreset(state.preset, false);
   });
 
   if (typeof compactViewportQuery.addEventListener === 'function') {
@@ -284,24 +332,52 @@
     compactViewportQuery.addListener(() => syncViewportState(false));
   }
 
+  function handleGlobalKeydown(event) {
+    if (!state.data || event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) {
+      return;
+    }
+
+    const tagName = event.target && event.target.tagName ? event.target.tagName.toLowerCase() : '';
+    if (tagName === 'input' || tagName === 'textarea') {
+      return;
+    }
+
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      navigateSelection(-1);
+      return;
+    }
+
+    if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      navigateSelection(1);
+      return;
+    }
+
+    if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      nudgeSidebarSelection(-1);
+      return;
+    }
+
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      nudgeSidebarSelection(1);
+    }
+  }
+
   function renderControlGroups() {
     renderSegmentedControl(elements.comparisonModes, comparisonModeLabels, state.comparisonMode, (value) => {
       if (value === state.comparisonMode) {
         return;
       }
+
       state.comparisonMode = value;
-      if (state.comparisonMode === 'step') {
+      if (value === 'step') {
         alignSingleSelection();
-      } else if (state.fromIndex === state.toIndex) {
-        const nextEntry = state.visibleEntries.find((entry) => entry.index > state.fromIndex);
-        if (nextEntry) {
-          state.toIndex = nextEntry.index;
-        }
-        state.stepStartIndex = state.fromIndex;
       }
-      syncActivePreviewRange();
-      renderControlGroups();
       renderSelection();
+      renderControlGroups();
       persistPreferences();
       requestPreview(0);
     });
@@ -347,6 +423,12 @@
       .join('');
   }
 
+  function renderRevisionOptions() {
+    elements.revisionOptionsList.innerHTML = state.visibleEntries
+      .map((entry) => '<option value="' + escapeHtml(entry.shortRevision) + '" label="' + escapeHtml(formatEntryShort(entry)) + '"></option>')
+      .join('');
+  }
+
   function applySidebarState() {
     document.documentElement.style.setProperty('--sidebar-width', String(state.sidebarWidth) + 'px');
     const isCollapsed = getSidebarCollapsed();
@@ -355,9 +437,17 @@
     elements.toggleSidebarAction.textContent = isCollapsed ? 'Show Revisions' : 'Hide Revisions';
   }
 
+  function applyTimelinePaneState() {
+    document.documentElement.style.setProperty('--timeline-pane-height', String(state.timelinePaneCollapsed ? 134 : state.timelinePaneHeight) + 'px');
+    elements.timelinePane.classList.toggle('is-collapsed', state.timelinePaneCollapsed);
+    elements.toggleTimelinePaneButton.textContent = state.timelinePaneCollapsed ? 'Expand' : 'Collapse';
+  }
+
   function applyPreferences(preferences) {
     state.sidebarWidth = typeof preferences.sidebarWidth === 'number' ? preferences.sidebarWidth : state.sidebarWidth;
     state.sidebarCollapsed = preferences.sidebarCollapsed === true;
+    state.timelinePaneHeight = typeof preferences.timelinePaneHeight === 'number' ? preferences.timelinePaneHeight : state.timelinePaneHeight;
+    state.timelinePaneCollapsed = preferences.timelinePaneCollapsed === true;
     state.layoutMode = preferences.layoutMode === 'unified' ? 'unified' : 'split';
     state.contentMode = preferences.contentMode === 'full' ? 'full' : 'diffs';
     state.comparisonMode = preferences.comparisonMode === 'step' ? 'step' : 'range';
@@ -375,6 +465,8 @@
         command: 'persist-state',
         sidebarWidth: state.sidebarWidth,
         sidebarCollapsed: state.sidebarCollapsed,
+        timelinePaneHeight: state.timelinePaneHeight,
+        timelinePaneCollapsed: state.timelinePaneCollapsed,
         layoutMode: state.layoutMode,
         contentMode: state.contentMode,
         comparisonMode: state.comparisonMode,
@@ -383,15 +475,6 @@
       });
     }, 80);
   }
-
-  elements.intermediateToggle.addEventListener('click', () => {
-    if (!state.data || !state.data.hasIntermediateRevisions) {
-      return;
-    }
-    state.showIntermediateRevisions = !state.showIntermediateRevisions;
-    renderControlGroups();
-    applyPreset(state.preset, false);
-  });
 
   function renderMenu() {
     elements.actionsMenu.classList.toggle('open', state.menuOpen);
@@ -433,6 +516,37 @@
     vscode.postMessage({ command: 'switch-file', relativePath: nextPath });
   }
 
+  function submitRevisionInput(side) {
+    const input = side === 'from' ? elements.fromRevisionInput : elements.toRevisionInput;
+    const entry = findEntryByRevisionQuery(String(input.value || '').trim());
+    if (!entry) {
+      renderSelection();
+      return;
+    }
+
+    if (state.comparisonMode === 'step') {
+      selectSingleEntry(entry.index);
+    } else if (side === 'from') {
+      state.fromIndex = Math.min(entry.index, state.toIndex);
+    } else {
+      state.toIndex = Math.max(entry.index, state.fromIndex);
+    }
+
+    renderSelection();
+    requestPreview(0);
+  }
+
+  function findEntryByRevisionQuery(query) {
+    if (!query) {
+      return null;
+    }
+
+    return state.visibleEntries.find((entry) => entry.shortRevision === query)
+      || state.visibleEntries.find((entry) => entry.revision === query)
+      || state.visibleEntries.find((entry) => entry.shortRevision.toLowerCase() === query.toLowerCase())
+      || state.visibleEntries.find((entry) => entry.revision.toLowerCase().startsWith(query.toLowerCase()));
+  }
+
   function postRangeAction(command, range) {
     const nextRange = range || getCommandRange(command);
     vscode.postMessage({
@@ -456,20 +570,30 @@
     const fallbackEntries = allEntries.filter((entry) => state.showIntermediateRevisions || entry.touchesFile);
     state.visibleEntries = filteredVisibleEntries.length >= 2 ? filteredVisibleEntries : fallbackEntries;
 
+    if (!state.visibleEntries.length) {
+      renderEmpty();
+      return;
+    }
+
     if (resetSelection || !state.visibleEntries.some((entry) => entry.index === state.toIndex)) {
       state.toIndex = state.visibleEntries[state.visibleEntries.length - 1].index;
     }
+
     if (resetSelection || !state.visibleEntries.some((entry) => entry.index === state.fromIndex)) {
       state.fromIndex = Math.max(state.visibleEntries[0].index, state.toIndex - 1);
     }
 
-    state.fromIndex = Math.min(state.fromIndex, state.toIndex);
     if (state.comparisonMode === 'step') {
       alignSingleSelection();
+    } else {
+      state.fromIndex = Math.min(state.fromIndex, state.toIndex);
     }
+
+    renderRevisionOptions();
     syncActivePreviewRange();
     renderControlGroups();
     renderSelection();
+
     if (!suppressPreviewRequest) {
       persistPreferences();
       requestPreview(0);
@@ -484,48 +608,62 @@
 
     if (state.comparisonMode === 'step') {
       alignSingleSelection();
+    } else {
+      state.fromIndex = Math.min(state.fromIndex, state.toIndex);
     }
+
     syncActivePreviewRange();
 
-    const fromVisibleIndex = Math.max(0, state.visibleEntries.findIndex((entry) => entry.index === state.fromIndex));
-    const toVisibleIndex = Math.max(0, state.visibleEntries.findIndex((entry) => entry.index === state.toIndex));
+    const fromVisibleIndex = Math.max(0, getVisibleIndexForAbsoluteIndex(state.fromIndex));
+    const toVisibleIndex = Math.max(0, getVisibleIndexForAbsoluteIndex(state.toIndex));
     const fromEntry = state.visibleEntries[fromVisibleIndex];
     const toEntry = state.visibleEntries[toVisibleIndex];
     const activeRange = getActivePreviewRange();
     const activeFromEntry = state.data.entries[activeRange.fromIndex] || fromEntry;
     const activeToEntry = state.data.entries[activeRange.toIndex] || toEntry;
-    const first = state.visibleEntries[0];
-    const last = state.visibleEntries[state.visibleEntries.length - 1];
     const knownPreview = state.previewByRange[getPreviewKey(activeRange.fromIndex, activeRange.toIndex)];
 
-    elements.fromSlider.max = String(Math.max(0, state.visibleEntries.length - 1));
-    elements.toSlider.max = String(Math.max(0, state.visibleEntries.length - 1));
-    elements.fromSlider.value = String(fromVisibleIndex);
-    elements.toSlider.value = String(toVisibleIndex);
     positionRangeVisuals(fromVisibleIndex, toVisibleIndex);
 
-    elements.fromPill.textContent = 'From ' + formatEntryShort(fromEntry);
-    elements.toPill.textContent = 'To ' + formatEntryShort(toEntry);
+    elements.fromRevisionInput.value = fromEntry.shortRevision;
+    elements.toRevisionInput.value = toEntry.shortRevision;
     elements.fromHandleLabel.textContent = 'From ' + fromEntry.shortRevision;
     elements.toHandleLabel.textContent = 'To ' + toEntry.shortRevision;
-    elements.rangeLabel.textContent = activeFromEntry.shortRevision + ' -> ' + activeToEntry.shortRevision;
-    elements.rangeSubtitle.textContent = formatRangeSubtitle(fromEntry, toEntry, first, last);
+    elements.rangeLabel.textContent = formatRangeTitle();
+    elements.rangeSubtitle.textContent = formatRangeSubtitle(fromEntry, toEntry);
     elements.sidebarHint.textContent = getSidebarCollapsed() ? '' : (state.comparisonMode === 'step' ? 'Single' : 'Range');
-    elements.selectionMeta.textContent = formatSelectionMeta(activeFromEntry, activeToEntry, knownPreview, fromEntry, toEntry);
+    elements.selectionMeta.textContent = formatSelectionMeta(activeFromEntry, activeToEntry, knownPreview);
     elements.diffModeEyebrow.textContent = layoutModeLabels[state.layoutMode] + ' · ' + contentModeLabels[state.contentMode] + ' · ' + comparisonModeLabels[state.comparisonMode];
-    renderStepControls();
 
+    renderStepControls();
     renderMonths();
     renderHistoryList();
     renderPreview();
+  }
+
+  function formatRangeTitle() {
+    const selectedCount = getSelectedRevisionCount();
+    const touchingCount = state.data.entries.filter((entry) => entry.touchesFile).length;
+    return String(selectedCount) + '/' + String(touchingCount) + ' revisions selected';
+  }
+
+  function formatRangeSubtitle(fromEntry, toEntry) {
+    const formatter = new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' });
+    const fromLabel = fromEntry.isWorkingTree ? 'Today' : formatter.format(new Date(fromEntry.authorDate));
+    const toLabel = toEntry.isWorkingTree ? 'Today' : formatter.format(new Date(toEntry.authorDate));
+    return fromLabel + ' - ' + toLabel + ' · ' + state.data.backend.toUpperCase();
+  }
+
+  function getSelectedRevisionCount() {
+    const minIndex = Math.min(state.fromIndex, state.toIndex);
+    const maxIndex = Math.max(state.fromIndex, state.toIndex);
+    return state.visibleEntries.filter((entry) => entry.index >= minIndex && entry.index <= maxIndex).length;
   }
 
   function positionRangeVisuals(fromVisibleIndex, toVisibleIndex) {
     const denominator = Math.max(1, state.visibleEntries.length - 1);
     const fromPercent = (fromVisibleIndex / denominator) * 100;
     const toPercent = (toVisibleIndex / denominator) * 100;
-    elements.fromPill.style.left = String(fromPercent) + '%';
-    elements.toPill.style.left = String(toPercent) + '%';
     elements.fromMarker.style.left = String(fromPercent) + '%';
     elements.toMarker.style.left = String(toPercent) + '%';
     elements.rangeFill.style.left = String(fromPercent) + '%';
@@ -536,7 +674,7 @@
     return entry.isWorkingTree ? 'Current' : entry.shortDate + ' · ' + entry.shortRevision;
   }
 
-  function formatSelectionMeta(fromEntry, toEntry, preview, selectedFromEntry, selectedToEntry) {
+  function formatSelectionMeta(fromEntry, toEntry, preview) {
     const parts = [];
     if (state.comparisonMode === 'step') {
       parts.push(formatMetaLabel(fromEntry, 'from') + ' -> ' + formatMetaLabel(toEntry, 'to'));
@@ -558,35 +696,19 @@
     return entry.relativeDate + ' · ' + entry.shortRevision;
   }
 
-  function formatRangeSubtitle(fromEntry, toEntry, first, last) {
-    const base = String(state.visibleEntries.length) + ' revisions in ' + state.data.backend.toUpperCase() + ' history · ' + first.shortDate + ' - ' + (last.isWorkingTree ? 'Today' : last.shortDate);
-    if (state.comparisonMode !== 'step' || fromEntry.index === toEntry.index) {
-      return base;
-    }
-    return 'Single diff ' + String(getSingleStepPosition() + 1) + ' of ' + String(getSingleStepCount()) + ' · ' + base;
-  }
-
-  function getEntryFromVisiblePosition(position) {
-    return state.visibleEntries[position] || null;
-  }
-
   function renderMonths() {
     const labels = [];
     const seen = new Set();
     state.visibleEntries.forEach((entry) => {
-      if (!seen.has(entry.monthLabel)) {
-        seen.add(entry.monthLabel);
-        labels.push(entry.monthLabel);
+      const label = new Intl.DateTimeFormat('en', { month: 'short', year: 'numeric' }).format(new Date(entry.authorDate));
+      if (!seen.has(label)) {
+        seen.add(label);
+        labels.push(label);
       }
     });
 
     const compact = labels.slice(-4);
-    elements.monthRow.innerHTML = compact.map((label) => {
-      const active = state.visibleEntries.some((entry) =>
-        (entry.index === state.fromIndex || entry.index === state.toIndex) && entry.monthLabel === label
-      );
-      return '<div>' + (active ? '<strong>' + label + '</strong>' : label) + '</div>';
-    }).join('');
+    elements.monthRow.innerHTML = compact.map((label) => '<div>' + escapeHtml(label) + '</div>').join('');
   }
 
   function renderHistoryList() {
@@ -596,7 +718,9 @@
     }
 
     elements.historyList.innerHTML = '';
-    state.visibleEntries.slice().reverse().forEach((entry) => {
+    const orderedEntries = getOrderedHistoryEntries();
+
+    orderedEntries.forEach((entry, orderIndex) => {
       const preview = state.previewByRange[getPreviewKey(entry.index, state.toIndex)] || state.previewByRange[getPreviewKey(state.fromIndex, entry.index)] || null;
       const descriptionExpanded = Boolean(state.expandedDescriptions[String(entry.index)]);
       const showMore = entry.description.length > 48;
@@ -605,11 +729,14 @@
       const inRange = entry.index >= Math.min(state.fromIndex, state.toIndex) && entry.index <= Math.max(state.fromIndex, state.toIndex);
       const item = document.createElement('article');
       item.className = 'history-item' + (isFrom || isTo ? ' active' : '') + (inRange ? ' in-range' : '') + (!entry.touchesFile ? ' is-intermediate' : '');
+      item.tabIndex = 0;
+      item.dataset.entryIndex = String(entry.index);
+      item.dataset.historyOrder = String(orderIndex);
 
       item.innerHTML = [
         '<div class="history-top">',
         '<div class="history-primary"><strong>' + escapeHtml(entry.shortRevision) + '</strong>' + renderHistoryBadges(entry, isFrom, isTo) + '</div>',
-        '<div class="history-actions"><span>' + escapeHtml(entry.shortDate) + '</span>' + (entry.hasPreviousEntry ? '<button class="history-action" type="button" title="Open multi-diff for this revision">All Files</button>' : '') + '</div>',
+        '<div class="history-actions"><span>' + escapeHtml(entry.shortDate) + '</span>' + (entry.hasPreviousEntry ? '<button class="history-action" type="button" title="Open diffs for this revision">Open diffs</button>' : '') + '</div>',
         '</div>',
         '<div class="history-description' + (descriptionExpanded || !showMore ? '' : ' is-truncated') + '">' + escapeHtml(entry.description) + '</div>',
         '<div class="history-bottom">',
@@ -619,16 +746,12 @@
         showMore ? '<button class="history-more" type="button">' + (descriptionExpanded ? 'Less' : 'More') + '</button>' : '',
       ].join('');
 
+      item.addEventListener('focus', () => {
+        state.focusedHistoryOrderIndex = orderIndex;
+      });
+
       item.addEventListener('click', () => {
-        if (state.comparisonMode === 'step') {
-          selectSingleEntry(entry.index);
-        } else if (Math.abs(entry.index - state.fromIndex) <= Math.abs(entry.index - state.toIndex)) {
-          state.fromIndex = Math.min(entry.index, state.toIndex);
-        } else {
-          state.toIndex = Math.max(entry.index, state.fromIndex);
-        }
-        renderSelection();
-        requestPreview(0);
+        selectEntryFromSidebar(entry.index);
       });
 
       if (showMore) {
@@ -655,6 +778,53 @@
 
       elements.historyList.appendChild(item);
     });
+
+    if (state.focusedHistoryOrderIndex < 0) {
+      state.focusedHistoryOrderIndex = orderedEntries.findIndex((entry) => entry.index === state.toIndex);
+    }
+  }
+
+  function getOrderedHistoryEntries() {
+    return state.visibleEntries.slice().reverse();
+  }
+
+  function selectEntryFromSidebar(entryIndex) {
+    if (state.comparisonMode === 'step') {
+      selectSingleEntry(entryIndex);
+    } else if (Math.abs(entryIndex - state.fromIndex) <= Math.abs(entryIndex - state.toIndex)) {
+      state.fromIndex = Math.min(entryIndex, state.toIndex);
+    } else {
+      state.toIndex = Math.max(entryIndex, state.fromIndex);
+    }
+
+    renderSelection();
+    requestPreview(0);
+  }
+
+  function nudgeSidebarSelection(direction) {
+    const orderedEntries = getOrderedHistoryEntries();
+    if (!orderedEntries.length) {
+      return;
+    }
+
+    const startIndex = state.focusedHistoryOrderIndex >= 0
+      ? state.focusedHistoryOrderIndex
+      : Math.max(0, orderedEntries.findIndex((entry) => entry.index === state.toIndex));
+    const nextIndex = Math.min(Math.max(startIndex + direction, 0), orderedEntries.length - 1);
+    state.focusedHistoryOrderIndex = nextIndex;
+    selectEntryFromSidebar(orderedEntries[nextIndex].index);
+    scrollSidebarToEntry(orderedEntries[nextIndex].index, true);
+  }
+
+  function scrollSidebarToEntry(entryIndex, focusItem) {
+    const item = elements.historyList.querySelector('[data-entry-index="' + String(entryIndex) + '"]');
+    if (!item) {
+      return;
+    }
+    item.scrollIntoView({ block: 'nearest' });
+    if (focusItem) {
+      item.focus();
+    }
   }
 
   function renderHistoryBadges(entry, isFrom, isTo) {
@@ -741,22 +911,16 @@
     if (state.previewTimer) {
       window.clearTimeout(state.previewTimer);
     }
+
     state.previewTimer = window.setTimeout(() => {
       postRangeAction('select-entry', getActivePreviewRange());
     }, delay);
   }
 
   function getActivePreviewRange() {
-    if (state.comparisonMode === 'step') {
-      return {
-        fromIndex: state.previewFromIndex,
-        toIndex: state.previewToIndex,
-      };
-    }
-
     return {
-      fromIndex: state.fromIndex,
-      toIndex: state.toIndex,
+      fromIndex: state.previewFromIndex,
+      toIndex: state.previewToIndex,
     };
   }
 
@@ -772,22 +936,13 @@
   }
 
   function alignSingleSelection() {
-    if (!state.visibleEntries.length) {
-      return;
-    }
-
     if (state.visibleEntries.length < 2) {
-      state.fromIndex = state.visibleEntries[0].index;
-      state.toIndex = state.visibleEntries[0].index;
       return;
     }
 
-    const fromVisibleIndex = getVisibleIndexForAbsoluteIndex(state.fromIndex);
-    const toVisibleIndex = getVisibleIndexForAbsoluteIndex(state.toIndex);
-    const selectedVisibleIndex = Math.max(fromVisibleIndex, toVisibleIndex, 0);
-    const clampedToVisibleIndex = Math.min(Math.max(selectedVisibleIndex, 1), state.visibleEntries.length - 1);
-    state.fromIndex = state.visibleEntries[clampedToVisibleIndex - 1].index;
-    state.toIndex = state.visibleEntries[clampedToVisibleIndex].index;
+    const toVisibleIndex = Math.min(Math.max(getVisibleIndexForAbsoluteIndex(state.toIndex), 1), state.visibleEntries.length - 1);
+    state.fromIndex = state.visibleEntries[toVisibleIndex - 1].index;
+    state.toIndex = state.visibleEntries[toVisibleIndex].index;
   }
 
   function selectSingleEntry(entryIndex) {
@@ -805,95 +960,91 @@
     return state.visibleEntries.findIndex((entry) => entry.index === index);
   }
 
-  function getSingleStepCount() {
-    return Math.max(0, state.visibleEntries.length - 1);
-  }
-
-  function getSingleStepPosition() {
-    const toVisibleIndex = getVisibleIndexForAbsoluteIndex(state.toIndex);
-    return Math.max(0, toVisibleIndex - 1);
-  }
-
-  function moveSingleSelection(direction) {
-    const toVisibleIndex = getVisibleIndexForAbsoluteIndex(state.toIndex);
-    if (toVisibleIndex < 0) {
-      alignSingleSelection();
-      return;
+  function getVisibleIndexFromClientX(clientX) {
+    const trackRect = elements.track.getBoundingClientRect();
+    if (!trackRect.width || !state.visibleEntries.length) {
+      return -1;
     }
 
-    const nextToVisibleIndex = Math.min(Math.max(toVisibleIndex + direction, 1), state.visibleEntries.length - 1);
-    state.fromIndex = state.visibleEntries[nextToVisibleIndex - 1].index;
-    state.toIndex = state.visibleEntries[nextToVisibleIndex].index;
+    const ratio = Math.min(Math.max((clientX - trackRect.left) / trackRect.width, 0), 1);
+    const denominator = Math.max(1, state.visibleEntries.length - 1);
+    return Math.min(state.visibleEntries.length - 1, Math.max(0, Math.round(ratio * denominator)));
   }
 
   function syncActivePreviewRange() {
-    if (state.comparisonMode !== 'step') {
-      state.previewFromIndex = state.fromIndex;
-      state.previewToIndex = state.toIndex;
-      state.stepStartIndex = Math.min(Math.max(state.stepStartIndex, state.fromIndex), Math.max(state.fromIndex, state.toIndex - 1));
-      return;
+    if (state.comparisonMode === 'step') {
+      alignSingleSelection();
     }
 
-    alignSingleSelection();
     state.previewFromIndex = state.fromIndex;
     state.previewToIndex = state.toIndex;
   }
 
   function renderStepControls() {
-    const stepCount = getStepCount();
-    const canNavigate = stepCount > 1;
-    elements.stepBackwardButton.disabled = !canNavigate;
-    elements.stepForwardButton.disabled = !canNavigate;
-
+    const availableCount = Math.max(0, state.visibleEntries.length - 1);
     if (state.comparisonMode === 'range') {
-      elements.stepStatus.textContent = stepCount > 1
-        ? 'Range view · ' + String(stepCount) + ' single diffs available'
+      elements.stepStatus.textContent = availableCount > 0
+        ? 'Range view · ' + String(availableCount) + ' single diffs available'
         : 'Range view';
-      return;
-    }
-
-    elements.stepStatus.textContent = 'Single diff ' + String(getSingleStepPosition() + 1) + ' of ' + String(Math.max(1, getSingleStepCount()));
-    elements.stepBackwardButton.disabled = getSingleStepPosition() <= 0;
-    elements.stepForwardButton.disabled = getSingleStepPosition() >= getSingleStepCount() - 1;
-  }
-
-  function getStepCount() {
-    return Math.max(0, state.toIndex - state.fromIndex);
-  }
-
-  function getStepPosition() {
-    return Math.max(0, state.stepStartIndex - state.fromIndex);
-  }
-
-  function navigateStep(direction) {
-    const stepCount = state.comparisonMode === 'step' ? getSingleStepCount() : getStepCount();
-    if (!stepCount) {
-      return;
-    }
-
-    if (state.comparisonMode !== 'step') {
-      state.comparisonMode = 'step';
-      const fromVisibleIndex = getVisibleIndexForAbsoluteIndex(state.fromIndex);
-      const toVisibleIndex = getVisibleIndexForAbsoluteIndex(state.toIndex);
-      if (direction > 0 && fromVisibleIndex >= 0 && fromVisibleIndex < state.visibleEntries.length - 1) {
-        state.fromIndex = state.visibleEntries[fromVisibleIndex].index;
-        state.toIndex = state.visibleEntries[fromVisibleIndex + 1].index;
-      } else {
-        alignSingleSelection();
-      }
     } else {
-      moveSingleSelection(direction);
+      const current = Math.max(1, getVisibleIndexForAbsoluteIndex(state.toIndex));
+      elements.stepStatus.textContent = 'Single diff ' + String(current) + ' of ' + String(Math.max(1, availableCount));
     }
 
-    syncActivePreviewRange();
-    renderControlGroups();
+    elements.stepBackwardButton.disabled = !canNavigateSelection(-1);
+    elements.stepForwardButton.disabled = !canNavigateSelection(1);
+  }
+
+  function canNavigateSelection(direction) {
+    if (state.comparisonMode === 'step') {
+      const toVisibleIndex = getVisibleIndexForAbsoluteIndex(state.toIndex);
+      return direction < 0 ? toVisibleIndex > 1 : toVisibleIndex < state.visibleEntries.length - 1;
+    }
+
+    const fromVisibleIndex = getVisibleIndexForAbsoluteIndex(state.fromIndex);
+    const toVisibleIndex = getVisibleIndexForAbsoluteIndex(state.toIndex);
+    return direction < 0 ? fromVisibleIndex > 0 : toVisibleIndex < state.visibleEntries.length - 1;
+  }
+
+  function navigateSelection(direction) {
+    if (state.comparisonMode === 'step') {
+      moveSingleSelection(direction);
+    } else {
+      moveRangeSelection(direction);
+    }
+
     renderSelection();
     persistPreferences();
     requestPreview(0);
   }
 
+  function moveSingleSelection(direction) {
+    if (!canNavigateSelection(direction)) {
+      return;
+    }
+
+    const toVisibleIndex = getVisibleIndexForAbsoluteIndex(state.toIndex);
+    const nextToVisibleIndex = toVisibleIndex + direction;
+    state.fromIndex = state.visibleEntries[nextToVisibleIndex - 1].index;
+    state.toIndex = state.visibleEntries[nextToVisibleIndex].index;
+  }
+
+  function moveRangeSelection(direction) {
+    if (!canNavigateSelection(direction)) {
+      return;
+    }
+
+    const fromVisibleIndex = getVisibleIndexForAbsoluteIndex(state.fromIndex);
+    const toVisibleIndex = getVisibleIndexForAbsoluteIndex(state.toIndex);
+    const width = toVisibleIndex - fromVisibleIndex;
+    const nextFromVisibleIndex = fromVisibleIndex + direction;
+    const nextToVisibleIndex = nextFromVisibleIndex + width;
+    state.fromIndex = state.visibleEntries[nextFromVisibleIndex].index;
+    state.toIndex = state.visibleEntries[nextToVisibleIndex].index;
+  }
+
   function beginRangeDrag(event) {
-    if (!state.visibleEntries.length || !elements.track) {
+    if (!state.visibleEntries.length) {
       return;
     }
 
@@ -901,53 +1052,76 @@
     event.stopPropagation();
 
     const trackRect = elements.track.getBoundingClientRect();
-    if (!trackRect.width) {
-      return;
-    }
-
-    const startFromVisibleIndex = Math.max(0, state.visibleEntries.findIndex((entry) => entry.index === state.fromIndex));
-    const startToVisibleIndex = Math.max(0, state.visibleEntries.findIndex((entry) => entry.index === state.toIndex));
-    const rangeSize = Math.max(0, startToVisibleIndex - startFromVisibleIndex);
-    const denominator = Math.max(1, state.visibleEntries.length - 1);
+    const startFromVisibleIndex = getVisibleIndexForAbsoluteIndex(state.fromIndex);
+    const startToVisibleIndex = getVisibleIndexForAbsoluteIndex(state.toIndex);
+    const width = startToVisibleIndex - startFromVisibleIndex;
     const startX = event.clientX;
-
+    const denominator = Math.max(1, state.visibleEntries.length - 1);
     elements.rangeFill.classList.add('is-dragging');
-    elements.fromPill.classList.add('is-dragging');
-    elements.toPill.classList.add('is-dragging');
 
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', onPointerUp);
 
     function onPointerMove(moveEvent) {
-      const deltaRatio = (moveEvent.clientX - startX) / trackRect.width;
+      const deltaRatio = (moveEvent.clientX - startX) / Math.max(1, trackRect.width);
       const deltaSteps = Math.round(deltaRatio * denominator);
-      const maxStart = Math.max(0, state.visibleEntries.length - 1 - rangeSize);
-      const nextFromVisibleIndex = Math.min(Math.max(startFromVisibleIndex + deltaSteps, 0), maxStart);
-      const nextToVisibleIndex = nextFromVisibleIndex + rangeSize;
-      const nextFromEntry = state.visibleEntries[nextFromVisibleIndex];
-      const nextToEntry = state.visibleEntries[nextToVisibleIndex];
-      if (!nextFromEntry || !nextToEntry) {
-        return;
-      }
-
-      state.fromIndex = nextFromEntry.index;
-      state.toIndex = nextToEntry.index;
-      if (state.comparisonMode === 'step') {
-        alignSingleSelection();
-      }
-      syncActivePreviewRange();
+      const nextFromVisibleIndex = Math.min(Math.max(startFromVisibleIndex + deltaSteps, 0), Math.max(0, state.visibleEntries.length - 1 - width));
+      const nextToVisibleIndex = nextFromVisibleIndex + width;
+      state.fromIndex = state.visibleEntries[nextFromVisibleIndex].index;
+      state.toIndex = state.visibleEntries[nextToVisibleIndex].index;
       renderSelection();
       requestPreview(70);
     }
 
     function onPointerUp() {
       elements.rangeFill.classList.remove('is-dragging');
-      elements.fromPill.classList.remove('is-dragging');
-      elements.toPill.classList.remove('is-dragging');
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
       requestPreview(0);
     }
+  }
+
+  function beginMarkerDrag(side, event) {
+    if (!state.visibleEntries.length) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    state.comparisonMode = 'range';
+    renderControlGroups();
+
+    updateMarkerSelection(side, event.clientX);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+
+    function onPointerMove(moveEvent) {
+      updateMarkerSelection(side, moveEvent.clientX);
+      requestPreview(70);
+    }
+
+    function onPointerUp() {
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      requestPreview(0);
+    }
+  }
+
+  function updateMarkerSelection(side, clientX) {
+    const nextVisibleIndex = getVisibleIndexFromClientX(clientX);
+    if (nextVisibleIndex < 0) {
+      return;
+    }
+
+    if (side === 'from') {
+      const clampedVisibleIndex = Math.min(nextVisibleIndex, getVisibleIndexForAbsoluteIndex(state.toIndex));
+      state.fromIndex = state.visibleEntries[clampedVisibleIndex].index;
+    } else {
+      const clampedVisibleIndex = Math.max(nextVisibleIndex, getVisibleIndexForAbsoluteIndex(state.fromIndex));
+      state.toIndex = state.visibleEntries[clampedVisibleIndex].index;
+    }
+
+    renderSelection();
   }
 
   function getPreviewKey(fromIndex, toIndex) {
