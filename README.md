@@ -2,6 +2,8 @@
 
 Minimal VS Code extension that opens JJ range multi-diff.
 
+It also includes a custom revision timeline panel for the active file. The panel uses a scrubber-style timeline to move through revisions quickly and opens a diff against the previous revision as you select entries.
+
 ## Files
 
 - `package.json`: VS Code extension manifest
@@ -12,6 +14,18 @@ Minimal VS Code extension that opens JJ range multi-diff.
 1. Open this folder as a VS Code extension project, or add it to a multi-root workspace.
 2. Press `F5` to launch an Extension Development Host.
 3. Run `JJ: Open Range Multi Diff` from the command palette.
+4. Open a file and run `JJ: Open File Revision Timeline`.
+
+## Revision Timeline
+
+`JJ: Open File Revision Timeline` opens a custom webview panel for the active file.
+
+- Scrub across file revisions using the timeline slider
+- Filter the visible window with `This month`, `Last 7D`, `30D`, `90D`, and `All`
+- Open a diff between the selected revision and the previous revision
+- Show the working tree as the latest stop on the timeline
+
+The panel prefers JJ history when the workspace is a JJ repo and falls back to Git history otherwise, which makes it easy to iterate on the UI in a normal Git repository.
 
 ## Optional Programmatic Invocation
 
