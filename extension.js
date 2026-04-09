@@ -62,6 +62,10 @@ let currentTimelineSession;
  */
 
 /**
+ * @typedef {'step' | 'cumulative'} CompareMode
+ */
+
+/**
  * @typedef {object} FileRevisionEntry
  * @property {string} id
  * @property {string} revision
@@ -82,7 +86,7 @@ let currentTimelineSession;
  * @property {string} fileName
  * @property {FileRevisionEntry[]} entries
  * @property {Map<string, string>} contentCache
- * @property {Map<number, DiffPreview>} previewCache
+ * @property {Map<string, DiffPreview>} previewCache
  */
 
 /**
@@ -102,6 +106,9 @@ let currentTimelineSession;
  * @property {number} deletions
  * @property {number} hunkCount
  * @property {boolean} hasChanges
+ * @property {CompareMode} compareMode
+ * @property {number} fromIndex
+ * @property {number} toIndex
  * @property {DiffRow[]} rows
  */
 
@@ -311,7 +318,7 @@ function getOrCreateTimelinePanel(context, fileName) {
 
 /**
  * @param {TimelineSession} session
- * @returns {{ backend: HistoryBackend, workspacePath: string, relativePath: string, fileName: string, presets: typeof TIMELINE_PRESET_DAYS, defaultIndex: number, entries: Array<Record<string, unknown>> }}
+ * @returns {{ backend: HistoryBackend, workspacePath: string, relativePath: string, fileName: string, presets: typeof TIMELINE_PRESET_DAYS, defaultIndex: number, latestIndex: number, entries: Array<Record<string, unknown>> }}
  */
 function buildTimelinePayload(session) {
   return {
@@ -321,6 +328,7 @@ function buildTimelinePayload(session) {
     fileName: session.fileName,
     presets: TIMELINE_PRESET_DAYS,
     defaultIndex: Math.max(0, session.entries.length - 1),
+    latestIndex: Math.max(0, session.entries.length - 1),
     entries: session.entries.map((entry, index) => ({
       ...entry,
       index,
@@ -350,7 +358,7 @@ async function handleTimelineMessage(panel, session, message) {
       type: 'timeline-data',
       payload: buildTimelinePayload(session),
     });
-    await sendTimelinePreview(panel, session, Math.max(0, session.entries.length - 1));
+    await sendTimelinePreview(panel, session, Math.max(0, session.entries.length - 1), 'step');
     return;
   }
 
@@ -360,7 +368,9 @@ async function handleTimelineMessage(panel, session, message) {
       return;
     }
 
-    await sendTimelinePreview(panel, session, nextIndex);
+    const compareMode = getCompareMode(Reflect.get(message, 'compareMode'));
+
+    await sendTimelinePreview(panel, session, nextIndex, compareMode);
     return;
   }
 
@@ -370,7 +380,9 @@ async function handleTimelineMessage(panel, session, message) {
       return;
     }
 
-    await openTimelineSelectionInEditor(session, nextIndex);
+    const compareMode = getCompareMode(Reflect.get(message, 'compareMode'));
+
+    await openTimelineSelectionInEditor(session, nextIndex, compareMode);
     return;
   }
 
@@ -382,7 +394,7 @@ async function handleTimelineMessage(panel, session, message) {
       type: 'timeline-data',
       payload: buildTimelinePayload(session),
     });
-    await sendTimelinePreview(panel, session, Math.max(0, session.entries.length - 1));
+    await sendTimelinePreview(panel, session, Math.max(0, session.entries.length - 1), 'step');
   }
 }
 
@@ -390,12 +402,21 @@ async function handleTimelineMessage(panel, session, message) {
  * @param {vscode.WebviewPanel} panel
  * @param {TimelineSession} session
  * @param {number} index
+ * @param {CompareMode} compareMode
  */
-async function sendTimelinePreview(panel, session, index) {
+async function sendTimelinePreview(panel, session, index, compareMode) {
   await panel.webview.postMessage({
     type: 'diff-preview',
-    payload: await getDiffPreview(session, index),
+    payload: await getDiffPreview(session, index, compareMode),
   });
+}
+
+/**
+ * @param {unknown} value
+ * @returns {CompareMode}
+ */
+function getCompareMode(value) {
+  return value === 'cumulative' ? 'cumulative' : 'step';
 }
 
 /**
@@ -416,28 +437,56 @@ function syncTimelineSession(target, source) {
 /**
  * @param {TimelineSession} session
  * @param {number} index
+ * @param {CompareMode} compareMode
  */
-async function openTimelineSelectionInEditor(session, index) {
-  const entry = session.entries[index];
-  if (!entry) {
+async function openTimelineSelectionInEditor(session, index, compareMode) {
+  const comparison = getComparisonEntries(session, index, compareMode);
+  if (!comparison) {
     return;
   }
 
-  if (index === 0) {
-    const uri = await createRevisionUri(session, entry);
+  const { fromEntry, toEntry } = comparison;
+
+  if (!fromEntry) {
+    const uri = await createRevisionUri(session, toEntry);
     await vscode.commands.executeCommand('vscode.open', uri, {
       preview: true,
     });
     return;
   }
 
-  const previousEntry = session.entries[index - 1];
-  const originalUri = await createRevisionUri(session, previousEntry);
-  const modifiedUri = await createRevisionUri(session, entry);
-  const title = `${session.fileName}: ${previousEntry.shortRevision} -> ${entry.shortRevision}`;
+  const originalUri = await createRevisionUri(session, fromEntry);
+  const modifiedUri = await createRevisionUri(session, toEntry);
+  const title = `${session.fileName}: ${fromEntry.shortRevision} -> ${toEntry.shortRevision}`;
   await vscode.commands.executeCommand('vscode.diff', originalUri, modifiedUri, title, {
     preview: true,
   });
+}
+
+/**
+ * @param {TimelineSession} session
+ * @param {number} index
+ * @param {CompareMode} compareMode
+ * @returns {{ fromEntry: FileRevisionEntry | undefined, toEntry: FileRevisionEntry } | undefined}
+ */
+function getComparisonEntries(session, index, compareMode) {
+  const targetEntry = session.entries[index];
+  if (!targetEntry) {
+    return undefined;
+  }
+
+  if (compareMode === 'cumulative') {
+    const latestEntry = session.entries[session.entries.length - 1];
+    return {
+      fromEntry: targetEntry,
+      toEntry: latestEntry,
+    };
+  }
+
+  return {
+    fromEntry: index > 0 ? session.entries[index - 1] : undefined,
+    toEntry: targetEntry,
+  };
 }
 
 /**
@@ -616,16 +665,18 @@ async function appendWorkingTreeEntry(absolutePath, entries) {
 /**
  * @param {TimelineSession} session
  * @param {number} index
+ * @param {CompareMode} compareMode
  * @returns {Promise<DiffPreview>}
  */
-async function getDiffPreview(session, index) {
-  const cached = session.previewCache.get(index);
+async function getDiffPreview(session, index, compareMode) {
+  const cacheKey = `${compareMode}:${index}`;
+  const cached = session.previewCache.get(cacheKey);
   if (cached) {
     return cached;
   }
 
-  const currentEntry = session.entries[index];
-  if (!currentEntry) {
+  const comparison = getComparisonEntries(session, index, compareMode);
+  if (!comparison) {
     return {
       index,
       title: 'No revision selected',
@@ -634,15 +685,26 @@ async function getDiffPreview(session, index) {
       deletions: 0,
       hunkCount: 0,
       hasChanges: false,
+      compareMode,
+      fromIndex: index,
+      toIndex: index,
       rows: [],
     };
   }
 
-  const previousEntry = index > 0 ? session.entries[index - 1] : undefined;
-  const beforeText = previousEntry ? await getRevisionContent(session, previousEntry) : '';
-  const afterText = await getRevisionContent(session, currentEntry);
-  const preview = buildDiffPreview(index, previousEntry, currentEntry, beforeText, afterText);
-  session.previewCache.set(index, preview);
+  const { fromEntry, toEntry } = comparison;
+  const beforeText = fromEntry ? await getRevisionContent(session, fromEntry) : '';
+  const afterText = await getRevisionContent(session, toEntry);
+  const preview = buildDiffPreview(
+    index,
+    fromEntry,
+    toEntry,
+    beforeText,
+    afterText,
+    compareMode,
+    session.entries.findIndex((entry) => entry.id === toEntry.id)
+  );
+  session.previewCache.set(cacheKey, preview);
   return preview;
 }
 
@@ -680,23 +742,27 @@ async function getRevisionContent(session, entry) {
  * @param {FileRevisionEntry} currentEntry
  * @param {string} beforeText
  * @param {string} afterText
+ * @param {CompareMode} compareMode
+ * @param {number} toIndex
  * @returns {DiffPreview}
  */
-function buildDiffPreview(index, previousEntry, currentEntry, beforeText, afterText) {
+function buildDiffPreview(index, previousEntry, currentEntry, beforeText, afterText, compareMode, toIndex) {
   const beforeLines = splitIntoLines(beforeText);
   const afterLines = splitIntoLines(afterText);
   const operations = diffLineOperations(beforeLines, afterLines);
-  const numberedRows = materializeDiffRows(operations);
-  const rows = collapseDiffRows(numberedRows, 3);
+  const rows = materializeDiffRows(operations);
   const additions = rows.filter((row) => row.type === 'add').length;
   const deletions = rows.filter((row) => row.type === 'remove').length;
-  const hunkCount = rows.filter((row) => row.type === 'skip').length + (additions || deletions ? 1 : 0);
+  const hunkCount = countDiffHunks(rows);
   const title = previousEntry
     ? `${previousEntry.shortRevision} -> ${currentEntry.shortRevision}`
     : `Initial revision -> ${currentEntry.shortRevision}`;
-  const subtitle = currentEntry.isWorkingTree
-    ? 'Comparing the working tree with the previous recorded revision.'
+  const subtitleBase = currentEntry.isWorkingTree
+    ? 'Working tree'
     : `${new Date(currentEntry.authorDate).toLocaleString()} · ${currentEntry.description}`;
+  const subtitle = compareMode === 'cumulative'
+    ? `${subtitleBase} · Cumulative to current`
+    : subtitleBase;
 
   return {
     index,
@@ -704,10 +770,37 @@ function buildDiffPreview(index, previousEntry, currentEntry, beforeText, afterT
     subtitle,
     additions,
     deletions,
-    hunkCount: additions || deletions ? hunkCount : 0,
+    hunkCount,
     hasChanges: additions > 0 || deletions > 0,
-    rows: additions > 0 || deletions > 0 ? rows : buildNoChangeRows(afterLines),
+    compareMode,
+    fromIndex: compareMode === 'cumulative' ? index : previousEntry ? Math.max(0, index - 1) : 0,
+    toIndex,
+    rows,
   };
+}
+
+/**
+ * @param {DiffRow[]} rows
+ * @returns {number}
+ */
+function countDiffHunks(rows) {
+  let hunks = 0;
+  let inChange = false;
+
+  for (const row of rows) {
+    const isChange = row.type === 'add' || row.type === 'remove';
+    if (isChange && !inChange) {
+      hunks += 1;
+      inChange = true;
+      continue;
+    }
+
+    if (!isChange) {
+      inChange = false;
+    }
+  }
+
+  return hunks;
 }
 
 /**
@@ -1398,10 +1491,11 @@ function getTimelineWebviewHtml(webview) {
     <style>
       :root {
         color-scheme: dark;
+        --sidebar-width: 276px;
         --bg: var(--vscode-editor-background, #11151c);
         --panel: var(--vscode-sideBar-background, #171c24);
         --panel-alt: var(--vscode-editorWidget-background, #1d232d);
-        --panel-soft: rgba(255, 255, 255, 0.03);
+        --panel-soft: rgba(255, 255, 255, 0.025);
         --text: var(--vscode-foreground, #e8ecf3);
         --muted: var(--vscode-descriptionForeground, #9da7b5);
         --border: var(--vscode-panel-border, rgba(255, 255, 255, 0.08));
@@ -1428,36 +1522,35 @@ function getTimelineWebviewHtml(webview) {
         font-family: var(--ui-font);
         color: var(--text);
         background: var(--bg);
-        padding: 10px;
+        padding: 8px;
       }
 
       .app {
-        height: calc(100vh - 20px);
+        height: calc(100vh - 16px);
         display: grid;
-        grid-template-rows: auto auto minmax(0, 1fr);
-        gap: 10px;
+        grid-template-rows: auto minmax(0, 1fr);
+        gap: 8px;
       }
 
       .panel {
         background: linear-gradient(180deg, var(--panel), var(--panel-alt));
         border: 1px solid var(--border);
-        border-radius: 14px;
+        border-radius: 12px;
         box-shadow: var(--shadow);
         min-width: 0;
       }
 
-      .topbar {
-        display: flex;
-        justify-content: space-between;
-        gap: 10px;
-        align-items: center;
-        padding: 12px 14px;
+      .timeline-shell {
+        display: grid;
+        gap: 8px;
+        padding: 10px 12px 12px;
       }
 
-      .title {
-        display: grid;
-        gap: 2px;
-        min-width: 0;
+      .timeline-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 12px;
       }
 
       .eyebrow {
@@ -1467,8 +1560,22 @@ function getTimelineWebviewHtml(webview) {
         text-transform: uppercase;
       }
 
-      .title strong {
-        font-size: 20px;
+      .title-block {
+        min-width: 0;
+        display: grid;
+        gap: 1px;
+      }
+
+      .title-line {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+        min-width: 0;
+        flex-wrap: wrap;
+      }
+
+      .title-line strong {
+        font-size: 19px;
         letter-spacing: -0.02em;
         font-weight: 650;
         white-space: nowrap;
@@ -1478,7 +1585,7 @@ function getTimelineWebviewHtml(webview) {
 
       .title-path {
         color: var(--muted);
-        font-size: 12px;
+        font-size: 11px;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -1486,8 +1593,9 @@ function getTimelineWebviewHtml(webview) {
 
       .toolbar {
         display: flex;
-        gap: 8px;
+        gap: 6px;
         flex-wrap: wrap;
+        justify-content: flex-end;
       }
 
       .button {
@@ -1495,10 +1603,11 @@ function getTimelineWebviewHtml(webview) {
         background: rgba(255, 255, 255, 0.04);
         color: var(--text);
         border-radius: 999px;
-        padding: 6px 11px;
+        padding: 5px 10px;
         font: inherit;
-        font-size: 12px;
+        font-size: 11px;
         cursor: pointer;
+        white-space: nowrap;
       }
 
       .button:hover {
@@ -1506,51 +1615,57 @@ function getTimelineWebviewHtml(webview) {
         background: rgba(255, 255, 255, 0.06);
       }
 
-      .timeline-wrap {
-        padding: 12px 14px 14px;
-        display: grid;
-        gap: 10px;
-      }
-
       .timeline-head {
         display: flex;
         justify-content: space-between;
         align-items: center;
         gap: 12px;
+        flex-wrap: wrap;
       }
 
       .range-label {
-        font-size: 15px;
+        font-size: 14px;
         letter-spacing: -0.02em;
         font-weight: 600;
       }
 
-      .supporting {
+      .range-subtitle {
         color: var(--muted);
         font-size: 12px;
       }
 
-      .preset-row {
+      .control-row {
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+
+      .segmented {
         display: inline-flex;
-        gap: 4px;
+        gap: 3px;
         padding: 3px;
         background: rgba(255, 255, 255, 0.03);
         border: 1px solid var(--border);
         border-radius: 999px;
       }
 
-      .preset {
+      .preset-row {
+        display: contents;
+      }
+
+      .segment {
         border: 0;
         color: var(--muted);
         background: transparent;
         border-radius: 999px;
-        padding: 5px 10px;
+        padding: 4px 9px;
         font: inherit;
-        font-size: 12px;
+        font-size: 11px;
         cursor: pointer;
+        white-space: nowrap;
       }
 
-      .preset.active {
+      .segment.active {
         background: var(--accent-soft);
         color: var(--text);
       }
@@ -1558,15 +1673,15 @@ function getTimelineWebviewHtml(webview) {
       .scrubber {
         position: relative;
         display: grid;
-        gap: 8px;
+        gap: 6px;
       }
 
       .track {
         position: absolute;
         left: 0;
         right: 0;
-        top: 24px;
-        height: 8px;
+        top: 20px;
+        height: 7px;
         border-radius: 999px;
         background:
           linear-gradient(90deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03)),
@@ -1587,19 +1702,19 @@ function getTimelineWebviewHtml(webview) {
         background: transparent;
         position: relative;
         z-index: 2;
-        padding-top: 14px;
+        padding-top: 10px;
       }
 
       input[type='range']::-webkit-slider-runnable-track {
-        height: 8px;
+        height: 7px;
         background: transparent;
       }
 
       input[type='range']::-webkit-slider-thumb {
         appearance: none;
-        width: 16px;
-        height: 16px;
-        margin-top: -4px;
+        width: 14px;
+        height: 14px;
+        margin-top: -3px;
         border-radius: 999px;
         background: var(--accent);
         border: 2px solid var(--bg);
@@ -1607,13 +1722,13 @@ function getTimelineWebviewHtml(webview) {
       }
 
       input[type='range']::-moz-range-track {
-        height: 8px;
+        height: 7px;
         background: transparent;
       }
 
       input[type='range']::-moz-range-thumb {
-        width: 16px;
-        height: 16px;
+        width: 14px;
+        height: 14px;
         border-radius: 999px;
         background: var(--accent);
         border: 2px solid var(--bg);
@@ -1622,7 +1737,7 @@ function getTimelineWebviewHtml(webview) {
 
       .selection-pill {
         position: absolute;
-        top: -2px;
+        top: -4px;
         transform: translateX(-50%);
         background: var(--panel-alt);
         border: 1px solid var(--border);
@@ -1641,17 +1756,22 @@ function getTimelineWebviewHtml(webview) {
         gap: 10px;
         color: var(--muted);
         font-size: 11px;
+        margin-top: 2px;
       }
 
       .month-row strong {
         color: var(--text);
       }
 
-      .layout {
+      .workspace {
         display: grid;
-        grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
-        gap: 10px;
+        grid-template-columns: minmax(0, var(--sidebar-width)) 6px minmax(0, 1fr);
+        gap: 0;
         min-height: 0;
+      }
+
+      .workspace.is-collapsed {
+        grid-template-columns: 0 0 minmax(0, 1fr);
       }
 
       .sidebar,
@@ -1662,77 +1782,63 @@ function getTimelineWebviewHtml(webview) {
 
       .sidebar {
         grid-template-rows: auto minmax(0, 1fr);
-        gap: 10px;
+        overflow: hidden;
+        border-radius: 12px 0 0 12px;
+        border-right: 0;
       }
 
-      .selection-card {
-        padding: 12px 14px;
-        display: grid;
-        gap: 8px;
+      .workspace.is-collapsed .sidebar,
+      .workspace.is-collapsed .resize-handle {
+        display: none;
       }
 
-      .chip-row {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 6px;
+      .resize-handle {
+        cursor: col-resize;
+        position: relative;
       }
 
-      .chip {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 4px 8px;
-        font-size: 11px;
-        border-radius: 999px;
-        background: rgba(255, 255, 255, 0.05);
-        border: 1px solid var(--border);
-        color: var(--muted);
+      .resize-handle::before {
+        content: '';
+        position: absolute;
+        inset: 0 2px;
+        background: rgba(255, 255, 255, 0.04);
       }
 
-      .chip--accent {
-        background: var(--accent-soft);
-        color: var(--text);
-        border-color: transparent;
+      .resize-handle:hover::before,
+      .resize-handle.is-dragging::before {
+        background: var(--accent);
       }
 
-      .selection-title {
-        margin: 0;
-        font-size: 18px;
-        line-height: 1.25;
-        letter-spacing: -0.02em;
-      }
-
-      .selection-copy {
-        color: var(--muted);
-        font-size: 12px;
-        line-height: 1.5;
-      }
-
-      .history-panel {
-        min-height: 0;
-        display: grid;
-        grid-template-rows: auto minmax(0, 1fr);
-      }
-
-      .history-head {
-        padding: 10px 14px;
+      .sidebar-head {
+        padding: 10px 12px 8px;
         border-bottom: 1px solid var(--border);
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .sidebar-hint {
+        color: var(--muted);
+        font-size: 11px;
       }
 
       .history-list {
         overflow: auto;
-        padding: 8px;
+        padding: 6px;
         display: grid;
-        gap: 6px;
+        gap: 4px;
       }
 
       .history-item {
         border: 1px solid transparent;
         background: rgba(255, 255, 255, 0.02);
-        border-radius: 12px;
-        padding: 10px 11px;
+        border-radius: 10px;
+        padding: 8px 9px;
         cursor: pointer;
         text-align: left;
+        display: grid;
+        gap: 4px;
       }
 
       .history-item:hover {
@@ -1749,20 +1855,25 @@ function getTimelineWebviewHtml(webview) {
         display: flex;
         justify-content: space-between;
         gap: 8px;
-        flex-wrap: wrap;
+        align-items: center;
       }
 
       .history-top {
-        margin-bottom: 4px;
-        font-size: 12px;
+        font-size: 11px;
         font-weight: 600;
       }
 
       .history-description {
         color: var(--muted);
-        font-size: 12px;
-        line-height: 1.45;
-        min-height: 18px;
+        font-size: 11px;
+        line-height: 1.35;
+        min-height: 15px;
+      }
+
+      .history-description.is-truncated {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
 
       .history-meta {
@@ -1773,18 +1884,30 @@ function getTimelineWebviewHtml(webview) {
       .history-stats {
         display: grid;
         grid-auto-flow: column;
-        gap: 8px;
+        gap: 6px;
         justify-content: start;
+        align-items: center;
+      }
+
+      .history-more {
+        border: 0;
+        padding: 0;
+        background: transparent;
+        color: var(--accent);
+        font: inherit;
+        font-size: 11px;
+        cursor: pointer;
       }
 
       .diff-panel {
         grid-template-rows: auto minmax(0, 1fr);
+        border-radius: 0 12px 12px 0;
       }
 
       .diff-head {
-        padding: 12px 14px;
+        padding: 10px 12px;
         display: grid;
-        gap: 8px;
+        gap: 7px;
         border-bottom: 1px solid var(--border);
       }
 
@@ -1798,7 +1921,7 @@ function getTimelineWebviewHtml(webview) {
 
       .diff-title {
         margin: 0;
-        font-size: 16px;
+        font-size: 15px;
         letter-spacing: -0.02em;
       }
 
@@ -1821,6 +1944,13 @@ function getTimelineWebviewHtml(webview) {
         font-size: 12px;
       }
 
+      .diff-toolbar {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
       .diff-rows {
         min-height: 0;
         overflow: auto;
@@ -1829,11 +1959,19 @@ function getTimelineWebviewHtml(webview) {
         line-height: 1.55;
       }
 
-      .diff-row {
+      .diff-row,
+      .split-row {
         display: grid;
-        grid-template-columns: 18px 52px 52px minmax(0, 1fr);
         align-items: start;
         border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+      }
+
+      .diff-row {
+        grid-template-columns: 18px 52px 52px minmax(0, 1fr);
+      }
+
+      .split-row {
+        grid-template-columns: 46px minmax(0, 1fr) 46px minmax(0, 1fr);
       }
 
       .diff-row--context {
@@ -1854,9 +1992,26 @@ function getTimelineWebviewHtml(webview) {
         color: var(--muted);
       }
 
+      .split-row--skip {
+        grid-template-columns: 1fr;
+      }
+
+      .split-row--change .split-code--left {
+        background: rgba(255, 123, 114, 0.08);
+      }
+
+      .split-row--change .split-code--right {
+        background: rgba(76, 195, 138, 0.08);
+      }
+
       .cell {
         padding: 3px 8px;
         min-width: 0;
+      }
+
+      .split-cell {
+        min-width: 0;
+        padding: 3px 8px;
       }
 
       .marker,
@@ -1878,9 +2033,32 @@ function getTimelineWebviewHtml(webview) {
         color: var(--danger);
       }
 
-      .code {
+      .code,
+      .split-code {
         white-space: pre;
         overflow-x: auto;
+      }
+
+      .split-number {
+        color: var(--muted);
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .skip-button {
+        width: 100%;
+        border: 0;
+        padding: 7px 10px;
+        background: transparent;
+        color: var(--muted);
+        font: inherit;
+        font-size: 11px;
+        cursor: pointer;
+        text-align: left;
+      }
+
+      .skip-button:hover {
+        color: var(--text);
       }
 
       .empty,
@@ -1895,42 +2073,66 @@ function getTimelineWebviewHtml(webview) {
           padding: 8px;
         }
 
-        .layout {
+        .timeline-top,
+        .timeline-head,
+        .diff-toolbar {
           grid-template-columns: 1fr;
+          display: grid;
         }
 
-        .sidebar {
-          grid-template-rows: auto auto;
+        .toolbar,
+        .control-row {
+          justify-content: flex-start;
         }
 
-        .history-panel {
-          max-height: 240px;
+        .workspace,
+        .workspace.is-collapsed {
+          grid-template-columns: 1fr;
+          gap: 8px;
+        }
+
+        .resize-handle {
+          display: none;
+        }
+
+        .sidebar,
+        .diff-panel {
+          border-radius: 12px;
         }
       }
     </style>
   </head>
   <body>
     <div class="app">
-      <section class="panel topbar">
-        <div class="title">
-          <div class="eyebrow">Revision Timeline</div>
-          <strong id="fileName">Loading…</strong>
-          <div class="title-path" id="filePath"></div>
+      <section class="panel timeline-shell">
+        <div class="timeline-top">
+          <div class="title-block">
+            <div class="eyebrow">Revision Timeline</div>
+            <div class="title-line">
+              <strong id="fileName">Loading…</strong>
+              <span class="title-path" id="filePath"></span>
+            </div>
+          </div>
+          <div class="toolbar">
+            <button class="button" id="toggleSidebarButton">Hide Sidebar</button>
+            <button class="button" id="openEditorButton">Open In Editor</button>
+            <button class="button" id="refreshButton">Refresh</button>
+          </div>
         </div>
-        <div class="toolbar">
-          <button class="button" id="openEditorButton">Open In Editor</button>
-          <button class="button" id="refreshButton">Refresh</button>
-        </div>
-      </section>
 
-      <section class="panel timeline-wrap">
         <div class="timeline-head">
           <div>
             <div class="range-label" id="rangeLabel">Loading revisions…</div>
-            <div class="supporting" id="rangeSubtitle"></div>
+            <div class="range-subtitle" id="rangeSubtitle"></div>
           </div>
-          <div class="preset-row" id="presets"></div>
+          <div class="control-row">
+            <div class="segmented" id="compareModes"></div>
+            <div class="segmented" id="layoutModes"></div>
+            <div class="segmented" id="contentModes"></div>
+            <div class="segmented" id="presets"></div>
+          </div>
         </div>
+
         <div class="scrubber">
           <div class="track"></div>
           <div class="selection-pill" id="selectionPill">Select a revision</div>
@@ -1939,30 +2141,28 @@ function getTimelineWebviewHtml(webview) {
         </div>
       </section>
 
-      <section class="layout">
-        <div class="sidebar">
-          <section class="panel selection-card">
-            <div class="eyebrow">Selected Revision</div>
-            <div class="chip-row" id="selectedChips"></div>
-            <h2 class="selection-title" id="headline"></h2>
-            <div class="selection-copy" id="supporting"></div>
-          </section>
-
-          <section class="panel history-panel">
-            <div class="history-head">
-              <div class="eyebrow">Visible Revisions</div>
-            </div>
-            <div class="history-list" id="historyList"></div>
-          </section>
-        </div>
-
+      <section class="workspace" id="workspace">
+        <aside class="panel sidebar" id="sidebar">
+          <div class="sidebar-head">
+            <div class="eyebrow">Revisions</div>
+            <div class="sidebar-hint" id="sidebarHint"></div>
+          </div>
+          <div class="history-list" id="historyList"></div>
+        </aside>
+        <div class="resize-handle" id="resizeHandle"></div>
         <section class="panel diff-panel">
           <div class="diff-head">
             <div class="diff-title-row">
-              <h3 class="diff-title" id="diffTitle">Loading diff…</h3>
+              <div>
+                <div class="eyebrow" id="diffModeEyebrow">Diff</div>
+                <h3 class="diff-title" id="diffTitle">Loading diff…</h3>
+              </div>
               <div class="history-stats" id="diffStats"></div>
             </div>
             <div class="diff-subtitle" id="diffSubtitle"></div>
+            <div class="diff-toolbar">
+              <div class="supporting" id="selectionMeta"></div>
+            </div>
           </div>
           <div class="diff-rows" id="diffRows"></div>
         </section>
@@ -1978,10 +2178,20 @@ function getTimelineWebviewHtml(webview) {
         preset: '90d',
         visibleEntries: [],
         selectedIndex: 0,
+        compareMode: 'step',
+        layoutMode: 'split',
+        contentMode: 'diffs',
+        sidebarWidth: 276,
+        sidebarCollapsed: false,
+        expandedDescriptions: {},
+        expandedRanges: {},
         previewTimer: undefined,
       };
 
       const elements = {
+        workspace: document.getElementById('workspace'),
+        sidebar: document.getElementById('sidebar'),
+        resizeHandle: document.getElementById('resizeHandle'),
         fileName: document.getElementById('fileName'),
         filePath: document.getElementById('filePath'),
         rangeLabel: document.getElementById('rangeLabel'),
@@ -1989,16 +2199,20 @@ function getTimelineWebviewHtml(webview) {
         selectionPill: document.getElementById('selectionPill'),
         slider: document.getElementById('slider'),
         monthRow: document.getElementById('monthRow'),
-        headline: document.getElementById('headline'),
-        supporting: document.getElementById('supporting'),
+        sidebarHint: document.getElementById('sidebarHint'),
         historyList: document.getElementById('historyList'),
         presets: document.getElementById('presets'),
+        compareModes: document.getElementById('compareModes'),
+        layoutModes: document.getElementById('layoutModes'),
+        contentModes: document.getElementById('contentModes'),
+        toggleSidebarButton: document.getElementById('toggleSidebarButton'),
         openEditorButton: document.getElementById('openEditorButton'),
         refreshButton: document.getElementById('refreshButton'),
-        selectedChips: document.getElementById('selectedChips'),
+        diffModeEyebrow: document.getElementById('diffModeEyebrow'),
         diffTitle: document.getElementById('diffTitle'),
         diffSubtitle: document.getElementById('diffSubtitle'),
         diffStats: document.getElementById('diffStats'),
+        selectionMeta: document.getElementById('selectionMeta'),
         diffRows: document.getElementById('diffRows'),
       };
 
@@ -2010,12 +2224,29 @@ function getTimelineWebviewHtml(webview) {
         all: 'All',
       };
 
+      const compareModeLabels = {
+        step: 'Revision',
+        cumulative: 'To now',
+      };
+
+      const layoutModeLabels = {
+        split: 'Split',
+        unified: 'Unified',
+      };
+
+      const contentModeLabels = {
+        diffs: 'Diffs',
+        full: 'Whole file',
+      };
+
       window.addEventListener('message', (event) => {
         const message = event.data;
         if (message?.type === 'timeline-data') {
           state.data = message.payload;
           state.selectedIndex = state.data.defaultIndex || 0;
           state.preview = null;
+          state.previewByIndex = {};
+          state.expandedRanges = {};
 
           if (!state.data.entries.length) {
             renderEmpty();
@@ -2024,6 +2255,8 @@ function getTimelineWebviewHtml(webview) {
 
           elements.fileName.textContent = state.data.fileName;
           elements.filePath.textContent = state.data.relativePath;
+          renderControlGroups();
+          applySidebarState();
           applyPreset(state.preset, true, true);
           return;
         }
@@ -2032,8 +2265,12 @@ function getTimelineWebviewHtml(webview) {
           return;
         }
 
+        if (message.payload.compareMode !== state.compareMode) {
+          return;
+        }
+
         state.preview = message.payload;
-        state.previewByIndex[String(message.payload.index)] = message.payload;
+        state.previewByIndex[getPreviewKey(message.payload.index, message.payload.compareMode)] = message.payload;
         renderPreview();
         renderHistoryList();
       });
@@ -2055,22 +2292,86 @@ function getTimelineWebviewHtml(webview) {
       });
 
       elements.openEditorButton.addEventListener('click', () => {
-        vscode.postMessage({ command: 'open-editor-diff', index: state.selectedIndex });
+        vscode.postMessage({
+          command: 'open-editor-diff',
+          index: state.selectedIndex,
+          compareMode: state.compareMode,
+        });
       });
 
       elements.refreshButton.addEventListener('click', () => {
         vscode.postMessage({ command: 'refresh' });
       });
 
-      function renderPresets() {
-        elements.presets.innerHTML = '';
-        for (const [key, value] of Object.entries(state.data.presets)) {
-          const button = document.createElement('button');
-          button.className = 'preset' + (state.preset === key ? ' active' : '');
-          button.textContent = presetLabels[key] || String(value);
-          button.addEventListener('click', () => applyPreset(key, true));
-          elements.presets.appendChild(button);
+      elements.toggleSidebarButton.addEventListener('click', () => {
+        state.sidebarCollapsed = !state.sidebarCollapsed;
+        applySidebarState();
+      });
+
+      elements.resizeHandle.addEventListener('pointerdown', (event) => {
+        if (window.matchMedia('(max-width: 980px)').matches || state.sidebarCollapsed) {
+          return;
         }
+
+        event.preventDefault();
+        const startX = event.clientX;
+        const startWidth = state.sidebarWidth;
+        elements.resizeHandle.classList.add('is-dragging');
+        window.addEventListener('pointermove', onPointerMove);
+        window.addEventListener('pointerup', onPointerUp);
+
+        function onPointerMove(moveEvent) {
+          const delta = moveEvent.clientX - startX;
+          state.sidebarWidth = Math.max(180, Math.min(420, startWidth + delta));
+          applySidebarState();
+        }
+
+        function onPointerUp() {
+          elements.resizeHandle.classList.remove('is-dragging');
+          window.removeEventListener('pointermove', onPointerMove);
+          window.removeEventListener('pointerup', onPointerUp);
+        }
+      });
+
+      function renderControlGroups() {
+        renderSegmentedControl(elements.compareModes, compareModeLabels, state.compareMode, (value) => {
+          state.compareMode = value;
+          state.preview = null;
+          renderControlGroups();
+          renderSelection();
+          requestPreview(0);
+        });
+        renderSegmentedControl(elements.layoutModes, layoutModeLabels, state.layoutMode, (value) => {
+          state.layoutMode = value;
+          renderControlGroups();
+          renderPreview();
+        });
+        renderSegmentedControl(elements.contentModes, contentModeLabels, state.contentMode, (value) => {
+          state.contentMode = value;
+          renderControlGroups();
+          renderPreview();
+        });
+        renderSegmentedControl(elements.presets, presetLabels, state.preset, (value) => {
+          applyPreset(value, true);
+        });
+      }
+
+      function renderSegmentedControl(container, labels, activeValue, onSelect) {
+        container.innerHTML = '';
+        for (const [value, label] of Object.entries(labels)) {
+          const button = document.createElement('button');
+          button.className = 'segment' + (activeValue === value ? ' active' : '');
+          button.textContent = label;
+          button.type = 'button';
+          button.addEventListener('click', () => onSelect(value));
+          container.appendChild(button);
+        }
+      }
+
+      function applySidebarState() {
+        document.documentElement.style.setProperty('--sidebar-width', String(state.sidebarWidth) + 'px');
+        elements.workspace.classList.toggle('is-collapsed', state.sidebarCollapsed);
+        elements.toggleSidebarButton.textContent = state.sidebarCollapsed ? 'Show Sidebar' : 'Hide Sidebar';
       }
 
       function applyPreset(preset, resetSelection, suppressPreviewRequest) {
@@ -2089,7 +2390,7 @@ function getTimelineWebviewHtml(webview) {
           state.selectedIndex = state.visibleEntries[state.visibleEntries.length - 1].index;
         }
 
-        renderPresets();
+        renderControlGroups();
         renderSelection();
         if (!suppressPreviewRequest) {
           requestPreview(0);
@@ -2110,7 +2411,7 @@ function getTimelineWebviewHtml(webview) {
         const first = state.visibleEntries[0];
         const last = state.visibleEntries[state.visibleEntries.length - 1];
         const previous = state.data.entries[Math.max(0, selected.index - 1)];
-        const knownPreview = state.previewByIndex[String(selected.index)];
+        const knownPreview = state.previewByIndex[getPreviewKey(selected.index, state.compareMode)];
 
         elements.slider.max = String(Math.max(0, state.visibleEntries.length - 1));
         elements.slider.value = String(selectedVisibleIndex);
@@ -2123,18 +2424,12 @@ function getTimelineWebviewHtml(webview) {
           ? 'Working tree'
           : selected.shortDate + ' · ' + selected.shortRevision;
         elements.rangeLabel.textContent = first.shortDate + ' - ' + (last.isWorkingTree ? 'Today' : last.shortDate);
-        elements.rangeSubtitle.textContent = String(state.visibleEntries.length) + ' revisions in ' + state.data.backend.toUpperCase() + ' history';
-        elements.headline.textContent = selected.description;
-        elements.supporting.textContent = selected.isWorkingTree
-          ? 'Comparing the current file on disk against the previous recorded revision.'
-          : selected.relativeDate + ' · ' + new Date(selected.authorDate).toLocaleString() + (previous && previous.id !== selected.id ? ' · Diff target: ' + previous.shortRevision : '');
-
-        elements.selectedChips.innerHTML = [
-          renderChip(state.data.backend.toUpperCase() + ' backend', false),
-          renderChip(selected.isWorkingTree ? 'Current working tree' : selected.shortRevision, true),
-          knownPreview ? renderChip('+' + String(knownPreview.additions), false, 'stat--plus') : '',
-          knownPreview ? renderChip('-' + String(knownPreview.deletions), false, 'stat--minus') : '',
-        ].join('');
+        elements.rangeSubtitle.textContent = String(state.visibleEntries.length) + ' revisions in ' + state.data.backend.toUpperCase() + ' history · ' + compareModeLabels[state.compareMode].toLowerCase();
+        elements.sidebarHint.textContent = state.sidebarCollapsed ? '' : compareModeLabels[state.compareMode];
+        elements.selectionMeta.textContent = selected.isWorkingTree
+          ? 'Current working tree'
+          : selected.relativeDate + ' · ' + new Date(selected.authorDate).toLocaleString() + (previous && previous.id !== selected.id ? ' · Step base: ' + previous.shortRevision : '');
+        elements.diffModeEyebrow.textContent = layoutModeLabels[state.layoutMode] + ' · ' + contentModeLabels[state.contentMode] + ' · ' + compareModeLabels[state.compareMode];
 
         renderMonths();
         renderHistoryList();
@@ -2171,7 +2466,9 @@ function getTimelineWebviewHtml(webview) {
 
         elements.historyList.innerHTML = '';
         for (const entry of state.visibleEntries.slice().reverse()) {
-          const preview = state.previewByIndex[String(entry.index)];
+          const preview = state.previewByIndex[getPreviewKey(entry.index, state.compareMode)];
+          const descriptionExpanded = Boolean(state.expandedDescriptions[String(entry.index)]);
+          const showMore = entry.description.length > 48;
           const button = document.createElement('button');
           button.className = 'history-item' + (entry.index === state.selectedIndex ? ' active' : '');
           button.type = 'button';
@@ -2186,12 +2483,25 @@ function getTimelineWebviewHtml(webview) {
             '<strong>' + escapeHtml(entry.shortRevision) + '</strong>',
             '<span>' + escapeHtml(entry.shortDate) + '</span>',
             '</div>',
-            '<div class="history-description">' + escapeHtml(entry.description) + '</div>',
+            '<div class="history-description' + (descriptionExpanded || !showMore ? '' : ' is-truncated') + '">' + escapeHtml(entry.description) + '</div>',
             '<div class="history-bottom">',
             '<span class="history-meta">' + escapeHtml(entry.relativeDate) + '</span>',
             '<span class="history-stats">' + (preview ? renderStatChips(preview) : '') + '</span>',
             '</div>',
+            showMore ? '<button class="history-more" type="button">' + (descriptionExpanded ? 'Less' : 'More') + '</button>' : '',
           ].join('');
+
+          if (showMore) {
+            const moreButton = button.querySelector('.history-more');
+            if (moreButton) {
+              moreButton.addEventListener('click', (event) => {
+                event.stopPropagation();
+                state.expandedDescriptions[String(entry.index)] = !descriptionExpanded;
+                renderHistoryList();
+              });
+            }
+          }
+
           elements.historyList.appendChild(button);
         }
       }
@@ -2222,19 +2532,30 @@ function getTimelineWebviewHtml(webview) {
         elements.diffSubtitle.textContent = state.preview.subtitle;
         elements.diffStats.innerHTML = renderStatChips(state.preview);
 
-        if (!state.preview.rows.length) {
-          elements.diffRows.innerHTML = '<div class="empty-diff">No textual changes in this selection.</div>';
+        const visibleRows = getDisplayRows(state.preview);
+        if (!visibleRows.length) {
+          elements.diffRows.innerHTML = state.contentMode === 'full'
+            ? '<div class="empty-diff">The file has no content at this revision.</div>'
+            : '<div class="empty-diff">No textual changes in this selection.</div>';
           return;
         }
 
-        elements.diffRows.innerHTML = state.preview.rows.map((row) => renderDiffRow(row)).join('');
+        elements.diffRows.innerHTML = state.layoutMode === 'split'
+          ? renderSplitRows(visibleRows)
+          : visibleRows.map((row) => renderUnifiedRow(row)).join('');
+
+        for (const button of elements.diffRows.querySelectorAll('.skip-button')) {
+          button.addEventListener('click', () => {
+            toggleRange(button.dataset.previewKey, button.dataset.rangeKey);
+          });
+        }
       }
 
       function renderEmpty() {
         elements.rangeLabel.textContent = 'No revisions found';
         elements.rangeSubtitle.textContent = '';
-        elements.headline.textContent = 'No recorded history for this file';
-        elements.supporting.textContent = '';
+        elements.sidebarHint.textContent = '';
+        elements.selectionMeta.textContent = '';
         elements.historyList.innerHTML = '<div class="empty">Make a change and commit it, then reopen the timeline.</div>';
         elements.diffTitle.textContent = 'No diff available';
         elements.diffSubtitle.textContent = '';
@@ -2248,12 +2569,16 @@ function getTimelineWebviewHtml(webview) {
         }
 
         state.previewTimer = window.setTimeout(() => {
-          vscode.postMessage({ command: 'select-entry', index: state.selectedIndex });
+          vscode.postMessage({
+            command: 'select-entry',
+            index: state.selectedIndex,
+            compareMode: state.compareMode,
+          });
         }, delay);
       }
 
-      function renderChip(text, accent, extraClass) {
-        return '<span class="chip' + (accent ? ' chip--accent' : '') + (extraClass ? ' ' + extraClass : '') + '">' + escapeHtml(text) + '</span>';
+      function getPreviewKey(index, compareMode) {
+        return compareMode + ':' + String(index);
       }
 
       function renderStatChips(preview) {
@@ -2264,9 +2589,96 @@ function getTimelineWebviewHtml(webview) {
         ].join('');
       }
 
-      function renderDiffRow(row) {
+      function getDisplayRows(preview) {
+        if (state.contentMode === 'full') {
+          return preview.rows;
+        }
+
+        if (!preview.hasChanges) {
+          return [];
+        }
+
+        return collapseRowsForPreview(preview.rows, getPreviewKey(preview.index, preview.compareMode), 3);
+      }
+
+      function collapseRowsForPreview(rows, previewKey, contextSize) {
+        const changedIndexes = [];
+        for (let index = 0; index < rows.length; index += 1) {
+          const row = rows[index];
+          if (row.type === 'add' || row.type === 'remove') {
+            changedIndexes.push(index);
+          }
+        }
+
+        if (!changedIndexes.length) {
+          return [];
+        }
+
+        const ranges = [];
+        for (const changeIndex of changedIndexes) {
+          const start = Math.max(0, changeIndex - contextSize);
+          const end = Math.min(rows.length - 1, changeIndex + contextSize);
+          const previousRange = ranges[ranges.length - 1];
+          if (!previousRange || start > previousRange[1] + 1) {
+            ranges.push([start, end]);
+          } else {
+            previousRange[1] = Math.max(previousRange[1], end);
+          }
+        }
+
+        const visible = [];
+        let previousEnd = -1;
+        for (const range of ranges) {
+          const start = range[0];
+          const end = range[1];
+          visible.push(...buildCollapsedSection(rows, previousEnd + 1, start - 1, previewKey));
+          visible.push(...rows.slice(start, end + 1));
+          previousEnd = end;
+        }
+        visible.push(...buildCollapsedSection(rows, previousEnd + 1, rows.length - 1, previewKey));
+        return visible;
+      }
+
+      function buildCollapsedSection(rows, start, end, previewKey) {
+        if (end < start) {
+          return [];
+        }
+
+        const rangeKey = String(start) + ':' + String(end);
+        const expandedState = state.expandedRanges[previewKey] || {};
+        if (!expandedState[rangeKey]) {
+          return [{
+            type: 'skip',
+            leftNumber: null,
+            rightNumber: null,
+            text: 'Show ' + String(end - start + 1) + ' unchanged lines',
+            rangeKey,
+            previewKey,
+          }];
+        }
+
+        return rows.slice(start, end + 1).concat([{
+          type: 'skip',
+          leftNumber: null,
+          rightNumber: null,
+          text: 'Hide ' + String(end - start + 1) + ' unchanged lines',
+          rangeKey,
+          previewKey,
+        }]);
+      }
+
+      function toggleRange(previewKey, rangeKey) {
+        if (!state.expandedRanges[previewKey]) {
+          state.expandedRanges[previewKey] = {};
+        }
+
+        state.expandedRanges[previewKey][rangeKey] = !state.expandedRanges[previewKey][rangeKey];
+        renderPreview();
+      }
+
+      function renderUnifiedRow(row) {
         if (row.type === 'skip') {
-          return '<div class="diff-row diff-row--skip"><div class="cell">' + escapeHtml(row.text) + '</div></div>';
+          return renderSkipRow(row, 'diff-row');
         }
 
         const marker = row.type === 'add' ? '+' : row.type === 'remove' ? '-' : ' ';
@@ -2276,6 +2688,85 @@ function getTimelineWebviewHtml(webview) {
           '<div class="cell line-number">' + formatLineNumber(row.leftNumber) + '</div>',
           '<div class="cell line-number">' + formatLineNumber(row.rightNumber) + '</div>',
           '<div class="cell code">' + escapeHtml(row.text || ' ') + '</div>',
+          '</div>',
+        ].join('');
+      }
+
+      function renderSplitRows(rows) {
+        return buildSplitRows(rows).map((row) => renderSplitRow(row)).join('');
+      }
+
+      function buildSplitRows(rows) {
+        const splitRows = [];
+        for (let index = 0; index < rows.length; index += 1) {
+          const row = rows[index];
+          if (row.type === 'skip') {
+            splitRows.push({ type: 'skip', skip: row });
+            continue;
+          }
+
+          if (row.type === 'context') {
+            splitRows.push({ type: 'context', left: row, right: row });
+            continue;
+          }
+
+          const leftRows = [];
+          const rightRows = [];
+          while (index < rows.length && rows[index].type === 'remove') {
+            leftRows.push(rows[index]);
+            index += 1;
+          }
+          while (index < rows.length && rows[index].type === 'add') {
+            rightRows.push(rows[index]);
+            index += 1;
+          }
+          index -= 1;
+
+          const pairCount = Math.max(leftRows.length, rightRows.length);
+          for (let pairIndex = 0; pairIndex < pairCount; pairIndex += 1) {
+            splitRows.push({
+              type: 'change',
+              left: leftRows[pairIndex] || null,
+              right: rightRows[pairIndex] || null,
+            });
+          }
+        }
+
+        return splitRows;
+      }
+
+      function renderSplitRow(row) {
+        if (row.type === 'skip') {
+          return renderSkipRow(row.skip, 'split-row');
+        }
+
+        if (row.type === 'context') {
+          return [
+            '<div class="split-row">',
+            '<div class="split-cell split-number">' + formatLineNumber(row.left.leftNumber) + '</div>',
+            '<div class="split-cell split-code">' + escapeHtml(row.left.text || ' ') + '</div>',
+            '<div class="split-cell split-number">' + formatLineNumber(row.right.rightNumber) + '</div>',
+            '<div class="split-cell split-code">' + escapeHtml(row.right.text || ' ') + '</div>',
+            '</div>',
+          ].join('');
+        }
+
+        return [
+          '<div class="split-row split-row--change">',
+          '<div class="split-cell split-number">' + formatLineNumber(row.left ? row.left.leftNumber : null) + '</div>',
+          '<div class="split-cell split-code split-code--left">' + escapeHtml(row.left ? row.left.text || ' ' : ' ') + '</div>',
+          '<div class="split-cell split-number">' + formatLineNumber(row.right ? row.right.rightNumber : null) + '</div>',
+          '<div class="split-cell split-code split-code--right">' + escapeHtml(row.right ? row.right.text || ' ' : ' ') + '</div>',
+          '</div>',
+        ].join('');
+      }
+
+      function renderSkipRow(row, className) {
+        return [
+          '<div class="' + className + ' ' + className + '--skip">',
+          '<button class="skip-button" type="button" data-preview-key="' + escapeHtml(row.previewKey) + '" data-range-key="' + escapeHtml(row.rangeKey) + '">',
+          escapeHtml(row.text),
+          '</button>',
           '</div>',
         ].join('');
       }
