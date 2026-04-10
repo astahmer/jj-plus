@@ -17,8 +17,43 @@
       return [];
     }
 
-    if (data.backend === 'jj' && comparisonSource === 'snapshot' && Array.isArray(data.snapshotEntries) && data.snapshotEntries.length) {
-      return data.snapshotEntries;
+    if (data.backend === 'jj' && comparisonSource === 'snapshot') {
+      const revisionEntries = Array.isArray(data.entries) ? data.entries : [];
+      const snapshotEntries = Array.isArray(data.snapshotEntries) ? data.snapshotEntries : [];
+      const loadedChangeIds = new Set(
+        Array.isArray(data.snapshotState?.loadedChangeIds)
+          ? data.snapshotState.loadedChangeIds
+          : []
+      );
+
+      if (!loadedChangeIds.size) {
+        return revisionEntries;
+      }
+
+      const snapshotEntriesByChangeId = snapshotEntries.reduce((groups, entry) => {
+        if (!entry || !entry.changeId) {
+          return groups;
+        }
+
+        const existing = groups.get(entry.changeId) || [];
+        existing.push(entry);
+        groups.set(entry.changeId, existing);
+        return groups;
+      }, new Map());
+
+      const composedEntries = revisionEntries.flatMap((entry) => {
+        if (!entry || entry.isWorkingTree || !entry.touchesFile || !entry.changeId || !loadedChangeIds.has(entry.changeId)) {
+          return [entry];
+        }
+
+        const expandedEntries = snapshotEntriesByChangeId.get(entry.changeId);
+        return expandedEntries && expandedEntries.length ? expandedEntries : [entry];
+      });
+
+      return composedEntries.map((entry, index) => ({
+        ...entry,
+        index,
+      }));
     }
 
     return Array.isArray(data.entries) ? data.entries : [];

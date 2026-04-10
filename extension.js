@@ -5,7 +5,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const vscode = require('vscode');
 const { textsMatchIgnoringLineEndings } = require('./lib/diff-helpers.js');
-const { dedupeAdjacentEntriesByChangeId, getGitHubRemoteBaseUrl, parseJjEvolutionLine, parseJjSummaryRenameLines } = require('./lib/history-helpers.js');
+const { dedupeAdjacentEntriesByChangeId, getGitHubRemoteBaseUrl, parseJjEvolutionLine, parseJjEvolutionSummaryEntries, parseJjSummaryChangedPaths, parseJjSummaryRenameLines } = require('./lib/history-helpers.js');
 const packageJson = require('./package.json');
 const { renderTimelineDocumentHtml } = require('./webview/timeline.template.js');
 
@@ -21,6 +21,7 @@ const CLI_SOURCE = 'cli';
 const DEFAULT_FROM_REVSET = 'closest_bookmark(@)';
 const DEFAULT_TO_REVSET = '@';
 const MAX_TIMELINE_ENTRIES = 200;
+const MAX_SNAPSHOT_HYDRATION_CHANGES = 8;
 const EXTENSION_VERSION = packageJson.version;
 const TIMELINE_PRESET_DAYS = {
   year: 365,
@@ -81,6 +82,9 @@ let extensionContext;
  * @property {boolean} touchesFile
  * @property {number} timestamp
  * @property {string=} filePath
+ * @property {string=} operationId
+ * @property {number=} operationIndex
+ * @property {string=} operationKey
  * @property {string=} remoteUrl
  */
 
@@ -93,6 +97,7 @@ let extensionContext;
  * @property {string} fileName
  * @property {FileRevisionEntry[]} entries
  * @property {FileRevisionEntry[]} snapshotEntries
+ * @property {Set<string>} snapshotLoadedChangeIds
  * @property {string[]} workspaceFiles
  * @property {Map<string, string>} contentCache
  * @property {Map<string, DiffPreview>} previewCache
@@ -366,12 +371,8 @@ function buildTimelinePayload(session, preferences) {
     ...entry,
     index,
     hasPreviousEntry: index > 0,
-    monthLabel: new Intl.DateTimeFormat('en', { month: 'long' }).format(new Date(entry.authorDate)),
-    shortDate: new Intl.DateTimeFormat('en', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    }).format(new Date(entry.authorDate)),
+    monthLabel: formatEntryMonthLabel(entry.authorDate),
+    shortDate: formatEntryShortDate(entry.authorDate),
     relativeDate: formatRelativeTime(entry.timestamp),
     remoteUrl: entry.remoteUrl,
   }));
@@ -390,7 +391,40 @@ function buildTimelinePayload(session, preferences) {
     hasIntermediateRevisions: session.entries.some((entry) => !entry.touchesFile),
     entries: mapPayloadEntries(session.entries),
     snapshotEntries: mapPayloadEntries(session.snapshotEntries),
+    snapshotState: {
+      loadedChangeIds: [...session.snapshotLoadedChangeIds],
+    },
   };
+}
+
+/**
+ * @param {string} authorDate
+ * @returns {string}
+ */
+function formatEntryMonthLabel(authorDate) {
+  const date = new Date(authorDate);
+  if (Number.isNaN(date.getTime())) {
+    return 'Unknown month';
+  }
+
+  return new Intl.DateTimeFormat('en', { month: 'long' }).format(date);
+}
+
+/**
+ * @param {string} authorDate
+ * @returns {string}
+ */
+function formatEntryShortDate(authorDate) {
+  const date = new Date(authorDate);
+  if (Number.isNaN(date.getTime())) {
+    return 'Unknown date';
+  }
+
+  return new Intl.DateTimeFormat('en', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(date);
 }
 
 /**
@@ -424,6 +458,35 @@ async function handleTimelineMessage(panel, session, message) {
     }
 
     await sendTimelinePreview(panel, session, fromIndex, toIndex, comparisonSource);
+    return;
+  }
+
+  if (command === 'hydrate-snapshot-entries') {
+    const revisionIndexes = Reflect.get(message, 'revisionIndexes');
+    if (!Array.isArray(revisionIndexes)) {
+      return;
+    }
+
+    const didUpdate = await hydrateJjSnapshotEntries(
+      session,
+      revisionIndexes
+        .map((value) => Number(value))
+        .filter((value) => Number.isInteger(value))
+    );
+
+    if (!didUpdate) {
+      return;
+    }
+
+    await panel.webview.postMessage({
+      type: 'snapshot-entries',
+      payload: {
+        snapshotEntries: buildTimelinePayload(session, getTimelinePreferences(extensionContext)).snapshotEntries,
+        snapshotState: {
+          loadedChangeIds: [...session.snapshotLoadedChangeIds],
+        },
+      },
+    });
     return;
   }
 
@@ -491,11 +554,12 @@ async function handleTimelineMessage(panel, session, message) {
 
   if (command === 'open-revision-remote') {
     const entryIndex = Number(Reflect.get(message, 'entryIndex'));
+    const comparisonSource = getComparisonSource(Reflect.get(message, 'comparisonSource'));
     if (!Number.isInteger(entryIndex)) {
       return;
     }
 
-    await openRevisionOnRemote(session, entryIndex);
+    await openRevisionOnRemote(session, entryIndex, comparisonSource);
     return;
   }
 
@@ -647,6 +711,7 @@ function syncTimelineSession(target, source) {
   target.fileName = source.fileName;
   target.entries = source.entries;
   target.snapshotEntries = source.snapshotEntries;
+  target.snapshotLoadedChangeIds = source.snapshotLoadedChangeIds;
   target.workspaceFiles = source.workspaceFiles;
   target.contentCache = source.contentCache;
   target.previewCache = source.previewCache;
@@ -755,9 +820,11 @@ async function createRevisionUri(session, entry) {
  * @returns {FileRevisionEntry[]}
  */
 function getEntriesForSource(session, comparisonSource) {
-  return session.backend === 'jj' && comparisonSource === 'snapshot' && session.snapshotEntries.length
-    ? session.snapshotEntries
-    : session.entries;
+  if (session.backend !== 'jj' || comparisonSource !== 'snapshot') {
+    return session.entries;
+  }
+
+  return composeSnapshotEntries(session.entries, session.snapshotEntries, session.snapshotLoadedChangeIds);
 }
 
 /**
@@ -773,9 +840,7 @@ async function buildTimelineSession(workspacePath, absolutePath) {
     ? await getJjFileRevisionHistory(workspacePath, relativePath)
     : await getGitFileRevisionHistory(workspacePath, relativePath);
   const entries = await buildTimelineEntries(backend, workspacePath, absolutePath, relativePath, fileEntries);
-  const snapshotEntries = backend === 'jj'
-    ? await buildJjSnapshotEntries(workspacePath, relativePath, entries)
-    : entries;
+  const snapshotEntries = backend === 'jj' ? [] : entries;
   const remoteBaseUrl = await resolveGitHubRemoteBaseUrl(workspacePath);
 
   if (remoteBaseUrl) {
@@ -794,6 +859,7 @@ async function buildTimelineSession(workspacePath, absolutePath) {
     fileName: path.basename(absolutePath),
     entries,
     snapshotEntries,
+    snapshotLoadedChangeIds: new Set(),
     workspaceFiles,
     contentCache: new Map(),
     previewCache: new Map(),
@@ -1055,50 +1121,90 @@ async function buildTimelineEntries(backend, workspacePath, absolutePath, relati
 }
 
 /**
- * @param {string} workspacePath
- * @param {string} relativePath
  * @param {FileRevisionEntry[]} revisionEntries
- * @returns {Promise<FileRevisionEntry[]>}
+ * @param {FileRevisionEntry[]} snapshotEntries
+ * @param {Set<string>} loadedChangeIds
+ * @returns {FileRevisionEntry[]}
  */
-async function buildJjSnapshotEntries(workspacePath, relativePath, revisionEntries) {
-  /** @type {Map<string, FileRevisionEntry[]>} */
-  const snapshotEntriesByChangeId = new Map();
-  const expandedChangeIds = new Set();
-  /** @type {FileRevisionEntry[]} */
-  const snapshotEntries = [];
+function composeSnapshotEntries(revisionEntries, snapshotEntries, loadedChangeIds) {
+  if (!loadedChangeIds.size) {
+    return revisionEntries;
+  }
 
-  for (const entry of revisionEntries) {
-    if (entry.isWorkingTree) {
-      snapshotEntries.push(entry);
+  const snapshotEntriesByChangeId = snapshotEntries.reduce((groups, entry) => {
+    if (!entry.changeId) {
+      return groups;
+    }
+
+    const existing = groups.get(entry.changeId) || [];
+    existing.push(entry);
+    groups.set(entry.changeId, existing);
+    return groups;
+  }, /** @type {Map<string, FileRevisionEntry[]>} */ (new Map()));
+
+  return revisionEntries.flatMap((entry) => {
+    if (entry.isWorkingTree || !entry.touchesFile || !entry.changeId || !loadedChangeIds.has(entry.changeId)) {
+      return [entry];
+    }
+
+    const expandedEntries = snapshotEntriesByChangeId.get(entry.changeId);
+    return expandedEntries && expandedEntries.length ? expandedEntries : [entry];
+  });
+}
+
+/**
+ * @param {TimelineSession} session
+ * @param {number[]} revisionIndexes
+ * @returns {Promise<boolean>}
+ */
+async function hydrateJjSnapshotEntries(session, revisionIndexes) {
+  if (session.backend !== 'jj') {
+    return false;
+  }
+
+  const targets = revisionIndexes
+    .map((index) => session.entries[index])
+    .filter((entry) => entry && !entry.isWorkingTree && entry.touchesFile && entry.changeId && !session.snapshotLoadedChangeIds.has(entry.changeId));
+  const uniqueTargets = targets.reduce((entries, entry) => {
+    if (!entry.changeId || entries.some((candidate) => candidate.changeId === entry.changeId)) {
+      return entries;
+    }
+
+    entries.push(entry);
+    return entries;
+  }, /** @type {FileRevisionEntry[]} */ ([])).slice(-MAX_SNAPSHOT_HYDRATION_CHANGES);
+
+  if (!uniqueTargets.length) {
+    return false;
+  }
+
+  let didUpdate = false;
+  for (const entry of uniqueTargets) {
+    const changeId = entry.changeId;
+    if (!changeId || session.snapshotLoadedChangeIds.has(changeId)) {
       continue;
     }
 
-    if (!entry.touchesFile || !entry.changeId) {
-      snapshotEntries.push(entry);
-      continue;
-    }
-
-    if (expandedChangeIds.has(entry.changeId)) {
-      continue;
-    }
-
-    let expandedEntries = snapshotEntriesByChangeId.get(entry.changeId);
-    if (!expandedEntries) {
-      expandedEntries = await getJjEvolutionHistoryForFile(workspacePath, relativePath, entry);
-      snapshotEntriesByChangeId.set(entry.changeId, expandedEntries);
-    }
+    const expandedEntries = await getJjEvolutionHistoryForFile(session.workspacePath, session.relativePath, entry);
+    session.snapshotLoadedChangeIds.add(changeId);
 
     if (expandedEntries.length) {
-      snapshotEntries.push(...expandedEntries);
-      expandedChangeIds.add(entry.changeId);
-    } else {
-      snapshotEntries.push(entry);
-      expandedChangeIds.add(entry.changeId);
+      session.snapshotEntries.push(...expandedEntries);
+      didUpdate = true;
     }
   }
 
-  snapshotEntries.sort((left, right) => left.timestamp - right.timestamp || left.revision.localeCompare(right.revision));
-  return snapshotEntries;
+  if (!didUpdate) {
+    return true;
+  }
+
+  session.snapshotEntries.sort((left, right) => left.timestamp - right.timestamp || left.revision.localeCompare(right.revision));
+  for (const cacheKey of [...session.previewCache.keys()]) {
+    if (cacheKey.startsWith('snapshot:')) {
+      session.previewCache.delete(cacheKey);
+    }
+  }
+  return true;
 }
 
 /**
@@ -1160,27 +1266,77 @@ async function getJjEvolutionHistory(workspacePath, revision) {
  */
 async function getJjEvolutionHistoryForFile(workspacePath, relativePath, entry) {
   try {
-    const evolutionEntries = await getJjEvolutionHistory(workspacePath, entry.revision);
-    /** @type {FileRevisionEntry[]} */
-    const touchingEntries = [];
+    const { stdout } = await runJj(workspacePath, [
+      'evolog',
+      '--no-graph',
+      '--summary',
+      '--limit',
+      String(MAX_TIMELINE_ENTRIES),
+      '-r',
+      entry.revision,
+    ]);
+    const evolutionEntries = parseJjEvolutionSummaryEntries(stdout);
 
-    for (const evolutionEntry of evolutionEntries) {
-      const changedFiles = await listRevisionFiles(workspacePath, evolutionEntry.revision);
-      if (!changedFiles.includes(relativePath)) {
-        continue;
-      }
-
-      touchingEntries.push({
-        ...evolutionEntry,
+    return evolutionEntries
+      .filter((evolutionEntry) => parseJjSummaryChangedPaths(evolutionEntry.summaryLines).includes(relativePath))
+      .map((evolutionEntry) => ({
+        id: `snapshot:${evolutionEntry.revision}`,
+        revision: evolutionEntry.revision,
+        shortRevision: evolutionEntry.revision.slice(0, 8),
+        changeId: evolutionEntry.changeId || entry.changeId,
+        authorDate: normalizeSnapshotAuthorDate(evolutionEntry.authorDate, entry.authorDate),
+        authorName: evolutionEntry.authorName || entry.authorName,
+        description: normalizeSnapshotDescription(evolutionEntry.description, evolutionEntry.operationDescription),
+        isWorkingTree: false,
         touchesFile: true,
+        timestamp: parseSnapshotTimestamp(evolutionEntry.authorDate, entry.timestamp),
         filePath: relativePath,
-      });
-    }
-
-    return touchingEntries;
+        operationId: evolutionEntry.operationId,
+        operationIndex: evolutionEntry.operationIndex,
+        operationKey: evolutionEntry.changeKey,
+      }))
+      .reverse();
   } catch {
     return [];
   }
+}
+
+/**
+ * @param {string} authorDate
+ * @param {string} fallbackAuthorDate
+ * @returns {string}
+ */
+function normalizeSnapshotAuthorDate(authorDate, fallbackAuthorDate) {
+  const value = authorDate.trim();
+  if (value && !Number.isNaN(Date.parse(value))) {
+    return value;
+  }
+
+  return fallbackAuthorDate;
+}
+
+/**
+ * @param {string} authorDate
+ * @param {number} fallbackTimestamp
+ * @returns {number}
+ */
+function parseSnapshotTimestamp(authorDate, fallbackTimestamp) {
+  const timestamp = Date.parse(authorDate);
+  return Number.isNaN(timestamp) ? fallbackTimestamp : timestamp;
+}
+
+/**
+ * @param {string} description
+ * @param {string} operationDescription
+ * @returns {string}
+ */
+function normalizeSnapshotDescription(description, operationDescription) {
+  const trimmed = String(description || '').trim();
+  if (!trimmed || trimmed === '(no description set)' || trimmed === '(empty) (no description set)') {
+    return operationDescription || 'Snapshot';
+  }
+
+  return trimmed;
 }
 
 /**
@@ -1897,7 +2053,8 @@ function isAbortError(error) {
  * @param {number} entryIndex
  */
 async function openRevisionOnRemote(session, entryIndex) {
-  const entry = session.entries[entryIndex];
+  const comparisonSource = arguments.length > 2 ? arguments[2] : 'revision';
+  const entry = getEntriesForSource(session, comparisonSource)[entryIndex];
   if (!entry || !entry.remoteUrl) {
     void vscode.window.showInformationMessage('No GitHub remote URL is available for this revision.');
     return;

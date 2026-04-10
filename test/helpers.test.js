@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { textsMatchIgnoringLineEndings, normalizeTextForComparison } = require('../lib/diff-helpers.js');
-const { dedupeAdjacentEntriesByChangeId, getGitHubRemoteBaseUrl, parseJjEvolutionLine, parseJjSummaryRenameLines } = require('../lib/history-helpers.js');
+const { dedupeAdjacentEntriesByChangeId, getGitHubRemoteBaseUrl, parseJjEvolutionLine, parseJjEvolutionSummaryEntries, parseJjSummaryChangedPaths, parseJjSummaryRenameLines } = require('../lib/history-helpers.js');
 const { getEntriesForSource, getSelectedEntryCount, getSidebarPreviewRequests, getTimelineAnchorPercent, getUnitPreviewRange } = require('../webview/timeline.model.js');
 
 test('normalizeTextForComparison normalizes CRLF to LF', () => {
@@ -57,6 +57,57 @@ test('parseJjEvolutionLine falls back to operation description when commit descr
   );
 });
 
+test('parseJjEvolutionSummaryEntries parses metadata and per-entry summaries from jj evolog --summary output', () => {
+  const entries = parseJjEvolutionSummaryEntries([
+    'kqppukkm/72 alex@example.com 2026-04-08 13:51:51 021cab5d (hidden)',
+    '(no description set)',
+    '-- operation 10938023ba48 snapshot working copy',
+    'M knip.jsonc',
+    'kqppukkm/73 alex@example.com 2026-04-08 13:51:40 f1bd5a80 (hidden)',
+    'fix config',
+    '-- operation 832f9ee85116 snapshot working copy',
+    'R old/name.ts => new/name.ts',
+  ].join('\n'));
+
+  assert.deepEqual(entries, [
+    {
+      changeKey: 'kqppukkm/72',
+      changeId: 'kqppukkm',
+      operationIndex: 72,
+      authorDate: '2026-04-08T13:51:51',
+      authorName: 'alex@example.com',
+      revision: '021cab5d',
+      description: '(no description set)',
+      operationId: '10938023ba48',
+      operationDescription: 'snapshot working copy',
+      summaryLines: ['M knip.jsonc'],
+    },
+    {
+      changeKey: 'kqppukkm/73',
+      changeId: 'kqppukkm',
+      operationIndex: 73,
+      authorDate: '2026-04-08T13:51:40',
+      authorName: 'alex@example.com',
+      revision: 'f1bd5a80',
+      description: 'fix config',
+      operationId: '832f9ee85116',
+      operationDescription: 'snapshot working copy',
+      summaryLines: ['R old/name.ts => new/name.ts'],
+    },
+  ]);
+});
+
+test('parseJjSummaryChangedPaths includes direct and renamed paths', () => {
+  assert.deepEqual(
+    parseJjSummaryChangedPaths([
+      'M knip.jsonc',
+      'R old/name.ts => new/name.ts',
+      'D stale/file.ts',
+    ]),
+    ['knip.jsonc', 'stale/file.ts', 'old/name.ts', 'new/name.ts']
+  );
+});
+
 test('getGitHubRemoteBaseUrl supports https and ssh remotes', () => {
   assert.equal(
     getGitHubRemoteBaseUrl('https://github.com/astahmer/visualjj-range-diff-helper.git'),
@@ -85,14 +136,27 @@ test('dedupeAdjacentEntriesByChangeId only collapses consecutive JJ evolutions',
   );
 });
 
-test('getEntriesForSource returns snapshot entries only for JJ snapshot mode', () => {
+test('getEntriesForSource progressively expands hydrated JJ snapshot entries', () => {
   const data = {
     backend: 'jj',
-    entries: [{ index: 0, revision: 'rev-1' }],
-    snapshotEntries: [{ index: 0, revision: 'snap-1' }, { index: 1, revision: 'snap-2' }],
+    entries: [
+      { index: 0, revision: 'rev-1', changeId: 'aaa', touchesFile: true },
+      { index: 1, revision: 'rev-2', changeId: 'bbb', touchesFile: true },
+    ],
+    snapshotEntries: [
+      { index: 0, revision: 'snap-1', changeId: 'aaa', touchesFile: true },
+      { index: 1, revision: 'snap-2', changeId: 'aaa', touchesFile: true },
+    ],
+    snapshotState: {
+      loadedChangeIds: ['aaa'],
+    },
   };
   assert.deepEqual(getEntriesForSource(data, 'revision'), data.entries);
-  assert.deepEqual(getEntriesForSource(data, 'snapshot'), data.snapshotEntries);
+  assert.deepEqual(getEntriesForSource(data, 'snapshot'), [
+    { index: 0, revision: 'snap-1', changeId: 'aaa', touchesFile: true },
+    { index: 1, revision: 'snap-2', changeId: 'aaa', touchesFile: true },
+    { index: 2, revision: 'rev-2', changeId: 'bbb', touchesFile: true },
+  ]);
   assert.deepEqual(getEntriesForSource({ ...data, backend: 'git' }, 'snapshot'), data.entries);
 });
 

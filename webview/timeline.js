@@ -44,6 +44,7 @@
     pendingRangeResolutionKey: '',
     sidebarSearchQuery: '',
     pendingSidebarAnchorIndex: null,
+    snapshotHydrationInFlight: false,
   };
 
   const elements = {
@@ -146,6 +147,7 @@
       state.expandedRanges = {};
       state.sidebarSearchQuery = '';
       state.pendingSidebarAnchorIndex = null;
+      state.snapshotHydrationInFlight = false;
       elements.sidebarSearchInput.value = '';
       elements.timelineVersion.textContent = message.payload.version ? 'v' + message.payload.version : '';
       elements.hotkeysVersion.textContent = message.payload.version ? 'Version ' + message.payload.version : '';
@@ -165,6 +167,24 @@
       renderRevisionOptions();
       renderControlGroups();
       applyPreset(state.preset, true, true);
+      return;
+    }
+
+    if (message && message.type === 'snapshot-entries') {
+      if (!state.data) {
+        return;
+      }
+
+      state.data.snapshotEntries = message.payload.snapshotEntries || [];
+      state.data.snapshotState = message.payload.snapshotState || { loadedChangeIds: [] };
+      state.snapshotHydrationInFlight = false;
+
+      if (state.comparisonSource === 'snapshot') {
+        state.preview = null;
+        state.previewByRange = {};
+        applyPreset(state.preset, true, true, true);
+        requestPreview(0);
+      }
       return;
     }
 
@@ -579,6 +599,7 @@
         state.preview = null;
         state.previewByRange = {};
         state.expandedRanges = {};
+        state.snapshotHydrationInFlight = false;
         applyPreset(state.preset, true);
       });
     } else {
@@ -779,7 +800,7 @@
       : 'revision';
   }
 
-  function applyPreset(preset, resetSelection, suppressPreviewRequest) {
+  function applyPreset(preset, resetSelection, suppressPreviewRequest, suppressSnapshotHydration) {
     state.preset = preset;
     clearPendingSidebarSelection();
     const allEntries = getSourceEntries();
@@ -817,6 +838,10 @@
     syncActivePreviewRange();
     renderControlGroups();
     renderSelection();
+
+    if (!suppressSnapshotHydration) {
+      requestSnapshotHydration();
+    }
 
     if (!suppressPreviewRequest) {
       persistPreferences();
@@ -878,9 +903,8 @@
   }
 
   function formatRangeSubtitle(fromEntry, toEntry) {
-    const formatter = new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' });
-    const fromLabel = fromEntry.isWorkingTree ? 'Today' : formatter.format(new Date(fromEntry.authorDate));
-    const toLabel = toEntry.isWorkingTree ? 'Today' : formatter.format(new Date(toEntry.authorDate));
+    const fromLabel = fromEntry.isWorkingTree ? 'Today' : formatDisplayDate(fromEntry.authorDate, fromEntry.shortDate);
+    const toLabel = toEntry.isWorkingTree ? 'Today' : formatDisplayDate(toEntry.authorDate, toEntry.shortDate);
     return fromLabel + ' - ' + toLabel + ' · ' + state.data.backend.toUpperCase();
   }
 
@@ -927,7 +951,7 @@
     const labels = [];
     const seen = new Set();
     state.visibleEntries.forEach((entry) => {
-      const label = new Intl.DateTimeFormat('en', { month: 'short', year: 'numeric' }).format(new Date(entry.authorDate));
+      const label = formatMonthLabel(entry.authorDate, entry.monthLabel);
       if (!seen.has(label)) {
         seen.add(label);
         labels.push(label);
@@ -1025,6 +1049,7 @@
           vscode.postMessage({
             command: 'open-revision-remote',
             entryIndex: entry.index,
+            comparisonSource: getEffectiveComparisonSource(),
           });
         });
       }
@@ -1592,6 +1617,52 @@
     return timelineModel.getEntriesForSource(state.data, getEffectiveComparisonSource());
   }
 
+  function getSnapshotHydrationRevisionIndexes() {
+    if (!state.data || state.data.backend !== 'jj' || state.comparisonSource !== 'snapshot') {
+      return [];
+    }
+
+    const loadedChangeIds = new Set(
+      Array.isArray(state.data.snapshotState && state.data.snapshotState.loadedChangeIds)
+        ? state.data.snapshotState.loadedChangeIds
+        : []
+    );
+    const revisionEntries = timelineModel.getEntriesForSource(state.data, 'revision');
+    const lastEntry = revisionEntries[revisionEntries.length - 1];
+    if (!lastEntry) {
+      return [];
+    }
+
+    const windowDays = state.data.presets[state.preset];
+    const cutoff = Number.isFinite(windowDays)
+      ? lastEntry.timestamp - windowDays * 24 * 60 * 60 * 1000
+      : Number.NEGATIVE_INFINITY;
+
+    return revisionEntries
+      .filter((entry) => entry.timestamp >= cutoff)
+      .filter((entry) => state.showIntermediateRevisions || entry.touchesFile)
+      .filter((entry) => entry.touchesFile && entry.changeId && !entry.isWorkingTree && !loadedChangeIds.has(entry.changeId))
+      .slice(-8)
+      .map((entry) => entry.index);
+  }
+
+  function requestSnapshotHydration() {
+    if (state.snapshotHydrationInFlight) {
+      return;
+    }
+
+    const revisionIndexes = getSnapshotHydrationRevisionIndexes();
+    if (!revisionIndexes.length) {
+      return;
+    }
+
+    state.snapshotHydrationInFlight = true;
+    vscode.postMessage({
+      command: 'hydrate-snapshot-entries',
+      revisionIndexes,
+    });
+  }
+
   function pumpSidebarPreviewQueue() {
     if (state.sidebarPreviewInFlightKey || !state.sidebarPreviewQueue.length) {
       return;
@@ -1632,6 +1703,24 @@
         ? '<div class="empty-diff-details">' + details.map((detail) => '<div>' + escapeHtml(detail) + '</div>').join('') + '</div>'
         : '')
       + '</div>';
+  }
+
+  function formatDisplayDate(authorDate, fallbackLabel) {
+    const date = new Date(authorDate);
+    if (Number.isNaN(date.getTime())) {
+      return fallbackLabel || 'Unknown date';
+    }
+
+    return new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' }).format(date);
+  }
+
+  function formatMonthLabel(authorDate, fallbackLabel) {
+    const date = new Date(authorDate);
+    if (Number.isNaN(date.getTime())) {
+      return fallbackLabel || 'Unknown month';
+    }
+
+    return new Intl.DateTimeFormat('en', { month: 'short', year: 'numeric' }).format(date);
   }
 
   function getDisplayRows(preview) {
