@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 
 const { textsMatchIgnoringLineEndings, normalizeTextForComparison } = require('../lib/diff-helpers.js');
 const { dedupeAdjacentEntriesByChangeId, getGitHubRemoteBaseUrl, parseJjEvolutionLine, parseJjEvolutionSummaryEntries, parseJjSummaryChangedPaths, parseJjSummaryRenameLines } = require('../lib/history-helpers.js');
-const { getEntriesForSource, getSelectedEntryCount, getSidebarPreviewRequests, getTimelineAnchorPercent, getUnitPreviewRange } = require('../webview/timeline.model.js');
+const { getEntriesForSource, getPendingSnapshotRevisionIndexes, getSelectedEntryCount, getSidebarPreviewRequests, getTimelineAnchorPercent, getUnitPreviewRange } = require('../webview/timeline.model.js');
 
 test('normalizeTextForComparison normalizes CRLF to LF', () => {
   assert.equal(normalizeTextForComparison('a\r\nb\r\n'), 'a\nb\n');
@@ -167,7 +167,7 @@ test('timeline model computes unit preview ranges and selected counts', () => {
   assert.equal(getSelectedEntryCount(visibleEntries, 8, 14), 3);
 });
 
-test('timeline model positions anchors by timestamp, not just index', () => {
+test('timeline model positions anchors with equal spacing across visible entries', () => {
   const visibleEntries = [
     { index: 0, timestamp: 100 },
     { index: 1, timestamp: 190 },
@@ -176,7 +176,21 @@ test('timeline model positions anchors by timestamp, not just index', () => {
 
   assert.equal(getTimelineAnchorPercent(visibleEntries, 0), 0);
   assert.equal(getTimelineAnchorPercent(visibleEntries, 2), 100);
-  assert.equal(getTimelineAnchorPercent(visibleEntries, 1), 90);
+  assert.equal(getTimelineAnchorPercent(visibleEntries, 1), 50);
+});
+
+test('timeline model prioritizes selected changes when choosing pending snapshot hydration batches', () => {
+  const revisionEntries = [
+    { index: 0, changeId: 'aaa', touchesFile: true },
+    { index: 1, changeId: 'bbb', touchesFile: true },
+    { index: 2, changeId: 'ccc', touchesFile: true },
+    { index: 3, changeId: 'ddd', touchesFile: true, isWorkingTree: true },
+  ];
+
+  assert.deepEqual(
+    getPendingSnapshotRevisionIndexes(revisionEntries, new Set(['aaa']), 2, [2]),
+    [2, 1]
+  );
 });
 
 test('timeline model builds sidebar preview requests for uncached unit ranges', () => {

@@ -98,17 +98,41 @@
       return 0;
     }
 
-    const firstTimestamp = Number(visibleEntries[0].timestamp || 0);
-    const lastTimestamp = Number(visibleEntries[visibleEntries.length - 1].timestamp || firstTimestamp);
-    const currentTimestamp = Number(visibleEntries[visibleIndex]?.timestamp || firstTimestamp);
-    const span = lastTimestamp - firstTimestamp;
+    const denominator = Math.max(1, visibleEntries.length - 1);
+    return (Math.min(Math.max(visibleIndex, 0), visibleEntries.length - 1) / denominator) * 100;
+  }
 
-    if (span <= 0) {
-      const denominator = Math.max(1, visibleEntries.length - 1);
-      return (Math.min(Math.max(visibleIndex, 0), visibleEntries.length - 1) / denominator) * 100;
-    }
+  /**
+   * @param {Array<{ index: number, changeId?: string, touchesFile?: boolean, isWorkingTree?: boolean }>} revisionEntries
+   * @param {Set<string>} loadedChangeIds
+   * @param {number} limit
+   * @param {number[]=} preferredIndexes
+   * @returns {number[]}
+   */
+  function getPendingSnapshotRevisionIndexes(revisionEntries, loadedChangeIds, limit, preferredIndexes = []) {
+    const preferredIndexSet = new Set(preferredIndexes);
+    const seenChangeIds = new Set();
+    const orderedEntries = [
+      ...revisionEntries.filter((entry) => preferredIndexSet.has(entry.index)),
+      ...revisionEntries,
+    ];
 
-    return ((currentTimestamp - firstTimestamp) / span) * 100;
+    return orderedEntries.reduce((indexes, entry) => {
+      if (
+        !entry
+        || !entry.touchesFile
+        || entry.isWorkingTree
+        || !entry.changeId
+        || loadedChangeIds.has(entry.changeId)
+        || seenChangeIds.has(entry.changeId)
+      ) {
+        return indexes;
+      }
+
+      seenChangeIds.add(entry.changeId);
+      indexes.push(entry.index);
+      return indexes.length >= limit ? indexes : indexes;
+    }, /** @type {number[]} */ ([])).slice(0, limit);
   }
 
   /**
@@ -152,6 +176,7 @@
 
   return {
     getEntriesForSource,
+    getPendingSnapshotRevisionIndexes,
     getTimelineAnchorPercent,
     getSelectedEntryCount,
     getSidebarPreviewRequests,

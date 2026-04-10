@@ -234,3 +234,7 @@ welii/apps/backend *​ ≡
 - "Open a file in the editor to browse its revision timeline" when no file is currently open we should probably show an input field with the list of files to select from the workspace no?
 - we should be able to see how the file evolved over time with automatically with a play button that animate this evolution
 - we should be able to select a branch/bookmark (or at least display where commits it points to) in the datalist for the from/to
+
+- we probably want to be able to configure these diff flags:
+    --ignore-all-space     Ignore whitespace when comparing lines
+--ignore-space-change  Ignore changes in amount of whitespace when comparing lines

@@ -1280,9 +1280,9 @@ async function getJjEvolutionHistoryForFile(workspacePath, relativePath, entry) 
     return evolutionEntries
       .filter((evolutionEntry) => parseJjSummaryChangedPaths(evolutionEntry.summaryLines).includes(relativePath))
       .map((evolutionEntry) => ({
-        id: `snapshot:${evolutionEntry.revision}`,
+        id: `snapshot:${evolutionEntry.changeKey || evolutionEntry.revision}`,
         revision: evolutionEntry.revision,
-        shortRevision: evolutionEntry.revision.slice(0, 8),
+        shortRevision: evolutionEntry.changeKey || evolutionEntry.revision.slice(0, 8),
         changeId: evolutionEntry.changeId || entry.changeId,
         authorDate: normalizeSnapshotAuthorDate(evolutionEntry.authorDate, entry.authorDate),
         authorName: evolutionEntry.authorName || entry.authorName,
@@ -1545,9 +1545,22 @@ async function getJjSnapshotPreview(session, entryIndex) {
     : `Snapshot ${entry.shortRevision}`;
   preview.subtitle = entry.isWorkingTree
     ? 'Current working-copy patch'
-    : `${new Date(entry.authorDate).toLocaleString()} · patch introduced by ${entry.shortRevision}`;
+    : `${formatEntryDateTime(entry.authorDate)} · patch introduced by ${entry.shortRevision}`;
   preview.comparisonSource = 'snapshot';
   return preview;
+}
+
+/**
+ * @param {string} authorDate
+ * @returns {string}
+ */
+function formatEntryDateTime(authorDate) {
+  const date = new Date(authorDate);
+  if (Number.isNaN(date.getTime())) {
+    return 'Unknown time';
+  }
+
+  return date.toLocaleString();
 }
 
 /**

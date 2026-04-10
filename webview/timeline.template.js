@@ -77,6 +77,7 @@
                 <button class="step-button" id="stepBackwardButton" type="button" aria-label="Previous range">&#x2039;</button>
                 <div class="step-center">
                   <div class="step-status" id="stepStatus">Range view</div>
+                  <div class="loading-indicator" id="snapshotLoadingIndicator" hidden>Loading snapshots…</div>
                   <div class="handle-pills">
                     <button class="handle-pill from" id="fromHandleLabel" type="button">From</button>
                     <button class="handle-pill to" id="toHandleLabel" type="button">To</button>

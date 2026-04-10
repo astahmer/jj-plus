@@ -1,346 +1,336 @@
-[2026-04-10T14:15:21.049Z] cwd=/Users/astahmer/dev/work-related/welii
+[2026-04-10T17:10:57.991Z] cwd=/Users/astahmer/dev/work-related/welii
 jj root
-[2026-04-10T14:15:21.060Z] cwd=/Users/astahmer/dev/work-related/welii
+[2026-04-10T17:10:58.012Z] cwd=/Users/astahmer/dev/work-related/welii
 git ls-files --cached --others --exclude-standard -z
-[2026-04-10T14:15:21.116Z] cwd=/Users/astahmer/dev/work-related/welii
+[2026-04-10T17:10:58.062Z] cwd=/Users/astahmer/dev/work-related/welii
 jj log --no-graph --limit 200 -T 'commit_id.short() ++ "\t" ++ change_id.shortest() ++ "\t" ++ author.timestamp().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ author.name() ++ "\t" ++ description.first_line() ++ "\n"' 'root-file:"knip.jsonc"'
-[2026-04-10T14:15:21.523Z] cwd=/Users/astahmer/dev/work-related/welii
+
+# added for debugging purposes #
+4c3a9ffaaf77    kqpp    2026-04-08T11:51:27+02:00       Alexandre Stahmer       rm more unused stuff
+d7149274f29f    tll     2026-04-09T11:55:27+02:00       Alexandre Stahmer       chore: rm unused files/exports/etc (#5051)
+30de1af53d84    vopu    2026-03-06T15:03:28+01:00       Alexandre Stahmer       refactor: biome to oxc (#4819)
+62f65a85bc5d    ruxzp   2026-03-06T14:24:46+01:00       Alexandre Stahmer       pnpm fmt
+790ab0e9d8e3    mwouw   2026-02-25T17:44:06+01:00       Alexandre Stahmer       fmt
+53e4115bd1bc    xmnr    2026-01-28T14:52:08+01:00       Alexandre Stahmer       refactor: tw4 (#4509)
+b89a25e10a66    uwxw    2026-01-28T13:03:23+01:00       Alexandre Stahmer       migrate to tw4
+971d61e88e25    mwvqw   2026-01-27T15:59:16+01:00       Alexandre Stahmer       migrate to tw4
+23e1ca7064fa    qmum    2026-01-27T14:22:19+01:00       Alexandre Stahmer       migrate to tw4
+45216df62a8d    xqmu    2026-01-27T14:05:23+01:00       Alexandre Stahmer       migrate to tw4
+f9cb9e614496    nxlv    2026-01-26T10:56:37+01:00       Alexandre Stahmer       rm panda mentions + text-style typo
+f911fb7cd675    lqzy    2025-09-19T14:14:36+02:00       Alexandre Stahmer       chore: tsc goes brrrr (part 2) (#3556)
+8bae3efd7737    tst     2025-09-18T16:34:21+02:00       Alexandre Stahmer       fix: commands
+f9df1e96064c    ksqy    2025-09-15T11:12:13+02:00       Alexandre Stahmer       chore: re-org backend scripts and common stuff (#3533)
+5db6cafe5419    xlpu    2025-09-15T11:12:13+02:00       Alexandre Stahmer       chore: re-org backend scripts and common stuff (#3533)
+7ba7a8a88f75    qvnx    2025-09-11T17:38:10+02:00       Alexandre Stahmer       chore: mv i18n stuff
+0589cb4565a4    xpzo    2025-09-11T16:59:50+02:00       Alexandre Stahmer       chore: mv scripts
+e2f46598ea61    yov     2025-09-04T12:09:48+02:00       Alexandre Stahmer       chore: rm deadcode/unused deps+exports (#3455)
+63ee9aeb7476    ltrn    2025-09-03T15:22:00+02:00       Alexandre Stahmer       chore: knip post-merge
+1c6bb4e29291    tzqo    2025-09-03T15:09:39+02:00       Alexandre Stahmer       knip knip
+c05e80b28fe3    yywm    2025-09-03T14:16:23+02:00       Alexandre Stahmer       chore(knip): rm unused files/deps
+d799dbc9f24a    nxuu    2025-09-03T10:50:31+02:00       Alexandre Stahmer       fix: knip
+8aec077b5455    lvxp    2025-09-02T15:22:07+02:00       Alexandre Stahmer       chore: update-backend-deps-29-08-2025 (#3429)
+4ab730f97f8e    pkpw    2025-08-29T10:44:31+02:00       Alexandre Stahmer       chore: pnpm update --latest
+abc48fc19692    vlko    2025-08-29T10:44:31+02:00       Alexandre Stahmer       chore: pnpm update --latest
+5d62242b620d    mkpp    2025-08-29T10:44:31+02:00       Alexandre Stahmer       chore: pnpm update --latest
+8ff66530c2f8    zrvmy   2025-07-16T14:49:00+02:00       Leo Dumon       refactor(reorganize directory architecture): improve clarity and code ownership (#3086)
+9ec6f2944ba6    ntv     2025-07-16T10:59:23+02:00       Leo DUMON       refactor(reorganize directory): reorganize directory
+90a0d8ef68b0    znut    2025-05-22T11:26:40+02:00       Vincent Catillon        fix(admin): product item name was incorrect (#2745)
+ac77523339b4    toryyp  2025-05-21T18:29:36+02:00       Alexandre Stahmer       refactor: hono rpc / openapi client (#2666)
+420282b3926b    kmwt    2025-05-20T14:40:58+02:00       Alexandre Stahmer       chore: type:trace scripts
+719cf357eafa    rsk     2025-01-27T11:27:05+01:00       Alexandre Stahmer       refactor(autoform): queries provider (#1996)
+b6252622d77a    sxtp    2025-01-24T14:48:23+01:00       Alexandre Stahmer       refactor: backend contains agnostic autoform / frontend contains components
+5ac374586db0    plnw    2025-01-06T10:27:43+01:00       Peïo Thibault   chore: fix knip config (#1804)
+2f50f1552f18    yommk   2024-11-18T12:50:31+01:00       Alexandre Stahmer       chore: rm deadcode (#1509)
+638014fcd919    zpyv    2024-11-14T11:59:15+01:00       Alexandre Stahmer       chore: rm unused deps
+0e46e308d6c8    mwvqu   2024-11-14T10:56:53+01:00       Alexandre Stahmer       chore: rm unused exports
+156c62e10f34    snr     2024-11-13T15:41:28+01:00       Alexandre Stahmer       knip
+499ac8ae9271    zvml    2024-11-13T15:04:38+01:00       Alexandre Stahmer       chore: add knip
+
+
+
+[2026-04-10T17:10:58.435Z] cwd=/Users/astahmer/dev/work-related/welii
 jj log --no-graph --limit 200 -T 'commit_id.short() ++ "\t" ++ change_id.shortest() ++ "\t" ++ author.timestamp().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ author.name() ++ "\t" ++ description.first_line() ++ "\n"'
-[2026-04-10T14:15:21.598Z] cwd=/Users/astahmer/dev/work-related/welii
+
+# added for debugging purposes #
+89a042fd52a6    zrx     2026-04-10T17:06:58+02:00       Alexandre Stahmer
+4e841158ae85    qkyt    2026-04-10T16:40:09+02:00       Alexandre Stahmer       ff + corporate group + calcom + backoffice expenses+vendor
+8cabd37a6f21    tvq     2026-04-10T16:21:50+02:00       Simon   fix(agent-llm): disable automatic cache invalidation for upload (#5085)
+69ceeb779513    nppo    2026-04-10T16:07:51+02:00       Alexandre Stahmer
+09bd5a3dceeb    yvsqu   2026-04-10T15:44:36+02:00       Alexandre Stahmer       notif + files/attachments
+160460119a63    vmuy    2026-04-10T15:22:28+02:00       Alexandre Stahmer       wip i18n + ai + dpt
+1f598c19ae79    lovsqt  2026-04-10T15:10:48+02:00       Alexandre Stahmer       resolveAsync
+50422e4c1466    uxv     2026-04-10T14:52:27+02:00       Alexandre Stahmer       wip comment/exchange rate+currency
+99186447512d    tqvk    2026-04-10T14:42:09+02:00       Alexandre Stahmer       wip comment domain
+9bce36a2bddb    uryx    2026-04-10T14:11:38+02:00       Alexandre Stahmer       mutate lazyInjector rather than creating a new one each time
+9327aaf3b6cb    koyk    2026-04-10T12:12:26+02:00       Alexandre Stahmer       provideLazyValue + provideLazyFactory
+bb4c7cf89fdd    ynlm    2026-04-10T11:41:59+02:00       Alexandre Stahmer       lazy register DI
+db97541d7014    nmrs    2026-04-10T11:09:23+02:00       Alexandre Stahmer       codegen use case loaders
+0fae08e1624f    tpuo    2026-04-10T09:59:47+02:00       Alexandre Stahmer       steering in a better direction
+58c5755c6425    rrro    2026-04-10T10:37:24+02:00       Alexandre Stahmer       another
+9f4e83701116    sowt    2026-04-10T10:36:44+02:00       Alexandre Stahmer       diff
+d7b2c35ddb14    tpyr    2026-04-10T10:36:21+02:00       Alexandre Stahmer       caca
+e92faa5ebacf    vkvy    2026-04-09T18:11:29+02:00       Alexandre Stahmer
+3fc68a17d790    qulo    2026-04-09T17:23:19+02:00       Alexandre Stahmer       llm crap
+620852e2dc2c    pxxm    2026-04-09T16:46:12+02:00       Alexandre Stahmer       poc lazy load use cases
+765491b7d56b    suow    2026-04-09T16:13:27+02:00       Alexandre Stahmer       llm doing stuff
+9b5ec2ad638b    voru    2026-04-09T15:50:38+02:00       Alexandre Stahmer
+19f9df0a72e3    vrxs    2026-04-09T14:55:17+02:00       Alexandre Stahmer       with oxc?
+847f98ce1cbc    sonl    2026-04-09T14:45:57+02:00       Alexandre Stahmer
+6a1a427c6127    xxut    2026-04-09T11:06:03+02:00       Alexandre Stahmer       custom ts import loader
+4c3a9ffaaf77    kqpp    2026-04-08T11:51:27+02:00       Alexandre Stahmer       rm more unused stuff
+2330760e3df3    yvsp    2026-04-07T11:03:41+02:00       Alexandre Stahmer       rm unused endpoints
+d7149274f29f    tll     2026-04-09T11:55:27+02:00       Alexandre Stahmer       chore: rm unused files/exports/etc (#5051)
+1a9a15ead697    vlp     2026-04-09T11:06:03+02:00       Alexandre Stahmer       custom ts import loader
+c3803c906fbc    wzw     2026-04-09T10:26:12+02:00       Clément Cloux   feat(msad-crawler): client credentials grant auth (#5044)
+cada68fc758c    txvr    2026-04-07T10:34:36+02:00       ZoxDev  Merge branch 'main' into feature/pro-756-install-teams-najar-bot-app
+1d662e1b9d9b    qypw    2026-03-27T18:10:44+01:00       ZoxDev  wip: install app. error cannot install skype issue
+d5388c4b12b3    nxumn   2026-03-27T14:48:55+01:00       ZoxDev  Merge branch 'feature/pro-755-teams-connector' into feature/pro-756-install-teams-najar-bot-app
+ad2e56c8a4c6    pput    2026-04-08T14:48:11+02:00       Alexandre Stahmer
+df434e4d708a    lwxu    2026-04-08T14:48:11+02:00       Alexandre Stahmer
+cbfbe8a34625    ktlo    2026-04-07T11:56:46+02:00       Alexandre Stahmer       empty
+9e3bc03997ff    nxumn   2026-03-27T14:48:55+01:00       ZoxDev  wip: install app. error cannot install skype issue
+fb3d5b03b482    twrw    2026-03-27T14:46:31+01:00       ZoxDev  Merge branch 'main' into feature/pro-755-teams-connector
+2246b73a791d    ozzv    2026-03-27T14:44:35+01:00       ZoxDev  chore: gh review
+7d9842f6fe00    wttrl   2026-03-27T12:23:10+01:00       Kaoff   feat(notifications): move slack notification toggle and add feature flag to teams toggle
+619a9c80a978    xnzm    2026-03-27T11:10:21+01:00       Kaoff   feat(teams): fix getUserNotificationPreferences tests
+84a5aa279074    vtyp    2026-03-27T10:48:34+01:00       Kaoff   feat(generic): remove useless e2e test
+5009ed8c6a5d    twrw    2026-03-27T14:46:31+01:00       ZoxDev  Merge branch 'main' into feature/pro-755-teams-connector
+cd1431426a75    ozzv    2026-03-27T14:44:35+01:00       ZoxDev  chore: gh review
+af4742f8ccdf    wttrl   2026-03-27T12:23:10+01:00       Kaoff   feat(notifications): move slack notification toggle and add feature flag to teams toggle
+1213d46cde67    xnzm    2026-03-27T11:10:21+01:00       Kaoff   feat(teams): fix getUserNotificationPreferences tests
+94ad34991981    vtyp    2026-03-27T10:48:34+01:00       Kaoff   feat(generic): remove useless e2e test
+b14b920c29b0    kprl    2026-03-27T10:46:38+01:00       Kaoff   feat(teams): move teams connect button to general settings
+38c853de42bc    zmms    2026-03-26T19:49:38+01:00       ZoxDev  Merge branch 'main' into feature/pro-755-teams-connector
+27873706c006    mtnwo   2026-04-08T10:42:18+02:00       Alexandre Stahmer       up version
+02cea26285b7    orv     2026-04-08T10:37:43+02:00       Alexandre Stahmer       fix tsc with custom cond used in in ui-kit exports
+09c7f51a9720    vtxm    2026-04-07T17:52:45+02:00       Alexandre Stahmer       add figma guidelines
+
+[2026-04-10T17:10:58.529Z] cwd=/Users/astahmer/dev/work-related/welii
 jj file show -r d7149274f29f knip.jsonc
-[2026-04-10T14:15:21.651Z] cwd=/Users/astahmer/dev/work-related/welii
-jj evolog --no-graph --limit 200 -T 'commit.commit_id().short() ++ "\t" ++ commit.change_id().shortest() ++ "\t" ++ operation.time().end().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ commit.author().name() ++ "\t" ++ operation.description() ++ "\t" ++ commit.description().first_line() ++ "\n"' -r 499ac8ae9271
-[2026-04-10T14:15:22.125Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 499ac8ae9271
-[2026-04-10T14:15:22.198Z] cwd=/Users/astahmer/dev/work-related/welii
-jj evolog --no-graph --limit 200 -T 'commit.commit_id().short() ++ "\t" ++ commit.change_id().shortest() ++ "\t" ++ operation.time().end().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ commit.author().name() ++ "\t" ++ operation.description() ++ "\t" ++ commit.description().first_line() ++ "\n"' -r 156c62e10f34
-[2026-04-10T14:15:22.289Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 156c62e10f34
-[2026-04-10T14:15:22.351Z] cwd=/Users/astahmer/dev/work-related/welii
-jj evolog --no-graph --limit 200 -T 'commit.commit_id().short() ++ "\t" ++ commit.change_id().shortest() ++ "\t" ++ operation.time().end().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ commit.author().name() ++ "\t" ++ operation.description() ++ "\t" ++ commit.description().first_line() ++ "\n"' -r 0e46e308d6c8
-[2026-04-10T14:15:22.442Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 0e46e308d6c8
-[2026-04-10T14:15:22.508Z] cwd=/Users/astahmer/dev/work-related/welii
-jj evolog --no-graph --limit 200 -T 'commit.commit_id().short() ++ "\t" ++ commit.change_id().shortest() ++ "\t" ++ operation.time().end().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ commit.author().name() ++ "\t" ++ operation.description() ++ "\t" ++ commit.description().first_line() ++ "\n"' -r 638014fcd919
-[2026-04-10T14:15:22.596Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 638014fcd919
-[2026-04-10T14:15:22.657Z] cwd=/Users/astahmer/dev/work-related/welii
-jj evolog --no-graph --limit 200 -T 'commit.commit_id().short() ++ "\t" ++ commit.change_id().shortest() ++ "\t" ++ operation.time().end().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ commit.author().name() ++ "\t" ++ operation.description() ++ "\t" ++ commit.description().first_line() ++ "\n"' -r 2f50f1552f18
-[2026-04-10T14:15:22.770Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 2f50f1552f18
-[2026-04-10T14:15:22.887Z] cwd=/Users/astahmer/dev/work-related/welii
-jj evolog --no-graph --limit 200 -T 'commit.commit_id().short() ++ "\t" ++ commit.change_id().shortest() ++ "\t" ++ operation.time().end().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ commit.author().name() ++ "\t" ++ operation.description() ++ "\t" ++ commit.description().first_line() ++ "\n"' -r 5ac374586db0
-[2026-04-10T14:15:22.982Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 5ac374586db0
-[2026-04-10T14:15:23.047Z] cwd=/Users/astahmer/dev/work-related/welii
-jj evolog --no-graph --limit 200 -T 'commit.commit_id().short() ++ "\t" ++ commit.change_id().shortest() ++ "\t" ++ operation.time().end().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ commit.author().name() ++ "\t" ++ operation.description() ++ "\t" ++ commit.description().first_line() ++ "\n"' -r b6252622d77a
-[2026-04-10T14:15:23.148Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r b6252622d77a
-[2026-04-10T14:15:23.213Z] cwd=/Users/astahmer/dev/work-related/welii
-jj evolog --no-graph --limit 200 -T 'commit.commit_id().short() ++ "\t" ++ commit.change_id().shortest() ++ "\t" ++ operation.time().end().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ commit.author().name() ++ "\t" ++ operation.description() ++ "\t" ++ commit.description().first_line() ++ "\n"' -r 719cf357eafa
-[2026-04-10T14:15:23.305Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 719cf357eafa
-[2026-04-10T14:15:23.372Z] cwd=/Users/astahmer/dev/work-related/welii
-jj evolog --no-graph --limit 200 -T 'commit.commit_id().short() ++ "\t" ++ commit.change_id().shortest() ++ "\t" ++ operation.time().end().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ commit.author().name() ++ "\t" ++ operation.description() ++ "\t" ++ commit.description().first_line() ++ "\n"' -r 420282b3926b
-[2026-04-10T14:15:23.462Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 420282b3926b
-[2026-04-10T14:15:23.547Z] cwd=/Users/astahmer/dev/work-related/welii
-jj evolog --no-graph --limit 200 -T 'commit.commit_id().short() ++ "\t" ++ commit.change_id().shortest() ++ "\t" ++ operation.time().end().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ commit.author().name() ++ "\t" ++ operation.description() ++ "\t" ++ commit.description().first_line() ++ "\n"' -r ac77523339b4
-[2026-04-10T14:15:23.657Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r ac77523339b4
-[2026-04-10T14:15:23.727Z] cwd=/Users/astahmer/dev/work-related/welii
-jj evolog --no-graph --limit 200 -T 'commit.commit_id().short() ++ "\t" ++ commit.change_id().shortest() ++ "\t" ++ operation.time().end().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ commit.author().name() ++ "\t" ++ operation.description() ++ "\t" ++ commit.description().first_line() ++ "\n"' -r 90a0d8ef68b0
-[2026-04-10T14:15:23.816Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 90a0d8ef68b0
-[2026-04-10T14:15:23.880Z] cwd=/Users/astahmer/dev/work-related/welii
-jj evolog --no-graph --limit 200 -T 'commit.commit_id().short() ++ "\t" ++ commit.change_id().shortest() ++ "\t" ++ operation.time().end().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ commit.author().name() ++ "\t" ++ operation.description() ++ "\t" ++ commit.description().first_line() ++ "\n"' -r 9ec6f2944ba6
-[2026-04-10T14:15:23.990Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 9ec6f2944ba6
-[2026-04-10T14:15:24.083Z] cwd=/Users/astahmer/dev/work-related/welii
-jj evolog --no-graph --limit 200 -T 'commit.commit_id().short() ++ "\t" ++ commit.change_id().shortest() ++ "\t" ++ operation.time().end().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ commit.author().name() ++ "\t" ++ operation.description() ++ "\t" ++ commit.description().first_line() ++ "\n"' -r 8ff66530c2f8
-[2026-04-10T14:15:24.178Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 8ff66530c2f8
-[2026-04-10T14:15:24.268Z] cwd=/Users/astahmer/dev/work-related/welii
-jj evolog --no-graph --limit 200 -T 'commit.commit_id().short() ++ "\t" ++ commit.change_id().shortest() ++ "\t" ++ operation.time().end().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ commit.author().name() ++ "\t" ++ operation.description() ++ "\t" ++ commit.description().first_line() ++ "\n"' -r 4ab730f97f8e
-[2026-04-10T14:15:24.355Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 4ab730f97f8e
-[2026-04-10T14:15:24.415Z] cwd=/Users/astahmer/dev/work-related/welii
-jj evolog --no-graph --limit 200 -T 'commit.commit_id().short() ++ "\t" ++ commit.change_id().shortest() ++ "\t" ++ operation.time().end().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ commit.author().name() ++ "\t" ++ operation.description() ++ "\t" ++ commit.description().first_line() ++ "\n"' -r 5d62242b620d
-[2026-04-10T14:15:24.501Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 5d62242b620d
-[2026-04-10T14:15:24.559Z] cwd=/Users/astahmer/dev/work-related/welii
-jj evolog --no-graph --limit 200 -T 'commit.commit_id().short() ++ "\t" ++ commit.change_id().shortest() ++ "\t" ++ operation.time().end().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ commit.author().name() ++ "\t" ++ operation.description() ++ "\t" ++ commit.description().first_line() ++ "\n"' -r abc48fc19692
-[2026-04-10T14:15:24.647Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r abc48fc19692
-[2026-04-10T14:15:24.705Z] cwd=/Users/astahmer/dev/work-related/welii
-jj evolog --no-graph --limit 200 -T 'commit.commit_id().short() ++ "\t" ++ commit.change_id().shortest() ++ "\t" ++ operation.time().end().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ commit.author().name() ++ "\t" ++ operation.description() ++ "\t" ++ commit.description().first_line() ++ "\n"' -r 8aec077b5455
-[2026-04-10T14:15:24.795Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 8aec077b5455
-[2026-04-10T14:15:24.864Z] cwd=/Users/astahmer/dev/work-related/welii
-jj evolog --no-graph --limit 200 -T 'commit.commit_id().short() ++ "\t" ++ commit.change_id().shortest() ++ "\t" ++ operation.time().end().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ commit.author().name() ++ "\t" ++ operation.description() ++ "\t" ++ commit.description().first_line() ++ "\n"' -r d799dbc9f24a
-[2026-04-10T14:15:24.990Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r d799dbc9f24a
-[2026-04-10T14:15:25.080Z] cwd=/Users/astahmer/dev/work-related/welii
-jj evolog --no-graph --limit 200 -T 'commit.commit_id().short() ++ "\t" ++ commit.change_id().shortest() ++ "\t" ++ operation.time().end().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ commit.author().name() ++ "\t" ++ operation.description() ++ "\t" ++ commit.description().first_line() ++ "\n"' -r c05e80b28fe3
-[2026-04-10T14:15:25.183Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r c05e80b28fe3
-[2026-04-10T14:15:25.242Z] cwd=/Users/astahmer/dev/work-related/welii
-jj evolog --no-graph --limit 200 -T 'commit.commit_id().short() ++ "\t" ++ commit.change_id().shortest() ++ "\t" ++ operation.time().end().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ commit.author().name() ++ "\t" ++ operation.description() ++ "\t" ++ commit.description().first_line() ++ "\n"' -r 1c6bb4e29291
-[2026-04-10T14:15:25.331Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 1c6bb4e29291
-[2026-04-10T14:15:25.396Z] cwd=/Users/astahmer/dev/work-related/welii
-jj evolog --no-graph --limit 200 -T 'commit.commit_id().short() ++ "\t" ++ commit.change_id().shortest() ++ "\t" ++ operation.time().end().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ commit.author().name() ++ "\t" ++ operation.description() ++ "\t" ++ commit.description().first_line() ++ "\n"' -r 63ee9aeb7476
-[2026-04-10T14:15:25.487Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 63ee9aeb7476
-[2026-04-10T14:15:25.545Z] cwd=/Users/astahmer/dev/work-related/welii
-jj evolog --no-graph --limit 200 -T 'commit.commit_id().short() ++ "\t" ++ commit.change_id().shortest() ++ "\t" ++ operation.time().end().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ commit.author().name() ++ "\t" ++ operation.description() ++ "\t" ++ commit.description().first_line() ++ "\n"' -r e2f46598ea61
-[2026-04-10T14:15:25.634Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r e2f46598ea61
-[2026-04-10T14:15:25.732Z] cwd=/Users/astahmer/dev/work-related/welii
-jj evolog --no-graph --limit 200 -T 'commit.commit_id().short() ++ "\t" ++ commit.change_id().shortest() ++ "\t" ++ operation.time().end().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ commit.author().name() ++ "\t" ++ operation.description() ++ "\t" ++ commit.description().first_line() ++ "\n"' -r 0589cb4565a4
-[2026-04-10T14:15:25.821Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 0589cb4565a4
-[2026-04-10T14:15:25.879Z] cwd=/Users/astahmer/dev/work-related/welii
-jj evolog --no-graph --limit 200 -T 'commit.commit_id().short() ++ "\t" ++ commit.change_id().shortest() ++ "\t" ++ operation.time().end().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ commit.author().name() ++ "\t" ++ operation.description() ++ "\t" ++ commit.description().first_line() ++ "\n"' -r 7ba7a8a88f75
-[2026-04-10T14:15:25.970Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 7ba7a8a88f75
-[2026-04-10T14:15:26.029Z] cwd=/Users/astahmer/dev/work-related/welii
-jj evolog --no-graph --limit 200 -T 'commit.commit_id().short() ++ "\t" ++ commit.change_id().shortest() ++ "\t" ++ operation.time().end().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ commit.author().name() ++ "\t" ++ operation.description() ++ "\t" ++ commit.description().first_line() ++ "\n"' -r 5db6cafe5419
-[2026-04-10T14:15:26.147Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 5db6cafe5419
-[2026-04-10T14:15:26.225Z] cwd=/Users/astahmer/dev/work-related/welii
-jj evolog --no-graph --limit 200 -T 'commit.commit_id().short() ++ "\t" ++ commit.change_id().shortest() ++ "\t" ++ operation.time().end().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ commit.author().name() ++ "\t" ++ operation.description() ++ "\t" ++ commit.description().first_line() ++ "\n"' -r f9df1e96064c
-[2026-04-10T14:15:26.315Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r f9df1e96064c
-[2026-04-10T14:15:26.382Z] cwd=/Users/astahmer/dev/work-related/welii
-jj evolog --no-graph --limit 200 -T 'commit.commit_id().short() ++ "\t" ++ commit.change_id().shortest() ++ "\t" ++ operation.time().end().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ commit.author().name() ++ "\t" ++ operation.description() ++ "\t" ++ commit.description().first_line() ++ "\n"' -r 8bae3efd7737
-[2026-04-10T14:15:26.472Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 8bae3efd7737
-[2026-04-10T14:15:26.531Z] cwd=/Users/astahmer/dev/work-related/welii
-jj evolog --no-graph --limit 200 -T 'commit.commit_id().short() ++ "\t" ++ commit.change_id().shortest() ++ "\t" ++ operation.time().end().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ commit.author().name() ++ "\t" ++ operation.description() ++ "\t" ++ commit.description().first_line() ++ "\n"' -r f911fb7cd675
-[2026-04-10T14:15:26.620Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r f911fb7cd675
-[2026-04-10T14:15:26.683Z] cwd=/Users/astahmer/dev/work-related/welii
-jj evolog --no-graph --limit 200 -T 'commit.commit_id().short() ++ "\t" ++ commit.change_id().shortest() ++ "\t" ++ operation.time().end().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ commit.author().name() ++ "\t" ++ operation.description() ++ "\t" ++ commit.description().first_line() ++ "\n"' -r f9cb9e614496
-[2026-04-10T14:15:26.775Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r f9cb9e614496
-[2026-04-10T14:15:26.833Z] cwd=/Users/astahmer/dev/work-related/welii
-jj evolog --no-graph --limit 200 -T 'commit.commit_id().short() ++ "\t" ++ commit.change_id().shortest() ++ "\t" ++ operation.time().end().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ commit.author().name() ++ "\t" ++ operation.description() ++ "\t" ++ commit.description().first_line() ++ "\n"' -r 45216df62a8d
-[2026-04-10T14:15:26.923Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 45216df62a8d
-[2026-04-10T14:15:26.989Z] cwd=/Users/astahmer/dev/work-related/welii
-jj evolog --no-graph --limit 200 -T 'commit.commit_id().short() ++ "\t" ++ commit.change_id().shortest() ++ "\t" ++ operation.time().end().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ commit.author().name() ++ "\t" ++ operation.description() ++ "\t" ++ commit.description().first_line() ++ "\n"' -r 23e1ca7064fa
-[2026-04-10T14:15:27.097Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 23e1ca7064fa
-[2026-04-10T14:15:27.179Z] cwd=/Users/astahmer/dev/work-related/welii
-jj evolog --no-graph --limit 200 -T 'commit.commit_id().short() ++ "\t" ++ commit.change_id().shortest() ++ "\t" ++ operation.time().end().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ commit.author().name() ++ "\t" ++ operation.description() ++ "\t" ++ commit.description().first_line() ++ "\n"' -r 971d61e88e25
-[2026-04-10T14:15:27.285Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 971d61e88e25
-[2026-04-10T14:15:27.352Z] cwd=/Users/astahmer/dev/work-related/welii
-jj evolog --no-graph --limit 200 -T 'commit.commit_id().short() ++ "\t" ++ commit.change_id().shortest() ++ "\t" ++ operation.time().end().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ commit.author().name() ++ "\t" ++ operation.description() ++ "\t" ++ commit.description().first_line() ++ "\n"' -r b89a25e10a66
-[2026-04-10T14:15:27.442Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r b89a25e10a66
-[2026-04-10T14:15:27.507Z] cwd=/Users/astahmer/dev/work-related/welii
-jj evolog --no-graph --limit 200 -T 'commit.commit_id().short() ++ "\t" ++ commit.change_id().shortest() ++ "\t" ++ operation.time().end().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ commit.author().name() ++ "\t" ++ operation.description() ++ "\t" ++ commit.description().first_line() ++ "\n"' -r 53e4115bd1bc
-[2026-04-10T14:15:27.597Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 53e4115bd1bc
-[2026-04-10T14:15:27.661Z] cwd=/Users/astahmer/dev/work-related/welii
-jj evolog --no-graph --limit 200 -T 'commit.commit_id().short() ++ "\t" ++ commit.change_id().shortest() ++ "\t" ++ operation.time().end().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ commit.author().name() ++ "\t" ++ operation.description() ++ "\t" ++ commit.description().first_line() ++ "\n"' -r 790ab0e9d8e3
-[2026-04-10T14:15:27.753Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 790ab0e9d8e3
-[2026-04-10T14:15:27.839Z] cwd=/Users/astahmer/dev/work-related/welii
-jj evolog --no-graph --limit 200 -T 'commit.commit_id().short() ++ "\t" ++ commit.change_id().shortest() ++ "\t" ++ operation.time().end().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ commit.author().name() ++ "\t" ++ operation.description() ++ "\t" ++ commit.description().first_line() ++ "\n"' -r 62f65a85bc5d
-[2026-04-10T14:15:27.936Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 62f65a85bc5d
-[2026-04-10T14:15:28.029Z] cwd=/Users/astahmer/dev/work-related/welii
-jj evolog --no-graph --limit 200 -T 'commit.commit_id().short() ++ "\t" ++ commit.change_id().shortest() ++ "\t" ++ operation.time().end().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ commit.author().name() ++ "\t" ++ operation.description() ++ "\t" ++ commit.description().first_line() ++ "\n"' -r 30de1af53d84
-[2026-04-10T14:15:28.122Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 30de1af53d84
-[2026-04-10T14:15:28.214Z] cwd=/Users/astahmer/dev/work-related/welii
-jj evolog --no-graph --limit 200 -T 'commit.commit_id().short() ++ "\t" ++ commit.change_id().shortest() ++ "\t" ++ operation.time().end().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ commit.author().name() ++ "\t" ++ operation.description() ++ "\t" ++ commit.description().first_line() ++ "\n"' -r 4c3a9ffaaf77
-[2026-04-10T14:15:28.297Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 4d647fde5e66
-[2026-04-10T14:15:28.355Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r e4a98d18407e
-[2026-04-10T14:15:28.413Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 11ad74fff6ae
-[2026-04-10T14:15:28.472Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r a8ec3c233225
-[2026-04-10T14:15:28.531Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 94cc2c69e076
-[2026-04-10T14:15:28.590Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 2f391d99583d
-[2026-04-10T14:15:28.664Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r b124f541c172
-[2026-04-10T14:15:28.737Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r a2260fe26c19
-[2026-04-10T14:15:28.813Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 47b2874a27ca
-[2026-04-10T14:15:28.874Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r afd05d13382d
-[2026-04-10T14:15:28.933Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 64e692721ae5
-[2026-04-10T14:15:28.993Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r bc6995121b7a
-[2026-04-10T14:15:29.054Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 7f64af92e784
-[2026-04-10T14:15:29.123Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r f64ef81ca9f0
-[2026-04-10T14:15:29.187Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 2213b4640c28
-[2026-04-10T14:15:29.253Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 0d8918d154dc
-[2026-04-10T14:15:29.387Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 27868bf44b45
-[2026-04-10T14:15:29.478Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r f1bd5a80aee6
-[2026-04-10T14:15:29.563Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 021cab5d5501
-[2026-04-10T14:15:29.658Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 39c2c7f5a12c
-[2026-04-10T14:15:29.820Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 5f1c9d272936
-[2026-04-10T14:15:29.946Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 7477596def39
-[2026-04-10T14:15:30.066Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r ebf4fce3c033
-[2026-04-10T14:15:30.256Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 8fb1b2b0e053
-[2026-04-10T14:15:30.421Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r d217a5d431c2
-[2026-04-10T14:15:30.577Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 4fa22d980761
-[2026-04-10T14:15:30.727Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r fdbb5e61d024
-[2026-04-10T14:15:30.833Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r bf5e21ac758e
-[2026-04-10T14:15:30.919Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r d90f789ccff0
-[2026-04-10T14:15:31.011Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 453ee353a88d
-[2026-04-10T14:15:31.090Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r a03abaf1593d
-[2026-04-10T14:15:31.175Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r d1c7c8674faa
-[2026-04-10T14:15:31.267Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 69f012db436c
-[2026-04-10T14:15:31.376Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r d6fcfc7178dc
-[2026-04-10T14:15:31.469Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 6ff85c412b37
-[2026-04-10T14:15:31.574Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r eb142b9ced65
-[2026-04-10T14:15:31.683Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 5bd43146aa3b
-[2026-04-10T14:15:31.770Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r ebcad9291109
-[2026-04-10T14:15:31.861Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r a8ade80613ef
-[2026-04-10T14:15:31.971Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 50d9f6c3bc04
-[2026-04-10T14:15:32.053Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 31ad3158122b
-[2026-04-10T14:15:32.132Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 5e65f9bac5fb
-[2026-04-10T14:15:32.209Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 593e95f98922
-[2026-04-10T14:15:32.299Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 8ff629e4e28c
-[2026-04-10T14:15:32.415Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r e7a666d891a6
-[2026-04-10T14:15:32.497Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 34e6e1e8a43b
-[2026-04-10T14:15:32.577Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 14cb5c690800
-[2026-04-10T14:15:32.679Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r d195c1033f83
-[2026-04-10T14:15:32.799Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r b21d353137a4
-[2026-04-10T14:15:32.883Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 1cd0017c8ec9
-[2026-04-10T14:15:32.967Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r be3d54e86b26
-[2026-04-10T14:15:33.054Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 83797ff7ed41
-[2026-04-10T14:15:33.137Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r e3c57916fd7a
-[2026-04-10T14:15:33.220Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 6bc14318a82c
-[2026-04-10T14:15:33.295Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r e964a5b30e55
-[2026-04-10T14:15:33.376Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 4d115bbad612
-[2026-04-10T14:15:33.465Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r dedc2bd90888
-[2026-04-10T14:15:33.551Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 02260803ab8e
-[2026-04-10T14:15:33.630Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r f7650c908761
-[2026-04-10T14:15:33.739Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r c568de6824eb
-[2026-04-10T14:15:33.848Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 2e63d2758c80
-[2026-04-10T14:15:33.977Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 651d22105c4c
-[2026-04-10T14:15:34.060Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r c2e4f7843e85
-[2026-04-10T14:15:34.138Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 57b11884c1c8
-[2026-04-10T14:15:34.221Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r c08f6330b574
-[2026-04-10T14:15:34.303Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r a81b8887aca9
-[2026-04-10T14:15:34.386Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 3e23af8cf601
-[2026-04-10T14:15:34.466Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r c513ded6cdd9
-[2026-04-10T14:15:34.567Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 7236ae48d802
-[2026-04-10T14:15:34.652Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 3e187336889d
-[2026-04-10T14:15:34.732Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 0fb61fe891d4
-[2026-04-10T14:15:34.811Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 08d40e472a8d
-[2026-04-10T14:15:34.910Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 04ad7cc5c330
-[2026-04-10T14:15:35.135Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 1adb272c63f0
-[2026-04-10T14:15:35.339Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 5b518496dcf3
-[2026-04-10T14:15:35.476Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 169b33e1982e
-[2026-04-10T14:15:35.633Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 1b7bf5aec199
-[2026-04-10T14:15:35.775Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 604b28502a85
-[2026-04-10T14:15:35.931Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 033bfc346926
-[2026-04-10T14:15:36.105Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r d40aaddf8364
-[2026-04-10T14:15:36.325Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r ffb087f9ba72
-[2026-04-10T14:15:36.425Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r ae63f0359a5d
-[2026-04-10T14:15:36.519Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 7e1ef4acf76e
-[2026-04-10T14:15:36.608Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r cab9153dec8d
-[2026-04-10T14:15:36.702Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 5e8d14f7bd54
-[2026-04-10T14:15:36.798Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r bb8beb268cb0
-[2026-04-10T14:15:36.876Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 724e62557881
-[2026-04-10T14:15:36.952Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 2b268112a199
-[2026-04-10T14:15:37.030Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 5afe5c2907ac
-[2026-04-10T14:15:37.143Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r 4c3a9ffaaf77
-[2026-04-10T14:15:37.236Z] cwd=/Users/astahmer/dev/work-related/welii
-jj evolog --no-graph --limit 200 -T 'commit.commit_id().short() ++ "\t" ++ commit.change_id().shortest() ++ "\t" ++ operation.time().end().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ commit.author().name() ++ "\t" ++ operation.description() ++ "\t" ++ commit.description().first_line() ++ "\n"' -r d7149274f29f
-[2026-04-10T14:15:37.450Z] cwd=/Users/astahmer/dev/work-related/welii
-jj diff --name-only -r d7149274f29f
-[2026-04-10T14:15:37.546Z] cwd=/Users/astahmer/dev/work-related/welii
+[2026-04-10T17:10:58.601Z] cwd=/Users/astahmer/dev/work-related/welii
 git remote get-url origin
+[2026-04-10T17:10:58.927Z] cwd=/Users/astahmer/dev/work-related/welii
+jj diff --summary -r d7149274f29f
+[2026-04-10T17:10:58.956Z] cwd=/Users/astahmer/dev/work-related/welii
+jj diff --summary -r 4c3a9ffaaf77
+[2026-04-10T17:10:58.963Z] cwd=/Users/astahmer/dev/work-related/welii
+jj evolog --no-graph --summary --limit 200 -r 4c3a9ffaaf77
+
+
+# added for debugging purposes #
+❯ jj evolog --no-graph --summary --limit 200 -r 4c3a9ffaaf77
+kqppukkm alexandre.stahmer@gmail.com 2026-04-09 12:32:35 chore/rm-unused-endpoints 4c3a9ffa
+rm more unused stuff
+-- operation 49a69c738364 squash commits into 0c5b72791d43296dfc536cc1c83c914684d16667
+kqppukkm/1 alexandre.stahmer@gmail.com 2026-04-09 12:32:33 5afe5c29 (hidden) (conflict)
+rm more unused stuff
+-- operation 49a69c738364 squash commits into 0c5b72791d43296dfc536cc1c83c914684d16667
+kqppukkm/2 alexandre.stahmer@gmail.com 2026-04-09 12:32:24 2b268112 (hidden)
+rm more unused stuff
+-- operation 1022647bc98b squash commits into 0d26f728e9e8b69458b01b2502e2e5785ef61769
+kqppukkm/3 alexandre.stahmer@gmail.com 2026-04-09 12:32:18 724e6255 (hidden)
+rm more unused stuff
+-- operation 1022647bc98b squash commits into 0d26f728e9e8b69458b01b2502e2e5785ef61769
+kqppukkm/4 alexandre.stahmer@gmail.com 2026-04-09 12:31:36 bb8beb26 (hidden)
+rm more unused stuff
+-- operation a6014fc8d5ba squash commits into dd283f896358d32c8f6df59b6cf8425d6939943d
+kqppukkm/5 alexandre.stahmer@gmail.com 2026-04-09 11:58:30 5e8d14f7 (hidden)
+rm more unused stuff
+-- operation 8b2a4419751f squash commits into f25ebb01858e977bdec09b470645396205e0ca32
+kqppukkm/6 alexandre.stahmer@gmail.com 2026-04-09 11:58:14 cab9153d (hidden) (conflict)
+rm more unused stuff
+-- operation e7a12309f04f squash commits into ee81acf74a3e450947500f30da2319f64d2485bf
+kqppukkm/7 alexandre.stahmer@gmail.com 2026-04-09 11:56:43 7e1ef4ac (hidden)
+rm more unused stuff
+-- operation 706b23714dd3 rebase commit eee414d8456d234e4b881ef111fd3a0f59ebb9e5 and descendants
+kqppukkm/8 alexandre.stahmer@gmail.com 2026-04-09 10:50:31 ae63f035 (hidden)
+rm more unused stuff
+-- operation e93f74cab0b9 snapshot working copy
+D apps/backend/src/product/adapter-rest/product-list-categories.e2e-spec.ts
+kqppukkm/9 alexandre.stahmer@gmail.com 2026-04-09 10:50:00 ffb087f9 (hidden)
+rm more unused stuff
+-- operation 658a6475b06f restore into commit d40aaddf836426102e6c3644a2d159f41c619d93
+A apps/backend/scripts/__tests__/check-missing-execute.files/expression-with-execute.ts
+A apps/backend/scripts/__tests__/check-missing-execute.files/expression-without-execute.ts
+A apps/backend/scripts/__tests__/check-missing-execute.files/nominal-case.ts
+A apps/backend/scripts/__tests__/check-missing-execute.files/return-with-execute.ts
+A apps/backend/scripts/__tests__/check-missing-execute.files/return-without-execute.ts
+A apps/backend/scripts/__tests__/check-missing-execute.files/variable-executed-later.ts
+A apps/backend/scripts/__tests__/check-missing-execute.files/variable-not-executed.ts
+A apps/backend/scripts/__tests__/check-missing-execute.files/variable-returned-without-execute.ts
+kqppukkm/10 alexandre.stahmer@gmail.com 2026-04-09 10:47:58 d40aaddf (hidden)
+rm more unused stuff
+-- operation b60134cf2a46 snapshot working copy
+kqppukkm/11 alexandre.stahmer@gmail.com 2026-04-09 10:46:30 033bfc34 (hidden)
+rm more unused stuff
+-- operation e30a52fccfa0 snapshot working copy
+kqppukkm/12 alexandre.stahmer@gmail.com 2026-04-09 10:46:27 604b2850 (hidden)
+rm more unused stuff
+-- operation 7c58aed89fd8 snapshot working copy
+kqppukkm/13 alexandre.stahmer@gmail.com 2026-04-09 10:44:40 1b7bf5ae (hidden)
+rm more unused stuff
+-- operation ebd8f446952f snapshot working copy
+kqppukkm/14 alexandre.stahmer@gmail.com 2026-04-09 10:44:29 169b33e1 (hidden)
+
+[2026-04-10T17:10:59.005Z] cwd=/Users/astahmer/dev/work-related/welii
+jj diff --summary -r 4c3a9ffaaf77
+[2026-04-10T17:10:59.011Z] cwd=/Users/astahmer/dev/work-related/welii
+jj evolog --no-graph --summary --limit 200 -r 4c3a9ffaaf77
+[2026-04-10T17:10:59.069Z] cwd=/Users/astahmer/dev/work-related/welii
+jj file show -r d7149274f29f- knip.jsonc
+[2026-04-10T17:10:59.152Z] cwd=/Users/astahmer/dev/work-related/welii
+jj diff --summary -r 30de1af53d84
+[2026-04-10T17:10:59.205Z] cwd=/Users/astahmer/dev/work-related/welii
+jj diff --summary -r 30de1af53d84
+[2026-04-10T17:10:59.223Z] cwd=/Users/astahmer/dev/work-related/welii
+jj file show -r d7149274f29f knip.jsonc
+[2026-04-10T17:10:59.413Z] cwd=/Users/astahmer/dev/work-related/welii
+jj diff --summary -r 62f65a85bc5d
+[2026-04-10T17:10:59.418Z] cwd=/Users/astahmer/dev/work-related/welii
+jj diff --summary -r 62f65a85bc5d
+[2026-04-10T17:10:59.595Z] cwd=/Users/astahmer/dev/work-related/welii
+jj diff --summary -r 790ab0e9d8e3
+[2026-04-10T17:10:59.681Z] cwd=/Users/astahmer/dev/work-related/welii
+jj diff --summary -r 790ab0e9d8e3
+[2026-04-10T17:10:59.758Z] cwd=/Users/astahmer/dev/work-related/welii
+jj diff --summary -r 53e4115bd1bc
+[2026-04-10T17:10:59.935Z] cwd=/Users/astahmer/dev/work-related/welii
+jj diff --summary -r b89a25e10a66
+[2026-04-10T17:11:00.034Z] cwd=/Users/astahmer/dev/work-related/welii
+jj diff --summary -r b89a25e10a66
+[2026-04-10T17:11:00.148Z] cwd=/Users/astahmer/dev/work-related/welii
+jj diff --summary -r 971d61e88e25
+[2026-04-10T17:11:00.170Z] cwd=/Users/astahmer/dev/work-related/welii
+jj diff --summary -r 971d61e88e25
+[2026-04-10T17:11:00.276Z] cwd=/Users/astahmer/dev/work-related/welii
+jj diff --summary -r 23e1ca7064fa
+[2026-04-10T17:11:00.310Z] cwd=/Users/astahmer/dev/work-related/welii
+jj diff --summary -r 23e1ca7064fa
+[2026-04-10T17:11:00.424Z] cwd=/Users/astahmer/dev/work-related/welii
+jj diff --summary -r 45216df62a8d
+[2026-04-10T17:11:00.458Z] cwd=/Users/astahmer/dev/work-related/welii
+jj diff --summary -r 45216df62a8d
+[2026-04-10T17:11:00.527Z] cwd=/Users/astahmer/dev/work-related/welii
+jj file show -r 45216df62a8d- knip.jsonc
+[2026-04-10T17:11:00.644Z] cwd=/Users/astahmer/dev/work-related/welii
+jj file show -r 45216df62a8d- knip.jsonc
+[2026-04-10T17:11:00.653Z] cwd=/Users/astahmer/dev/work-related/welii
+jj file show -r 45216df62a8d knip.jsonc
+[2026-04-10T17:11:00.783Z] cwd=/Users/astahmer/dev/work-related/welii
+jj file show -r 45216df62a8d knip.jsonc
+[2026-04-10T17:11:00.787Z] cwd=/Users/astahmer/dev/work-related/welii
+jj file show -r 23e1ca7064fa- knip.jsonc
+[2026-04-10T17:11:00.912Z] cwd=/Users/astahmer/dev/work-related/welii
+jj file show -r 23e1ca7064fa knip.jsonc
+[2026-04-10T17:11:01.002Z] cwd=/Users/astahmer/dev/work-related/welii
+jj file show -r 971d61e88e25- knip.jsonc
+[2026-04-10T17:11:01.111Z] cwd=/Users/astahmer/dev/work-related/welii
+jj file show -r 971d61e88e25 knip.jsonc
+[2026-04-10T17:11:01.215Z] cwd=/Users/astahmer/dev/work-related/welii
+jj file show -r b89a25e10a66- knip.jsonc
+[2026-04-10T17:11:01.310Z] cwd=/Users/astahmer/dev/work-related/welii
+jj file show -r b89a25e10a66 knip.jsonc
+[2026-04-10T17:11:01.397Z] cwd=/Users/astahmer/dev/work-related/welii
+jj evolog --no-graph --summary --limit 200 -r d7149274f29f
+[2026-04-10T17:11:01.451Z] cwd=/Users/astahmer/dev/work-related/welii
+jj file show -r 53e4115bd1bc- knip.jsonc
+[2026-04-10T17:11:01.454Z] cwd=/Users/astahmer/dev/work-related/welii
+jj evolog --no-graph --summary --limit 200 -r d7149274f29f
+[2026-04-10T17:11:01.594Z] cwd=/Users/astahmer/dev/work-related/welii
+jj file show -r 53e4115bd1bc knip.jsonc
+[2026-04-10T17:11:01.706Z] cwd=/Users/astahmer/dev/work-related/welii
+jj file show -r 790ab0e9d8e3- knip.jsonc
+[2026-04-10T17:11:01.790Z] cwd=/Users/astahmer/dev/work-related/welii
+jj file show -r 790ab0e9d8e3 knip.jsonc
+[2026-04-10T17:11:01.842Z] cwd=/Users/astahmer/dev/work-related/welii
+jj evolog --no-graph --summary --limit 200 -r f9cb9e614496
+[2026-04-10T17:11:01.857Z] cwd=/Users/astahmer/dev/work-related/welii
+jj evolog --no-graph --summary --limit 200 -r f9cb9e614496
+[2026-04-10T17:11:01.881Z] cwd=/Users/astahmer/dev/work-related/welii
+jj file show -r 62f65a85bc5d- knip.jsonc
+[2026-04-10T17:11:02.040Z] cwd=/Users/astahmer/dev/work-related/welii
+jj file show -r 62f65a85bc5d knip.jsonc
+[2026-04-10T17:11:02.079Z] cwd=/Users/astahmer/dev/work-related/welii
+jj evolog --no-graph --summary --limit 200 -r 45216df62a8d
+[2026-04-10T17:11:02.123Z] cwd=/Users/astahmer/dev/work-related/welii
+jj file show -r 30de1af53d84- knip.jsonc
+[2026-04-10T17:11:02.130Z] cwd=/Users/astahmer/dev/work-related/welii
+jj evolog --no-graph --summary --limit 200 -r 45216df62a8d
+[2026-04-10T17:11:02.253Z] cwd=/Users/astahmer/dev/work-related/welii
+jj file show -r 30de1af53d84 knip.jsonc
+[2026-04-10T17:11:02.356Z] cwd=/Users/astahmer/dev/work-related/welii
+jj evolog --no-graph --summary --limit 200 -r 23e1ca7064fa
+[2026-04-10T17:11:02.412Z] cwd=/Users/astahmer/dev/work-related/welii
+jj file show -r 4c3a9ffaaf77- knip.jsonc
+[2026-04-10T17:11:02.435Z] cwd=/Users/astahmer/dev/work-related/welii
+jj evolog --no-graph --summary --limit 200 -r 23e1ca7064fa
+[2026-04-10T17:11:02.568Z] cwd=/Users/astahmer/dev/work-related/welii
+jj file show -r 4c3a9ffaaf77 knip.jsonc
+[2026-04-10T17:11:02.606Z] cwd=/Users/astahmer/dev/work-related/welii
+jj evolog --no-graph --summary --limit 200 -r 971d61e88e25
+[2026-04-10T17:11:02.646Z] cwd=/Users/astahmer/dev/work-related/welii
+jj evolog --no-graph --summary --limit 200 -r 971d61e88e25
+[2026-04-10T17:11:02.831Z] cwd=/Users/astahmer/dev/work-related/welii
+jj evolog --no-graph --summary --limit 200 -r b89a25e10a66
+[2026-04-10T17:11:02.857Z] cwd=/Users/astahmer/dev/work-related/welii
+jj evolog --no-graph --summary --limit 200 -r b89a25e10a66
+[2026-04-10T17:11:03.039Z] cwd=/Users/astahmer/dev/work-related/welii
+jj evolog --no-graph --summary --limit 200 -r 53e4115bd1bc
+[2026-04-10T17:11:03.043Z] cwd=/Users/astahmer/dev/work-related/welii
+jj evolog --no-graph --summary --limit 200 -r 53e4115bd1bc
+[2026-04-10T17:11:03.254Z] cwd=/Users/astahmer/dev/work-related/welii
+jj file show -r 45216df62a8d- knip.jsonc
+[2026-04-10T17:11:03.257Z] cwd=/Users/astahmer/dev/work-related/welii
+jj evolog --no-graph --summary --limit 200 -r 790ab0e9d8e3
+[2026-04-10T17:11:03.260Z] cwd=/Users/astahmer/dev/work-related/welii
+jj file show -r d7149274f29f- knip.jsonc
+[2026-04-10T17:11:03.284Z] cwd=/Users/astahmer/dev/work-related/welii
+jj evolog --no-graph --summary --limit 200 -r 790ab0e9d8e3
+[2026-04-10T17:11:03.288Z] cwd=/Users/astahmer/dev/work-related/welii
+jj file show -r d7149274f29f- knip.jsonc
+[2026-04-10T17:11:03.361Z] cwd=/Users/astahmer/dev/work-related/welii
+jj file show -r 23e1ca7064fa- knip.jsonc
+[2026-04-10T17:11:03.590Z] cwd=/Users/astahmer/dev/work-related/welii
+jj file show -r 971d61e88e25- knip.jsonc
+[2026-04-10T17:11:03.689Z] cwd=/Users/astahmer/dev/work-related/welii
+jj evolog --no-graph --summary --limit 200 -r 62f65a85bc5d
+[2026-04-10T17:11:03.700Z] cwd=/Users/astahmer/dev/work-related/welii
+jj file show -r b89a25e10a66- knip.jsonc
+[2026-04-10T17:11:03.800Z] cwd=/Users/astahmer/dev/work-related/welii
+jj evolog --no-graph --summary --limit 200 -r 62f65a85bc5d
+[2026-04-10T17:11:03.821Z] cwd=/Users/astahmer/dev/work-related/welii
+jj file show -r 53e4115bd1bc- knip.jsonc
+[2026-04-10T17:11:03.940Z] cwd=/Users/astahmer/dev/work-related/welii
+jj file show -r 790ab0e9d8e3- knip.jsonc
+[2026-04-10T17:11:04.037Z] cwd=/Users/astahmer/dev/work-related/welii
+jj evolog --no-graph --summary --limit 200 -r 30de1af53d84
+[2026-04-10T17:11:04.046Z] cwd=/Users/astahmer/dev/work-related/welii
+jj evolog --no-graph --summary --limit 200 -r 30de1af53d84
+[2026-04-10T17:11:04.052Z] cwd=/Users/astahmer/dev/work-related/welii
+jj file show -r 62f65a85bc5d- knip.jsonc
+[2026-04-10T17:11:04.184Z] cwd=/Users/astahmer/dev/work-related/welii
+jj file show -r 30de1af53d84- knip.jsonc
+[2026-04-10T17:11:04.308Z] cwd=/Users/astahmer/dev/work-related/welii
+jj file show -r 4c3a9ffaaf77- knip.jsonc
+[2026-04-10T17:11:04.364Z] cwd=/Users/astahmer/dev/work-related/welii
+jj file show -r d7149274f29f- knip.jsonc
+[2026-04-10T17:11:04.451Z] cwd=/Users/astahmer/dev/work-related/welii
+jj file show -r 45216df62a8d- knip.jsonc
+[2026-04-10T17:11:04.491Z] cwd=/Users/astahmer/dev/work-related/welii
+jj file show -r d7149274f29f- knip.jsonc
+[2026-04-10T17:11:04.559Z] cwd=/Users/astahmer/dev/work-related/welii
+jj file show -r 23e1ca7064fa- knip.jsonc
+[2026-04-10T17:11:04.668Z] cwd=/Users/astahmer/dev/work-related/welii
+jj file show -r 971d61e88e25- knip.jsonc
+[2026-04-10T17:11:04.758Z] cwd=/Users/astahmer/dev/work-related/welii
+jj file show -r b89a25e10a66- knip.jsonc
+[2026-04-10T17:11:04.831Z] cwd=/Users/astahmer/dev/work-related/welii
+jj file show -r 53e4115bd1bc- knip.jsonc
+[2026-04-10T17:11:04.909Z] cwd=/Users/astahmer/dev/work-related/welii
+jj file show -r 790ab0e9d8e3- knip.jsonc
+[2026-04-10T17:11:04.982Z] cwd=/Users/astahmer/dev/work-related/welii
+jj file show -r 62f65a85bc5d- knip.jsonc
+[2026-04-10T17:11:05.061Z] cwd=/Users/astahmer/dev/work-related/welii
+jj file show -r 30de1af53d84- knip.jsonc
+[2026-04-10T17:11:05.156Z] cwd=/Users/astahmer/dev/work-related/welii
+jj file show -r 4c3a9ffaaf77- knip.jsonc

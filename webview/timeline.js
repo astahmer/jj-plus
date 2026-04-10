@@ -97,6 +97,7 @@
     stepForwardButton: document.getElementById('stepForwardButton'),
     stepFastForwardButton: document.getElementById('stepFastForwardButton'),
     stepStatus: document.getElementById('stepStatus'),
+    snapshotLoadingIndicator: document.getElementById('snapshotLoadingIndicator'),
     diffModeEyebrow: document.getElementById('diffModeEyebrow'),
     diffTitle: document.getElementById('diffTitle'),
     diffSubtitle: document.getElementById('diffSubtitle'),
@@ -184,6 +185,7 @@
         state.previewByRange = {};
         applyPreset(state.preset, true, true, true);
         requestPreview(0);
+        requestSnapshotHydration();
       }
       return;
     }
@@ -668,6 +670,17 @@
     elements.toggleTimelinePaneButton.textContent = state.timelinePaneCollapsed ? 'Expand' : 'Timeline only';
   }
 
+  function renderSnapshotLoadingIndicator() {
+    const pendingCount = getSnapshotHydrationRevisionIndexes().length;
+    const shouldShow = getEffectiveComparisonSource() === 'snapshot' && (state.snapshotHydrationInFlight || pendingCount > 0);
+    elements.snapshotLoadingIndicator.hidden = !shouldShow;
+    elements.snapshotLoadingIndicator.textContent = state.snapshotHydrationInFlight
+      ? 'Loading snapshots…'
+      : pendingCount > 0
+        ? 'Snapshots pending…'
+        : 'Loading snapshots…';
+  }
+
   function applyDiffFocusState() {
     elements.workspace.classList.toggle('is-diff-focus', state.diffFocusMode);
     elements.toggleDiffFocusButton.textContent = state.diffFocusMode ? 'Exit focus' : 'Focus diff';
@@ -859,6 +872,7 @@
       alignSingleSelection();
     } else {
       state.fromIndex = Math.min(state.fromIndex, state.toIndex);
+      ensureMinimumRangeWidth('to');
     }
 
     syncActivePreviewRange();
@@ -893,6 +907,7 @@
     renderMonths();
     renderHistoryList();
     renderPreview();
+    renderSnapshotLoadingIndicator();
     prefetchSidebarPreviews();
   }
 
@@ -1331,6 +1346,7 @@
     elements.stepForwardButton.disabled = !canNavigateSelection(1);
     elements.stepFastBackwardButton.disabled = !canNavigateSelection(-1);
     elements.stepFastForwardButton.disabled = !canNavigateSelection(1);
+    renderSnapshotLoadingIndicator();
   }
 
   function canNavigateSelection(direction) {
@@ -1369,11 +1385,14 @@
     renderControlGroups();
 
     if (side === 'from') {
-      state.fromIndex = state.visibleEntries[Math.min(targetVisibleIndex, getVisibleIndexForAbsoluteIndex(state.toIndex))].index;
+      const maxFromVisibleIndex = Math.max(0, getVisibleIndexForAbsoluteIndex(state.toIndex) - 1);
+      state.fromIndex = state.visibleEntries[Math.min(targetVisibleIndex, maxFromVisibleIndex)].index;
     } else {
-      state.toIndex = state.visibleEntries[Math.max(targetVisibleIndex, getVisibleIndexForAbsoluteIndex(state.fromIndex))].index;
+      const minToVisibleIndex = Math.min(state.visibleEntries.length - 1, getVisibleIndexForAbsoluteIndex(state.fromIndex) + 1);
+      state.toIndex = state.visibleEntries[Math.max(targetVisibleIndex, minToVisibleIndex)].index;
     }
 
+    ensureMinimumRangeWidth(side);
     renderSelection();
     scrollSidebarToEntry(side === 'from' ? state.fromIndex : state.toIndex, false);
     persistPreferences();
@@ -1398,6 +1417,7 @@
     state.fromIndex = state.visibleEntries[nextFromVisibleIndex].index;
     state.toIndex = state.visibleEntries[nextToVisibleIndex].index;
 
+    ensureMinimumRangeWidth('to');
     renderSelection();
     scrollSidebarToEntry(state.fromIndex, false);
     persistPreferences();
@@ -1445,12 +1465,12 @@
       }
 
       if (side === 'from') {
-        if (nextVisibleIndex > getVisibleIndexForAbsoluteIndex(state.toIndex)) {
+        if (nextVisibleIndex >= getVisibleIndexForAbsoluteIndex(state.toIndex)) {
           break;
         }
         state.fromIndex = state.visibleEntries[nextVisibleIndex].index;
       } else {
-        if (nextVisibleIndex < getVisibleIndexForAbsoluteIndex(state.fromIndex)) {
+        if (nextVisibleIndex <= getVisibleIndexForAbsoluteIndex(state.fromIndex)) {
           break;
         }
         state.toIndex = state.visibleEntries[nextVisibleIndex].index;
@@ -1458,6 +1478,7 @@
       remaining -= 1;
     }
 
+    ensureMinimumRangeWidth(side);
     renderSelection();
     scrollSidebarToEntry(side === 'from' ? state.fromIndex : state.toIndex, false);
     persistPreferences();
@@ -1476,7 +1497,7 @@
     const trackRect = elements.track.getBoundingClientRect();
     const startFromVisibleIndex = getVisibleIndexForAbsoluteIndex(state.fromIndex);
     const startToVisibleIndex = getVisibleIndexForAbsoluteIndex(state.toIndex);
-    const width = startToVisibleIndex - startFromVisibleIndex;
+    const width = Math.max(1, startToVisibleIndex - startFromVisibleIndex);
     const startX = event.clientX;
     const denominator = Math.max(1, state.visibleEntries.length - 1);
     elements.rangeFill.classList.add('is-dragging');
@@ -1491,6 +1512,7 @@
       const nextToVisibleIndex = nextFromVisibleIndex + width;
       state.fromIndex = state.visibleEntries[nextFromVisibleIndex].index;
       state.toIndex = state.visibleEntries[nextToVisibleIndex].index;
+      ensureMinimumRangeWidth('to');
       renderSelection();
       requestPreview(70);
     }
@@ -1537,14 +1559,45 @@
     }
 
     if (side === 'from') {
-      const clampedVisibleIndex = Math.min(nextVisibleIndex, getVisibleIndexForAbsoluteIndex(state.toIndex));
+      const clampedVisibleIndex = Math.min(nextVisibleIndex, Math.max(0, getVisibleIndexForAbsoluteIndex(state.toIndex) - 1));
       state.fromIndex = state.visibleEntries[clampedVisibleIndex].index;
     } else {
-      const clampedVisibleIndex = Math.max(nextVisibleIndex, getVisibleIndexForAbsoluteIndex(state.fromIndex));
+      const clampedVisibleIndex = Math.max(nextVisibleIndex, Math.min(state.visibleEntries.length - 1, getVisibleIndexForAbsoluteIndex(state.fromIndex) + 1));
       state.toIndex = state.visibleEntries[clampedVisibleIndex].index;
     }
 
+    ensureMinimumRangeWidth(side);
     renderSelection();
+  }
+
+  function ensureMinimumRangeWidth(preferredSide) {
+    if (state.comparisonMode !== 'range' || state.visibleEntries.length < 2) {
+      return;
+    }
+
+    let fromVisibleIndex = getVisibleIndexForAbsoluteIndex(state.fromIndex);
+    let toVisibleIndex = getVisibleIndexForAbsoluteIndex(state.toIndex);
+    if (fromVisibleIndex < 0 || toVisibleIndex < 0) {
+      return;
+    }
+
+    if (fromVisibleIndex === toVisibleIndex) {
+      if (preferredSide === 'from') {
+        fromVisibleIndex = Math.max(0, toVisibleIndex - 1);
+        toVisibleIndex = Math.max(fromVisibleIndex + 1, toVisibleIndex);
+      } else {
+        toVisibleIndex = Math.min(state.visibleEntries.length - 1, fromVisibleIndex + 1);
+        fromVisibleIndex = Math.min(fromVisibleIndex, toVisibleIndex - 1);
+      }
+
+      if (fromVisibleIndex === toVisibleIndex) {
+        fromVisibleIndex = Math.max(0, toVisibleIndex - 1);
+        toVisibleIndex = Math.min(state.visibleEntries.length - 1, fromVisibleIndex + 1);
+      }
+
+      state.fromIndex = state.visibleEntries[fromVisibleIndex].index;
+      state.toIndex = state.visibleEntries[toVisibleIndex].index;
+    }
   }
 
   function maybeResolveHiddenRangeToNonEmpty(preview) {
@@ -1638,12 +1691,13 @@
       ? lastEntry.timestamp - windowDays * 24 * 60 * 60 * 1000
       : Number.NEGATIVE_INFINITY;
 
-    return revisionEntries
+    const visibleRevisionEntries = revisionEntries
       .filter((entry) => entry.timestamp >= cutoff)
       .filter((entry) => state.showIntermediateRevisions || entry.touchesFile)
-      .filter((entry) => entry.touchesFile && entry.changeId && !entry.isWorkingTree && !loadedChangeIds.has(entry.changeId))
-      .slice(-8)
-      .map((entry) => entry.index);
+      .filter((entry) => entry.touchesFile);
+
+    const preferredIndexes = [state.fromIndex, state.toIndex].filter((index) => Number.isInteger(index));
+    return timelineModel.getPendingSnapshotRevisionIndexes(visibleRevisionEntries, loadedChangeIds, 8, preferredIndexes);
   }
 
   function requestSnapshotHydration() {
@@ -1657,6 +1711,7 @@
     }
 
     state.snapshotHydrationInFlight = true;
+    renderSnapshotLoadingIndicator();
     vscode.postMessage({
       command: 'hydrate-snapshot-entries',
       revisionIndexes,
