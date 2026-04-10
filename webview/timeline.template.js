@@ -15,6 +15,9 @@
             <div class="eyebrow">Revisions</div>
             <div class="sidebar-hint" id="sidebarHint"></div>
           </div>
+          <div class="sidebar-search-wrap">
+            <input class="sidebar-search-input" id="sidebarSearchInput" type="search" placeholder="Search revisions" autocomplete="off" />
+          </div>
           <div class="history-list" id="historyList"></div>
         </aside>
         <div class="resize-handle" id="resizeHandle"></div>

@@ -37,6 +37,7 @@
     focusedHistoryOrderIndex: -1,
     diffFocusMode: false,
     pendingRangeResolutionKey: '',
+    sidebarSearchQuery: '',
   };
 
   const elements = {
@@ -55,6 +56,7 @@
     actionsButton: document.getElementById('actionsButton'),
     actionsMenu: document.getElementById('actionsMenu'),
     toggleSidebarAction: document.getElementById('toggleSidebarAction'),
+    sidebarSearchInput: document.getElementById('sidebarSearchInput'),
     openCurrentFileAction: document.getElementById('openCurrentFileAction'),
     openRangeFilesButton: document.getElementById('openRangeFilesButton'),
     openEditorButton: document.getElementById('openEditorButton'),
@@ -119,6 +121,8 @@
       state.preview = null;
       state.previewByRange = {};
       state.expandedRanges = {};
+      state.sidebarSearchQuery = '';
+      elements.sidebarSearchInput.value = '';
 
       if (!state.data.entries.length) {
         renderEmpty();
@@ -199,6 +203,12 @@
   });
 
   document.addEventListener('keydown', handleGlobalKeydown);
+
+  elements.sidebarSearchInput.addEventListener('input', () => {
+    state.sidebarSearchQuery = String(elements.sidebarSearchInput.value || '').trim().toLowerCase();
+    state.focusedHistoryOrderIndex = -1;
+    renderHistoryList();
+  });
 
   elements.openEditorButton.addEventListener('click', () => {
     closeMenu();
@@ -366,7 +376,7 @@
   }
 
   function handleGlobalKeydown(event) {
-    if (!state.data || event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) {
+    if (!state.data || event.defaultPrevented || event.metaKey) {
       return;
     }
 
@@ -771,8 +781,14 @@
 
     elements.historyList.innerHTML = '';
     const orderedEntries = getOrderedHistoryEntries();
+    const filteredEntries = orderedEntries.filter(matchesSidebarSearch);
 
-    orderedEntries.forEach((entry, orderIndex) => {
+    if (!filteredEntries.length) {
+      elements.historyList.innerHTML = '<div class="empty">No revisions match the current search.</div>';
+      return;
+    }
+
+    filteredEntries.forEach((entry, orderIndex) => {
       const preview = state.previewByRange[getPreviewKey(entry.index, state.toIndex)] || state.previewByRange[getPreviewKey(state.fromIndex, entry.index)] || null;
       const descriptionExpanded = Boolean(state.expandedDescriptions[String(entry.index)]);
       const showMore = entry.description.length > 48;
@@ -792,7 +808,7 @@
         '</div>',
         '<div class="history-description' + (descriptionExpanded || !showMore ? '' : ' is-truncated') + '">' + escapeHtml(entry.description) + '</div>',
         '<div class="history-bottom">',
-        '<span class="history-meta">' + escapeHtml(entry.relativeDate) + '</span>',
+        '<span class="history-meta">' + escapeHtml(entry.relativeDate + (entry.authorName ? ' · ' + entry.authorName : '')) + '</span>',
         '<span class="history-stats">' + (preview ? renderHistoryStats(preview) : '') + '</span>',
         '</div>',
         showMore ? '<button class="history-more" type="button">' + (descriptionExpanded ? 'Less' : 'More') + '</button>' : '',
@@ -832,12 +848,24 @@
     });
 
     if (state.focusedHistoryOrderIndex < 0) {
-      state.focusedHistoryOrderIndex = orderedEntries.findIndex((entry) => entry.index === state.toIndex);
+      state.focusedHistoryOrderIndex = filteredEntries.findIndex((entry) => entry.index === state.toIndex);
     }
   }
 
   function getOrderedHistoryEntries() {
     return state.visibleEntries.slice().reverse();
+  }
+
+  function matchesSidebarSearch(entry) {
+    if (!state.sidebarSearchQuery) {
+      return true;
+    }
+
+    const haystack = [entry.description, entry.authorName, entry.shortRevision, entry.revision]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+    return haystack.includes(state.sidebarSearchQuery);
   }
 
   function selectEntryFromSidebar(entryIndex) {
@@ -854,7 +882,7 @@
   }
 
   function nudgeSidebarSelection(direction) {
-    const orderedEntries = getOrderedHistoryEntries();
+    const orderedEntries = getOrderedHistoryEntries().filter(matchesSidebarSearch);
     if (!orderedEntries.length) {
       return;
     }
@@ -932,7 +960,7 @@
     if (!visibleRows.length) {
       elements.diffRows.innerHTML = state.contentMode === 'full'
         ? '<div class="empty-diff">The file has no content at this revision.</div>'
-        : '<div class="empty-diff">No textual changes in this selection.</div>';
+        : renderNoTextualChanges(state.preview);
       return;
     }
 
@@ -1066,6 +1094,7 @@
     }
 
     renderSelection();
+    scrollSidebarToEntry(state.comparisonMode === 'step' ? state.toIndex : state.fromIndex, false);
     persistPreferences();
     requestPreview(0);
   }
@@ -1124,6 +1153,7 @@
     }
 
     renderSelection();
+    scrollSidebarToEntry(side === 'from' ? state.fromIndex : state.toIndex, false);
     persistPreferences();
     requestPreview(0);
   }
@@ -1246,6 +1276,15 @@
       '<span class="stat stat--minus">-' + String(preview.deletions) + '</span>',
       '<span class="stat">' + String(preview.hunkCount) + ' hunks</span>',
     ].join('');
+  }
+
+  function renderNoTextualChanges(preview) {
+    const details = Array.isArray(preview.nonTextualDetails) ? preview.nonTextualDetails : [];
+    return '<div class="empty-diff"><div>No textual changes in this selection.</div>'
+      + (details.length
+        ? '<div class="empty-diff-details">' + details.map((detail) => '<div>' + escapeHtml(detail) + '</div>').join('') + '</div>'
+        : '')
+      + '</div>';
   }
 
   function getDisplayRows(preview) {

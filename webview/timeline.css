@@ -70,7 +70,7 @@ input {
 
 .sidebar {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
   overflow: hidden;
   border-radius: 12px 0 0 12px;
   border-right: 0;
@@ -110,6 +110,7 @@ input {
 
 .workspace.is-diff-focus .diff-panel {
   border-radius: 12px;
+  grid-template-rows: minmax(0, 1fr);
 }
 
 .sidebar-head {
@@ -119,6 +120,26 @@ input {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+}
+
+.sidebar-search-wrap {
+  padding: 8px 12px 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sidebar-search-input {
+  width: 100%;
+  min-width: 0;
+  padding: 7px 10px;
+  border-radius: 9px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--text);
+  outline: none;
+}
+
+.sidebar-search-input:focus {
+  border-color: var(--accent);
 }
 
 .eyebrow {
@@ -323,6 +344,10 @@ input {
 .workspace.is-diff-focus .sidebar,
 .workspace.is-diff-focus .resize-handle {
   display: none;
+}
+
+.workspace.is-diff-focus .diff-content {
+  height: 100%;
 }
 
 .collapse-button {
@@ -787,6 +812,13 @@ input {
   padding: 28px 16px;
   text-align: center;
   color: var(--muted);
+}
+
+.empty-diff-details {
+  margin-top: 10px;
+  display: grid;
+  gap: 4px;
+  font-size: 11px;
 }
 
 @media (max-width: 980px) {

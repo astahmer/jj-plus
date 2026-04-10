@@ -74,10 +74,12 @@ let extensionContext;
  * @property {string} shortRevision
  * @property {string | undefined} changeId
  * @property {string} authorDate
+ * @property {string} authorName
  * @property {string} description
  * @property {boolean} isWorkingTree
  * @property {boolean} touchesFile
  * @property {number} timestamp
+ * @property {string=} filePath
  */
 
 /**
@@ -91,6 +93,7 @@ let extensionContext;
  * @property {string[]} workspaceFiles
  * @property {Map<string, string>} contentCache
  * @property {Map<string, DiffPreview>} previewCache
+ * @property {Map<string, string>} pathCache
  */
 
 /**
@@ -126,6 +129,7 @@ let extensionContext;
  * @property {number} fromIndex
  * @property {number} toIndex
  * @property {DiffRow[]} rows
+ * @property {string[]} nonTextualDetails
  */
 
 /**
@@ -370,6 +374,7 @@ function buildTimelinePayload(session, preferences) {
       shortDate: new Intl.DateTimeFormat('en', {
         month: 'short',
         day: 'numeric',
+        year: 'numeric',
       }).format(new Date(entry.authorDate)),
       relativeDate: formatRelativeTime(entry.timestamp),
     })),
@@ -658,7 +663,9 @@ async function createRevisionUri(session, entry) {
     }
   }
 
-  return createSnapshotUri(session.workspacePath, entry.revision, session.relativePath, session.backend);
+  const entryIndex = session.entries.findIndex((candidate) => candidate.id === entry.id);
+  const resolvedPath = await resolveEntryFilePath(session, entry, entryIndex);
+  return createSnapshotUri(session.workspacePath, entry.revision, resolvedPath, session.backend);
 }
 
 /**
@@ -673,7 +680,7 @@ async function buildTimelineSession(workspacePath, absolutePath) {
   const fileEntries = backend === 'jj'
     ? await getJjFileRevisionHistory(workspacePath, relativePath)
     : await getGitFileRevisionHistory(workspacePath, relativePath);
-  const entries = await buildTimelineEntries(backend, workspacePath, absolutePath, fileEntries);
+  const entries = await buildTimelineEntries(backend, workspacePath, absolutePath, relativePath, fileEntries);
 
   return {
     backend,
@@ -685,6 +692,7 @@ async function buildTimelineSession(workspacePath, absolutePath) {
     workspaceFiles,
     contentCache: new Map(),
     previewCache: new Map(),
+    pathCache: new Map(),
   };
 }
 
@@ -760,6 +768,8 @@ async function getJjFileRevisionHistory(workspacePath, relativePath) {
     '"\\t"',
     'author.timestamp().format("%Y-%m-%dT%H:%M:%S%:z")',
     '"\\t"',
+    'author.name()',
+    '"\\t"',
     'description.first_line()',
     '"\\n"',
   ].join(' ++ ');
@@ -770,7 +780,7 @@ async function getJjFileRevisionHistory(workspacePath, relativePath) {
     String(MAX_TIMELINE_ENTRIES),
     '-T',
     template,
-    relativePath,
+    toJjRootFileFileset(relativePath),
   ]);
 
   return stdout
@@ -786,7 +796,7 @@ async function getJjFileRevisionHistory(workspacePath, relativePath) {
  * @returns {FileRevisionEntry}
  */
 function parseJjHistoryLine(line) {
-  const [revision = '', changeId = '', authorDate = '', ...descriptionParts] = line.split('\t');
+  const [revision = '', changeId = '', authorDate = '', authorName = '', ...descriptionParts] = line.split('\t');
   const description = descriptionParts.join('\t') || 'No description';
   return {
     id: revision,
@@ -794,6 +804,7 @@ function parseJjHistoryLine(line) {
     shortRevision: changeId || revision.slice(0, 8),
     changeId: changeId || undefined,
     authorDate,
+    authorName: authorName || 'Unknown author',
     description,
     isWorkingTree: false,
     touchesFile: true,
@@ -811,7 +822,7 @@ async function getGitFileRevisionHistory(workspacePath, relativePath) {
     'log',
     '--follow',
     '--date=iso-strict',
-    `--format=%H%x09%ad%x09%s`,
+    `--format=%H%x09%ad%x09%an%x09%s`,
     `--max-count=${MAX_TIMELINE_ENTRIES}`,
     '--',
     relativePath,
@@ -830,7 +841,7 @@ async function getGitFileRevisionHistory(workspacePath, relativePath) {
  * @returns {FileRevisionEntry}
  */
 function parseGitHistoryLine(line) {
-  const [revision = '', authorDate = '', ...descriptionParts] = line.split('\t');
+  const [revision = '', authorDate = '', authorName = '', ...descriptionParts] = line.split('\t');
   const description = descriptionParts.join('\t') || 'No description';
   return {
     id: revision,
@@ -838,6 +849,7 @@ function parseGitHistoryLine(line) {
     shortRevision: revision.slice(0, 8),
     changeId: undefined,
     authorDate,
+    authorName: authorName || 'Unknown author',
     description,
     isWorkingTree: false,
     touchesFile: true,
@@ -858,6 +870,8 @@ async function getRepositoryRevisionHistory(backend, workspacePath) {
       'change_id.shortest()',
       '"\\t"',
       'author.timestamp().format("%Y-%m-%dT%H:%M:%S%:z")',
+      '"\\t"',
+      'author.name()',
       '"\\t"',
       'description.first_line()',
       '"\\n"',
@@ -886,7 +900,7 @@ async function getRepositoryRevisionHistory(backend, workspacePath) {
   const { stdout } = await runGit(workspacePath, [
     'log',
     '--date=iso-strict',
-    `--format=%H%x09%ad%x09%s`,
+    `--format=%H%x09%ad%x09%an%x09%s`,
     `--max-count=${MAX_TIMELINE_ENTRIES}`,
   ]);
 
@@ -906,14 +920,19 @@ async function getRepositoryRevisionHistory(backend, workspacePath) {
  * @param {HistoryBackend} backend
  * @param {string} workspacePath
  * @param {string} absolutePath
+ * @param {string} relativePath
  * @param {FileRevisionEntry[]} fileEntries
  * @returns {Promise<FileRevisionEntry[]>}
  */
-async function buildTimelineEntries(backend, workspacePath, absolutePath, fileEntries) {
+async function buildTimelineEntries(backend, workspacePath, absolutePath, relativePath, fileEntries) {
   const touchingEntries = fileEntries.map((entry) => ({
     ...entry,
     touchesFile: true,
   }));
+
+  if (touchingEntries.length) {
+    touchingEntries[touchingEntries.length - 1].filePath = relativePath;
+  }
 
   let entries = touchingEntries;
 
@@ -926,7 +945,7 @@ async function buildTimelineEntries(backend, workspacePath, absolutePath, fileEn
     }
   }
 
-  return appendWorkingTreeEntry(absolutePath, entries);
+  return appendWorkingTreeEntry(workspacePath, absolutePath, relativePath, backend, entries);
 }
 
 /**
@@ -961,16 +980,20 @@ function mergeTimelineEntries(repositoryEntries, fileEntries) {
 }
 
 /**
+ * @param {string} workspacePath
  * @param {string} absolutePath
+ * @param {string} relativePath
+ * @param {HistoryBackend} backend
  * @param {FileRevisionEntry[]} entries
  * @returns {Promise<FileRevisionEntry[]>}
  */
-async function appendWorkingTreeEntry(absolutePath, entries) {
+async function appendWorkingTreeEntry(workspacePath, absolutePath, relativePath, backend, entries) {
   if (!(await fileExists(absolutePath))) {
     return entries;
   }
 
   const lastEntry = entries[entries.length - 1];
+  const lastTouchingEntry = entries.filter((entry) => entry.touchesFile && !entry.isWorkingTree).at(-1);
   const now = new Date();
   const workingTreeEntry = {
     id: 'working-tree',
@@ -978,14 +1001,29 @@ async function appendWorkingTreeEntry(absolutePath, entries) {
     shortRevision: 'Current',
     changeId: undefined,
     authorDate: now.toISOString(),
+    authorName: '',
     description: 'Working tree',
     isWorkingTree: true,
     touchesFile: true,
     timestamp: now.getTime(),
+    filePath: relativePath,
   };
 
   if (lastEntry?.isWorkingTree) {
     return entries;
+  }
+
+  if (lastTouchingEntry) {
+    const currentContent = await fs.readFile(absolutePath, 'utf8');
+    const previousContent = await showFileAtRevision(
+      workspacePath,
+      lastTouchingEntry.revision,
+      lastTouchingEntry.filePath || relativePath,
+      backend
+    );
+    if (currentContent === previousContent && (lastTouchingEntry.filePath || relativePath) === relativePath) {
+      return entries;
+    }
   }
 
   return [...entries, workingTreeEntry];
@@ -1019,12 +1057,15 @@ async function getDiffPreview(session, fromIndex, toIndex) {
       fromIndex: normalizedFromIndex,
       toIndex: normalizedToIndex,
       rows: [],
+      nonTextualDetails: [],
     };
   }
 
   const { fromEntry, toEntry } = comparison;
-  const beforeText = fromEntry ? await getRevisionContent(session, fromEntry) : '';
-  const afterText = await getRevisionContent(session, toEntry);
+  const beforePath = fromEntry ? await resolveEntryFilePath(session, fromEntry, normalizedFromIndex) : '';
+  const afterPath = await resolveEntryFilePath(session, toEntry, normalizedToIndex);
+  const beforeText = fromEntry ? await getRevisionContent(session, fromEntry, normalizedFromIndex) : '';
+  const afterText = await getRevisionContent(session, toEntry, normalizedToIndex);
   const preview = buildDiffPreview(
     normalizedToIndex,
     fromEntry,
@@ -1032,7 +1073,9 @@ async function getDiffPreview(session, fromIndex, toIndex) {
     beforeText,
     afterText,
     normalizedFromIndex,
-    session.entries.findIndex((entry) => entry.id === toEntry.id)
+    session.entries.findIndex((entry) => entry.id === toEntry.id),
+    beforePath,
+    afterPath
   );
   session.previewCache.set(cacheKey, preview);
   return preview;
@@ -1041,9 +1084,10 @@ async function getDiffPreview(session, fromIndex, toIndex) {
 /**
  * @param {TimelineSession} session
  * @param {FileRevisionEntry} entry
+ * @param {number} entryIndex
  * @returns {Promise<string>}
  */
-async function getRevisionContent(session, entry) {
+async function getRevisionContent(session, entry, entryIndex) {
   const cacheKey = entry.id;
   const cached = session.contentCache.get(cacheKey);
   if (cached !== undefined) {
@@ -1054,10 +1098,11 @@ async function getRevisionContent(session, entry) {
   if (entry.isWorkingTree) {
     content = await fs.readFile(session.absolutePath, 'utf8');
   } else {
+    const resolvedPath = await resolveEntryFilePath(session, entry, entryIndex);
     content = await showFileAtRevision(
       session.workspacePath,
       entry.revision,
-      session.relativePath,
+      resolvedPath,
       session.backend
     );
   }
@@ -1074,9 +1119,11 @@ async function getRevisionContent(session, entry) {
  * @param {string} afterText
  * @param {number} fromIndex
  * @param {number} toIndex
+ * @param {string} beforePath
+ * @param {string} afterPath
  * @returns {DiffPreview}
  */
-function buildDiffPreview(index, previousEntry, currentEntry, beforeText, afterText, fromIndex, toIndex) {
+function buildDiffPreview(index, previousEntry, currentEntry, beforeText, afterText, fromIndex, toIndex, beforePath, afterPath) {
   const beforeLines = splitIntoLines(beforeText);
   const afterLines = splitIntoLines(afterText);
   const operations = diffLineOperations(beforeLines, afterLines);
@@ -1084,6 +1131,7 @@ function buildDiffPreview(index, previousEntry, currentEntry, beforeText, afterT
   const additions = rows.filter((row) => row.type === 'add').length;
   const deletions = rows.filter((row) => row.type === 'remove').length;
   const hunkCount = countDiffHunks(rows);
+  const hasChanges = additions > 0 || deletions > 0;
   const title = previousEntry
     ? `${previousEntry.shortRevision} -> ${currentEntry.shortRevision}`
     : `Initial revision -> ${currentEntry.shortRevision}`;
@@ -1098,11 +1146,225 @@ function buildDiffPreview(index, previousEntry, currentEntry, beforeText, afterT
     additions,
     deletions,
     hunkCount,
-    hasChanges: additions > 0 || deletions > 0,
+    hasChanges,
     fromIndex,
     toIndex,
     rows,
+    nonTextualDetails: hasChanges ? [] : buildNonTextualDetails(previousEntry, currentEntry, beforeText, afterText, beforePath, afterPath),
   };
+}
+
+/**
+ * @param {TimelineSession} session
+ * @param {FileRevisionEntry} entry
+ * @param {number} entryIndex
+ * @returns {Promise<string>}
+ */
+async function resolveEntryFilePath(session, entry, entryIndex) {
+  if (entry.isWorkingTree) {
+    return session.relativePath;
+  }
+
+  if (entry.filePath) {
+    return entry.filePath;
+  }
+
+  await ensureEntryFilePath(session, entryIndex);
+  return entry.filePath || session.relativePath;
+}
+
+/**
+ * @param {TimelineSession} session
+ * @param {number} entryIndex
+ * @returns {Promise<void>}
+ */
+async function ensureEntryFilePath(session, entryIndex) {
+  const targetEntry = session.entries[entryIndex];
+  if (!targetEntry || targetEntry.filePath || targetEntry.isWorkingTree) {
+    return;
+  }
+
+  let knownIndex = -1;
+  for (let index = entryIndex + 1; index < session.entries.length; index += 1) {
+    if (session.entries[index]?.filePath) {
+      knownIndex = index;
+      break;
+    }
+  }
+
+  if (knownIndex < 0) {
+    targetEntry.filePath = session.relativePath;
+    return;
+  }
+
+  let currentPath = session.entries[knownIndex].filePath || session.relativePath;
+  for (let index = knownIndex; index > entryIndex; index -= 1) {
+    const currentEntry = session.entries[index];
+    const previousEntry = session.entries[index - 1];
+    if (!previousEntry) {
+      break;
+    }
+
+    if (!previousEntry.filePath) {
+      let previousPath = currentPath;
+      if (currentEntry.touchesFile && !currentEntry.isWorkingTree) {
+        previousPath = await resolvePreviousPathAcrossRevision(session, currentEntry, currentPath);
+      }
+      previousEntry.filePath = previousPath;
+    }
+
+    currentPath = previousEntry.filePath || currentPath;
+  }
+}
+
+/**
+ * @param {TimelineSession} session
+ * @param {FileRevisionEntry} entry
+ * @param {string} currentPath
+ * @returns {Promise<string>}
+ */
+async function resolvePreviousPathAcrossRevision(session, entry, currentPath) {
+  const cacheKey = `${entry.revision}:${currentPath}`;
+  const cached = session.pathCache.get(cacheKey);
+  if (cached) {
+    return cached;
+  }
+
+  const previousPath = session.backend === 'git'
+    ? await resolveGitPreviousPath(session.workspacePath, entry.revision, currentPath)
+    : await resolveJjPreviousPath(session.workspacePath, entry.revision, currentPath);
+
+  session.pathCache.set(cacheKey, previousPath);
+  return previousPath;
+}
+
+/**
+ * @param {string} workspacePath
+ * @param {string} revision
+ * @param {string} currentPath
+ * @returns {Promise<string>}
+ */
+async function resolveGitPreviousPath(workspacePath, revision, currentPath) {
+  const { stdout } = await runGit(workspacePath, [
+    'diff-tree',
+    '--root',
+    '--no-commit-id',
+    '--name-status',
+    '--find-renames',
+    '-r',
+    revision,
+  ]);
+
+  const rename = parseRenameStatusLines(stdout).find((entry) => entry.toPath === currentPath);
+  return rename ? rename.fromPath : currentPath;
+}
+
+/**
+ * @param {string} workspacePath
+ * @param {string} revision
+ * @param {string} currentPath
+ * @returns {Promise<string>}
+ */
+async function resolveJjPreviousPath(workspacePath, revision, currentPath) {
+  const template = 'diff.files().map(|entry| entry.status_char() ++ "\\t" ++ entry.display_diff_path() ++ "\\n")';
+  const { stdout } = await runJj(workspacePath, ['diff', '-r', revision, '-T', template]);
+  const rename = parseRenameStatusLines(stdout, true).find((entry) => entry.toPath === currentPath);
+  return rename ? rename.fromPath : currentPath;
+}
+
+/**
+ * @param {string} output
+ * @param {boolean=} isJj
+ * @returns {Array<{ fromPath: string, toPath: string }>}
+ */
+function parseRenameStatusLines(output, isJj = false) {
+  return output
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [status = '', ...parts] = line.split('\t');
+      if (!status.startsWith('R') && !status.startsWith('C')) {
+        return null;
+      }
+
+      if (!isJj && parts.length >= 2) {
+        return {
+          fromPath: parts[0],
+          toPath: parts[1],
+        };
+      }
+
+      if (!parts.length) {
+        return null;
+      }
+
+      return parseJjDisplayDiffPath(parts.join('\t'));
+    })
+    .filter((entry) => entry !== null);
+}
+
+/**
+ * @param {string} value
+ * @returns {{ fromPath: string, toPath: string } | null}
+ */
+function parseJjDisplayDiffPath(value) {
+  const braceMatch = value.match(/^(.*)\{(.+?) => (.+?)\}(.*)$/u);
+  if (braceMatch) {
+    return {
+      fromPath: `${braceMatch[1]}${braceMatch[2]}${braceMatch[4]}`,
+      toPath: `${braceMatch[1]}${braceMatch[3]}${braceMatch[4]}`,
+    };
+  }
+
+  const arrowMatch = value.match(/^(.+?) => (.+)$/u) || value.match(/^(.+?) -> (.+)$/u);
+  if (!arrowMatch) {
+    return null;
+  }
+
+  return {
+    fromPath: arrowMatch[1],
+    toPath: arrowMatch[2],
+  };
+}
+
+/**
+ * @param {FileRevisionEntry | undefined} previousEntry
+ * @param {FileRevisionEntry} currentEntry
+ * @param {string} beforeText
+ * @param {string} afterText
+ * @param {string} beforePath
+ * @param {string} afterPath
+ * @returns {string[]}
+ */
+function buildNonTextualDetails(previousEntry, currentEntry, beforeText, afterText, beforePath, afterPath) {
+  const details = [];
+
+  if (previousEntry && beforePath && afterPath && beforePath !== afterPath) {
+    details.push(`Path changed: ${beforePath} -> ${afterPath}`);
+  }
+
+  if (beforeText !== afterText && normalizeTextForComparison(beforeText) === normalizeTextForComparison(afterText)) {
+    details.push('Line endings changed.');
+  }
+
+  if (!details.length && currentEntry.isWorkingTree) {
+    details.push('The working tree differs in a way this preview does not render as a textual line diff.');
+  }
+
+  if (!details.length) {
+    details.push('This selection changed file metadata or another non-text detail that is not shown in the inline preview.');
+  }
+
+  return details;
+}
+
+/**
+ * @param {string} value
+ * @returns {string}
+ */
+function normalizeTextForComparison(value) {
+  return value.replace(/\r\n/g, '\n');
 }
 
 /**
@@ -1731,6 +1993,14 @@ async function showFileAtRevision(workspacePath, revset, filePath, backend = 'jj
     }
     throw error;
   }
+}
+
+/**
+ * @param {string} relativePath
+ * @returns {string}
+ */
+function toJjRootFileFileset(relativePath) {
+  return `root-file:${JSON.stringify(relativePath)}`;
 }
 
 /**

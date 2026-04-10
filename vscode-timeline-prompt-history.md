@@ -56,12 +56,6 @@ few things to change:
 
 ---
 
-- when using a jj backend, we could have a way to show the snapshots diffs (implicit diff based on each change in each file) in addition to the revision diffs (explicit change based on user manual command) so we could see the granular changes / how the file evolved over time; we could even have a play button to animate this evolution
-- "Open a file in the editor to browse its revision timeline" when no file is currently open we should probably show an input field with the list of files to select from the workspace no?
-
-
----
-
 - when opening the revision timeline (through vscode command palette) we should open it maximized (just like my vscode shortcut i guess?)
 - rather than defaulting to "This month" we should default to "This year" for the visible revisions
 - when there arent many visible revisions (happens for example on some files when looking at "This month") the revision items are big that really sucks; fix their styling so they always take the same compact height
@@ -99,3 +93,42 @@ few things to change:
 - if using the "shift" modifier we should be able to jump by 5 or 10 rather than 1, both with up/down and left/right directions
 - when using the "alt" modifier (option for mac) we should be able to move the "end" marker of the range using the left/right arrow key (rather than move the range to the right); and kinda the same for the "start" marker but with the (macos) "ctrl" modifier
 - using shift + either ctrl/alt should move the start/end markers by 5/10 as well
+
+---
+
+- updating the start/end markers position with alt/ctrl is not working
+- the "focus diff" breaks styling, i think the container doesnt stretch to the full width/height (see screen4)
+- currently we default to showing the diff vs working tree (git) / working copy (jj), but we should NOT do that IF there are NO changes impacting the selected file; it should not even be part of the timeline if thats not the case
+- in the sidebar items it would be nice to show the year along with the month+day
+- when moving the revision range with left/right we should also scroll (in the sidebar items) to the corresponding start of the range
+- we should have a way to search in the sidebar items (by commit name/description/author), probably with something in the top of the sidebar (below the title tho, right before the sidebar items)
+- when there are "no textual changes" then it would be nice to show WHAT changed? filename? line ending? something else?
+- IF the filename was changed (e.g the file was moved) AND our version engine (git/jj) know about it then we should also display diffs based on those earlier file names (and not just on the current filename/path)
+- seems like i got an issue when trying to see the timeline of a file (screen1), here's the log:
+Command failed: jj log --no-graph --limit 200 -T commit_id.short() ++ "\t" ++ change_id.shortest() ++ "\t" ++ author.timestamp().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ description.first_line() ++ "\n" apps/frontend/src/routes/_auth/$organization/purchase-requests/$purchaseRequest/edit.tsx
+Error: Failed to parse fileset: Syntax error
+Caused by:  --> 1:32
+|
+1 | apps/frontend/src/routes/_auth/$organization/purchase-requests/$purchaseRequest/edit.tsx
+|                                ^---
+Command failed: jj log --no-graph --limit 200 -T commit_id.short() ++ "\t" ++ change_id.shortest() ++ "\t" ++ author.timestamp().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ description.first_line() ++ "\n" apps/frontend/src/routes/_auth/$organization/purchase-requests/$purchaseRequest/edit.tsx
+Error: Failed to parse fileset: Syntax error
+Caused by:  --> 1:32
+|
+1 | apps/frontend/src/routes/_auth/$organization/purchase-requests/$purchaseRequest/edit.tsx
+|                                ^---
+
+---
+
+- ok ctrl is still not working as a modifier then since option + left/right correcly moves the end marker (and combines well with shift); lets try using command + left/right for the end marker instead so we can have the option modifier free to use for the start marker
+- currently using up/down only updates t the end marker ("to"), we should instead move the start marker ("from") by default and IF using the option modifier then we should update the "to" modifier
+- when moving the range position with left/right (with/out the shift modifier it doesnt matter) and then at some point using up/down to also move the range position it kinda resets the end marker (currently; in the future it will change the start marker like i said in the previous point) to the latest recorded position where the up/down key was used
+- pressing space after moving the range bar (either through left/right or up/down keys) we should open the multi file cumulative diffs for that revision range
+- just like we have "<-" / "->" arrow icon buttons we should have "<<-" and "->>" so we can move using the same speed as when using shift
+- the focus diff still breaks styling
+- when using a jj backend, we could have a way to show the snapshots diffs (implicit diff based on each change in each file) in addition to the revision diffs (explicit change based on user manual command) so we could see the granular changes / how the file evolved over time; we could even have a play button to animate this evolution
+
+---
+
+- "Open a file in the editor to browse its revision timeline" when no file is currently open we should probably show an input field with the list of files to select from the workspace no?
+
