@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { textsMatchIgnoringLineEndings, normalizeTextForComparison } = require('../lib/diff-helpers.js');
-const { dedupeAdjacentEntriesByChangeId, getGitHubRemoteBaseUrl, parseJjSummaryRenameLines } = require('../lib/history-helpers.js');
+const { dedupeAdjacentEntriesByChangeId, getGitHubRemoteBaseUrl, parseJjEvolutionLine, parseJjSummaryRenameLines } = require('../lib/history-helpers.js');
 const { getEntriesForSource, getSelectedEntryCount, getSidebarPreviewRequests, getTimelineAnchorPercent, getUnitPreviewRange } = require('../webview/timeline.model.js');
 
 test('normalizeTextForComparison normalizes CRLF to LF', () => {
@@ -26,6 +26,34 @@ test('parseJjSummaryRenameLines extracts renamed paths from jj diff summary outp
       { fromPath: 'old/name.ts', toPath: 'new/name.ts' },
       { fromPath: 'docs/old.md', toPath: 'docs/new.md' },
     ]
+  );
+});
+
+test('parseJjEvolutionLine prefers commit description but keeps operation metadata available', () => {
+  assert.deepEqual(
+    parseJjEvolutionLine('38adf0870a65\tyvsqu\t2026-04-10T16:07:57+02:00\tAlex\tsnapshot working copy\tfix knip config'),
+    {
+      revision: '38adf0870a65',
+      changeId: 'yvsqu',
+      authorDate: '2026-04-10T16:07:57+02:00',
+      authorName: 'Alex',
+      description: 'fix knip config',
+      operationDescription: 'snapshot working copy',
+    }
+  );
+});
+
+test('parseJjEvolutionLine falls back to operation description when commit description is empty', () => {
+  assert.deepEqual(
+    parseJjEvolutionLine('6db8e51d08d2\tyvsqu\t2026-04-10T16:07:57+02:00\tAlex\tsnapshot working copy\t'),
+    {
+      revision: '6db8e51d08d2',
+      changeId: 'yvsqu',
+      authorDate: '2026-04-10T16:07:57+02:00',
+      authorName: 'Alex',
+      description: 'snapshot working copy',
+      operationDescription: 'snapshot working copy',
+    }
   );
 });
 

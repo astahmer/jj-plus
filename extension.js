@@ -5,7 +5,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const vscode = require('vscode');
 const { textsMatchIgnoringLineEndings } = require('./lib/diff-helpers.js');
-const { dedupeAdjacentEntriesByChangeId, getGitHubRemoteBaseUrl, parseJjSummaryRenameLines } = require('./lib/history-helpers.js');
+const { dedupeAdjacentEntriesByChangeId, getGitHubRemoteBaseUrl, parseJjEvolutionLine, parseJjSummaryRenameLines } = require('./lib/history-helpers.js');
 const packageJson = require('./package.json');
 const { renderTimelineDocumentHtml } = require('./webview/timeline.template.js');
 
@@ -1063,6 +1063,7 @@ async function buildTimelineEntries(backend, workspacePath, absolutePath, relati
 async function buildJjSnapshotEntries(workspacePath, relativePath, revisionEntries) {
   /** @type {Map<string, FileRevisionEntry[]>} */
   const snapshotEntriesByChangeId = new Map();
+  const expandedChangeIds = new Set();
   /** @type {FileRevisionEntry[]} */
   const snapshotEntries = [];
 
@@ -1077,6 +1078,10 @@ async function buildJjSnapshotEntries(workspacePath, relativePath, revisionEntri
       continue;
     }
 
+    if (expandedChangeIds.has(entry.changeId)) {
+      continue;
+    }
+
     let expandedEntries = snapshotEntriesByChangeId.get(entry.changeId);
     if (!expandedEntries) {
       expandedEntries = await getJjEvolutionHistoryForFile(workspacePath, relativePath, entry);
@@ -1085,8 +1090,10 @@ async function buildJjSnapshotEntries(workspacePath, relativePath, revisionEntri
 
     if (expandedEntries.length) {
       snapshotEntries.push(...expandedEntries);
+      expandedChangeIds.add(entry.changeId);
     } else {
       snapshotEntries.push(entry);
+      expandedChangeIds.add(entry.changeId);
     }
   }
 
@@ -1101,15 +1108,17 @@ async function buildJjSnapshotEntries(workspacePath, relativePath, revisionEntri
  */
 async function getJjEvolutionHistory(workspacePath, revision) {
   const template = [
-    'commit_id.short()',
+    'commit.commit_id().short()',
     '"\\t"',
-    'change_id.shortest()',
+    'commit.change_id().shortest()',
     '"\\t"',
-    'author.timestamp().format("%Y-%m-%dT%H:%M:%S%:z")',
+    'operation.time().end().format("%Y-%m-%dT%H:%M:%S%:z")',
     '"\\t"',
-    'author.name()',
+    'commit.author().name()',
     '"\\t"',
-    'description.first_line()',
+    'operation.description()',
+    '"\\t"',
+    'commit.description().first_line()',
     '"\\n"',
   ].join(' ++ ');
   const { stdout } = await runJj(workspacePath, [
@@ -1127,7 +1136,19 @@ async function getJjEvolutionHistory(workspacePath, revision) {
     .split(/\r?\n/u)
     .map((line) => line.trim())
     .filter(Boolean)
-    .map(parseJjHistoryLine)
+    .map(parseJjEvolutionLine)
+    .map((entry) => ({
+      id: `snapshot:${entry.revision}`,
+      revision: entry.revision,
+      shortRevision: entry.revision.slice(0, 8),
+      changeId: entry.changeId,
+      authorDate: entry.authorDate,
+      authorName: entry.authorName,
+      description: entry.description,
+      isWorkingTree: false,
+      touchesFile: true,
+      timestamp: Date.parse(entry.authorDate) || 0,
+    }))
     .reverse();
 }
 
