@@ -56,6 +56,7 @@
                 </div>
                 <div class="control-row">
                   <div class="segmented" id="comparisonModes"></div>
+                  <div class="segmented" id="comparisonSources"></div>
                   <div class="segmented" id="layoutModes"></div>
                   <div class="segmented" id="contentModes"></div>
                   <button class="toggle-chip" id="intermediateToggle" type="button">Show In-Between</button>

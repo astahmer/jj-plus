@@ -105,6 +105,7 @@ let extensionContext;
  * @property {'split' | 'unified'=} layoutMode
  * @property {'diffs' | 'full'=} contentMode
  * @property {'range' | 'step'=} comparisonMode
+ * @property {'revision' | 'snapshot'=} comparisonSource
  * @property {boolean=} showIntermediateRevisions
  * @property {string=} preset
  */
@@ -128,6 +129,7 @@ let extensionContext;
  * @property {boolean} hasChanges
  * @property {number} fromIndex
  * @property {number} toIndex
+ * @property {'revision' | 'snapshot'} comparisonSource
  * @property {DiffRow[]} rows
  * @property {string[]} nonTextualDetails
  */
@@ -404,11 +406,12 @@ async function handleTimelineMessage(panel, session, message) {
   if (command === 'select-entry') {
     const fromIndex = Number(Reflect.get(message, 'fromIndex'));
     const toIndex = Number(Reflect.get(message, 'toIndex'));
+    const comparisonSource = getComparisonSource(Reflect.get(message, 'comparisonSource'));
     if (!Number.isInteger(fromIndex) || !Number.isInteger(toIndex)) {
       return;
     }
 
-    await sendTimelinePreview(panel, session, fromIndex, toIndex);
+    await sendTimelinePreview(panel, session, fromIndex, toIndex, comparisonSource);
     return;
   }
 
@@ -435,11 +438,12 @@ async function handleTimelineMessage(panel, session, message) {
   if (command === 'open-editor-diff') {
     const fromIndex = Number(Reflect.get(message, 'fromIndex'));
     const toIndex = Number(Reflect.get(message, 'toIndex'));
+    const comparisonSource = getComparisonSource(Reflect.get(message, 'comparisonSource'));
     if (!Number.isInteger(fromIndex) || !Number.isInteger(toIndex)) {
       return;
     }
 
-    await openRangeDiffInEditor(session, fromIndex, toIndex);
+    await openRangeDiffInEditor(session, fromIndex, toIndex, comparisonSource);
     return;
   }
 
@@ -453,11 +457,12 @@ async function handleTimelineMessage(panel, session, message) {
   if (command === 'open-range-files-diff') {
     const fromIndex = Number(Reflect.get(message, 'fromIndex'));
     const toIndex = Number(Reflect.get(message, 'toIndex'));
+    const comparisonSource = getComparisonSource(Reflect.get(message, 'comparisonSource'));
     if (!Number.isInteger(fromIndex) || !Number.isInteger(toIndex)) {
       return;
     }
 
-    await openRangeFilesDiff(session, fromIndex, toIndex);
+    await openRangeFilesDiff(session, fromIndex, toIndex, comparisonSource);
     return;
   }
 
@@ -498,6 +503,7 @@ async function handleTimelineMessage(panel, session, message) {
       layoutMode: getLayoutMode(Reflect.get(message, 'layoutMode')),
       contentMode: getContentMode(Reflect.get(message, 'contentMode')),
       comparisonMode: getComparisonMode(Reflect.get(message, 'comparisonMode')),
+      comparisonSource: getComparisonSource(Reflect.get(message, 'comparisonSource')),
       showIntermediateRevisions: Boolean(Reflect.get(message, 'showIntermediateRevisions')),
       preset: getPresetName(Reflect.get(message, 'preset')),
     });
@@ -512,7 +518,13 @@ async function handleTimelineMessage(panel, session, message) {
       type: 'timeline-data',
       payload: buildTimelinePayload(session, getTimelinePreferences(extensionContext)),
     });
-    await sendTimelinePreview(panel, session, Math.max(0, session.entries.length - 2), Math.max(0, session.entries.length - 1));
+    await sendTimelinePreview(
+      panel,
+      session,
+      Math.max(0, session.entries.length - 2),
+      Math.max(0, session.entries.length - 1),
+      getTimelinePreferences(extensionContext).comparisonSource
+    );
   }
 }
 
@@ -521,11 +533,12 @@ async function handleTimelineMessage(panel, session, message) {
  * @param {TimelineSession} session
  * @param {number} fromIndex
  * @param {number} toIndex
+ * @param {'revision' | 'snapshot'} comparisonSource
  */
-async function sendTimelinePreview(panel, session, fromIndex, toIndex) {
+async function sendTimelinePreview(panel, session, fromIndex, toIndex, comparisonSource = 'revision') {
   await panel.webview.postMessage({
     type: 'diff-preview',
-    payload: await getDiffPreview(session, fromIndex, toIndex),
+    payload: await getDiffPreview(session, fromIndex, toIndex, comparisonSource),
   });
 }
 
@@ -577,6 +590,14 @@ function getComparisonMode(value) {
 
 /**
  * @param {unknown} value
+ * @returns {'revision' | 'snapshot'}
+ */
+function getComparisonSource(value) {
+  return value === 'snapshot' ? 'snapshot' : 'revision';
+}
+
+/**
+ * @param {unknown} value
  * @returns {string}
  */
 function getPresetName(value) {
@@ -606,6 +627,12 @@ function syncTimelineSession(target, source) {
  * @param {number} toIndex
  */
 async function openRangeDiffInEditor(session, fromIndex, toIndex) {
+  const comparisonSource = arguments.length > 3 ? arguments[3] : 'revision';
+  if (session.backend === 'jj' && comparisonSource === 'snapshot') {
+    await openJjSnapshotDiffInEditor(session, toIndex);
+    return;
+  }
+
   const comparison = getComparisonEntries(session, fromIndex, toIndex);
   if (!comparison) {
     return;
@@ -625,6 +652,30 @@ async function openRangeDiffInEditor(session, fromIndex, toIndex) {
   const modifiedUri = await createRevisionUri(session, toEntry);
   const title = `${session.fileName}: ${fromEntry.shortRevision} -> ${toEntry.shortRevision}`;
   await vscode.commands.executeCommand('vscode.diff', originalUri, modifiedUri, title, {
+    preview: true,
+  });
+}
+
+/**
+ * @param {TimelineSession} session
+ * @param {number} entryIndex
+ */
+async function openJjSnapshotDiffInEditor(session, entryIndex) {
+  const entry = session.entries[entryIndex];
+  if (!entry) {
+    return;
+  }
+
+  if (entry.isWorkingTree) {
+    await openRangeDiffInEditor(session, Math.max(0, entryIndex - 1), entryIndex, 'revision');
+    return;
+  }
+
+  const afterPath = await resolveEntryFilePath(session, entry, entryIndex);
+  const beforePath = await resolvePreviousPathAcrossRevision(session, entry, afterPath);
+  const originalUri = createSnapshotUri(session.workspacePath, `${entry.revision}-`, beforePath, session.backend);
+  const modifiedUri = createSnapshotUri(session.workspacePath, entry.revision, afterPath, session.backend);
+  await vscode.commands.executeCommand('vscode.diff', originalUri, modifiedUri, `${session.fileName}: snapshot ${entry.shortRevision}`, {
     preview: true,
   });
 }
@@ -1033,15 +1084,22 @@ async function appendWorkingTreeEntry(workspacePath, absolutePath, relativePath,
  * @param {TimelineSession} session
  * @param {number} fromIndex
  * @param {number} toIndex
+ * @param {'revision' | 'snapshot'=} comparisonSource
  * @returns {Promise<DiffPreview>}
  */
-async function getDiffPreview(session, fromIndex, toIndex) {
+async function getDiffPreview(session, fromIndex, toIndex, comparisonSource = 'revision') {
   const normalizedFromIndex = Math.max(0, Math.min(fromIndex, toIndex));
   const normalizedToIndex = Math.max(normalizedFromIndex, Math.max(fromIndex, toIndex));
-  const cacheKey = `${normalizedFromIndex}:${normalizedToIndex}`;
+  const cacheKey = `${comparisonSource}:${normalizedFromIndex}:${normalizedToIndex}`;
   const cached = session.previewCache.get(cacheKey);
   if (cached) {
     return cached;
+  }
+
+  if (session.backend === 'jj' && comparisonSource === 'snapshot') {
+    const preview = await getJjSnapshotPreview(session, normalizedToIndex);
+    session.previewCache.set(cacheKey, preview);
+    return preview;
   }
 
   const comparison = getComparisonEntries(session, normalizedFromIndex, normalizedToIndex);
@@ -1056,6 +1114,7 @@ async function getDiffPreview(session, fromIndex, toIndex) {
       hasChanges: false,
       fromIndex: normalizedFromIndex,
       toIndex: normalizedToIndex,
+      comparisonSource,
       rows: [],
       nonTextualDetails: [],
     };
@@ -1078,6 +1137,66 @@ async function getDiffPreview(session, fromIndex, toIndex) {
     afterPath
   );
   session.previewCache.set(cacheKey, preview);
+  return preview;
+}
+
+/**
+ * @param {TimelineSession} session
+ * @param {number} entryIndex
+ * @returns {Promise<DiffPreview>}
+ */
+async function getJjSnapshotPreview(session, entryIndex) {
+  const entry = session.entries[entryIndex];
+  if (!entry) {
+    return {
+      index: entryIndex,
+      title: 'No revision selected',
+      subtitle: '',
+      additions: 0,
+      deletions: 0,
+      hunkCount: 0,
+      hasChanges: false,
+      fromIndex: entryIndex,
+      toIndex: entryIndex,
+      comparisonSource: 'snapshot',
+      rows: [],
+      nonTextualDetails: [],
+    };
+  }
+
+  const afterPath = await resolveEntryFilePath(session, entry, entryIndex);
+  const previousEntryIndex = Math.max(0, entryIndex - 1);
+  const previousEntry = entryIndex > 0 ? session.entries[previousEntryIndex] : undefined;
+  const previousPath = entry.isWorkingTree
+    ? previousEntry
+      ? await resolveEntryFilePath(session, previousEntry, previousEntryIndex)
+      : session.relativePath
+    : await resolvePreviousPathAcrossRevision(session, entry, afterPath);
+  const beforeText = entry.isWorkingTree
+    ? previousEntry
+      ? await getRevisionContent(session, previousEntry, previousEntryIndex)
+      : ''
+    : await showFileAtRevision(session.workspacePath, `${entry.revision}-`, previousPath, session.backend);
+  const afterText = await getRevisionContent(session, entry, entryIndex);
+  const preview = buildDiffPreview(
+    entryIndex,
+    previousEntry,
+    entry,
+    beforeText,
+    afterText,
+    previousEntryIndex,
+    entryIndex,
+    previousPath,
+    afterPath
+  );
+
+  preview.title = entry.isWorkingTree
+    ? `Snapshot @ ${entry.shortRevision}`
+    : `Snapshot ${entry.shortRevision}`;
+  preview.subtitle = entry.isWorkingTree
+    ? 'Current working-copy patch'
+    : `${new Date(entry.authorDate).toLocaleString()} · patch introduced by ${entry.shortRevision}`;
+  preview.comparisonSource = 'snapshot';
   return preview;
 }
 
@@ -1149,6 +1268,7 @@ function buildDiffPreview(index, previousEntry, currentEntry, beforeText, afterT
     hasChanges,
     fromIndex,
     toIndex,
+    comparisonSource: 'revision',
     rows,
     nonTextualDetails: hasChanges ? [] : buildNonTextualDetails(previousEntry, currentEntry, beforeText, afterText, beforePath, afterPath),
   };
@@ -1382,6 +1502,7 @@ function getTimelinePreferences(context) {
       layoutMode: 'split',
       contentMode: 'diffs',
       comparisonMode: 'range',
+      comparisonSource: 'revision',
       showIntermediateRevisions: false,
       preset: 'year',
     };
@@ -1396,6 +1517,7 @@ function getTimelinePreferences(context) {
     layoutMode: getLayoutMode(value.layoutMode),
     contentMode: getContentMode(value.contentMode),
     comparisonMode: getComparisonMode(value.comparisonMode),
+    comparisonSource: getComparisonSource(value.comparisonSource),
     showIntermediateRevisions: value.showIntermediateRevisions === true,
     preset: getPresetName(value.preset),
   };
@@ -1419,6 +1541,12 @@ async function saveTimelinePreferences(context, nextValue) {
  * @param {number} toIndex
  */
 async function openRangeFilesDiff(session, fromIndex, toIndex) {
+  const comparisonSource = arguments.length > 3 ? arguments[3] : 'revision';
+  if (session.backend === 'jj' && comparisonSource === 'snapshot') {
+    await openRevisionFilesDiff(session, toIndex);
+    return;
+  }
+
   const comparison = getComparisonEntries(session, fromIndex, toIndex);
   if (!comparison) {
     return;

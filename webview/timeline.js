@@ -22,6 +22,7 @@
     layoutMode: 'split',
     contentMode: 'diffs',
     comparisonMode: 'range',
+    comparisonSource: 'revision',
     sidebarWidth: 280,
     sidebarCollapsed: false,
     timelinePaneHeight: 278,
@@ -38,6 +39,7 @@
     diffFocusMode: false,
     pendingRangeResolutionKey: '',
     sidebarSearchQuery: '',
+    pendingSidebarAnchorIndex: null,
   };
 
   const elements = {
@@ -74,6 +76,7 @@
     historyList: document.getElementById('historyList'),
     presets: document.getElementById('presets'),
     comparisonModes: document.getElementById('comparisonModes'),
+    comparisonSources: document.getElementById('comparisonSources'),
     layoutModes: document.getElementById('layoutModes'),
     contentModes: document.getElementById('contentModes'),
     intermediateToggle: document.getElementById('intermediateToggle'),
@@ -113,6 +116,11 @@
     step: 'Single',
   };
 
+  const comparisonSourceLabels = {
+    revision: 'Revision',
+    snapshot: 'Snapshot',
+  };
+
   const compactViewportQuery = window.matchMedia('(max-width: 980px)');
 
   window.addEventListener('message', (event) => {
@@ -124,6 +132,7 @@
       state.previewByRange = {};
       state.expandedRanges = {};
       state.sidebarSearchQuery = '';
+      state.pendingSidebarAnchorIndex = null;
       elements.sidebarSearchInput.value = '';
 
       if (!state.data.entries.length) {
@@ -166,7 +175,11 @@
     }
 
     state.preview = message.payload;
-    state.previewByRange[getPreviewKey(message.payload.fromIndex, message.payload.toIndex)] = message.payload;
+    state.previewByRange[getPreviewKey(
+      message.payload.fromIndex,
+      message.payload.toIndex,
+      message.payload.comparisonSource || getEffectiveComparisonSource()
+    )] = message.payload;
 
     if (
       !state.showIntermediateRevisions
@@ -474,14 +487,38 @@
       }
 
       state.comparisonMode = value;
+      if (value === 'range' && state.comparisonSource === 'snapshot') {
+        state.comparisonSource = 'revision';
+      }
       if (value === 'step') {
         alignSingleSelection();
       }
+      clearPendingSidebarSelection();
+      state.preview = null;
       renderSelection();
       renderControlGroups();
       persistPreferences();
       requestPreview(0);
     });
+
+    if (state.data && state.data.backend === 'jj' && state.comparisonMode === 'step') {
+      elements.comparisonSources.hidden = false;
+      renderSegmentedControl(elements.comparisonSources, comparisonSourceLabels, state.comparisonSource, (value) => {
+        if (value === state.comparisonSource) {
+          return;
+        }
+
+        state.comparisonSource = value;
+        clearPendingSidebarSelection();
+        state.preview = null;
+        renderSelection();
+        persistPreferences();
+        requestPreview(0);
+      });
+    } else {
+      elements.comparisonSources.hidden = true;
+      elements.comparisonSources.innerHTML = '';
+    }
 
     renderSegmentedControl(elements.layoutModes, layoutModeLabels, state.layoutMode, (value) => {
       state.layoutMode = value;
@@ -557,6 +594,7 @@
     state.layoutMode = preferences.layoutMode === 'unified' ? 'unified' : 'split';
     state.contentMode = preferences.contentMode === 'full' ? 'full' : 'diffs';
     state.comparisonMode = preferences.comparisonMode === 'step' ? 'step' : 'range';
+    state.comparisonSource = preferences.comparisonSource === 'snapshot' ? 'snapshot' : 'revision';
     state.showIntermediateRevisions = preferences.showIntermediateRevisions === true;
     state.preset = presetLabels[preferences.preset] ? preferences.preset : 'year';
   }
@@ -576,6 +614,7 @@
         layoutMode: state.layoutMode,
         contentMode: state.contentMode,
         comparisonMode: state.comparisonMode,
+        comparisonSource: state.comparisonSource,
         showIntermediateRevisions: state.showIntermediateRevisions,
         preset: state.preset,
       });
@@ -623,6 +662,7 @@
   }
 
   function submitRevisionInput(side) {
+    clearPendingSidebarSelection();
     const input = side === 'from' ? elements.fromRevisionInput : elements.toRevisionInput;
     const entry = findEntryByRevisionQuery(String(input.value || '').trim());
     if (!entry) {
@@ -659,11 +699,19 @@
       command: command,
       fromIndex: nextRange.fromIndex,
       toIndex: nextRange.toIndex,
+      comparisonSource: getEffectiveComparisonSource(),
     });
+  }
+
+  function getEffectiveComparisonSource() {
+    return state.data && state.data.backend === 'jj' && state.comparisonMode === 'step'
+      ? state.comparisonSource
+      : 'revision';
   }
 
   function applyPreset(preset, resetSelection, suppressPreviewRequest) {
     state.preset = preset;
+    clearPendingSidebarSelection();
     const allEntries = state.data.entries;
     const lastEntry = allEntries[allEntries.length - 1];
     const windowDays = state.data.presets[preset];
@@ -727,7 +775,7 @@
     const activeRange = getActivePreviewRange();
     const activeFromEntry = state.data.entries[activeRange.fromIndex] || fromEntry;
     const activeToEntry = state.data.entries[activeRange.toIndex] || toEntry;
-    const knownPreview = state.previewByRange[getPreviewKey(activeRange.fromIndex, activeRange.toIndex)];
+    const knownPreview = state.previewByRange[getPreviewKey(activeRange.fromIndex, activeRange.toIndex, getEffectiveComparisonSource())];
 
     positionRangeVisuals(fromVisibleIndex, toVisibleIndex);
 
@@ -739,7 +787,10 @@
     elements.rangeSubtitle.textContent = formatRangeSubtitle(fromEntry, toEntry);
     elements.sidebarHint.textContent = getSidebarCollapsed() ? '' : (state.comparisonMode === 'step' ? 'Single' : 'Range');
     elements.selectionMeta.textContent = formatSelectionMeta(activeFromEntry, activeToEntry, knownPreview);
-    elements.diffModeEyebrow.textContent = layoutModeLabels[state.layoutMode] + ' · ' + contentModeLabels[state.contentMode] + ' · ' + comparisonModeLabels[state.comparisonMode];
+    elements.diffModeEyebrow.textContent = layoutModeLabels[state.layoutMode]
+      + ' · ' + contentModeLabels[state.contentMode]
+      + ' · ' + comparisonModeLabels[state.comparisonMode]
+      + (state.data.backend === 'jj' && state.comparisonMode === 'step' ? ' · ' + comparisonSourceLabels[state.comparisonSource] : '');
 
     renderStepControls();
     renderMonths();
@@ -833,14 +884,21 @@
     }
 
     filteredEntries.forEach((entry, orderIndex) => {
-      const preview = state.previewByRange[getPreviewKey(entry.index, state.toIndex)] || state.previewByRange[getPreviewKey(state.fromIndex, entry.index)] || null;
+      const preview = state.previewByRange[getPreviewKey(entry.index, state.toIndex, getEffectiveComparisonSource())]
+        || state.previewByRange[getPreviewKey(state.fromIndex, entry.index, getEffectiveComparisonSource())]
+        || null;
       const descriptionExpanded = Boolean(state.expandedDescriptions[String(entry.index)]);
       const showMore = entry.description.length > 48;
       const isFrom = entry.index === state.fromIndex;
       const isTo = entry.index === state.toIndex;
+      const isPendingAnchor = entry.index === state.pendingSidebarAnchorIndex;
       const inRange = entry.index >= Math.min(state.fromIndex, state.toIndex) && entry.index <= Math.max(state.fromIndex, state.toIndex);
       const item = document.createElement('article');
-      item.className = 'history-item' + (isFrom || isTo ? ' active' : '') + (inRange ? ' in-range' : '') + (!entry.touchesFile ? ' is-intermediate' : '');
+      item.className = 'history-item'
+        + (isFrom || isTo ? ' active' : '')
+        + (inRange ? ' in-range' : '')
+        + (isPendingAnchor ? ' pending-anchor' : '')
+        + (!entry.touchesFile ? ' is-intermediate' : '');
       item.tabIndex = 0;
       item.dataset.entryIndex = String(entry.index);
       item.dataset.historyOrder = String(orderIndex);
@@ -863,7 +921,7 @@
       });
 
       item.addEventListener('click', () => {
-        selectEntryFromSidebar(entry.index);
+        handleSidebarEntryClick(entry.index);
       });
 
       if (showMore) {
@@ -913,6 +971,7 @@
   }
 
   function selectEntryFromSidebar(entryIndex) {
+    clearPendingSidebarSelection();
     if (state.comparisonMode === 'step') {
       selectSingleEntry(entryIndex);
     } else if (Math.abs(entryIndex - state.fromIndex) <= Math.abs(entryIndex - state.toIndex)) {
@@ -923,6 +982,36 @@
 
     renderSelection();
     requestPreview(0);
+  }
+
+  function handleSidebarEntryClick(entryIndex) {
+    if (state.comparisonMode === 'step') {
+      selectEntryFromSidebar(entryIndex);
+      return;
+    }
+
+    if (state.pendingSidebarAnchorIndex === null) {
+      state.pendingSidebarAnchorIndex = entryIndex;
+      renderHistoryList();
+      scrollSidebarToEntry(entryIndex, false);
+      return;
+    }
+
+    if (state.pendingSidebarAnchorIndex === entryIndex) {
+      clearPendingSidebarSelection();
+      renderHistoryList();
+      return;
+    }
+
+    state.fromIndex = Math.min(state.pendingSidebarAnchorIndex, entryIndex);
+    state.toIndex = Math.max(state.pendingSidebarAnchorIndex, entryIndex);
+    clearPendingSidebarSelection();
+    renderSelection();
+    requestPreview(0);
+  }
+
+  function clearPendingSidebarSelection() {
+    state.pendingSidebarAnchorIndex = null;
   }
 
   function nudgeSidebarSelection(direction) {
@@ -988,7 +1077,13 @@
       return;
     }
 
-    if (!state.preview || state.preview.fromIndex !== activeRange.fromIndex || state.preview.toIndex !== activeRange.toIndex) {
+    const previewSource = state.preview && state.preview.comparisonSource ? state.preview.comparisonSource : 'revision';
+    if (
+      !state.preview
+      || state.preview.fromIndex !== activeRange.fromIndex
+      || state.preview.toIndex !== activeRange.toIndex
+      || previewSource !== getEffectiveComparisonSource()
+    ) {
       elements.diffTitle.textContent = 'Loading diff…';
       elements.diffSubtitle.textContent = toEntry.description;
       elements.diffStats.innerHTML = '';
@@ -1112,7 +1207,10 @@
         : 'Range view';
     } else {
       const current = Math.max(1, getVisibleIndexForAbsoluteIndex(state.toIndex));
-      elements.stepStatus.textContent = 'Single diff ' + String(current) + ' of ' + String(Math.max(1, availableCount));
+      const sourcePrefix = state.data.backend === 'jj' && state.comparisonSource === 'snapshot'
+        ? 'Snapshot'
+        : 'Single diff';
+      elements.stepStatus.textContent = sourcePrefix + ' ' + String(current) + ' of ' + String(Math.max(1, availableCount));
     }
 
     elements.stepBackwardButton.disabled = !canNavigateSelection(-1);
@@ -1133,6 +1231,7 @@
   }
 
   function navigateSelection(direction) {
+    clearPendingSidebarSelection();
     if (state.comparisonMode === 'step') {
       moveSingleSelection(direction);
     } else {
@@ -1150,6 +1249,7 @@
       return;
     }
 
+    clearPendingSidebarSelection();
     const targetVisibleIndex = edge === 'start' ? 0 : state.visibleEntries.length - 1;
     state.comparisonMode = 'range';
     renderControlGroups();
@@ -1171,6 +1271,7 @@
       return;
     }
 
+    clearPendingSidebarSelection();
     state.comparisonMode = 'range';
     renderControlGroups();
     const fromVisibleIndex = getVisibleIndexForAbsoluteIndex(state.fromIndex);
@@ -1217,6 +1318,7 @@
   }
 
   function nudgeRangeBoundary(side, direction) {
+    clearPendingSidebarSelection();
     state.comparisonMode = 'range';
     renderControlGroups();
     const stepDirection = Math.sign(direction);
@@ -1253,6 +1355,7 @@
       return;
     }
 
+    clearPendingSidebarSelection();
     event.preventDefault();
     event.stopPropagation();
 
@@ -1291,6 +1394,7 @@
       return;
     }
 
+    clearPendingSidebarSelection();
     event.preventDefault();
     event.stopPropagation();
     state.comparisonMode = 'range';
@@ -1354,10 +1458,10 @@
     });
   }
 
-  function getPreviewKey(fromIndex, toIndex) {
+  function getPreviewKey(fromIndex, toIndex, comparisonSource = 'revision') {
     const normalizedFrom = Math.min(fromIndex, toIndex);
     const normalizedTo = Math.max(fromIndex, toIndex);
-    return String(normalizedFrom) + ':' + String(normalizedTo);
+    return comparisonSource + ':' + String(normalizedFrom) + ':' + String(normalizedTo);
   }
 
   function renderStatChips(preview) {

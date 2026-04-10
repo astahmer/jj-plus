@@ -132,5 +132,24 @@ Caused by:  --> 1:32
 
 ---
 
-- "Open a file in the editor to browse its revision timeline" when no file is currently open we should probably show an input field with the list of files to select from the workspace no?
+- clicking on the revision range sidebar items should start a selection; e.g it should style the items slightly differently and wait for another click on another item so that a range can be created with start/end markers based on the 1st/2nd click however it makes sense direction-wise (1st click might be either from or to depending on if the revision is older/newer than the 2nd click)
+-  reverted the left/right arrow keys behaviour with alt + i removed the buggy "// state.preview = knownPreview;" and fixed the focus diff styling myself using display flex; leave it as it is now
+- now go ahead work on the JJ-only comparison-source toggle for Revision vs Snapshot and wire snapshot stepping to jj diff -r / jj evolog -p.
 
+---
+
+- when a revision range is selected it would be nice to add a "Open diff" button in the header of the sidebar; that would be the same action as when pressing the space key
+- seems like the jj snapshot (rather than revision) diff is not available when the range mode is enabled (but i can see the jj snapshot/revision mode buttons with "single")
+- not sure why but again sometime the "Computing diff preview…" wont end; again due to a +0/-0; see example with `661 days ago · 3d54ba19 659 days ago · 76e8004d +0 / -0` on `/Users/astahmer/dev/work-related/welii-clone/apps/frontend/src/commitments/add/commitments-add-details-step.tsx`
+- we need a way to open a revision's changes on remote (e.g on github)
+- we need to display somewhere the list of hotkeys, either subtly or have a whole section dedicated that can be opened with a ? icon button or somth like that; do it like a pro UI/UX designer would
+- when opening the timeline; the default range should always be of size 1 with a "to" at the rightmost
+- we probably want to add some unit tests right? to prevent regression on the functional/business logic (if any; if nothing applies then forget about this)
+- seems like there's an issue with jj diffing (screen3) on /Users/astahmer/dev/work-related/welii/apps/frontend/src/organizations/auth.hooks.ts "44 days ago · mwouw 35 days ago · ruxzp" -> Timeline action failed: Command failed: jj diff -r 30de1af53d84 -T diff.files().map(|entry| entry.status_char() ++ "\t" ++ entry.display_diff_path() ++ "\n") Error: Failed to parse template: Keyword `diff` doesn't exist Caused by: --> 1:1 | 1 | diff.files().map(|entry| entry.status_char() ++ "\t" ++ entry.display_diff_path() ++ "\n") | ^--^ | = Keyword `diff` doesn't exist
+
+---
+
+<!-- TODO -->
+- "Open a file in the editor to browse its revision timeline" when no file is currently open we should probably show an input field with the list of files to select from the workspace no?
+- we should be able to see how the file evolved over time with automatically with a play button that animate this evolution
+- we should be able to select a branch/bookmark (or at least display where commits it points to) in the datalist for the from/to
