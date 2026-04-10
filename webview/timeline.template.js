@@ -12,8 +12,11 @@
       <section class="workspace" id="workspace">
         <aside class="panel sidebar" id="sidebar">
           <div class="sidebar-head">
-            <div class="eyebrow">Revisions</div>
-            <div class="sidebar-hint" id="sidebarHint"></div>
+            <div class="sidebar-head-main">
+              <div class="eyebrow">Revisions</div>
+              <div class="sidebar-hint" id="sidebarHint"></div>
+            </div>
+            <button class="sidebar-head-action" id="openSidebarRangeDiffButton" type="button">Open diff</button>
           </div>
           <div class="sidebar-search-wrap">
             <input class="sidebar-search-input" id="sidebarSearchInput" type="search" placeholder="Search revisions" autocomplete="off" />
@@ -34,6 +37,7 @@
                   <datalist id="workspaceFilesList"></datalist>
                 </div>
                 <div class="head-actions">
+                  <button class="menu-button" id="toggleHotkeysButton" type="button" aria-label="Show hotkeys">?</button>
                   <div class="menu-wrap">
                     <button class="menu-button" id="actionsButton" type="button">...</button>
                     <div class="menu" id="actionsMenu">
@@ -109,6 +113,35 @@
               <div class="diff-subtitle" id="diffSubtitle"></div>
             </div>
             <div class="diff-rows" id="diffRows"></div>
+          </div>
+          <div class="hotkeys-popover" id="hotkeysPopover" hidden>
+            <div class="hotkeys-card">
+              <div class="hotkeys-head">
+                <div>
+                  <div class="eyebrow">Shortcuts</div>
+                  <div class="hotkeys-subtitle">Range selection, sidebar navigation, and diff actions</div>
+                </div>
+                <button class="collapse-button" id="closeHotkeysButton" type="button">Close</button>
+              </div>
+              <div class="hotkeys-grid">
+                <div class="hotkey-section">
+                  <div class="hotkey-section-title">Selection</div>
+                  <div class="hotkey-row"><span>Move range</span><kbd>←</kbd><kbd>→</kbd></div>
+                  <div class="hotkey-row"><span>Fast move range</span><kbd>Shift</kbd><kbd>←</kbd><kbd>→</kbd></div>
+                  <div class="hotkey-row"><span>Move from marker</span><kbd>↑</kbd><kbd>↓</kbd></div>
+                  <div class="hotkey-row"><span>Move to marker</span><kbd>Option</kbd><kbd>↑</kbd><kbd>↓</kbd></div>
+                  <div class="hotkey-row"><span>Dock range to start/end</span><kbd>Cmd</kbd><kbd>←</kbd><kbd>→</kbd></div>
+                  <div class="hotkey-row"><span>Set from/to to visible edge</span><kbd>Cmd</kbd><kbd>↑</kbd><kbd>↓</kbd></div>
+                </div>
+                <div class="hotkey-section">
+                  <div class="hotkey-section-title">Actions</div>
+                  <div class="hotkey-row"><span>Open cumulative diff</span><kbd>Space</kbd></div>
+                  <div class="hotkey-row"><span>Toggle help</span><kbd>?</kbd></div>
+                  <div class="hotkey-row"><span>Pick range by click</span><span class="hotkey-note">Click one revision, then another</span></div>
+                  <div class="hotkey-row"><span>Drag markers</span><span class="hotkey-note">Adjust range directly on the timeline</span></div>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
       </section>

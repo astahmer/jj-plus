@@ -123,6 +123,25 @@ input {
   gap: 8px;
 }
 
+.sidebar-head-main {
+  min-width: 0;
+}
+
+.sidebar-head-action {
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  border-radius: 999px;
+  padding: 4px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.sidebar-head-action:hover {
+  border-color: rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+}
+
 .sidebar-search-wrap {
   padding: 8px 12px 6px;
   border-bottom: 1px solid var(--border);
@@ -397,6 +416,81 @@ input {
   width: 100%;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
+}
+
+.hotkeys-popover {
+  position: absolute;
+  inset: 58px 18px auto auto;
+  z-index: 30;
+}
+
+.hotkeys-card {
+  width: min(560px, calc(100vw - 60px));
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(23, 28, 36, 0.98), rgba(29, 35, 45, 0.98));
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 12px;
+}
+
+.hotkeys-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.hotkeys-subtitle {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.hotkeys-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.hotkey-section {
+  display: grid;
+  gap: 8px;
+}
+
+.hotkey-section-title {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.hotkey-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.hotkey-note {
+  color: var(--muted);
+  font-size: 11px;
+  text-align: right;
+}
+
+kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  padding: 3px 7px;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text);
+  font: 11px/1 var(--code-font);
 }
 
 .diff-actions {
@@ -882,6 +976,18 @@ input {
   }
 
   .menu-wrap {
+
+  .hotkeys-popover {
+    inset: 54px 12px auto 12px;
+  }
+
+  .hotkeys-card {
+    width: 100%;
+  }
+
+  .hotkeys-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
     justify-self: end;
   }
 }

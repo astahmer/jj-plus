@@ -32,6 +32,7 @@
     previewTimer: undefined,
     persistTimer: undefined,
     menuOpen: false,
+    hotkeysOpen: false,
     compactViewport: false,
     sidebarShownOnCompact: false,
     showIntermediateRevisions: false,
@@ -59,10 +60,14 @@
     actionsMenu: document.getElementById('actionsMenu'),
     toggleSidebarAction: document.getElementById('toggleSidebarAction'),
     sidebarSearchInput: document.getElementById('sidebarSearchInput'),
+    openSidebarRangeDiffButton: document.getElementById('openSidebarRangeDiffButton'),
     openCurrentFileAction: document.getElementById('openCurrentFileAction'),
     openRangeFilesButton: document.getElementById('openRangeFilesButton'),
     openEditorButton: document.getElementById('openEditorButton'),
     refreshButton: document.getElementById('refreshButton'),
+    toggleHotkeysButton: document.getElementById('toggleHotkeysButton'),
+    hotkeysPopover: document.getElementById('hotkeysPopover'),
+    closeHotkeysButton: document.getElementById('closeHotkeysButton'),
     rangeLabel: document.getElementById('rangeLabel'),
     rangeSubtitle: document.getElementById('rangeSubtitle'),
     rangeFill: document.getElementById('rangeFill'),
@@ -217,12 +222,18 @@
     renderMenu();
   });
 
-  document.addEventListener('click', () => {
-    if (!state.menuOpen) {
-      return;
+  document.addEventListener('click', (event) => {
+    const target = event.target instanceof Element ? event.target : null;
+
+    if (state.menuOpen && (!target || !target.closest('.menu-wrap'))) {
+      state.menuOpen = false;
+      renderMenu();
     }
-    state.menuOpen = false;
-    renderMenu();
+
+    if (state.hotkeysOpen && (!target || !target.closest('.hotkeys-card') && !target.closest('#toggleHotkeysButton'))) {
+      state.hotkeysOpen = false;
+      renderHotkeysPopover();
+    }
   });
 
   document.addEventListener('keydown', handleGlobalKeydown);
@@ -248,9 +259,24 @@
     postRangeAction('open-range-files-diff');
   });
 
+  elements.openSidebarRangeDiffButton.addEventListener('click', () => {
+    postRangeAction('open-range-files-diff');
+  });
+
   elements.refreshButton.addEventListener('click', () => {
     closeMenu();
     vscode.postMessage({ command: 'refresh' });
+  });
+
+  elements.toggleHotkeysButton.addEventListener('click', (event) => {
+    event.stopPropagation();
+    state.hotkeysOpen = !state.hotkeysOpen;
+    renderHotkeysPopover();
+  });
+
+  elements.closeHotkeysButton.addEventListener('click', () => {
+    state.hotkeysOpen = false;
+    renderHotkeysPopover();
   });
 
   elements.toggleSidebarAction.addEventListener('click', () => {
@@ -420,6 +446,20 @@
       return;
     }
 
+    if (event.key === '?') {
+      event.preventDefault();
+      state.hotkeysOpen = !state.hotkeysOpen;
+      renderHotkeysPopover();
+      return;
+    }
+
+    if (event.key === 'Escape' && state.hotkeysOpen) {
+      event.preventDefault();
+      state.hotkeysOpen = false;
+      renderHotkeysPopover();
+      return;
+    }
+
     if (commandPressed && event.key === 'ArrowUp') {
       event.preventDefault();
       setRangeBoundaryToVisibleEdge('from', 'start');
@@ -501,7 +541,7 @@
       requestPreview(0);
     });
 
-    if (state.data && state.data.backend === 'jj' && state.comparisonMode === 'step') {
+    if (state.data && state.data.backend === 'jj') {
       elements.comparisonSources.hidden = false;
       renderSegmentedControl(elements.comparisonSources, comparisonSourceLabels, state.comparisonSource, (value) => {
         if (value === state.comparisonSource) {
@@ -625,6 +665,10 @@
     elements.actionsMenu.classList.toggle('open', state.menuOpen);
   }
 
+  function renderHotkeysPopover() {
+    elements.hotkeysPopover.hidden = !state.hotkeysOpen;
+  }
+
   function closeMenu() {
     state.menuOpen = false;
     renderMenu();
@@ -704,7 +748,7 @@
   }
 
   function getEffectiveComparisonSource() {
-    return state.data && state.data.backend === 'jj' && state.comparisonMode === 'step'
+    return state.data && state.data.backend === 'jj'
       ? state.comparisonSource
       : 'revision';
   }
@@ -790,7 +834,7 @@
     elements.diffModeEyebrow.textContent = layoutModeLabels[state.layoutMode]
       + ' · ' + contentModeLabels[state.contentMode]
       + ' · ' + comparisonModeLabels[state.comparisonMode]
-      + (state.data.backend === 'jj' && state.comparisonMode === 'step' ? ' · ' + comparisonSourceLabels[state.comparisonSource] : '');
+      + (state.data.backend === 'jj' ? ' · ' + comparisonSourceLabels[state.comparisonSource] : '');
 
     renderStepControls();
     renderMonths();
@@ -906,7 +950,10 @@
       item.innerHTML = [
         '<div class="history-top">',
         '<div class="history-primary"><strong>' + escapeHtml(entry.shortRevision) + '</strong>' + renderHistoryBadges(entry, isFrom, isTo) + '</div>',
-        '<div class="history-actions"><span>' + escapeHtml(entry.shortDate) + '</span>' + (entry.hasPreviousEntry ? '<button class="history-action" type="button" title="Open diffs for this revision">Open diffs</button>' : '') + '</div>',
+        '<div class="history-actions"><span>' + escapeHtml(entry.shortDate) + '</span>'
+          + (entry.remoteUrl ? '<button class="history-action history-action-remote" type="button" title="Open this revision on GitHub">Remote</button>' : '')
+          + (entry.hasPreviousEntry ? '<button class="history-action history-action-diff" type="button" title="Open diffs for this revision">Open diffs</button>' : '')
+          + '</div>',
         '</div>',
         '<div class="history-description' + (descriptionExpanded || !showMore ? '' : ' is-truncated') + '">' + escapeHtml(entry.description) + '</div>',
         '<div class="history-bottom">',
@@ -935,12 +982,23 @@
         }
       }
 
-      const actionButton = item.querySelector('.history-action');
+      const actionButton = item.querySelector('.history-action-diff');
       if (actionButton) {
         actionButton.addEventListener('click', (event) => {
           event.stopPropagation();
           vscode.postMessage({
             command: 'open-revision-files-diff',
+            entryIndex: entry.index,
+          });
+        });
+      }
+
+      const remoteButton = item.querySelector('.history-action-remote');
+      if (remoteButton) {
+        remoteButton.addEventListener('click', (event) => {
+          event.stopPropagation();
+          vscode.postMessage({
+            command: 'open-revision-remote',
             entryIndex: entry.index,
           });
         });

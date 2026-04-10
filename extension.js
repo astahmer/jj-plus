@@ -80,6 +80,7 @@ let extensionContext;
  * @property {boolean} touchesFile
  * @property {number} timestamp
  * @property {string=} filePath
+ * @property {string=} remoteUrl
  */
 
 /**
@@ -379,6 +380,7 @@ function buildTimelinePayload(session, preferences) {
         year: 'numeric',
       }).format(new Date(entry.authorDate)),
       relativeDate: formatRelativeTime(entry.timestamp),
+      remoteUrl: entry.remoteUrl,
     })),
   };
 }
@@ -473,6 +475,16 @@ async function handleTimelineMessage(panel, session, message) {
     }
 
     await openRevisionFilesDiff(session, entryIndex);
+    return;
+  }
+
+  if (command === 'open-revision-remote') {
+    const entryIndex = Number(Reflect.get(message, 'entryIndex'));
+    if (!Number.isInteger(entryIndex)) {
+      return;
+    }
+
+    await openRevisionOnRemote(session, entryIndex);
     return;
   }
 
@@ -732,6 +744,15 @@ async function buildTimelineSession(workspacePath, absolutePath) {
     ? await getJjFileRevisionHistory(workspacePath, relativePath)
     : await getGitFileRevisionHistory(workspacePath, relativePath);
   const entries = await buildTimelineEntries(backend, workspacePath, absolutePath, relativePath, fileEntries);
+  const remoteBaseUrl = await resolveGitHubRemoteBaseUrl(workspacePath);
+
+  if (remoteBaseUrl) {
+    for (const entry of entries) {
+      if (!entry.isWorkingTree) {
+        entry.remoteUrl = `${remoteBaseUrl}/commit/${entry.revision}`;
+      }
+    }
+  }
 
   return {
     backend,
@@ -1243,6 +1264,34 @@ async function getRevisionContent(session, entry, entryIndex) {
  * @returns {DiffPreview}
  */
 function buildDiffPreview(index, previousEntry, currentEntry, beforeText, afterText, fromIndex, toIndex, beforePath, afterPath) {
+  const normalizedBeforeText = normalizeTextForComparison(beforeText);
+  const normalizedAfterText = normalizeTextForComparison(afterText);
+  const textsMatch = beforeText === afterText || normalizedBeforeText === normalizedAfterText;
+  const title = previousEntry
+    ? `${previousEntry.shortRevision} -> ${currentEntry.shortRevision}`
+    : `Initial revision -> ${currentEntry.shortRevision}`;
+  const subtitle = currentEntry.isWorkingTree
+    ? 'Working tree'
+    : `${new Date(currentEntry.authorDate).toLocaleString()} · ${currentEntry.description}`;
+
+  if (textsMatch) {
+    const rows = buildNoChangeRows(splitIntoLines(afterText));
+    return {
+      index,
+      title,
+      subtitle,
+      additions: 0,
+      deletions: 0,
+      hunkCount: 0,
+      hasChanges: false,
+      fromIndex,
+      toIndex,
+      comparisonSource: 'revision',
+      rows,
+      nonTextualDetails: buildNonTextualDetails(previousEntry, currentEntry, beforeText, afterText, beforePath, afterPath),
+    };
+  }
+
   const beforeLines = splitIntoLines(beforeText);
   const afterLines = splitIntoLines(afterText);
   const operations = diffLineOperations(beforeLines, afterLines);
@@ -1251,12 +1300,6 @@ function buildDiffPreview(index, previousEntry, currentEntry, beforeText, afterT
   const deletions = rows.filter((row) => row.type === 'remove').length;
   const hunkCount = countDiffHunks(rows);
   const hasChanges = additions > 0 || deletions > 0;
-  const title = previousEntry
-    ? `${previousEntry.shortRevision} -> ${currentEntry.shortRevision}`
-    : `Initial revision -> ${currentEntry.shortRevision}`;
-  const subtitle = currentEntry.isWorkingTree
-    ? 'Working tree'
-    : `${new Date(currentEntry.authorDate).toLocaleString()} · ${currentEntry.description}`;
 
   return {
     index,
@@ -1386,10 +1429,36 @@ async function resolveGitPreviousPath(workspacePath, revision, currentPath) {
  * @returns {Promise<string>}
  */
 async function resolveJjPreviousPath(workspacePath, revision, currentPath) {
-  const template = 'diff.files().map(|entry| entry.status_char() ++ "\\t" ++ entry.display_diff_path() ++ "\\n")';
-  const { stdout } = await runJj(workspacePath, ['diff', '-r', revision, '-T', template]);
-  const rename = parseRenameStatusLines(stdout, true).find((entry) => entry.toPath === currentPath);
-  return rename ? rename.fromPath : currentPath;
+  try {
+    const { stdout } = await runJj(workspacePath, ['diff', '--summary', '-r', revision]);
+    const rename = parseJjSummaryRenameLines(stdout).find((entry) => entry.toPath === currentPath);
+    return rename ? rename.fromPath : currentPath;
+  } catch {
+    return currentPath;
+  }
+}
+
+/**
+ * @param {string} output
+ * @returns {Array<{ fromPath: string, toPath: string }>}
+ */
+function parseJjSummaryRenameLines(output) {
+  return output
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .reduce((entries, line) => {
+      const match = /^R\s+(.+?)\s+=>\s+(.+)$/u.exec(line);
+      if (!match) {
+        return entries;
+      }
+
+      entries.push({
+        fromPath: match[1].trim(),
+        toPath: match[2].trim(),
+      });
+      return entries;
+    }, /** @type {Array<{ fromPath: string, toPath: string }>} */ ([]));
 }
 
 /**
@@ -1627,6 +1696,48 @@ async function openRevisionFilesDiff(session, entryIndex) {
     title: entry.shortRevision,
     resources,
   });
+}
+
+/**
+ * @param {TimelineSession} session
+ * @param {number} entryIndex
+ */
+async function openRevisionOnRemote(session, entryIndex) {
+  const entry = session.entries[entryIndex];
+  if (!entry || !entry.remoteUrl) {
+    void vscode.window.showInformationMessage('No GitHub remote URL is available for this revision.');
+    return;
+  }
+
+  await vscode.env.openExternal(vscode.Uri.parse(entry.remoteUrl));
+}
+
+/**
+ * @param {string} workspacePath
+ * @returns {Promise<string | undefined>}
+ */
+async function resolveGitHubRemoteBaseUrl(workspacePath) {
+  try {
+    const { stdout } = await runGit(workspacePath, ['remote', 'get-url', 'origin']);
+    const remote = stdout.trim();
+    if (!remote) {
+      return undefined;
+    }
+
+    const httpsMatch = /^https?:\/\/github\.com\/([^/]+)\/([^/]+?)(?:\.git)?$/u.exec(remote);
+    if (httpsMatch) {
+      return `https://github.com/${httpsMatch[1]}/${httpsMatch[2]}`;
+    }
+
+    const sshMatch = /^(?:ssh:\/\/)?git@github\.com[:/]([^/]+)\/([^/]+?)(?:\.git)?$/u.exec(remote);
+    if (sshMatch) {
+      return `https://github.com/${sshMatch[1]}/${sshMatch[2]}`;
+    }
+  } catch {
+    return undefined;
+  }
+
+  return undefined;
 }
 
 /**
