@@ -158,8 +158,75 @@ Caused by:  --> 1:32
 
 ---
 
+- we should display the package version somewhere in the UI; maybe next to the "revision timeline" title (in small tho) + also in the help section
 - sometimes im trying to "open diff" and its trying to open lots of files; there should be a way to cancel that request (e.g if a close either the diff tab that was just opened or if i close the revision timeline tab while its still loading i guess?); can we do that or is it out of control? asking cause i got "Timeline action failed: spawn jj EAGAIN" after a while
+- yes add more tests + btw everytime it makes sense try to decouple the UI from the logic so that we can test stuff (dont over abstract tho) & the view becomes "dumb"
 - seems like with jj; maybe this is cause i wasnt actively using jj and i just used jj git init which maybe confused some commits or idk; sometimes the revision are "duplicated" in the sidebar. its not the same revision id but it's using the same description / has the same diffs count which makes me think something is wrong even tho i cant explain what
+- swapping revision & snapshot mode still dont properly show the active styles and both still reports either: "Range view · 38 single diffs available" or "Range view · 38 snapshots available"; but again having the same count of snapshot & revision seems weird no? for example these are my evlog (at least 9 snapshot in a single revision!!) vs revision log:
+
+jj evolog -r @
+@  uxvzlutk alexandre.stahmer@gmail.com 2026-04-10 14:56:41 b9f67456
+│  (no description set)
+│  -- operation 0dfe793ffb5b snapshot working copy
+○  uxvzlutk/1 alexandre.stahmer@gmail.com 2026-04-10 14:56:40 62a05a9c (hidden)
+│  (no description set)
+│  -- operation 518012dcda68 snapshot working copy
+○  uxvzlutk/2 alexandre.stahmer@gmail.com 2026-04-10 14:55:42 83132bba (hidden)
+│  (no description set)
+│  -- operation 3d45e30770a7 snapshot working copy
+○  uxvzlutk/3 alexandre.stahmer@gmail.com 2026-04-10 14:55:24 21963341 (hidden)
+│  (no description set)
+│  -- operation 53a78fa978f5 snapshot working copy
+○  uxvzlutk/4 alexandre.stahmer@gmail.com 2026-04-10 14:54:46 9d225163 (hidden)
+│  (no description set)
+│  -- operation 685da49ed6f3 snapshot working copy
+○  uxvzlutk/5 alexandre.stahmer@gmail.com 2026-04-10 14:54:08 7e6f3c9d (hidden)
+│  (no description set)
+│  -- operation d8f6e5006e91 snapshot working copy
+○  uxvzlutk/6 alexandre.stahmer@gmail.com 2026-04-10 14:54:07 66d0652f (hidden)
+│  (no description set)
+│  -- operation fb19d0869ff6 snapshot working copy
+○  uxvzlutk/7 alexandre.stahmer@gmail.com 2026-04-10 14:54:06 c236fe87 (hidden)
+│  (no description set)
+│  -- operation 03460198834d snapshot working copy
+○  uxvzlutk/8 alexandre.stahmer@gmail.com 2026-04-10 14:54:02 a0fe54d4 (hidden)
+│  (no description set)
+│  -- operation 89dee678ef8f snapshot working copy
+○  uxvzlutk/9 alexandre.stahmer@gmail.com 2026-04-10 14:53:54 0e4494b0 (hidden)
+│  (no description set)
+
+welii/apps/backend *​ ≡
+❯ jj log
+@  uxvzlutk alexandre.stahmer@gmail.com 2026-04-10 14:56:41 b9f67456
+│  (no description set)
+○  tqvkowpm alexandre.stahmer@gmail.com 2026-04-10 14:50:14 99186447
+│  wip comment domain
+○  uryxwlwq alexandre.stahmer@gmail.com 2026-04-10 14:45:20 9bce36a2
+│  mutate lazyInjector rather than creating a new one each time
+○  koykkznr alexandre.stahmer@gmail.com 2026-04-10 14:07:45 9327aaf3
+│  provideLazyValue + provideLazyFactory
+○  ynlmtlop alexandre.stahmer@gmail.com 2026-04-10 11:57:59 bb4c7cf8
+│  lazy register DI
+○  nmrspkpz alexandre.stahmer@gmail.com 2026-04-10 11:40:49 db97541d
+│  codegen use case loaders
+○  tpuovkms alexandre.stahmer@gmail.com 2026-04-10 11:04:46 0fae08e1
+│  steering in a better direction
+○  vkvynmkm alexandre.stahmer@gmail.com 2026-04-09 18:12:21 e92faa5e
+│  (no description set)
+○  qulorrqt alexandre.stahmer@gmail.com 2026-04-09 18:08:29 3fc68a17
+│  llm crap
+○  pxxmosyn alexandre.stahmer@gmail.com 2026-04-09 17:57:33 620852e2
+│  poc lazy load use cases
+○  suowztkk alexandre.stahmer@gmail.com 2026-04-09 16:37:07 765491b7
+│  llm doing stuff
+○  vorusskr alexandre.stahmer@gmail.com 2026-04-09 16:13:25 9b5ec2ad
+│  (no description set)
+○  vrxsssnp alexandre.stahmer@gmail.com 2026-04-09 15:12:15 19f9df0a
+│  with oxc?
+○  sonlprop alexandre.stahmer@gmail.com 2026-04-09 14:52:02 847f98ce
+│  (no description set)
+○  xxutprmu alexandre.stahmer@gmail.com 2026-04-09 14:43:12 6a1a427c
+
 
 ---
 

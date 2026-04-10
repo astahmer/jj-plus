@@ -27,7 +27,10 @@
         <section class="panel diff-panel">
           <div class="timeline-pane" id="timelinePane">
             <div class="timeline-pane-head">
-              <div class="eyebrow">Revision Timeline</div>
+              <div class="timeline-pane-title">
+                <div class="eyebrow">Revision Timeline</div>
+                <span class="version-badge" id="timelineVersion"></span>
+              </div>
               <button class="collapse-button" id="toggleTimelinePaneButton" type="button">Timeline only</button>
             </div>
             <div class="diff-head" id="timelineChrome">
@@ -45,6 +48,7 @@
                       <button class="menu-item" id="openCurrentFileAction" type="button">Open File</button>
                       <button class="menu-item" id="openEditorButton" type="button">Open diff</button>
                       <button class="menu-item" id="openRangeFilesButton" type="button">Open diffs</button>
+                      <button class="menu-item" id="cancelActiveRequestAction" type="button">Cancel request</button>
                       <button class="menu-item" id="refreshButton" type="button">Refresh</button>
                     </div>
                   </div>
@@ -120,6 +124,7 @@
                 <div>
                   <div class="eyebrow">Shortcuts</div>
                   <div class="hotkeys-subtitle">Range selection, sidebar navigation, and diff actions</div>
+                  <div class="hotkeys-version" id="hotkeysVersion"></div>
                 </div>
                 <button class="collapse-button" id="closeHotkeysButton" type="button">Close</button>
               </div>
@@ -151,6 +156,7 @@
   function renderTimelineDocumentHtml(options) {
     const title = escapeHtml((options && options.title) || 'Revision Timeline');
     const styleHref = escapeAttribute((options && options.styleHref) || './timeline.css');
+    const modelSrc = escapeAttribute((options && options.modelSrc) || './timeline.model.js');
     const scriptSrc = escapeAttribute((options && options.scriptSrc) || './timeline.js');
     const cspSource = options && options.cspSource;
 
@@ -165,6 +171,7 @@
   </head>
   <body>
     ${renderTimelineBodyHtml()}
+    <script src="${modelSrc}"></script>
     <script src="${scriptSrc}"></script>
   </body>
 </html>`;

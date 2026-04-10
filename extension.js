@@ -3,13 +3,11 @@
 const { execFile } = require('node:child_process');
 const fs = require('node:fs/promises');
 const path = require('node:path');
-const { promisify } = require('node:util');
 const vscode = require('vscode');
 const { textsMatchIgnoringLineEndings } = require('./lib/diff-helpers.js');
-const { getGitHubRemoteBaseUrl, parseJjSummaryRenameLines } = require('./lib/history-helpers.js');
+const { dedupeEntriesByChangeId, getGitHubRemoteBaseUrl, parseJjSummaryRenameLines } = require('./lib/history-helpers.js');
+const packageJson = require('./package.json');
 const { renderTimelineDocumentHtml } = require('./webview/timeline.template.js');
-
-const execFileAsync = promisify(execFile);
 
 const EXTENSION_ID = 'astahmer.jj-range-diff';
 const HELPER_COMMAND = 'jj-range-diff.openRangeMultiDiff';
@@ -23,6 +21,7 @@ const CLI_SOURCE = 'cli';
 const DEFAULT_FROM_REVSET = 'closest_bookmark(@)';
 const DEFAULT_TO_REVSET = '@';
 const MAX_TIMELINE_ENTRIES = 200;
+const EXTENSION_VERSION = packageJson.version;
 const TIMELINE_PRESET_DAYS = {
   year: 365,
   '7d': 7,
@@ -93,10 +92,12 @@ let extensionContext;
  * @property {string} absolutePath
  * @property {string} fileName
  * @property {FileRevisionEntry[]} entries
+ * @property {FileRevisionEntry[]} snapshotEntries
  * @property {string[]} workspaceFiles
  * @property {Map<string, string>} contentCache
  * @property {Map<string, DiffPreview>} previewCache
  * @property {Map<string, string>} pathCache
+ * @property {AbortController | undefined} activeActionAbortController
  */
 
 /**
@@ -327,6 +328,7 @@ function getOrCreateTimelinePanel(context, fileName) {
 
   timelinePanel.onDidDispose(
     () => {
+      currentTimelineSession?.activeActionAbortController?.abort();
       timelinePanel = undefined;
       currentTimelineSession = undefined;
     },
@@ -357,33 +359,37 @@ function getOrCreateTimelinePanel(context, fileName) {
 /**
  * @param {TimelineSession} session
  * @param {TimelinePreferences} preferences
- * @returns {{ backend: HistoryBackend, workspacePath: string, relativePath: string, fileName: string, presets: typeof TIMELINE_PRESET_DAYS, defaultIndex: number, latestIndex: number, preferences: TimelinePreferences, workspaceFiles: string[], hasIntermediateRevisions: boolean, entries: Array<Record<string, unknown>> }}
+ * @returns {{ backend: HistoryBackend, workspacePath: string, relativePath: string, fileName: string, version: string, presets: typeof TIMELINE_PRESET_DAYS, defaultIndex: number, latestIndex: number, preferences: TimelinePreferences, workspaceFiles: string[], hasIntermediateRevisions: boolean, entries: Array<Record<string, unknown>>, snapshotEntries: Array<Record<string, unknown>> }}
  */
 function buildTimelinePayload(session, preferences) {
+  const mapPayloadEntries = (entries) => entries.map((entry, index) => ({
+    ...entry,
+    index,
+    hasPreviousEntry: index > 0,
+    monthLabel: new Intl.DateTimeFormat('en', { month: 'long' }).format(new Date(entry.authorDate)),
+    shortDate: new Intl.DateTimeFormat('en', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    }).format(new Date(entry.authorDate)),
+    relativeDate: formatRelativeTime(entry.timestamp),
+    remoteUrl: entry.remoteUrl,
+  }));
+
   return {
     backend: session.backend,
     workspacePath: session.workspacePath,
     relativePath: session.relativePath,
     fileName: session.fileName,
+    version: EXTENSION_VERSION,
     presets: TIMELINE_PRESET_DAYS,
     defaultIndex: Math.max(0, session.entries.length - 1),
     latestIndex: Math.max(0, session.entries.length - 1),
     preferences,
     workspaceFiles: session.workspaceFiles,
     hasIntermediateRevisions: session.entries.some((entry) => !entry.touchesFile),
-    entries: session.entries.map((entry, index) => ({
-      ...entry,
-      index,
-      hasPreviousEntry: index > 0,
-      monthLabel: new Intl.DateTimeFormat('en', { month: 'long' }).format(new Date(entry.authorDate)),
-      shortDate: new Intl.DateTimeFormat('en', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-      }).format(new Date(entry.authorDate)),
-      relativeDate: formatRelativeTime(entry.timestamp),
-      remoteUrl: entry.remoteUrl,
-    })),
+    entries: mapPayloadEntries(session.entries),
+    snapshotEntries: mapPayloadEntries(session.snapshotEntries),
   };
 }
 
@@ -399,11 +405,13 @@ async function handleTimelineMessage(panel, session, message) {
 
   const command = Reflect.get(message, 'command');
   if (command === 'ready') {
+    const comparisonSource = getTimelinePreferences(extensionContext).comparisonSource;
+    const sourceEntries = getEntriesForSource(session, comparisonSource);
     await panel.webview.postMessage({
       type: 'timeline-data',
       payload: buildTimelinePayload(session, getTimelinePreferences(extensionContext)),
     });
-    await sendTimelinePreview(panel, session, Math.max(0, session.entries.length - 2), Math.max(0, session.entries.length - 1));
+    await sendTimelinePreview(panel, session, Math.max(0, sourceEntries.length - 2), Math.max(0, sourceEntries.length - 1), comparisonSource);
     return;
   }
 
@@ -472,11 +480,12 @@ async function handleTimelineMessage(panel, session, message) {
 
   if (command === 'open-revision-files-diff') {
     const entryIndex = Number(Reflect.get(message, 'entryIndex'));
+    const comparisonSource = getComparisonSource(Reflect.get(message, 'comparisonSource'));
     if (!Number.isInteger(entryIndex)) {
       return;
     }
 
-    await openRevisionFilesDiff(session, entryIndex);
+    await openRevisionFilesDiff(session, entryIndex, comparisonSource);
     return;
   }
 
@@ -487,6 +496,11 @@ async function handleTimelineMessage(panel, session, message) {
     }
 
     await openRevisionOnRemote(session, entryIndex);
+    return;
+  }
+
+  if (command === 'cancel-active-request') {
+    session.activeActionAbortController?.abort();
     return;
   }
 
@@ -532,12 +546,14 @@ async function handleTimelineMessage(panel, session, message) {
       type: 'timeline-data',
       payload: buildTimelinePayload(session, getTimelinePreferences(extensionContext)),
     });
+    const comparisonSource = getTimelinePreferences(extensionContext).comparisonSource;
+    const sourceEntries = getEntriesForSource(session, comparisonSource);
     await sendTimelinePreview(
       panel,
       session,
-      Math.max(0, session.entries.length - 2),
-      Math.max(0, session.entries.length - 1),
-      getTimelinePreferences(extensionContext).comparisonSource
+      Math.max(0, sourceEntries.length - 2),
+      Math.max(0, sourceEntries.length - 1),
+      comparisonSource
     );
   }
 }
@@ -630,9 +646,12 @@ function syncTimelineSession(target, source) {
   target.absolutePath = source.absolutePath;
   target.fileName = source.fileName;
   target.entries = source.entries;
+  target.snapshotEntries = source.snapshotEntries;
   target.workspaceFiles = source.workspaceFiles;
   target.contentCache = source.contentCache;
   target.previewCache = source.previewCache;
+  target.pathCache = source.pathCache;
+  target.activeActionAbortController = source.activeActionAbortController;
 }
 
 /**
@@ -642,12 +661,8 @@ function syncTimelineSession(target, source) {
  */
 async function openRangeDiffInEditor(session, fromIndex, toIndex) {
   const comparisonSource = arguments.length > 3 ? arguments[3] : 'revision';
-  if (session.backend === 'jj' && comparisonSource === 'snapshot') {
-    await openJjSnapshotDiffInEditor(session, toIndex);
-    return;
-  }
-
-  const comparison = getComparisonEntries(session, fromIndex, toIndex);
+  const sourceEntries = getEntriesForSource(session, comparisonSource);
+  const comparison = getComparisonEntries(sourceEntries, fromIndex, toIndex);
   if (!comparison) {
     return;
   }
@@ -662,8 +677,8 @@ async function openRangeDiffInEditor(session, fromIndex, toIndex) {
     return;
   }
 
-  const originalUri = await createRevisionUri(session, fromEntry);
-  const modifiedUri = await createRevisionUri(session, toEntry);
+  const originalUri = createSnapshotUri(session.workspacePath, fromEntry.revision, await resolveEntryFilePath(session, fromEntry, fromIndex), session.backend);
+  const modifiedUri = createSnapshotUri(session.workspacePath, toEntry.revision, await resolveEntryFilePath(session, toEntry, toIndex), session.backend);
   const title = `${session.fileName}: ${fromEntry.shortRevision} -> ${toEntry.shortRevision}`;
   await vscode.commands.executeCommand('vscode.diff', originalUri, modifiedUri, title, {
     preview: true,
@@ -675,7 +690,8 @@ async function openRangeDiffInEditor(session, fromIndex, toIndex) {
  * @param {number} entryIndex
  */
 async function openJjSnapshotDiffInEditor(session, entryIndex) {
-  const entry = session.entries[entryIndex];
+  const sourceEntries = getEntriesForSource(session, 'snapshot');
+  const entry = sourceEntries[entryIndex];
   if (!entry) {
     return;
   }
@@ -700,11 +716,11 @@ async function openJjSnapshotDiffInEditor(session, entryIndex) {
  * @param {number} toIndex
  * @returns {{ fromEntry: FileRevisionEntry, toEntry: FileRevisionEntry } | undefined}
  */
-function getComparisonEntries(session, fromIndex, toIndex) {
+function getComparisonEntries(entries, fromIndex, toIndex) {
   const normalizedFromIndex = Math.max(0, Math.min(fromIndex, toIndex));
   const normalizedToIndex = Math.max(normalizedFromIndex, Math.max(fromIndex, toIndex));
-  const fromEntry = session.entries[normalizedFromIndex];
-  const toEntry = session.entries[normalizedToIndex];
+  const fromEntry = entries[normalizedFromIndex];
+  const toEntry = entries[normalizedToIndex];
   if (!fromEntry || !toEntry) {
     return undefined;
   }
@@ -734,6 +750,17 @@ async function createRevisionUri(session, entry) {
 }
 
 /**
+ * @param {TimelineSession} session
+ * @param {'revision' | 'snapshot'} comparisonSource
+ * @returns {FileRevisionEntry[]}
+ */
+function getEntriesForSource(session, comparisonSource) {
+  return session.backend === 'jj' && comparisonSource === 'snapshot' && session.snapshotEntries.length
+    ? session.snapshotEntries
+    : session.entries;
+}
+
+/**
  * @param {string} workspacePath
  * @param {string} absolutePath
  * @returns {Promise<TimelineSession>}
@@ -746,6 +773,9 @@ async function buildTimelineSession(workspacePath, absolutePath) {
     ? await getJjFileRevisionHistory(workspacePath, relativePath)
     : await getGitFileRevisionHistory(workspacePath, relativePath);
   const entries = await buildTimelineEntries(backend, workspacePath, absolutePath, relativePath, fileEntries);
+  const snapshotEntries = backend === 'jj'
+    ? await buildJjSnapshotEntries(workspacePath, relativePath, entries)
+    : entries;
   const remoteBaseUrl = await resolveGitHubRemoteBaseUrl(workspacePath);
 
   if (remoteBaseUrl) {
@@ -763,10 +793,12 @@ async function buildTimelineSession(workspacePath, absolutePath) {
     relativePath,
     fileName: path.basename(absolutePath),
     entries,
+    snapshotEntries,
     workspaceFiles,
     contentCache: new Map(),
     previewCache: new Map(),
     pathCache: new Map(),
+    activeActionAbortController: undefined,
   };
 }
 
@@ -857,12 +889,12 @@ async function getJjFileRevisionHistory(workspacePath, relativePath) {
     toJjRootFileFileset(relativePath),
   ]);
 
-  return stdout
+  return dedupeEntriesByChangeId(stdout
     .split(/\r?\n/u)
     .map((line) => line.trim())
     .filter(Boolean)
     .map(parseJjHistoryLine)
-    .reverse();
+    .reverse());
 }
 
 /**
@@ -959,7 +991,7 @@ async function getRepositoryRevisionHistory(backend, workspacePath) {
       template,
     ]);
 
-    return stdout
+    return dedupeEntriesByChangeId(stdout
       .split(/\r?\n/u)
       .map((line) => line.trim())
       .filter(Boolean)
@@ -968,7 +1000,7 @@ async function getRepositoryRevisionHistory(backend, workspacePath) {
         ...entry,
         touchesFile: false,
       }))
-      .reverse();
+      .reverse());
   }
 
   const { stdout } = await runGit(workspacePath, [
@@ -1020,6 +1052,94 @@ async function buildTimelineEntries(backend, workspacePath, absolutePath, relati
   }
 
   return appendWorkingTreeEntry(workspacePath, absolutePath, relativePath, backend, entries);
+}
+
+/**
+ * @param {string} workspacePath
+ * @param {string} relativePath
+ * @param {FileRevisionEntry[]} revisionEntries
+ * @returns {Promise<FileRevisionEntry[]>}
+ */
+async function buildJjSnapshotEntries(workspacePath, relativePath, revisionEntries) {
+  const latestTouchingEntry = revisionEntries.filter((entry) => entry.touchesFile && !entry.isWorkingTree).at(-1);
+  if (!latestTouchingEntry) {
+    return revisionEntries;
+  }
+
+  let evolutionEntries;
+  try {
+    evolutionEntries = await getJjEvolutionHistory(workspacePath, latestTouchingEntry.revision);
+  } catch {
+    return revisionEntries;
+  }
+
+  if (evolutionEntries.length < 2) {
+    return revisionEntries;
+  }
+
+  /** @type {FileRevisionEntry[]} */
+  const snapshotEntries = [];
+  for (const entry of evolutionEntries) {
+    try {
+      const changedFiles = await listRevisionFiles(workspacePath, entry.revision);
+      if (changedFiles.includes(relativePath)) {
+        snapshotEntries.push({
+          ...entry,
+          filePath: relativePath,
+          touchesFile: true,
+          remoteUrl: undefined,
+        });
+      }
+    } catch {
+      // Hidden evolution entries can occasionally fail to diff in unusual repos. Skip them.
+    }
+  }
+
+  if (snapshotEntries.length < 2) {
+    return revisionEntries;
+  }
+
+  const baseEntries = revisionEntries.filter((entry) => !entry.isWorkingTree && entry.changeId !== latestTouchingEntry.changeId);
+  const mergedEntries = [...baseEntries, ...snapshotEntries];
+  mergedEntries.sort((left, right) => left.timestamp - right.timestamp || left.revision.localeCompare(right.revision));
+  return mergedEntries;
+}
+
+/**
+ * @param {string} workspacePath
+ * @param {string} revision
+ * @returns {Promise<FileRevisionEntry[]>}
+ */
+async function getJjEvolutionHistory(workspacePath, revision) {
+  const template = [
+    'commit_id.short()',
+    '"\\t"',
+    'change_id.shortest()',
+    '"\\t"',
+    'author.timestamp().format("%Y-%m-%dT%H:%M:%S%:z")',
+    '"\\t"',
+    'author.name()',
+    '"\\t"',
+    'description.first_line()',
+    '"\\n"',
+  ].join(' ++ ');
+  const { stdout } = await runJj(workspacePath, [
+    'evolog',
+    '--no-graph',
+    '--limit',
+    String(MAX_TIMELINE_ENTRIES),
+    '-T',
+    template,
+    '-r',
+    revision,
+  ]);
+
+  return stdout
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map(parseJjHistoryLine)
+    .reverse();
 }
 
 /**
@@ -1111,6 +1231,7 @@ async function appendWorkingTreeEntry(workspacePath, absolutePath, relativePath,
  * @returns {Promise<DiffPreview>}
  */
 async function getDiffPreview(session, fromIndex, toIndex, comparisonSource = 'revision') {
+  const sourceEntries = getEntriesForSource(session, comparisonSource);
   const normalizedFromIndex = Math.max(0, Math.min(fromIndex, toIndex));
   const normalizedToIndex = Math.max(normalizedFromIndex, Math.max(fromIndex, toIndex));
   const cacheKey = `${comparisonSource}:${normalizedFromIndex}:${normalizedToIndex}`;
@@ -1133,7 +1254,7 @@ async function getDiffPreview(session, fromIndex, toIndex, comparisonSource = 'r
     return preview;
   }
 
-  const comparison = getComparisonEntries(session, normalizedFromIndex, normalizedToIndex);
+  const comparison = getComparisonEntries(sourceEntries, normalizedFromIndex, normalizedToIndex);
   if (!comparison) {
     return {
       index: normalizedToIndex,
@@ -1163,7 +1284,7 @@ async function getDiffPreview(session, fromIndex, toIndex, comparisonSource = 'r
     beforeText,
     afterText,
     normalizedFromIndex,
-    session.entries.findIndex((entry) => entry.id === toEntry.id),
+    sourceEntries.findIndex((entry) => entry.id === toEntry.id),
     beforePath,
     afterPath
   );
@@ -1177,7 +1298,8 @@ async function getDiffPreview(session, fromIndex, toIndex, comparisonSource = 'r
  * @returns {Promise<DiffPreview>}
  */
 async function getJjSnapshotPreview(session, entryIndex) {
-  const entry = session.entries[entryIndex];
+  const sourceEntries = getEntriesForSource(session, 'snapshot');
+  const entry = sourceEntries[entryIndex];
   if (!entry) {
     return {
       index: entryIndex,
@@ -1197,7 +1319,7 @@ async function getJjSnapshotPreview(session, entryIndex) {
 
   const afterPath = await resolveEntryFilePath(session, entry, entryIndex);
   const previousEntryIndex = Math.max(0, entryIndex - 1);
-  const previousEntry = entryIndex > 0 ? session.entries[previousEntryIndex] : undefined;
+  const previousEntry = entryIndex > 0 ? sourceEntries[previousEntryIndex] : undefined;
   const previousPath = entry.isWorkingTree
     ? previousEntry
       ? await resolveEntryFilePath(session, previousEntry, previousEntryIndex)
@@ -1588,43 +1710,50 @@ async function saveTimelinePreferences(context, nextValue) {
  */
 async function openRangeFilesDiff(session, fromIndex, toIndex) {
   const comparisonSource = arguments.length > 3 ? arguments[3] : 'revision';
-  if (session.backend === 'jj' && comparisonSource === 'snapshot') {
-    await openRevisionFilesDiff(session, toIndex);
-    return;
-  }
+  await runSessionAction(session, async (signal) => {
+    const sourceEntries = getEntriesForSource(session, comparisonSource);
+    const comparison = getComparisonEntries(sourceEntries, fromIndex, toIndex);
+    if (!comparison) {
+      return;
+    }
 
-  const comparison = getComparisonEntries(session, fromIndex, toIndex);
-  if (!comparison) {
-    return;
-  }
+    const { fromEntry, toEntry } = comparison;
+    const title = `${fromEntry.shortRevision}..${toEntry.shortRevision}`;
 
-  const { fromEntry, toEntry } = comparison;
-  const title = `${fromEntry.shortRevision}..${toEntry.shortRevision}`;
+    if (session.backend === 'jj') {
+      const { resources, resolvedTitle } = await buildMultiDiffResources(
+        session.workspacePath,
+        fromEntry.revision,
+        toEntry.isWorkingTree ? '@' : toEntry.revision,
+        title,
+        signal
+      );
 
-  if (session.backend === 'jj') {
-    const { resources, resolvedTitle } = await buildMultiDiffResources(
-      session.workspacePath,
-      fromEntry.revision,
-      toEntry.isWorkingTree ? '@' : toEntry.revision,
-      title
-    );
+      if (signal.aborted) {
+        return;
+      }
+
+      await vscode.commands.executeCommand(OPEN_MULTI_DIFF_COMMAND, {
+        title: resolvedTitle,
+        resources,
+      });
+      return;
+    }
+
+    const resources = await buildGitMultiDiffResources(session, fromEntry, toEntry, signal);
+    if (!resources.length) {
+      void vscode.window.showInformationMessage(`No changes found for ${title}`);
+      return;
+    }
+
+    if (signal.aborted) {
+      return;
+    }
 
     await vscode.commands.executeCommand(OPEN_MULTI_DIFF_COMMAND, {
-      title: resolvedTitle,
+      title,
       resources,
     });
-    return;
-  }
-
-  const resources = await buildGitMultiDiffResources(session, fromEntry, toEntry);
-  if (!resources.length) {
-    void vscode.window.showInformationMessage(`No changes found for ${title}`);
-    return;
-  }
-
-  await vscode.commands.executeCommand(OPEN_MULTI_DIFF_COMMAND, {
-    title,
-    resources,
   });
 }
 
@@ -1633,46 +1762,93 @@ async function openRangeFilesDiff(session, fromIndex, toIndex) {
  * @param {number} entryIndex
  */
 async function openRevisionFilesDiff(session, entryIndex) {
-  const entry = session.entries[entryIndex];
-  if (!entry) {
-    return;
-  }
+  const comparisonSource = arguments.length > 2 ? arguments[2] : 'revision';
+  await runSessionAction(session, async (signal) => {
+    const sourceEntries = getEntriesForSource(session, comparisonSource);
+    const entry = sourceEntries[entryIndex];
+    if (!entry) {
+      return;
+    }
 
-  if (entry.isWorkingTree) {
-    await openRangeFilesDiff(session, Math.max(0, entryIndex - 1), entryIndex);
-    return;
-  }
+    if (entry.isWorkingTree) {
+      await openRangeFilesDiff(session, Math.max(0, entryIndex - 1), entryIndex, comparisonSource);
+      return;
+    }
 
-  if (session.backend === 'jj') {
-    const { resources, resolvedTitle } = await buildMultiDiffResources(
-      session.workspacePath,
-      `${entry.revision}-`,
-      entry.revision,
-      entry.shortRevision
-    );
+    if (session.backend === 'jj') {
+      const baseRevision = comparisonSource === 'snapshot'
+        ? (sourceEntries[Math.max(0, entryIndex - 1)]?.revision || `${entry.revision}-`)
+        : `${entry.revision}-`;
+      const { resources, resolvedTitle } = await buildMultiDiffResources(
+        session.workspacePath,
+        baseRevision,
+        entry.revision,
+        entry.shortRevision,
+        signal
+      );
 
+      if (!resources.length) {
+        void vscode.window.showInformationMessage(`No files changed in ${entry.shortRevision}`);
+        return;
+      }
+
+      if (signal.aborted) {
+        return;
+      }
+
+      await vscode.commands.executeCommand(OPEN_MULTI_DIFF_COMMAND, {
+        title: resolvedTitle,
+        resources,
+      });
+      return;
+    }
+
+    const resources = await buildGitRevisionMultiDiffResources(session, entry, signal);
     if (!resources.length) {
       void vscode.window.showInformationMessage(`No files changed in ${entry.shortRevision}`);
       return;
     }
 
+    if (signal.aborted) {
+      return;
+    }
+
     await vscode.commands.executeCommand(OPEN_MULTI_DIFF_COMMAND, {
-      title: resolvedTitle,
+      title: entry.shortRevision,
       resources,
     });
-    return;
-  }
-
-  const resources = await buildGitRevisionMultiDiffResources(session, entry);
-  if (!resources.length) {
-    void vscode.window.showInformationMessage(`No files changed in ${entry.shortRevision}`);
-    return;
-  }
-
-  await vscode.commands.executeCommand(OPEN_MULTI_DIFF_COMMAND, {
-    title: entry.shortRevision,
-    resources,
   });
+}
+
+/**
+ * @param {TimelineSession} session
+ * @param {(signal: AbortSignal) => Promise<void>} action
+ */
+async function runSessionAction(session, action) {
+  session.activeActionAbortController?.abort();
+  const controller = new AbortController();
+  session.activeActionAbortController = controller;
+
+  try {
+    await action(controller.signal);
+  } catch (error) {
+    if (isAbortError(error) || controller.signal.aborted) {
+      return;
+    }
+    throw error;
+  } finally {
+    if (session.activeActionAbortController === controller) {
+      session.activeActionAbortController = undefined;
+    }
+  }
+}
+
+/**
+ * @param {unknown} error
+ * @returns {boolean}
+ */
+function isAbortError(error) {
+  return error instanceof Error && (error.name === 'AbortError' || /aborted/i.test(error.message));
 }
 
 /**
@@ -1709,7 +1885,8 @@ async function resolveGitHubRemoteBaseUrl(workspacePath) {
  * @returns {Promise<Array<{ originalUri: vscode.Uri, modifiedUri: vscode.Uri }>>}
  */
 async function buildGitMultiDiffResources(session, fromEntry, toEntry) {
-  const changedFiles = await listGitChangedFiles(session.workspacePath, fromEntry, toEntry);
+  const signal = arguments.length > 3 ? arguments[3] : undefined;
+  const changedFiles = await listGitChangedFiles(session.workspacePath, fromEntry, toEntry, signal);
   return Promise.all(
     changedFiles.map(async (relativePath) => ({
       originalUri: createSnapshotUri(session.workspacePath, fromEntry.revision, relativePath, 'git'),
@@ -1726,12 +1903,13 @@ async function buildGitMultiDiffResources(session, fromEntry, toEntry) {
  * @returns {Promise<Array<{ originalUri: vscode.Uri, modifiedUri: vscode.Uri }>>}
  */
 async function buildGitRevisionMultiDiffResources(session, entry) {
-  const changedFiles = await listGitRevisionFiles(session.workspacePath, entry.revision);
+  const signal = arguments.length > 2 ? arguments[2] : undefined;
+  const changedFiles = await listGitRevisionFiles(session.workspacePath, entry.revision, signal);
   if (!changedFiles.length) {
     return [];
   }
 
-  const parentRevision = await resolveGitParentRevision(session.workspacePath, entry.revision);
+  const parentRevision = await resolveGitParentRevision(session.workspacePath, entry.revision, signal);
   return changedFiles.map((relativePath) => ({
     originalUri: createSnapshotUri(session.workspacePath, parentRevision || 'EMPTY', relativePath, 'git'),
     modifiedUri: createSnapshotUri(session.workspacePath, entry.revision, relativePath, 'git'),
@@ -1745,10 +1923,11 @@ async function buildGitRevisionMultiDiffResources(session, entry) {
  * @returns {Promise<string[]>}
  */
 async function listGitChangedFiles(workspacePath, fromEntry, toEntry) {
+  const signal = arguments.length > 3 ? arguments[3] : undefined;
   const args = toEntry.isWorkingTree
     ? ['diff', '--name-only', fromEntry.revision, '--']
     : ['diff', '--name-only', fromEntry.revision, toEntry.revision, '--'];
-  const { stdout } = await runGit(workspacePath, args);
+  const { stdout } = await runGit(workspacePath, args, { signal });
   return stdout
     .split(/\r?\n/u)
     .map((line) => line.trim())
@@ -1761,6 +1940,7 @@ async function listGitChangedFiles(workspacePath, fromEntry, toEntry) {
  * @returns {Promise<string[]>}
  */
 async function listGitRevisionFiles(workspacePath, revision) {
+  const signal = arguments.length > 2 ? arguments[2] : undefined;
   const { stdout } = await runGit(workspacePath, [
     'diff-tree',
     '--root',
@@ -1768,7 +1948,7 @@ async function listGitRevisionFiles(workspacePath, revision) {
     '--name-only',
     '-r',
     revision,
-  ]);
+  ], { signal });
 
   return stdout
     .split(/\r?\n/u)
@@ -1782,8 +1962,9 @@ async function listGitRevisionFiles(workspacePath, revision) {
  * @returns {Promise<string | undefined>}
  */
 async function resolveGitParentRevision(workspacePath, revision) {
+  const signal = arguments.length > 2 ? arguments[2] : undefined;
   try {
-    const { stdout } = await runGit(workspacePath, ['rev-parse', `${revision}^`]);
+    const { stdout } = await runGit(workspacePath, ['rev-parse', `${revision}^`], { signal });
     const parentRevision = stdout.trim();
     return parentRevision || undefined;
   } catch {
@@ -2060,14 +2241,15 @@ function buildNoChangeRows(afterLines) {
  * @returns {Promise<{ resources: Array<{ originalUri: vscode.Uri, modifiedUri: vscode.Uri }>, resolvedTitle: string }>}
  */
 async function buildMultiDiffResources(workspacePath, base, target, title) {
-  let changedFiles = await listChangedFiles(workspacePath, base, target);
+  const signal = arguments.length > 4 ? arguments[4] : undefined;
+  let changedFiles = await listChangedFiles(workspacePath, base, target, signal);
   let originalRevset = base;
   let modifiedRevset = target;
   let resolvedTitle = title;
 
   if (!changedFiles.length && target === '@' && base !== target) {
     // JJ range semantics can be empty even when the selected revision has its own patch.
-    const revisionFiles = await listRevisionFiles(workspacePath, base);
+    const revisionFiles = await listRevisionFiles(workspacePath, base, signal);
     if (revisionFiles.length) {
       changedFiles = revisionFiles;
       originalRevset = `${base}-`;
@@ -2098,9 +2280,11 @@ async function buildMultiDiffResources(workspacePath, base, target, title) {
  * @returns {Promise<string[]>}
  */
 async function listChangedFiles(workspacePath, base, target) {
+  const signal = arguments.length > 3 ? arguments[3] : undefined;
   const { stdout } = await runJj(
     workspacePath,
-    ['diff', '--name-only', '--from', base, '--to', target]
+    ['diff', '--name-only', '--from', base, '--to', target],
+    { signal }
   );
 
   return stdout
@@ -2115,7 +2299,8 @@ async function listChangedFiles(workspacePath, base, target) {
  * @returns {Promise<string[]>}
  */
 async function listRevisionFiles(workspacePath, revset) {
-  const { stdout } = await runJj(workspacePath, ['diff', '--name-only', '-r', revset]);
+  const signal = arguments.length > 2 ? arguments[2] : undefined;
+  const { stdout } = await runJj(workspacePath, ['diff', '--name-only', '-r', revset], { signal });
 
   return stdout
     .split(/\r?\n/u)
@@ -2222,28 +2407,58 @@ function isMissingFileAtRevisionError(error) {
  * @param {string[]} args
  * @returns {Promise<{ stdout: string, stderr: string }>}
  */
-async function runJj(workspacePath, args) {
+async function runJj(workspacePath, args, options = {}) {
   logJjCommand(workspacePath, args);
 
-  return execFileAsync('jj', args, {
-    cwd: workspacePath,
-    encoding: 'utf8',
-    maxBuffer: 10 * 1024 * 1024,
-  });
+  return runCommand('jj', workspacePath, args, options);
 }
 
 /**
  * @param {string} workspacePath
  * @param {string[]} args
+ * @param {{ signal?: AbortSignal }=} options
  * @returns {Promise<{ stdout: string, stderr: string }>}
  */
-async function runGit(workspacePath, args) {
+async function runGit(workspacePath, args, options = {}) {
   logGitCommand(workspacePath, args);
 
-  return execFileAsync('git', args, {
-    cwd: workspacePath,
-    encoding: 'utf8',
-    maxBuffer: 10 * 1024 * 1024,
+  return runCommand('git', workspacePath, args, options);
+}
+
+/**
+ * @param {'jj' | 'git'} command
+ * @param {string} workspacePath
+ * @param {string[]} args
+ * @param {{ signal?: AbortSignal }=} options
+ * @returns {Promise<{ stdout: string, stderr: string }>}
+ */
+function runCommand(command, workspacePath, args, options = {}) {
+  return new Promise((resolve, reject) => {
+    const child = execFile(command, args, {
+      cwd: workspacePath,
+      encoding: 'utf8',
+      maxBuffer: 10 * 1024 * 1024,
+      signal: options.signal,
+    }, (error, stdout, stderr) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+
+      resolve({ stdout: stdout || '', stderr: stderr || '' });
+    });
+
+    if (options.signal) {
+      const abort = () => {
+        child.kill();
+      };
+
+      if (options.signal.aborted) {
+        abort();
+      } else {
+        options.signal.addEventListener('abort', abort, { once: true });
+      }
+    }
   });
 }
 
@@ -2569,11 +2784,15 @@ function getTimelineWebviewHtml(webview) {
   const scriptUri = webview.asWebviewUri(
     vscode.Uri.joinPath(extensionContext.extensionUri, 'webview', 'timeline.js')
   );
+  const modelUri = webview.asWebviewUri(
+    vscode.Uri.joinPath(extensionContext.extensionUri, 'webview', 'timeline.model.js')
+  );
 
   return renderTimelineDocumentHtml({
     title: 'Revision Timeline',
     cspSource: webview.cspSource,
     styleHref: String(styleUri),
+    modelSrc: String(modelUri),
     scriptSrc: String(scriptUri),
   });
 }

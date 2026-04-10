@@ -1,4 +1,5 @@
 (function () {
+  const timelineModel = globalThis.TimelineModel;
   const vscode = typeof acquireVsCodeApi === 'function'
     ? acquireVsCodeApi()
     : {
@@ -65,11 +66,14 @@
     openSidebarRangeDiffButton: document.getElementById('openSidebarRangeDiffButton'),
     openCurrentFileAction: document.getElementById('openCurrentFileAction'),
     openRangeFilesButton: document.getElementById('openRangeFilesButton'),
+    cancelActiveRequestAction: document.getElementById('cancelActiveRequestAction'),
     openEditorButton: document.getElementById('openEditorButton'),
     refreshButton: document.getElementById('refreshButton'),
     toggleHotkeysButton: document.getElementById('toggleHotkeysButton'),
     hotkeysPopover: document.getElementById('hotkeysPopover'),
     closeHotkeysButton: document.getElementById('closeHotkeysButton'),
+    timelineVersion: document.getElementById('timelineVersion'),
+    hotkeysVersion: document.getElementById('hotkeysVersion'),
     rangeLabel: document.getElementById('rangeLabel'),
     rangeSubtitle: document.getElementById('rangeSubtitle'),
     rangeFill: document.getElementById('rangeFill'),
@@ -143,6 +147,8 @@
       state.sidebarSearchQuery = '';
       state.pendingSidebarAnchorIndex = null;
       elements.sidebarSearchInput.value = '';
+      elements.timelineVersion.textContent = message.payload.version ? 'v' + message.payload.version : '';
+      elements.hotkeysVersion.textContent = message.payload.version ? 'Version ' + message.payload.version : '';
 
       if (!state.data.entries.length) {
         renderEmpty();
@@ -284,6 +290,11 @@
   elements.refreshButton.addEventListener('click', () => {
     closeMenu();
     vscode.postMessage({ command: 'refresh' });
+  });
+
+  elements.cancelActiveRequestAction.addEventListener('click', () => {
+    closeMenu();
+    vscode.postMessage({ command: 'cancel-active-request' });
   });
 
   elements.toggleHotkeysButton.addEventListener('click', (event) => {
@@ -545,9 +556,6 @@
       }
 
       state.comparisonMode = value;
-      if (value === 'range' && state.comparisonSource === 'snapshot') {
-        state.comparisonSource = 'revision';
-      }
       if (value === 'step') {
         alignSingleSelection();
       }
@@ -774,7 +782,7 @@
   function applyPreset(preset, resetSelection, suppressPreviewRequest) {
     state.preset = preset;
     clearPendingSidebarSelection();
-    const allEntries = state.data.entries;
+    const allEntries = getSourceEntries();
     const lastEntry = allEntries[allEntries.length - 1];
     const windowDays = state.data.presets[preset];
     const cutoff = Number.isFinite(windowDays)
@@ -835,8 +843,9 @@
     const fromEntry = state.visibleEntries[fromVisibleIndex];
     const toEntry = state.visibleEntries[toVisibleIndex];
     const activeRange = getActivePreviewRange();
-    const activeFromEntry = state.data.entries[activeRange.fromIndex] || fromEntry;
-    const activeToEntry = state.data.entries[activeRange.toIndex] || toEntry;
+    const sourceEntries = getSourceEntries();
+    const activeFromEntry = sourceEntries[activeRange.fromIndex] || fromEntry;
+    const activeToEntry = sourceEntries[activeRange.toIndex] || toEntry;
     const knownPreview = state.previewByRange[getPreviewKey(activeRange.fromIndex, activeRange.toIndex, getEffectiveComparisonSource())];
 
     positionRangeVisuals(fromVisibleIndex, toVisibleIndex);
@@ -864,8 +873,8 @@
 
   function formatRangeTitle() {
     const selectedCount = getSelectedRevisionCount();
-    const touchingCount = state.data.entries.filter((entry) => entry.touchesFile).length;
-    return String(selectedCount) + '/' + String(touchingCount) + ' revisions selected';
+    const touchingCount = getSourceEntries().filter((entry) => entry.touchesFile).length;
+    return String(selectedCount) + '/' + String(touchingCount) + ' ' + (state.comparisonSource === 'snapshot' ? 'snapshots' : 'revisions') + ' selected';
   }
 
   function formatRangeSubtitle(fromEntry, toEntry) {
@@ -876,9 +885,7 @@
   }
 
   function getSelectedRevisionCount() {
-    const minIndex = Math.min(state.fromIndex, state.toIndex);
-    const maxIndex = Math.max(state.fromIndex, state.toIndex);
-    return state.visibleEntries.filter((entry) => entry.index >= minIndex && entry.index <= maxIndex).length;
+    return timelineModel.getSelectedEntryCount(state.visibleEntries, state.fromIndex, state.toIndex);
   }
 
   function positionRangeVisuals(fromVisibleIndex, toVisibleIndex) {
@@ -1007,6 +1014,7 @@
           vscode.postMessage({
             command: 'open-revision-files-diff',
             entryIndex: entry.index,
+            comparisonSource: getEffectiveComparisonSource(),
           });
         });
       }
@@ -1147,8 +1155,9 @@
     }
 
     const activeRange = getActivePreviewRange();
-    const fromEntry = state.data.entries[activeRange.fromIndex];
-    const toEntry = state.data.entries[activeRange.toIndex];
+    const sourceEntries = getSourceEntries();
+    const fromEntry = sourceEntries[activeRange.fromIndex];
+    const toEntry = sourceEntries[activeRange.toIndex];
     if (!fromEntry || !toEntry) {
       elements.diffTitle.textContent = 'No diff available';
       elements.diffSubtitle.textContent = '';
@@ -1556,16 +1565,8 @@
   }
 
   function getUnitPreviewRange(entryIndex) {
-    const visibleIndex = getVisibleIndexForAbsoluteIndex(entryIndex);
-    if (visibleIndex <= 0) {
-      return null;
-    }
-
-    return {
-      fromIndex: state.visibleEntries[visibleIndex - 1].index,
-      toIndex: state.visibleEntries[visibleIndex].index,
-      comparisonSource: getEffectiveComparisonSource(),
-    };
+    const range = timelineModel.getUnitPreviewRange(state.visibleEntries, entryIndex);
+    return range ? { ...range, comparisonSource: getEffectiveComparisonSource() } : null;
   }
 
   function getSidebarPreview(entryIndex) {
@@ -1578,28 +1579,19 @@
   }
 
   function prefetchSidebarPreviews() {
-    const nextQueue = [];
-    for (let index = 1; index < state.visibleEntries.length; index += 1) {
-      const range = getUnitPreviewRange(state.visibleEntries[index].index);
-      if (!range) {
-        continue;
-      }
-
-      const key = getPreviewKey(range.fromIndex, range.toIndex, range.comparisonSource);
-      if (state.previewByRange[key] || state.sidebarPreviewInFlightKey === key) {
-        continue;
-      }
-
-      nextQueue.push({
-        key,
-        fromIndex: range.fromIndex,
-        toIndex: range.toIndex,
-        comparisonSource: range.comparisonSource,
-      });
-    }
-
-    state.sidebarPreviewQueue = nextQueue;
+    state.sidebarPreviewQueue = timelineModel.getSidebarPreviewRequests(
+      state.visibleEntries,
+      getEffectiveComparisonSource(),
+      state.previewByRange,
+      state.sidebarPreviewInFlightKey,
+      getPreviewKey,
+      18
+    );
     pumpSidebarPreviewQueue();
+  }
+
+  function getSourceEntries() {
+    return timelineModel.getEntriesForSource(state.data, getEffectiveComparisonSource());
   }
 
   function pumpSidebarPreviewQueue() {

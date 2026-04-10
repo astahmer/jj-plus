@@ -1,0 +1,101 @@
+(function (root, factory) {
+  const api = factory();
+
+  if (typeof module === 'object' && module.exports) {
+    module.exports = api;
+  }
+
+  root.TimelineModel = api;
+})(typeof globalThis !== 'undefined' ? globalThis : this, function () {
+  /**
+   * @param {{ backend?: string, entries?: unknown[], snapshotEntries?: unknown[] } | null | undefined} data
+   * @param {'revision' | 'snapshot'} comparisonSource
+   * @returns {unknown[]}
+   */
+  function getEntriesForSource(data, comparisonSource) {
+    if (!data) {
+      return [];
+    }
+
+    if (data.backend === 'jj' && comparisonSource === 'snapshot' && Array.isArray(data.snapshotEntries) && data.snapshotEntries.length) {
+      return data.snapshotEntries;
+    }
+
+    return Array.isArray(data.entries) ? data.entries : [];
+  }
+
+  /**
+   * @param {Array<{ index: number }>} visibleEntries
+   * @param {number} entryIndex
+   * @returns {{ fromIndex: number, toIndex: number } | null}
+   */
+  function getUnitPreviewRange(visibleEntries, entryIndex) {
+    const visibleIndex = visibleEntries.findIndex((entry) => entry.index === entryIndex);
+    if (visibleIndex <= 0) {
+      return null;
+    }
+
+    return {
+      fromIndex: visibleEntries[visibleIndex - 1].index,
+      toIndex: visibleEntries[visibleIndex].index,
+    };
+  }
+
+  /**
+   * @param {Array<{ index: number }>} visibleEntries
+   * @param {number} fromIndex
+   * @param {number} toIndex
+   * @returns {number}
+   */
+  function getSelectedEntryCount(visibleEntries, fromIndex, toIndex) {
+    const minIndex = Math.min(fromIndex, toIndex);
+    const maxIndex = Math.max(fromIndex, toIndex);
+    return visibleEntries.filter((entry) => entry.index >= minIndex && entry.index <= maxIndex).length;
+  }
+
+  /**
+   * @param {Array<{ index: number }>} visibleEntries
+   * @param {'revision' | 'snapshot'} comparisonSource
+   * @param {Record<string, unknown>} previewByRange
+   * @param {string} inFlightKey
+   * @param {(fromIndex: number, toIndex: number, comparisonSource: 'revision' | 'snapshot') => string} makePreviewKey
+   * @param {number=} limit
+   * @returns {Array<{ key: string, fromIndex: number, toIndex: number, comparisonSource: 'revision' | 'snapshot' }>}
+   */
+  function getSidebarPreviewRequests(visibleEntries, comparisonSource, previewByRange, inFlightKey, makePreviewKey, limit = 24) {
+    /** @type {Array<{ key: string, fromIndex: number, toIndex: number, comparisonSource: 'revision' | 'snapshot' }>} */
+    const requests = [];
+
+    for (let index = 1; index < visibleEntries.length; index += 1) {
+      const range = getUnitPreviewRange(visibleEntries, visibleEntries[index].index);
+      if (!range) {
+        continue;
+      }
+
+      const key = makePreviewKey(range.fromIndex, range.toIndex, comparisonSource);
+      if (previewByRange[key] || inFlightKey === key) {
+        continue;
+      }
+
+      requests.push({
+        key,
+        fromIndex: range.fromIndex,
+        toIndex: range.toIndex,
+        comparisonSource,
+      });
+
+      if (requests.length >= limit) {
+        break;
+      }
+    }
+
+    return requests;
+  }
+
+  return {
+    getEntriesForSource,
+    getSelectedEntryCount,
+    getSidebarPreviewRequests,
+    getUnitPreviewRange,
+  };
+});
