@@ -2,8 +2,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { textsMatchIgnoringLineEndings, normalizeTextForComparison } = require('../lib/diff-helpers.js');
-const { dedupeEntriesByChangeId, getGitHubRemoteBaseUrl, parseJjSummaryRenameLines } = require('../lib/history-helpers.js');
-const { getEntriesForSource, getSelectedEntryCount, getSidebarPreviewRequests, getUnitPreviewRange } = require('../webview/timeline.model.js');
+const { dedupeAdjacentEntriesByChangeId, getGitHubRemoteBaseUrl, parseJjSummaryRenameLines } = require('../lib/history-helpers.js');
+const { getEntriesForSource, getSelectedEntryCount, getSidebarPreviewRequests, getTimelineAnchorPercent, getUnitPreviewRange } = require('../webview/timeline.model.js');
 
 test('normalizeTextForComparison normalizes CRLF to LF', () => {
   assert.equal(normalizeTextForComparison('a\r\nb\r\n'), 'a\nb\n');
@@ -41,18 +41,18 @@ test('getGitHubRemoteBaseUrl supports https and ssh remotes', () => {
   assert.equal(getGitHubRemoteBaseUrl('https://gitlab.com/astahmer/example.git'), undefined);
 });
 
-test('dedupeEntriesByChangeId keeps the latest entry for each JJ change', () => {
+test('dedupeAdjacentEntriesByChangeId only collapses consecutive JJ evolutions', () => {
   assert.deepEqual(
-    dedupeEntriesByChangeId([
-      { revision: 'old-a', changeId: 'aaa' },
-      { revision: 'old-b', changeId: 'bbb' },
-      { revision: 'new-a', changeId: 'aaa' },
-      { revision: 'new-c', changeId: 'ccc' },
+    dedupeAdjacentEntriesByChangeId([
+      { revision: 'a1', changeId: 'aaa' },
+      { revision: 'a2', changeId: 'aaa' },
+      { revision: 'b1', changeId: 'bbb' },
+      { revision: 'a3', changeId: 'aaa' },
     ]),
     [
-      { revision: 'old-b', changeId: 'bbb' },
-      { revision: 'new-a', changeId: 'aaa' },
-      { revision: 'new-c', changeId: 'ccc' },
+      { revision: 'a1', changeId: 'aaa' },
+      { revision: 'b1', changeId: 'bbb' },
+      { revision: 'a3', changeId: 'aaa' },
     ]
   );
 });
@@ -73,6 +73,18 @@ test('timeline model computes unit preview ranges and selected counts', () => {
   assert.deepEqual(getUnitPreviewRange(visibleEntries, 10), { fromIndex: 8, toIndex: 10 });
   assert.equal(getUnitPreviewRange(visibleEntries, 4), null);
   assert.equal(getSelectedEntryCount(visibleEntries, 8, 14), 3);
+});
+
+test('timeline model positions anchors by timestamp, not just index', () => {
+  const visibleEntries = [
+    { index: 0, timestamp: 100 },
+    { index: 1, timestamp: 190 },
+    { index: 2, timestamp: 200 },
+  ];
+
+  assert.equal(getTimelineAnchorPercent(visibleEntries, 0), 0);
+  assert.equal(getTimelineAnchorPercent(visibleEntries, 2), 100);
+  assert.equal(getTimelineAnchorPercent(visibleEntries, 1), 90);
 });
 
 test('timeline model builds sidebar preview requests for uncached unit ranges', () => {

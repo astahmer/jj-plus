@@ -5,7 +5,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const vscode = require('vscode');
 const { textsMatchIgnoringLineEndings } = require('./lib/diff-helpers.js');
-const { dedupeEntriesByChangeId, getGitHubRemoteBaseUrl, parseJjSummaryRenameLines } = require('./lib/history-helpers.js');
+const { dedupeAdjacentEntriesByChangeId, getGitHubRemoteBaseUrl, parseJjSummaryRenameLines } = require('./lib/history-helpers.js');
 const packageJson = require('./package.json');
 const { renderTimelineDocumentHtml } = require('./webview/timeline.template.js');
 
@@ -889,7 +889,7 @@ async function getJjFileRevisionHistory(workspacePath, relativePath) {
     toJjRootFileFileset(relativePath),
   ]);
 
-  return dedupeEntriesByChangeId(stdout
+  return dedupeAdjacentEntriesByChangeId(stdout
     .split(/\r?\n/u)
     .map((line) => line.trim())
     .filter(Boolean)
@@ -991,7 +991,7 @@ async function getRepositoryRevisionHistory(backend, workspacePath) {
       template,
     ]);
 
-    return dedupeEntriesByChangeId(stdout
+    return dedupeAdjacentEntriesByChangeId(stdout
       .split(/\r?\n/u)
       .map((line) => line.trim())
       .filter(Boolean)
@@ -1061,48 +1061,37 @@ async function buildTimelineEntries(backend, workspacePath, absolutePath, relati
  * @returns {Promise<FileRevisionEntry[]>}
  */
 async function buildJjSnapshotEntries(workspacePath, relativePath, revisionEntries) {
-  const latestTouchingEntry = revisionEntries.filter((entry) => entry.touchesFile && !entry.isWorkingTree).at(-1);
-  if (!latestTouchingEntry) {
-    return revisionEntries;
-  }
-
-  let evolutionEntries;
-  try {
-    evolutionEntries = await getJjEvolutionHistory(workspacePath, latestTouchingEntry.revision);
-  } catch {
-    return revisionEntries;
-  }
-
-  if (evolutionEntries.length < 2) {
-    return revisionEntries;
-  }
-
+  /** @type {Map<string, FileRevisionEntry[]>} */
+  const snapshotEntriesByChangeId = new Map();
   /** @type {FileRevisionEntry[]} */
   const snapshotEntries = [];
-  for (const entry of evolutionEntries) {
-    try {
-      const changedFiles = await listRevisionFiles(workspacePath, entry.revision);
-      if (changedFiles.includes(relativePath)) {
-        snapshotEntries.push({
-          ...entry,
-          filePath: relativePath,
-          touchesFile: true,
-          remoteUrl: undefined,
-        });
-      }
-    } catch {
-      // Hidden evolution entries can occasionally fail to diff in unusual repos. Skip them.
+
+  for (const entry of revisionEntries) {
+    if (entry.isWorkingTree) {
+      snapshotEntries.push(entry);
+      continue;
+    }
+
+    if (!entry.touchesFile || !entry.changeId) {
+      snapshotEntries.push(entry);
+      continue;
+    }
+
+    let expandedEntries = snapshotEntriesByChangeId.get(entry.changeId);
+    if (!expandedEntries) {
+      expandedEntries = await getJjEvolutionHistoryForFile(workspacePath, relativePath, entry);
+      snapshotEntriesByChangeId.set(entry.changeId, expandedEntries);
+    }
+
+    if (expandedEntries.length) {
+      snapshotEntries.push(...expandedEntries);
+    } else {
+      snapshotEntries.push(entry);
     }
   }
 
-  if (snapshotEntries.length < 2) {
-    return revisionEntries;
-  }
-
-  const baseEntries = revisionEntries.filter((entry) => !entry.isWorkingTree && entry.changeId !== latestTouchingEntry.changeId);
-  const mergedEntries = [...baseEntries, ...snapshotEntries];
-  mergedEntries.sort((left, right) => left.timestamp - right.timestamp || left.revision.localeCompare(right.revision));
-  return mergedEntries;
+  snapshotEntries.sort((left, right) => left.timestamp - right.timestamp || left.revision.localeCompare(right.revision));
+  return snapshotEntries;
 }
 
 /**
@@ -1140,6 +1129,37 @@ async function getJjEvolutionHistory(workspacePath, revision) {
     .filter(Boolean)
     .map(parseJjHistoryLine)
     .reverse();
+}
+
+/**
+ * @param {string} workspacePath
+ * @param {string} relativePath
+ * @param {FileRevisionEntry} entry
+ * @returns {Promise<FileRevisionEntry[]>}
+ */
+async function getJjEvolutionHistoryForFile(workspacePath, relativePath, entry) {
+  try {
+    const evolutionEntries = await getJjEvolutionHistory(workspacePath, entry.revision);
+    /** @type {FileRevisionEntry[]} */
+    const touchingEntries = [];
+
+    for (const evolutionEntry of evolutionEntries) {
+      const changedFiles = await listRevisionFiles(workspacePath, evolutionEntry.revision);
+      if (!changedFiles.includes(relativePath)) {
+        continue;
+      }
+
+      touchingEntries.push({
+        ...evolutionEntry,
+        touchesFile: true,
+        filePath: relativePath,
+      });
+    }
+
+    return touchingEntries;
+  } catch {
+    return [];
+  }
 }
 
 /**

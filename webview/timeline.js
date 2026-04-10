@@ -577,9 +577,9 @@
         state.comparisonSource = value;
         clearPendingSidebarSelection();
         state.preview = null;
-        renderSelection();
-        persistPreferences();
-        requestPreview(0);
+        state.previewByRange = {};
+        state.expandedRanges = {};
+        applyPreset(state.preset, true);
       });
     } else {
       elements.comparisonSources.hidden = true;
@@ -889,9 +889,8 @@
   }
 
   function positionRangeVisuals(fromVisibleIndex, toVisibleIndex) {
-    const denominator = Math.max(1, state.visibleEntries.length - 1);
-    const fromPercent = (fromVisibleIndex / denominator) * 100;
-    const toPercent = (toVisibleIndex / denominator) * 100;
+    const fromPercent = timelineModel.getTimelineAnchorPercent(state.visibleEntries, fromVisibleIndex);
+    const toPercent = timelineModel.getTimelineAnchorPercent(state.visibleEntries, toVisibleIndex);
     elements.fromMarker.style.left = String(fromPercent) + '%';
     elements.toMarker.style.left = String(toPercent) + '%';
     elements.rangeFill.style.left = String(fromPercent) + '%';
@@ -1549,9 +1548,8 @@
   }
 
   function renderTrackAnchors() {
-    const denominator = Math.max(1, state.visibleEntries.length - 1);
     elements.track.innerHTML = state.visibleEntries.map((entry, visibleIndex) => {
-      const left = (visibleIndex / denominator) * 100;
+      const left = timelineModel.getTimelineAnchorPercent(state.visibleEntries, visibleIndex);
       const inRange = entry.index >= Math.min(state.fromIndex, state.toIndex) && entry.index <= Math.max(state.fromIndex, state.toIndex);
       const isFrom = entry.index === state.fromIndex;
       const isTo = entry.index === state.toIndex;

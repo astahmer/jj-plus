@@ -54,6 +54,29 @@
   }
 
   /**
+   * @param {Array<{ timestamp?: number }>} visibleEntries
+   * @param {number} visibleIndex
+   * @returns {number}
+   */
+  function getTimelineAnchorPercent(visibleEntries, visibleIndex) {
+    if (!visibleEntries.length) {
+      return 0;
+    }
+
+    const firstTimestamp = Number(visibleEntries[0].timestamp || 0);
+    const lastTimestamp = Number(visibleEntries[visibleEntries.length - 1].timestamp || firstTimestamp);
+    const currentTimestamp = Number(visibleEntries[visibleIndex]?.timestamp || firstTimestamp);
+    const span = lastTimestamp - firstTimestamp;
+
+    if (span <= 0) {
+      const denominator = Math.max(1, visibleEntries.length - 1);
+      return (Math.min(Math.max(visibleIndex, 0), visibleEntries.length - 1) / denominator) * 100;
+    }
+
+    return ((currentTimestamp - firstTimestamp) / span) * 100;
+  }
+
+  /**
    * @param {Array<{ index: number }>} visibleEntries
    * @param {'revision' | 'snapshot'} comparisonSource
    * @param {Record<string, unknown>} previewByRange
@@ -94,6 +117,7 @@
 
   return {
     getEntriesForSource,
+    getTimelineAnchorPercent,
     getSelectedEntryCount,
     getSidebarPreviewRequests,
     getUnitPreviewRange,
