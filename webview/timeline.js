@@ -77,8 +77,10 @@
     layoutModes: document.getElementById('layoutModes'),
     contentModes: document.getElementById('contentModes'),
     intermediateToggle: document.getElementById('intermediateToggle'),
+    stepFastBackwardButton: document.getElementById('stepFastBackwardButton'),
     stepBackwardButton: document.getElementById('stepBackwardButton'),
     stepForwardButton: document.getElementById('stepForwardButton'),
+    stepFastForwardButton: document.getElementById('stepFastForwardButton'),
     stepStatus: document.getElementById('stepStatus'),
     diffModeEyebrow: document.getElementById('diffModeEyebrow'),
     diffTitle: document.getElementById('diffTitle'),
@@ -184,8 +186,16 @@
     navigateSelection(-1);
   });
 
+  elements.stepFastBackwardButton.addEventListener('click', () => {
+    navigateSelection(-5);
+  });
+
   elements.stepForwardButton.addEventListener('click', () => {
     navigateSelection(1);
+  });
+
+  elements.stepFastForwardButton.addEventListener('click', () => {
+    navigateSelection(5);
   });
 
   elements.actionsButton.addEventListener('click', (event) => {
@@ -376,7 +386,7 @@
   }
 
   function handleGlobalKeydown(event) {
-    if (!state.data || event.defaultPrevented || event.metaKey) {
+    if (!state.data || event.defaultPrevented) {
       return;
     }
 
@@ -385,7 +395,41 @@
       return;
     }
 
+    const commandPressed = event.metaKey || event.ctrlKey;
     const jumpAmount = event.shiftKey ? 5 : 1;
+
+    if (event.key === ' ' || event.key === 'Spacebar') {
+      event.preventDefault();
+      postRangeAction('open-range-files-diff', {
+        fromIndex: state.fromIndex,
+        toIndex: state.toIndex,
+      });
+      return;
+    }
+
+    if (commandPressed && event.key === 'ArrowUp') {
+      event.preventDefault();
+      setRangeBoundaryToVisibleEdge('from', 'start');
+      return;
+    }
+
+    if (commandPressed && event.key === 'ArrowDown') {
+      event.preventDefault();
+      setRangeBoundaryToVisibleEdge('to', 'end');
+      return;
+    }
+
+    if (event.metaKey && event.key === 'ArrowLeft') {
+      event.preventDefault();
+      moveRangeToVisibleEdge('start');
+      return;
+    }
+
+    if (event.metaKey && event.key === 'ArrowRight') {
+      event.preventDefault();
+      moveRangeToVisibleEdge('end');
+      return;
+    }
 
     if (event.key === 'ArrowLeft') {
       event.preventDefault();
@@ -394,7 +438,7 @@
       } else if (event.ctrlKey) {
         nudgeRangeBoundary('from', -jumpAmount);
       } else {
-        navigateSelection(-jumpAmount);
+      navigateSelection(-jumpAmount);
       }
       return;
     }
@@ -406,20 +450,20 @@
       } else if (event.ctrlKey) {
         nudgeRangeBoundary('from', jumpAmount);
       } else {
-        navigateSelection(jumpAmount);
+      navigateSelection(jumpAmount);
       }
       return;
     }
 
     if (event.key === 'ArrowUp') {
       event.preventDefault();
-      nudgeSidebarSelection(-jumpAmount);
+      nudgeRangeBoundary(event.altKey ? 'to' : 'from', -jumpAmount);
       return;
     }
 
     if (event.key === 'ArrowDown') {
       event.preventDefault();
-      nudgeSidebarSelection(jumpAmount);
+      nudgeRangeBoundary(event.altKey ? 'to' : 'from', jumpAmount);
     }
   }
 
@@ -1073,6 +1117,8 @@
 
     elements.stepBackwardButton.disabled = !canNavigateSelection(-1);
     elements.stepForwardButton.disabled = !canNavigateSelection(1);
+    elements.stepFastBackwardButton.disabled = !canNavigateSelection(-1);
+    elements.stepFastForwardButton.disabled = !canNavigateSelection(1);
   }
 
   function canNavigateSelection(direction) {
@@ -1095,6 +1141,50 @@
 
     renderSelection();
     scrollSidebarToEntry(state.comparisonMode === 'step' ? state.toIndex : state.fromIndex, false);
+    persistPreferences();
+    requestPreview(0);
+  }
+
+  function setRangeBoundaryToVisibleEdge(side, edge) {
+    if (!state.visibleEntries.length) {
+      return;
+    }
+
+    const targetVisibleIndex = edge === 'start' ? 0 : state.visibleEntries.length - 1;
+    state.comparisonMode = 'range';
+    renderControlGroups();
+
+    if (side === 'from') {
+      state.fromIndex = state.visibleEntries[Math.min(targetVisibleIndex, getVisibleIndexForAbsoluteIndex(state.toIndex))].index;
+    } else {
+      state.toIndex = state.visibleEntries[Math.max(targetVisibleIndex, getVisibleIndexForAbsoluteIndex(state.fromIndex))].index;
+    }
+
+    renderSelection();
+    scrollSidebarToEntry(side === 'from' ? state.fromIndex : state.toIndex, false);
+    persistPreferences();
+    requestPreview(0);
+  }
+
+  function moveRangeToVisibleEdge(edge) {
+    if (!state.visibleEntries.length) {
+      return;
+    }
+
+    state.comparisonMode = 'range';
+    renderControlGroups();
+    const fromVisibleIndex = getVisibleIndexForAbsoluteIndex(state.fromIndex);
+    const toVisibleIndex = getVisibleIndexForAbsoluteIndex(state.toIndex);
+    const width = Math.max(0, toVisibleIndex - fromVisibleIndex);
+    const nextFromVisibleIndex = edge === 'start'
+      ? 0
+      : Math.max(0, state.visibleEntries.length - 1 - width);
+    const nextToVisibleIndex = Math.min(state.visibleEntries.length - 1, nextFromVisibleIndex + width);
+    state.fromIndex = state.visibleEntries[nextFromVisibleIndex].index;
+    state.toIndex = state.visibleEntries[nextToVisibleIndex].index;
+
+    renderSelection();
+    scrollSidebarToEntry(state.fromIndex, false);
     persistPreferences();
     requestPreview(0);
   }

@@ -64,6 +64,7 @@
               </div>
 
               <div class="range-steps">
+                <button class="step-button" id="stepFastBackwardButton" type="button" aria-label="Jump backward">&#171;</button>
                 <button class="step-button" id="stepBackwardButton" type="button" aria-label="Previous range">&#x2039;</button>
                 <div class="step-center">
                   <div class="step-status" id="stepStatus">Range view</div>
@@ -73,6 +74,7 @@
                   </div>
                 </div>
                 <button class="step-button" id="stepForwardButton" type="button" aria-label="Next range">&#x203A;</button>
+                <button class="step-button" id="stepFastForwardButton" type="button" aria-label="Jump forward">&#187;</button>
               </div>
 
               <div class="timeline">

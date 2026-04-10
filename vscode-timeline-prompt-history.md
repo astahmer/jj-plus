@@ -120,12 +120,14 @@ Caused by:  --> 1:32
 
 ---
 
-- ok ctrl is still not working as a modifier then since option + left/right correcly moves the end marker (and combines well with shift); lets try using command + left/right for the end marker instead so we can have the option modifier free to use for the start marker
-- currently using up/down only updates t the end marker ("to"), we should instead move the start marker ("from") by default and IF using the option modifier then we should update the "to" modifier
+- using "command" + up should SET the start marker to the top of the visible revision range (all visible from "This year" or "All" etc w/e preset is currently selected); command+down should SET the end marker to the bottom; both will update the SIZE of the selected revision range
+- command+left should MOVE the current range itself (will not update the size; just update the position) to the top of the revision range and command+right the bottom
+- currently using up/down only updates t the start ("from") marker or the end marker ("to") based on where the latest cursor index was, we should instead move the start marker ("from") by default and IF using the option modifier then we should update the "to" modifier so it should feel more intuitive/deterministic
 - when moving the range position with left/right (with/out the shift modifier it doesnt matter) and then at some point using up/down to also move the range position it kinda resets the end marker (currently; in the future it will change the start marker like i said in the previous point) to the latest recorded position where the up/down key was used
 - pressing space after moving the range bar (either through left/right or up/down keys) we should open the multi file cumulative diffs for that revision range
 - just like we have "<-" / "->" arrow icon buttons we should have "<<-" and "->>" so we can move using the same speed as when using shift
 - the focus diff still breaks styling
+- sometimes there are +0/-0 diffs to a file itself and we still show "computing diff.." where its clearly just a file rename or somth else; at some point it ends up showing the "no textual changes" + "Path changed" but it takes a while and i feel like this should be instant?
 - when using a jj backend, we could have a way to show the snapshots diffs (implicit diff based on each change in each file) in addition to the revision diffs (explicit change based on user manual command) so we could see the granular changes / how the file evolved over time; we could even have a play button to animate this evolution
 
 ---

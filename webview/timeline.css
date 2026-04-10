@@ -57,7 +57,7 @@ input {
 }
 
 .workspace.is-diff-focus {
-  grid-template-columns: 0 0 minmax(0, 1fr);
+  display: flex;
 }
 
 .panel {
@@ -111,6 +111,7 @@ input {
 .workspace.is-diff-focus .diff-panel {
   border-radius: 12px;
   grid-template-rows: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .sidebar-head {
@@ -348,6 +349,9 @@ input {
 
 .workspace.is-diff-focus .diff-content {
   height: 100%;
+  width: 100%;
+  justify-self: stretch;
+  align-self: stretch;
 }
 
 .collapse-button {
@@ -383,6 +387,8 @@ input {
 
 .diff-content {
   min-height: 0;
+  min-width: 0;
+  width: 100%;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
 }
@@ -543,7 +549,7 @@ input {
 
 .range-steps {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto auto minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 8px;
 }
@@ -718,11 +724,19 @@ input {
 
 .diff-rows {
   min-height: 0;
+  min-width: 0;
+  width: 100%;
   overflow: auto;
   padding-top: 8px;
   font-family: var(--code-font);
   font-size: 12px;
   line-height: 1.55;
+}
+
+.diff-summary,
+.split-row,
+.diff-row {
+  width: 100%;
 }
 
 .workspace.is-compact .sidebar {
@@ -849,7 +863,7 @@ input {
   }
 
   .range-steps {
-    grid-template-columns: auto 1fr auto;
+    grid-template-columns: auto auto 1fr auto auto;
   }
 
   .workspace.is-collapsed {
