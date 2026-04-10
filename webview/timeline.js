@@ -177,14 +177,33 @@
         return;
       }
 
+      const currentSourceEntries = getSourceEntries();
+      const selectedFromEntryId = currentSourceEntries[state.fromIndex] ? currentSourceEntries[state.fromIndex].id : null;
+      const selectedToEntryId = currentSourceEntries[state.toIndex] ? currentSourceEntries[state.toIndex].id : null;
+
       state.data.snapshotEntries = message.payload.snapshotEntries || [];
       state.data.snapshotState = message.payload.snapshotState || { loadedChangeIds: [] };
       state.snapshotHydrationInFlight = false;
 
       if (state.comparisonSource === 'snapshot') {
+        const nextSourceEntries = getSourceEntries();
+        const nextFromIndex = selectedFromEntryId
+          ? nextSourceEntries.findIndex((entry) => entry.id === selectedFromEntryId)
+          : -1;
+        const nextToIndex = selectedToEntryId
+          ? nextSourceEntries.findIndex((entry) => entry.id === selectedToEntryId)
+          : -1;
+
+        if (nextFromIndex >= 0) {
+          state.fromIndex = nextFromIndex;
+        }
+        if (nextToIndex >= 0) {
+          state.toIndex = nextToIndex;
+        }
+
         state.preview = null;
         state.previewByRange = {};
-        applyPreset(state.preset, true, true, true);
+        applyPreset(state.preset, false, true, true);
         requestPreview(0);
         requestSnapshotHydration();
       }
@@ -1012,7 +1031,7 @@
 
       item.innerHTML = [
         '<div class="history-top">',
-        '<div class="history-primary"><strong>' + escapeHtml(entry.shortRevision) + '</strong>' + renderHistoryBadges(entry, isFrom, isTo) + '</div>',
+        '<div class="history-primary"><strong>' + escapeHtml(getEntryPrimaryLabel(entry)) + '</strong>' + renderHistoryBadges(entry, isFrom, isTo) + '</div>',
         '<div class="history-actions"><span>' + escapeHtml(entry.shortDate) + '</span>'
           + (entry.remoteUrl ? '<button class="history-action history-action-remote" type="button" title="Open this revision on GitHub">Remote</button>' : '')
           + (entry.hasPreviousEntry ? '<button class="history-action history-action-diff" type="button" title="Open diffs for this revision">Open diffs</button>' : '')
@@ -1165,6 +1184,12 @@
 
   function renderHistoryBadges(entry, isFrom, isTo) {
     const parts = [];
+    if (entry.operationId) {
+      parts.push('<span class="mini-badge other">' + escapeHtml(entry.operationId) + '</span>');
+    }
+    if (entry.operationKey) {
+      parts.push('<span class="mini-badge other">' + escapeHtml(entry.operationKey) + '</span>');
+    }
     if (!entry.touchesFile) {
       parts.push('<span class="mini-badge other">OTHER</span>');
     }
@@ -1186,6 +1211,14 @@
       '<span class="stat stat--plus">+' + String(preview.additions) + '</span>',
       '<span class="stat stat--minus">-' + String(preview.deletions) + '</span>',
     ].join('');
+  }
+
+  function getEntryPrimaryLabel(entry) {
+    if (entry.operationId) {
+      return entry.operationId;
+    }
+
+    return entry.shortRevision;
   }
 
   function renderPreview() {

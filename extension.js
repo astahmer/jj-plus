@@ -1268,10 +1268,10 @@ async function getJjEvolutionHistoryForFile(workspacePath, relativePath, entry) 
     return evolutionEntries
       .filter((evolutionEntry) => parseJjSummaryChangedPaths(evolutionEntry.summaryLines).includes(relativePath))
       .map((evolutionEntry) => ({
-        id: `snapshot:${evolutionEntry.changeKey || evolutionEntry.revision}`,
+        id: `snapshot:${evolutionEntry.operationId || evolutionEntry.changeKey || evolutionEntry.revision}`,
         revision: evolutionEntry.revision,
         shortRevision: normalizeSnapshotOperationKey(evolutionEntry.changeKey) || evolutionEntry.revision.slice(0, 8),
-        changeId: evolutionEntry.changeId || entry.changeId,
+        changeId: entry.changeId,
         authorDate: normalizeSnapshotAuthorDate(evolutionEntry.authorDate, entry.authorDate),
         authorName: evolutionEntry.authorName || entry.authorName,
         description: normalizeSnapshotDescription(evolutionEntry.description, evolutionEntry.operationDescription),

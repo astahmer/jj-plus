@@ -296,6 +296,113 @@ yvsquxpl/9 alexandre.stahmer@gmail.com 2026-04-10 15:57:53 96da9b94 (hidden)
 - to help you even further i just created a new revision; made 5 distincts change (i saved the file between each change) on the /Users/astahmer/dev/work-related/welii/apps/backend/instructions/lazy-di-rollout-plan.md file; you can see the "jj branching snapshot" in the screen and you can see exactly what jj commands were run in /Users/astahmer/dev/alex/visualjj-range-diff-helper/extension-host2.log (tho i didnt add the output this time; feel free to check it yourself)
 - think a lot and try to debug stuff before making more changes; the next batch of changes you'll add HAVE to fix the issue cause you now have all of the info/context necessary to fix it. good luck!
 
+i still dont see individual/granular/distinct snapshot changes, the 5 snapshots that sequentially added "another" "change" "to" "the" "plan" words are still collapsed in a single "snapshot"; wording in the UI that do NOT reflect the actual evolog:
+
+welii *​ ≡
+❯ jj log --no-graph --limit 200 -T 'commit_id.short() ++ "\t" ++ change_id.shortest() ++ "\t" ++ author.timestamp().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ author.name() ++ "\t" ++ description.first_line() ++ "\n"' 'root-file:"apps/backend/instructions/lazy-di-rollout-plan.md"'
+76653bbe5d47    wywrv   2026-04-10T19:27:29+02:00       Alexandre Stahmer
+b81c91c2ac8c    zrx     2026-04-10T17:06:58+02:00       Alexandre Stahmer       workflow + organization + backoffice ff + user identity
+4e841158ae85    qkyt    2026-04-10T16:40:09+02:00       Alexandre Stahmer       ff + corporate group + calcom + backoffice expenses+vendor
+69ceeb779513    nppo    2026-04-10T16:07:51+02:00       Alexandre Stahmer
+160460119a63    vmuy    2026-04-10T15:22:28+02:00       Alexandre Stahmer       wip i18n + ai + dpt
+1f598c19ae79    lovsqt  2026-04-10T15:10:48+02:00       Alexandre Stahmer       resolveAsync
+50422e4c1466    uxv     2026-04-10T14:52:27+02:00       Alexandre Stahmer       wip comment/exchange rate+currency
+99186447512d    tqvk    2026-04-10T14:42:09+02:00       Alexandre Stahmer       wip comment domain
+9327aaf3b6cb    koyk    2026-04-10T12:12:26+02:00       Alexandre Stahmer       provideLazyValue + provideLazyFactory
+
+welii *​ ≡
+❯ jj evolog --no-graph --summary --limit 200 -r 76653bbe5d47
+wywrvxml alexandre.stahmer@gmail.com 2026-04-10 19:27:39 76653bbe
+(no description set)
+-- operation ee269b417d50 snapshot working copy
+M apps/backend/instructions/lazy-di-rollout-plan.md
+wywrvxml/1 alexandre.stahmer@gmail.com 2026-04-10 19:27:38 0920e6f2 (hidden)
+(no description set)
+-- operation cdf4786256d5 snapshot working copy
+M apps/backend/instructions/lazy-di-rollout-plan.md
+wywrvxml/2 alexandre.stahmer@gmail.com 2026-04-10 19:27:37 94760252 (hidden)
+(no description set)
+-- operation 61b575a8a17f snapshot working copy
+M apps/backend/instructions/lazy-di-rollout-plan.md
+wywrvxml/3 alexandre.stahmer@gmail.com 2026-04-10 19:27:33 c90ce16b (hidden)
+(no description set)
+-- operation 2069a299d6c5 snapshot working copy
+M apps/backend/instructions/lazy-di-rollout-plan.md
+wywrvxml/4 alexandre.stahmer@gmail.com 2026-04-10 19:27:29 5d1aab42 (hidden)
+(no description set)
+-- operation fad22fad0d20 snapshot working copy
+M apps/backend/instructions/lazy-di-rollout-plan.md
+wywrvxml/5 alexandre.stahmer@gmail.com 2026-04-10 19:27:09 9246b5a7 (hidden)
+(empty) (no description set)
+-- operation c92ad6c400cd new empty commit
+- logs of the jj request done are available at /Users/astahmer/dev/alex/visualjj-range-diff-helper/extension-host3-revision-mode.log (this one works fine) and /Users/astahmer/dev/alex/visualjj-range-diff-helper/extension-host3-snapshot-mode.log (this one doesnt properly shows granular snapshot operation changes)
+- with the snapshot mode we should have sidebar items for those operations: ee269b417d50
+cdf4786256d5
+61b575a8a17f
+2069a299d6c5
+fad22fad0d20
+c92ad6c400cd
+
+and it would be nice to show where they came from with their matching {revision}/{index} like wywrvxml/1 wywrvxml/2 etc
+
+if you need anything more to debug it please tell me; otherwise just fix it
+
+---
+
+- finally the snapshot mode somewhat works!
+- the operation id is shown twice in the sidebar items; we can probably remove the tag one (keep the operation id as title + use the {revision}/{index} as tag)
+- not related but lets reverse up/down keys; its counter intuitive atm; the up key should move the "to" marker not the "from"
+- clicking the revision/operation id should copy it (and show a "Copied!" for 2s then go back to the id)
+- when first opening the timeline with the snapshot as default mode (from the persistent state) OR when switching from revision to snapshot for the first time after opening the timeline -> there's a "Loading snapshots" (wrongly positioned as you can see in the screenshot) that will trigger a layout shift cause the sidebar items will changes; can we improve that somehow? ideally everything should be near-instant without layout shift
+- the diff stat like +X-Y are not always shown in the sidebar items when in snapshot mode?
+- btw there is a super weird bug with the track anchors where toggling the "left" css propery in the devtools actually fix the position (despite not setting a different value) so it seems like the style is not applied correctly or somth?? see the last screen
+- for revision ids (everywhere); we should display the "shortest" form colored differently like jj log does "wywrv" is in purple in "wywrvxml"
+
+here you can see the logs with the evolog coming later triggering the layout shift i think:
+[2026-04-10T18:10:21.079Z] cwd=/Users/astahmer/dev/work-related/welii
+jj root
+[2026-04-10T18:10:21.089Z] cwd=/Users/astahmer/dev/work-related/welii
+git ls-files --cached --others --exclude-standard -z
+[2026-04-10T18:10:21.125Z] cwd=/Users/astahmer/dev/work-related/welii
+jj log --no-graph --limit 200 -T 'commit_id.short() ++ "\t" ++ change_id.shortest() ++ "\t" ++ author.timestamp().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ author.name() ++ "\t" ++ description.first_line() ++ "\n"' 'root-file:"apps/backend/instructions/lazy-di-rollout-plan.md"'
+[2026-04-10T18:10:21.522Z] cwd=/Users/astahmer/dev/work-related/welii
+jj log --no-graph --limit 200 -T 'commit_id.short() ++ "\t" ++ change_id.shortest() ++ "\t" ++ author.timestamp().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ author.name() ++ "\t" ++ description.first_line() ++ "\n"'
+[2026-04-10T18:10:21.591Z] cwd=/Users/astahmer/dev/work-related/welii
+jj file show -r 76653bbe5d47 apps/backend/instructions/lazy-di-rollout-plan.md
+[2026-04-10T18:10:21.644Z] cwd=/Users/astahmer/dev/work-related/welii
+git remote get-url origin
+[2026-04-10T18:10:21.839Z] cwd=/Users/astahmer/dev/work-related/welii
+jj evolog --no-graph --summary --limit 200 -r b81c91c2ac8c
+[2026-04-10T18:10:21.854Z] cwd=/Users/astahmer/dev/work-related/welii
+jj diff --summary -r 76653bbe5d47
+[2026-04-10T18:10:21.931Z] cwd=/Users/astahmer/dev/work-related/welii
+jj file show -r 76653bbe5d47- apps/backend/instructions/lazy-di-rollout-plan.md
+[2026-04-10T18:10:22.008Z] cwd=/Users/astahmer/dev/work-related/welii
+jj file show -r 76653bbe5d47 apps/backend/instructions/lazy-di-rollout-plan.md
+[2026-04-10T18:10:22.415Z] cwd=/Users/astahmer/dev/work-related/welii
+jj evolog --no-graph --summary --limit 200 -r 76653bbe5d47
+[2026-04-10T18:10:22.508Z] cwd=/Users/astahmer/dev/work-related/welii
+jj evolog --no-graph --summary --limit 200 -r 9327aaf3b6cb
+[2026-04-10T18:10:22.666Z] cwd=/Users/astahmer/dev/work-related/welii
+jj evolog --no-graph --summary --limit 200 -r 99186447512d
+[2026-04-10T18:10:22.972Z] cwd=/Users/astahmer/dev/work-related/welii
+jj evolog --no-graph --summary --limit 200 -r 50422e4c1466
+[2026-04-10T18:10:23.146Z] cwd=/Users/astahmer/dev/work-related/welii
+jj evolog --no-graph --summary --limit 200 -r 1f598c19ae79
+[2026-04-10T18:10:23.331Z] cwd=/Users/astahmer/dev/work-related/welii
+jj evolog --no-graph --summary --limit 200 -r 160460119a63
+[2026-04-10T18:10:23.539Z] cwd=/Users/astahmer/dev/work-related/welii
+jj evolog --no-graph --summary --limit 200 -r 69ceeb779513
+[2026-04-10T18:10:23.674Z] cwd=/Users/astahmer/dev/work-related/welii
+jj evolog --no-graph --summary --limit 200 -r 4e841158ae85
+[2026-04-10T18:10:23.681Z] cwd=/Users/astahmer/dev/work-related/welii
+jj diff --summary -r b4bcbb72
+[2026-04-10T18:10:23.758Z] cwd=/Users/astahmer/dev/work-related/welii
+jj file show -r b4bcbb72- apps/backend/instructions/lazy-di-rollout-plan.md
+[2026-04-10T18:10:23.816Z] cwd=/Users/astahmer/dev/work-related/welii
+jj file show -r b4bcbb72 apps/backend/instructions/lazy-di-rollout-plan.md
+
+
 ---
 
 <!-- TODO -->
