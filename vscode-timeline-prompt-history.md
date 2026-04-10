@@ -149,6 +149,20 @@ Caused by:  --> 1:32
 
 ---
 
+- we should vertically align the label+shortkeys so its easier to see what does what
+- not sure why there are arrows icons for the right side of the help section (cumulative diff, pick range, etc)
+- currently the timeline bar (id track) has a background that is nice looking but does not represent the actual possible anchor points (each revision that we can see); change that so we can visually see where all the revision are
+- when clicking on "revision" instead of "snapshot" it doesnt seem like the active state styling properly transfers? either the styles are wrong or it doesnt properly swap. also when clicking snapshot it seems like its not 100% working anyway? there seems to be less diff show at the current snapshot id but thats about it; the count here doesnt change "Range view · 38 single diffs available" (there are probably more snapshots than revision no? show the actual snapshot counts if in snapshot mode) and the sidebar items also dont change except for their diff count (+X-Y) which becomes slightly smaller? see screen3 vs screen4 (same thing but in screen4 i selected snapshot; despite the active styles not proprely showing it) and i'd guess the sidebar items should be snapshots now instead of revisions ?
+- also it seems like the diff counts on the sidebar items are missing for most? unless i move the range near those
+- then again we see a lot of +0/-0 and it doenst seem to be renames.. something might be wrong and yes its time to setup tests with node native test runner on anything that isnt directly tied to the UI
+
+---
+
+- sometimes im trying to "open diff" and its trying to open lots of files; there should be a way to cancel that request (e.g if a close either the diff tab that was just opened or if i close the revision timeline tab while its still loading i guess?); can we do that or is it out of control? asking cause i got "Timeline action failed: spawn jj EAGAIN" after a while
+- seems like with jj; maybe this is cause i wasnt actively using jj and i just used jj git init which maybe confused some commits or idk; sometimes the revision are "duplicated" in the sidebar. its not the same revision id but it's using the same description / has the same diffs count which makes me think something is wrong even tho i cant explain what
+
+---
+
 <!-- TODO -->
 - "Open a file in the editor to browse its revision timeline" when no file is currently open we should probably show an input field with the list of files to select from the workspace no?
 - we should be able to see how the file evolved over time with automatically with a play button that animate this evolution

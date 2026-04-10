@@ -33,6 +33,8 @@
     persistTimer: undefined,
     menuOpen: false,
     hotkeysOpen: false,
+    sidebarPreviewQueue: [],
+    sidebarPreviewInFlightKey: '',
     compactViewport: false,
     sidebarShownOnCompact: false,
     showIntermediateRevisions: false,
@@ -135,6 +137,8 @@
       applyPreferences(message.payload.preferences || {});
       state.preview = null;
       state.previewByRange = {};
+      state.sidebarPreviewQueue = [];
+      state.sidebarPreviewInFlightKey = '';
       state.expandedRanges = {};
       state.sidebarSearchQuery = '';
       state.pendingSidebarAnchorIndex = null;
@@ -175,16 +179,29 @@
       return;
     }
 
-    if (message.payload.fromIndex !== state.previewFromIndex || message.payload.toIndex !== state.previewToIndex) {
+    const previewSource = message.payload.comparisonSource || getEffectiveComparisonSource();
+    const previewKey = getPreviewKey(
+      message.payload.fromIndex,
+      message.payload.toIndex,
+      previewSource
+    );
+
+    state.previewByRange[previewKey] = message.payload;
+    if (state.sidebarPreviewInFlightKey === previewKey) {
+      state.sidebarPreviewInFlightKey = '';
+    }
+
+    if (
+      message.payload.fromIndex !== state.previewFromIndex
+      || message.payload.toIndex !== state.previewToIndex
+      || previewSource !== getEffectiveComparisonSource()
+    ) {
+      renderHistoryList();
+      pumpSidebarPreviewQueue();
       return;
     }
 
     state.preview = message.payload;
-    state.previewByRange[getPreviewKey(
-      message.payload.fromIndex,
-      message.payload.toIndex,
-      message.payload.comparisonSource || getEffectiveComparisonSource()
-    )] = message.payload;
 
     if (
       !state.showIntermediateRevisions
@@ -198,6 +215,7 @@
 
     renderPreview();
     renderHistoryList();
+    pumpSidebarPreviewQueue();
   });
 
   elements.stepBackwardButton.addEventListener('click', () => {
@@ -837,9 +855,11 @@
       + (state.data.backend === 'jj' ? ' · ' + comparisonSourceLabels[state.comparisonSource] : '');
 
     renderStepControls();
+    renderTrackAnchors();
     renderMonths();
     renderHistoryList();
     renderPreview();
+    prefetchSidebarPreviews();
   }
 
   function formatRangeTitle() {
@@ -928,9 +948,7 @@
     }
 
     filteredEntries.forEach((entry, orderIndex) => {
-      const preview = state.previewByRange[getPreviewKey(entry.index, state.toIndex, getEffectiveComparisonSource())]
-        || state.previewByRange[getPreviewKey(state.fromIndex, entry.index, getEffectiveComparisonSource())]
-        || null;
+      const preview = getSidebarPreview(entry.index);
       const descriptionExpanded = Boolean(state.expandedDescriptions[String(entry.index)]);
       const showMore = entry.description.length > 48;
       const isFrom = entry.index === state.fromIndex;
@@ -1113,6 +1131,10 @@
   }
 
   function renderHistoryStats(preview) {
+    if (!preview.hasChanges) {
+      return '<span class="stat">No text</span>';
+    }
+
     return [
       '<span class="stat stat--plus">+' + String(preview.additions) + '</span>',
       '<span class="stat stat--minus">-' + String(preview.deletions) + '</span>',
@@ -1259,13 +1281,14 @@
 
   function renderStepControls() {
     const availableCount = Math.max(0, state.visibleEntries.length - 1);
+    const isSnapshotMode = state.data.backend === 'jj' && state.comparisonSource === 'snapshot';
     if (state.comparisonMode === 'range') {
       elements.stepStatus.textContent = availableCount > 0
-        ? 'Range view · ' + String(availableCount) + ' single diffs available'
+        ? 'Range view · ' + String(availableCount) + ' ' + (isSnapshotMode ? 'snapshots' : 'single diffs') + ' available'
         : 'Range view';
     } else {
       const current = Math.max(1, getVisibleIndexForAbsoluteIndex(state.toIndex));
-      const sourcePrefix = state.data.backend === 'jj' && state.comparisonSource === 'snapshot'
+      const sourcePrefix = isSnapshotMode
         ? 'Snapshot'
         : 'Single diff';
       elements.stepStatus.textContent = sourcePrefix + ' ' + String(current) + ' of ' + String(Math.max(1, availableCount));
@@ -1513,6 +1536,88 @@
     vscode.postMessage({
       command: 'resolve-nonempty-range',
       candidateIndexes,
+    });
+  }
+
+  function renderTrackAnchors() {
+    const denominator = Math.max(1, state.visibleEntries.length - 1);
+    elements.track.innerHTML = state.visibleEntries.map((entry, visibleIndex) => {
+      const left = (visibleIndex / denominator) * 100;
+      const inRange = entry.index >= Math.min(state.fromIndex, state.toIndex) && entry.index <= Math.max(state.fromIndex, state.toIndex);
+      const isFrom = entry.index === state.fromIndex;
+      const isTo = entry.index === state.toIndex;
+      return '<span class="track-anchor'
+        + (inRange ? ' in-range' : '')
+        + (isFrom ? ' is-from' : '')
+        + (isTo ? ' is-to' : '')
+        + (!entry.touchesFile ? ' is-intermediate' : '')
+        + '" style="left:' + String(left) + '%"></span>';
+    }).join('');
+  }
+
+  function getUnitPreviewRange(entryIndex) {
+    const visibleIndex = getVisibleIndexForAbsoluteIndex(entryIndex);
+    if (visibleIndex <= 0) {
+      return null;
+    }
+
+    return {
+      fromIndex: state.visibleEntries[visibleIndex - 1].index,
+      toIndex: state.visibleEntries[visibleIndex].index,
+      comparisonSource: getEffectiveComparisonSource(),
+    };
+  }
+
+  function getSidebarPreview(entryIndex) {
+    const range = getUnitPreviewRange(entryIndex);
+    if (!range) {
+      return null;
+    }
+
+    return state.previewByRange[getPreviewKey(range.fromIndex, range.toIndex, range.comparisonSource)] || null;
+  }
+
+  function prefetchSidebarPreviews() {
+    const nextQueue = [];
+    for (let index = 1; index < state.visibleEntries.length; index += 1) {
+      const range = getUnitPreviewRange(state.visibleEntries[index].index);
+      if (!range) {
+        continue;
+      }
+
+      const key = getPreviewKey(range.fromIndex, range.toIndex, range.comparisonSource);
+      if (state.previewByRange[key] || state.sidebarPreviewInFlightKey === key) {
+        continue;
+      }
+
+      nextQueue.push({
+        key,
+        fromIndex: range.fromIndex,
+        toIndex: range.toIndex,
+        comparisonSource: range.comparisonSource,
+      });
+    }
+
+    state.sidebarPreviewQueue = nextQueue;
+    pumpSidebarPreviewQueue();
+  }
+
+  function pumpSidebarPreviewQueue() {
+    if (state.sidebarPreviewInFlightKey || !state.sidebarPreviewQueue.length) {
+      return;
+    }
+
+    const nextRequest = state.sidebarPreviewQueue.shift();
+    if (!nextRequest) {
+      return;
+    }
+
+    state.sidebarPreviewInFlightKey = nextRequest.key;
+    vscode.postMessage({
+      command: 'select-entry',
+      fromIndex: nextRequest.fromIndex,
+      toIndex: nextRequest.toIndex,
+      comparisonSource: nextRequest.comparisonSource,
     });
   }
 

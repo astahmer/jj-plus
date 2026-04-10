@@ -126,19 +126,19 @@
               <div class="hotkeys-grid">
                 <div class="hotkey-section">
                   <div class="hotkey-section-title">Selection</div>
-                  <div class="hotkey-row"><span>Move range</span><kbd>←</kbd><kbd>→</kbd></div>
-                  <div class="hotkey-row"><span>Fast move range</span><kbd>Shift</kbd><kbd>←</kbd><kbd>→</kbd></div>
-                  <div class="hotkey-row"><span>Move from marker</span><kbd>↑</kbd><kbd>↓</kbd></div>
-                  <div class="hotkey-row"><span>Move to marker</span><kbd>Option</kbd><kbd>↑</kbd><kbd>↓</kbd></div>
-                  <div class="hotkey-row"><span>Dock range to start/end</span><kbd>Cmd</kbd><kbd>←</kbd><kbd>→</kbd></div>
-                  <div class="hotkey-row"><span>Set from/to to visible edge</span><kbd>Cmd</kbd><kbd>↑</kbd><kbd>↓</kbd></div>
+                  <div class="hotkey-row"><span class="hotkey-label">Move range</span><span class="hotkey-value"><kbd>←</kbd><kbd>→</kbd></span></div>
+                  <div class="hotkey-row"><span class="hotkey-label">Fast move range</span><span class="hotkey-value"><kbd>Shift</kbd><kbd>←</kbd><kbd>→</kbd></span></div>
+                  <div class="hotkey-row"><span class="hotkey-label">Move from marker</span><span class="hotkey-value"><kbd>↑</kbd><kbd>↓</kbd></span></div>
+                  <div class="hotkey-row"><span class="hotkey-label">Move to marker</span><span class="hotkey-value"><kbd>Option</kbd><kbd>↑</kbd><kbd>↓</kbd></span></div>
+                  <div class="hotkey-row"><span class="hotkey-label">Dock range to start/end</span><span class="hotkey-value"><kbd>Cmd</kbd><kbd>←</kbd><kbd>→</kbd></span></div>
+                  <div class="hotkey-row"><span class="hotkey-label">Set from/to to visible edge</span><span class="hotkey-value"><kbd>Cmd</kbd><kbd>↑</kbd><kbd>↓</kbd></span></div>
                 </div>
                 <div class="hotkey-section">
                   <div class="hotkey-section-title">Actions</div>
-                  <div class="hotkey-row"><span>Open cumulative diff</span><kbd>Space</kbd></div>
-                  <div class="hotkey-row"><span>Toggle help</span><kbd>?</kbd></div>
-                  <div class="hotkey-row"><span>Pick range by click</span><span class="hotkey-note">Click one revision, then another</span></div>
-                  <div class="hotkey-row"><span>Drag markers</span><span class="hotkey-note">Adjust range directly on the timeline</span></div>
+                  <div class="hotkey-row"><span class="hotkey-label">Open cumulative diff</span><span class="hotkey-value"><kbd>Space</kbd></span></div>
+                  <div class="hotkey-row"><span class="hotkey-label">Toggle help</span><span class="hotkey-value"><kbd>?</kbd></span></div>
+                  <div class="hotkey-row"><span class="hotkey-label">Pick range by click</span><span class="hotkey-note">Click one revision, then another</span></div>
+                  <div class="hotkey-row"><span class="hotkey-label">Drag markers</span><span class="hotkey-note">Adjust range directly on the timeline</span></div>
                 </div>
               </div>
             </div>

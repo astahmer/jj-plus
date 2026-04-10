@@ -5,6 +5,8 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const { promisify } = require('node:util');
 const vscode = require('vscode');
+const { textsMatchIgnoringLineEndings } = require('./lib/diff-helpers.js');
+const { getGitHubRemoteBaseUrl, parseJjSummaryRenameLines } = require('./lib/history-helpers.js');
 const { renderTimelineDocumentHtml } = require('./webview/timeline.template.js');
 
 const execFileAsync = promisify(execFile);
@@ -1118,7 +1120,15 @@ async function getDiffPreview(session, fromIndex, toIndex, comparisonSource = 'r
   }
 
   if (session.backend === 'jj' && comparisonSource === 'snapshot') {
-    const preview = await getJjSnapshotPreview(session, normalizedToIndex);
+    const canonicalKey = `${comparisonSource}:${normalizedToIndex}:${normalizedToIndex}`;
+    const canonicalPreview = session.previewCache.get(canonicalKey) || await getJjSnapshotPreview(session, normalizedToIndex);
+    session.previewCache.set(canonicalKey, canonicalPreview);
+
+    const preview = {
+      ...canonicalPreview,
+      fromIndex: normalizedFromIndex,
+      toIndex: normalizedToIndex,
+    };
     session.previewCache.set(cacheKey, preview);
     return preview;
   }
@@ -1264,9 +1274,7 @@ async function getRevisionContent(session, entry, entryIndex) {
  * @returns {DiffPreview}
  */
 function buildDiffPreview(index, previousEntry, currentEntry, beforeText, afterText, fromIndex, toIndex, beforePath, afterPath) {
-  const normalizedBeforeText = normalizeTextForComparison(beforeText);
-  const normalizedAfterText = normalizeTextForComparison(afterText);
-  const textsMatch = beforeText === afterText || normalizedBeforeText === normalizedAfterText;
+  const textsMatch = textsMatchIgnoringLineEndings(beforeText, afterText);
   const title = previousEntry
     ? `${previousEntry.shortRevision} -> ${currentEntry.shortRevision}`
     : `Initial revision -> ${currentEntry.shortRevision}`;
@@ -1440,29 +1448,6 @@ async function resolveJjPreviousPath(workspacePath, revision, currentPath) {
 
 /**
  * @param {string} output
- * @returns {Array<{ fromPath: string, toPath: string }>}
- */
-function parseJjSummaryRenameLines(output) {
-  return output
-    .split(/\r?\n/u)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .reduce((entries, line) => {
-      const match = /^R\s+(.+?)\s+=>\s+(.+)$/u.exec(line);
-      if (!match) {
-        return entries;
-      }
-
-      entries.push({
-        fromPath: match[1].trim(),
-        toPath: match[2].trim(),
-      });
-      return entries;
-    }, /** @type {Array<{ fromPath: string, toPath: string }>} */ ([]));
-}
-
-/**
- * @param {string} output
  * @param {boolean=} isJj
  * @returns {Array<{ fromPath: string, toPath: string }>}
  */
@@ -1533,7 +1518,7 @@ function buildNonTextualDetails(previousEntry, currentEntry, beforeText, afterTe
     details.push(`Path changed: ${beforePath} -> ${afterPath}`);
   }
 
-  if (beforeText !== afterText && normalizeTextForComparison(beforeText) === normalizeTextForComparison(afterText)) {
+  if (beforeText !== afterText && textsMatchIgnoringLineEndings(beforeText, afterText)) {
     details.push('Line endings changed.');
   }
 
@@ -1546,14 +1531,6 @@ function buildNonTextualDetails(previousEntry, currentEntry, beforeText, afterTe
   }
 
   return details;
-}
-
-/**
- * @param {string} value
- * @returns {string}
- */
-function normalizeTextForComparison(value) {
-  return value.replace(/\r\n/g, '\n');
 }
 
 /**
@@ -1719,25 +1696,10 @@ async function openRevisionOnRemote(session, entryIndex) {
 async function resolveGitHubRemoteBaseUrl(workspacePath) {
   try {
     const { stdout } = await runGit(workspacePath, ['remote', 'get-url', 'origin']);
-    const remote = stdout.trim();
-    if (!remote) {
-      return undefined;
-    }
-
-    const httpsMatch = /^https?:\/\/github\.com\/([^/]+)\/([^/]+?)(?:\.git)?$/u.exec(remote);
-    if (httpsMatch) {
-      return `https://github.com/${httpsMatch[1]}/${httpsMatch[2]}`;
-    }
-
-    const sshMatch = /^(?:ssh:\/\/)?git@github\.com[:/]([^/]+)\/([^/]+?)(?:\.git)?$/u.exec(remote);
-    if (sshMatch) {
-      return `https://github.com/${sshMatch[1]}/${sshMatch[2]}`;
-    }
+    return getGitHubRemoteBaseUrl(stdout);
   } catch {
     return undefined;
   }
-
-  return undefined;
 }
 
 /**
