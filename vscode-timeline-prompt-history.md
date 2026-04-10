@@ -230,6 +230,74 @@ welii/apps/backend *​ ≡
 
 ---
 
+- correct me if im wrong but im not sure dedupeEntriesByChangeId is what we should do ? what if the user does a change; reverts it; then revert the revert; then in the timeline we might skip those reverts right? maybe then a potential solution for the duplicated stuff is to dedup only if next to each other?
+- the anchor points (that we can move to) in the timeline track are not properly positioned x-wise
+- the snapshot logs still dont change anything in the UI (not even the toggle styles!) except the "Range view · 38 snapshots available" and smaller diffs in the (same) sidebar items.. write tests
+- " It is not yet a full per-change evolog expansion for every historical revision in the entire timeline." but thats exactly what we want tho? seeing EACH granular change
+
+
+- can confirm the toggle styles are finally working correctly!
+- the track-anchor are still wrongly positioned  (everything is on the left)
+- still seeing the duplicate commits on the sidebar items; somth seems wrong? and i can confirm switching from revision mode to snapshot mode still doesnt change the sidebar items (outside of smaller diff per items..)
+- if you need to try stuff you can do so at `/Users/astahmer/dev/work-related/welii`, for example this file `/Users/astahmer/dev/work-related/welii/knip.jsonc` has multiple snapshots i think? find others otherwise
+- after playing a bit with the diffs on the actual jj repo i sent you; add more tests to ensure everything works for us
+
+- not only did it NOT work at all but it also kinda ddos'd jj since it spammed with with so many commands (jj diff with independant revision)
+- the current state failing means we need to add more tests! btw im sure you fixed some stuff but since there's a crash at first i cant confirm anything
+- you can see the full log in /Users/astahmer/dev/alex/visualjj-range-diff-helper/extension-host.log
+- we will need to make that way more performant: we should batch stuff whenever possible and also maybe run those commands more lazily (only on visible revisions then when you scroll/move the range to a revision that wasnt part of the selection before we request at that time?)
+- when parsing the operation we probably want to store the operation index ({revisionId}/{index}) and the operation id; see
+ jj evolog --no-graph
+yvsquxpl alexandre.stahmer@gmail.com 2026-04-10 15:58:20 d4d1f6a7
+(no description set)
+-- operation b6b8b6a884a0 snapshot working copy
+yvsquxpl/1 alexandre.stahmer@gmail.com 2026-04-10 15:58:19 e5defe5a (hidden)
+(no description set)
+-- operation 2800954053ef snapshot working copy
+yvsquxpl/2 alexandre.stahmer@gmail.com 2026-04-10 15:58:18 e657fca4 (hidden)
+(no description set)
+-- operation 1613a3c264ea snapshot working copy
+yvsquxpl/3 alexandre.stahmer@gmail.com 2026-04-10 15:58:17 7a095da5 (hidden)
+(no description set)
+-- operation fdfead9e0bd0 snapshot working copy
+yvsquxpl/4 alexandre.stahmer@gmail.com 2026-04-10 15:58:16 7bd61ff4 (hidden)
+(no description set)
+-- operation 3819e850085b snapshot working copy
+yvsquxpl/5 alexandre.stahmer@gmail.com 2026-04-10 15:58:01 8c6e32bd (hidden)
+(no description set)
+-- operation 5b07d8bbe3d0 snapshot working copy
+yvsquxpl/6 alexandre.stahmer@gmail.com 2026-04-10 15:58:01 be0a14a1 (hidden)
+(no description set)
+-- operation 3a9d425dad87 snapshot working copy
+yvsquxpl/7 alexandre.stahmer@gmail.com 2026-04-10 15:58:00 b98827dd (hidden)
+(no description set)
+-- operation 351e5b274d9c snapshot working copy
+yvsquxpl/8 alexandre.stahmer@gmail.com 2026-04-10 15:57:55 2cb0063b (hidden)
+(no description set)
+-- operation c2043fa06b6a snapshot working copy
+yvsquxpl/9 alexandre.stahmer@gmail.com 2026-04-10 15:57:53 96da9b94 (hidden)
+(no description set)
+
+- its performant again and back to a working state but still snapshots arent treated/shown differently than from revisions
+- its currently possible to reduce the range size to 0; we shouldnt be able to do that cause that means trying to compare revision A with revision A; it makes no sense
+- the track-anchor are still all on the left; wrong positions
+- the timeline bar itself has a varying size depending on its POSITION (and not the number of revision it); i think this is due to the hidden revisions? but this is just confusing tbh so we should just have equal proportions/distance based on the currently visible revisions (with all shown or some hiddens; each revision distance should be equal i think)
+- ensure this the snapshot mode is going to work for real this time; using w/e tests that are needed as long as you make SURE it works, you're already on your 4th attempt at fixing it its getting boring
+- yes add a small loading indicator
+
+---
+
+- while there's no major issue; the snapshots still arent shown any differently than the revisions
+- seems like due to the many requests after opening if I try to move the range or do basically anything there might be weird re-renders that i didnt control probably due to race conditions of the initial requests fired that just ended up AFTER the jj requests done in response to my UI actions (?)
+- i've updated the logs file (/Users/astahmer/dev/alex/visualjj-range-diff-helper/extension-host.log) of which jj request are done when opening the timeline on a file
+- in the logs file i still feel like we're doing many requests; cant we reduce that ? or do it more on demand?
+- in the logs file i added the output of some commands to help you debug right below the "# added for debugging purposes #"
+- in the logs file you can see that there are multiple snapshots for the revision 4c3a9ffaaf77; the whole point is to be able to see those granular changes (as long as they apply to the currently seen file at least!)
+- to help you even further i just created a new revision; made 5 distincts change (i saved the file between each change) on the /Users/astahmer/dev/work-related/welii/apps/backend/instructions/lazy-di-rollout-plan.md file; you can see the "jj branching snapshot" in the screen and you can see exactly what jj commands were run in /Users/astahmer/dev/alex/visualjj-range-diff-helper/extension-host2.log (tho i didnt add the output this time; feel free to check it yourself)
+- think a lot and try to debug stuff before making more changes; the next batch of changes you'll add HAVE to fix the issue cause you now have all of the info/context necessary to fix it. good luck!
+
+---
+
 <!-- TODO -->
 - "Open a file in the editor to browse its revision timeline" when no file is currently open we should probably show an input field with the list of files to select from the workspace no?
 - we should be able to see how the file evolved over time with automatically with a play button that animate this evolution

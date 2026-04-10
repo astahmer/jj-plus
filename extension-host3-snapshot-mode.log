@@ -1,0 +1,36 @@
+[2026-04-10T17:57:16.319Z] cwd=/Users/astahmer/dev/work-related/welii
+jj root
+[2026-04-10T17:57:16.331Z] cwd=/Users/astahmer/dev/work-related/welii
+git ls-files --cached --others --exclude-standard -z
+[2026-04-10T17:57:16.376Z] cwd=/Users/astahmer/dev/work-related/welii
+jj log --no-graph --limit 200 -T 'commit_id.short() ++ "\t" ++ change_id.shortest() ++ "\t" ++ author.timestamp().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ author.name() ++ "\t" ++ description.first_line() ++ "\n"' 'root-file:"apps/backend/instructions/lazy-di-rollout-plan.md"'
+[2026-04-10T17:57:16.818Z] cwd=/Users/astahmer/dev/work-related/welii
+jj log --no-graph --limit 200 -T 'commit_id.short() ++ "\t" ++ change_id.shortest() ++ "\t" ++ author.timestamp().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ author.name() ++ "\t" ++ description.first_line() ++ "\n"'
+[2026-04-10T17:57:16.887Z] cwd=/Users/astahmer/dev/work-related/welii
+jj file show -r 76653bbe5d47 apps/backend/instructions/lazy-di-rollout-plan.md
+[2026-04-10T17:57:16.941Z] cwd=/Users/astahmer/dev/work-related/welii
+git remote get-url origin
+[2026-04-10T17:57:17.137Z] cwd=/Users/astahmer/dev/work-related/welii
+jj evolog --no-graph --summary --limit 200 -r b81c91c2ac8c
+[2026-04-10T17:57:17.151Z] cwd=/Users/astahmer/dev/work-related/welii
+jj diff --summary -r 76653bbe5d47
+[2026-04-10T17:57:17.226Z] cwd=/Users/astahmer/dev/work-related/welii
+jj file show -r 76653bbe5d47- apps/backend/instructions/lazy-di-rollout-plan.md
+[2026-04-10T17:57:17.280Z] cwd=/Users/astahmer/dev/work-related/welii
+jj file show -r 76653bbe5d47 apps/backend/instructions/lazy-di-rollout-plan.md
+[2026-04-10T17:57:17.625Z] cwd=/Users/astahmer/dev/work-related/welii
+jj evolog --no-graph --summary --limit 200 -r 76653bbe5d47
+[2026-04-10T17:57:17.733Z] cwd=/Users/astahmer/dev/work-related/welii
+jj evolog --no-graph --summary --limit 200 -r 9327aaf3b6cb
+[2026-04-10T17:57:17.881Z] cwd=/Users/astahmer/dev/work-related/welii
+jj evolog --no-graph --summary --limit 200 -r 99186447512d
+[2026-04-10T17:57:18.184Z] cwd=/Users/astahmer/dev/work-related/welii
+jj evolog --no-graph --summary --limit 200 -r 50422e4c1466
+[2026-04-10T17:57:18.339Z] cwd=/Users/astahmer/dev/work-related/welii
+jj evolog --no-graph --summary --limit 200 -r 1f598c19ae79
+[2026-04-10T17:57:18.548Z] cwd=/Users/astahmer/dev/work-related/welii
+jj evolog --no-graph --summary --limit 200 -r 160460119a63
+[2026-04-10T17:57:18.720Z] cwd=/Users/astahmer/dev/work-related/welii
+jj evolog --no-graph --summary --limit 200 -r 69ceeb779513
+[2026-04-10T17:57:18.867Z] cwd=/Users/astahmer/dev/work-related/welii
+jj evolog --no-graph --summary --limit 200 -r 4e841158ae85

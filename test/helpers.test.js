@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { textsMatchIgnoringLineEndings, normalizeTextForComparison } = require('../lib/diff-helpers.js');
-const { dedupeAdjacentEntriesByChangeId, getGitHubRemoteBaseUrl, parseJjEvolutionLine, parseJjEvolutionSummaryEntries, parseJjSummaryChangedPaths, parseJjSummaryRenameLines } = require('../lib/history-helpers.js');
+const { dedupeAdjacentEntriesByChangeId, getGitHubRemoteBaseUrl, normalizeSnapshotOperationKey, parseJjEvolutionLine, parseJjEvolutionSummaryEntries, parseJjSummaryChangedPaths, parseJjSummaryRenameLines } = require('../lib/history-helpers.js');
 const { getEntriesForSource, getPendingSnapshotRevisionIndexes, getSelectedEntryCount, getSidebarPreviewRequests, getTimelineAnchorPercent, getUnitPreviewRange } = require('../webview/timeline.model.js');
 
 test('normalizeTextForComparison normalizes CRLF to LF', () => {
@@ -95,6 +95,21 @@ test('parseJjEvolutionSummaryEntries parses metadata and per-entry summaries fro
       summaryLines: ['R old/name.ts => new/name.ts'],
     },
   ]);
+});
+
+test('parseJjEvolutionSummaryEntries keeps the commit revision when a visible header includes bookmarks', () => {
+  const [entry] = parseJjEvolutionSummaryEntries([
+    'kqppukkm alex@example.com 2026-04-09 12:32:35 chore/rm-unused-endpoints 4c3a9ffa',
+    'rm more unused stuff',
+    '-- operation 49a69c738364 squash commits into 0c5b72791d43296dfc536cc1c83c914684d16667',
+  ].join('\n'));
+
+  assert.equal(entry.revision, '4c3a9ffa');
+});
+
+test('normalizeSnapshotOperationKey adds an explicit zero suffix for the visible revision snapshot', () => {
+  assert.equal(normalizeSnapshotOperationKey('kqppukkm'), 'kqppukkm/0');
+  assert.equal(normalizeSnapshotOperationKey('kqppukkm/4'), 'kqppukkm/4');
 });
 
 test('parseJjSummaryChangedPaths includes direct and renamed paths', () => {

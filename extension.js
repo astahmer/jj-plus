@@ -5,7 +5,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const vscode = require('vscode');
 const { textsMatchIgnoringLineEndings } = require('./lib/diff-helpers.js');
-const { dedupeAdjacentEntriesByChangeId, getGitHubRemoteBaseUrl, parseJjEvolutionLine, parseJjEvolutionSummaryEntries, parseJjSummaryChangedPaths, parseJjSummaryRenameLines } = require('./lib/history-helpers.js');
+const { dedupeAdjacentEntriesByChangeId, getGitHubRemoteBaseUrl, normalizeSnapshotOperationKey, parseJjEvolutionLine, parseJjEvolutionSummaryEntries, parseJjSummaryChangedPaths, parseJjSummaryRenameLines } = require('./lib/history-helpers.js');
 const packageJson = require('./package.json');
 const { renderTimelineDocumentHtml } = require('./webview/timeline.template.js');
 
@@ -98,6 +98,7 @@ let extensionContext;
  * @property {FileRevisionEntry[]} entries
  * @property {FileRevisionEntry[]} snapshotEntries
  * @property {Set<string>} snapshotLoadedChangeIds
+ * @property {Set<string>} snapshotPendingChangeIds
  * @property {string[]} workspaceFiles
  * @property {Map<string, string>} contentCache
  * @property {Map<string, DiffPreview>} previewCache
@@ -299,11 +300,6 @@ async function openFileRevisionTimeline(context, absolutePath) {
   if (!hadExistingPanel && shouldMaximize) {
     await maximizeTimelinePanel();
   }
-
-  void panel.webview.postMessage({
-    type: 'timeline-data',
-    payload: buildTimelinePayload(session, getTimelinePreferences(context)),
-  });
 }
 
 /**
@@ -439,13 +435,10 @@ async function handleTimelineMessage(panel, session, message) {
 
   const command = Reflect.get(message, 'command');
   if (command === 'ready') {
-    const comparisonSource = getTimelinePreferences(extensionContext).comparisonSource;
-    const sourceEntries = getEntriesForSource(session, comparisonSource);
     await panel.webview.postMessage({
       type: 'timeline-data',
       payload: buildTimelinePayload(session, getTimelinePreferences(extensionContext)),
     });
-    await sendTimelinePreview(panel, session, Math.max(0, sourceEntries.length - 2), Math.max(0, sourceEntries.length - 1), comparisonSource);
     return;
   }
 
@@ -610,15 +603,6 @@ async function handleTimelineMessage(panel, session, message) {
       type: 'timeline-data',
       payload: buildTimelinePayload(session, getTimelinePreferences(extensionContext)),
     });
-    const comparisonSource = getTimelinePreferences(extensionContext).comparisonSource;
-    const sourceEntries = getEntriesForSource(session, comparisonSource);
-    await sendTimelinePreview(
-      panel,
-      session,
-      Math.max(0, sourceEntries.length - 2),
-      Math.max(0, sourceEntries.length - 1),
-      comparisonSource
-    );
   }
 }
 
@@ -712,6 +696,7 @@ function syncTimelineSession(target, source) {
   target.entries = source.entries;
   target.snapshotEntries = source.snapshotEntries;
   target.snapshotLoadedChangeIds = source.snapshotLoadedChangeIds;
+  target.snapshotPendingChangeIds = source.snapshotPendingChangeIds;
   target.workspaceFiles = source.workspaceFiles;
   target.contentCache = source.contentCache;
   target.previewCache = source.previewCache;
@@ -860,6 +845,7 @@ async function buildTimelineSession(workspacePath, absolutePath) {
     entries,
     snapshotEntries,
     snapshotLoadedChangeIds: new Set(),
+    snapshotPendingChangeIds: new Set(),
     workspaceFiles,
     contentCache: new Map(),
     previewCache: new Map(),
@@ -1164,7 +1150,7 @@ async function hydrateJjSnapshotEntries(session, revisionIndexes) {
 
   const targets = revisionIndexes
     .map((index) => session.entries[index])
-    .filter((entry) => entry && !entry.isWorkingTree && entry.touchesFile && entry.changeId && !session.snapshotLoadedChangeIds.has(entry.changeId));
+    .filter((entry) => entry && !entry.isWorkingTree && entry.touchesFile && entry.changeId && !session.snapshotLoadedChangeIds.has(entry.changeId) && !session.snapshotPendingChangeIds.has(entry.changeId));
   const uniqueTargets = targets.reduce((entries, entry) => {
     if (!entry.changeId || entries.some((candidate) => candidate.changeId === entry.changeId)) {
       return entries;
@@ -1181,11 +1167,13 @@ async function hydrateJjSnapshotEntries(session, revisionIndexes) {
   let didUpdate = false;
   for (const entry of uniqueTargets) {
     const changeId = entry.changeId;
-    if (!changeId || session.snapshotLoadedChangeIds.has(changeId)) {
+    if (!changeId || session.snapshotLoadedChangeIds.has(changeId) || session.snapshotPendingChangeIds.has(changeId)) {
       continue;
     }
 
+    session.snapshotPendingChangeIds.add(changeId);
     const expandedEntries = await getJjEvolutionHistoryForFile(session.workspacePath, session.relativePath, entry);
+    session.snapshotPendingChangeIds.delete(changeId);
     session.snapshotLoadedChangeIds.add(changeId);
 
     if (expandedEntries.length) {
@@ -1282,7 +1270,7 @@ async function getJjEvolutionHistoryForFile(workspacePath, relativePath, entry) 
       .map((evolutionEntry) => ({
         id: `snapshot:${evolutionEntry.changeKey || evolutionEntry.revision}`,
         revision: evolutionEntry.revision,
-        shortRevision: evolutionEntry.changeKey || evolutionEntry.revision.slice(0, 8),
+        shortRevision: normalizeSnapshotOperationKey(evolutionEntry.changeKey) || evolutionEntry.revision.slice(0, 8),
         changeId: evolutionEntry.changeId || entry.changeId,
         authorDate: normalizeSnapshotAuthorDate(evolutionEntry.authorDate, entry.authorDate),
         authorName: evolutionEntry.authorName || entry.authorName,
@@ -1526,7 +1514,7 @@ async function getJjSnapshotPreview(session, entryIndex) {
     ? previousEntry
       ? await getRevisionContent(session, previousEntry, previousEntryIndex)
       : ''
-    : await showFileAtRevision(session.workspacePath, `${entry.revision}-`, previousPath, session.backend);
+    : await getContentForRevset(session, `${entry.revision}-`, previousPath);
   const afterText = await getRevisionContent(session, entry, entryIndex);
   const preview = buildDiffPreview(
     entryIndex,
@@ -1570,7 +1558,10 @@ function formatEntryDateTime(authorDate) {
  * @returns {Promise<string>}
  */
 async function getRevisionContent(session, entry, entryIndex) {
-  const cacheKey = entry.id;
+  const resolvedPath = entry.isWorkingTree
+    ? session.relativePath
+    : await resolveEntryFilePath(session, entry, entryIndex);
+  const cacheKey = `${entry.id}:${resolvedPath}`;
   const cached = session.contentCache.get(cacheKey);
   if (cached !== undefined) {
     return cached;
@@ -1580,7 +1571,6 @@ async function getRevisionContent(session, entry, entryIndex) {
   if (entry.isWorkingTree) {
     content = await fs.readFile(session.absolutePath, 'utf8');
   } else {
-    const resolvedPath = await resolveEntryFilePath(session, entry, entryIndex);
     content = await showFileAtRevision(
       session.workspacePath,
       entry.revision,
@@ -1589,6 +1579,24 @@ async function getRevisionContent(session, entry, entryIndex) {
     );
   }
 
+  session.contentCache.set(cacheKey, content);
+  return content;
+}
+
+/**
+ * @param {TimelineSession} session
+ * @param {string} revset
+ * @param {string} filePath
+ * @returns {Promise<string>}
+ */
+async function getContentForRevset(session, revset, filePath) {
+  const cacheKey = `revset:${revset}:${filePath}`;
+  const cached = session.contentCache.get(cacheKey);
+  if (cached !== undefined) {
+    return cached;
+  }
+
+  const content = await showFileAtRevision(session.workspacePath, revset, filePath, session.backend);
   session.contentCache.set(cacheKey, content);
   return content;
 }

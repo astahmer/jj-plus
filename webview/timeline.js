@@ -168,6 +168,7 @@
       renderRevisionOptions();
       renderControlGroups();
       applyPreset(state.preset, true, true);
+      requestPreview(0);
       return;
     }
 
@@ -224,7 +225,6 @@
       || message.payload.toIndex !== state.previewToIndex
       || previewSource !== getEffectiveComparisonSource()
     ) {
-      renderHistoryList();
       pumpSidebarPreviewQueue();
       return;
     }
@@ -1655,13 +1655,19 @@
   }
 
   function prefetchSidebarPreviews() {
+    if (getEffectiveComparisonSource() === 'snapshot') {
+      state.sidebarPreviewQueue = [];
+      state.sidebarPreviewInFlightKey = '';
+      return;
+    }
+
     state.sidebarPreviewQueue = timelineModel.getSidebarPreviewRequests(
       state.visibleEntries,
       getEffectiveComparisonSource(),
       state.previewByRange,
       state.sidebarPreviewInFlightKey,
       getPreviewKey,
-      18
+      6
     );
     pumpSidebarPreviewQueue();
   }
