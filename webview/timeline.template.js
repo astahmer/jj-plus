@@ -104,7 +104,7 @@
                 <button class="step-button" id="stepFastForwardButton" type="button" aria-label="Jump forward">&#187;</button>
               </div>
 
-              <div class="step-status-row">
+              <div class="step-status-row" id="stepStatusRow">
                 <div class="step-status" id="stepStatus"></div>
                 <div class="loading-indicator" id="snapshotLoadingIndicator" hidden>Loading snapshots&#8230;</div>
               </div>
@@ -121,9 +121,9 @@
                     <div class="diff-title-meta" id="diffTitleMeta"></div>
                   </div>
                   <div class="diff-subtitle" id="diffSubtitle"></div>
-                  <div class="eyebrow diff-mode-eyebrow" id="diffModeEyebrow">Diff</div>
                 </div>
                 <div class="diff-actions">
+                  <div class="eyebrow diff-mode-eyebrow" id="diffModeEyebrow">Diff</div>
                   <div class="history-stats" id="diffStats"></div>
                   <button class="collapse-button" id="toggleDiffFocusButton" type="button">Focus diff</button>
                 </div>

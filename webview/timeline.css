@@ -380,7 +380,7 @@ input {
 .diff-head {
   padding: 10px 12px;
   display: grid;
-  gap: 8px;
+  gap: 5px;
 }
 
 .timeline-pane {
@@ -797,7 +797,7 @@ kbd {
 
 .timeline-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 6px;
   padding: 0 4px;
 }
@@ -807,12 +807,15 @@ kbd {
   min-width: 0;
 }
 
+.timeline-row .step-button {
+  margin-top: 28px;
+}
+
 .step-status-row {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  min-height: 16px;
 }
 
 .step-status {
@@ -908,8 +911,8 @@ kbd {
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.22);
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.24);
-  pointer-events: none;
   will-change: left, transform;
+  cursor: default;
 }
 
 .track-anchor.in-range {
@@ -1003,7 +1006,14 @@ kbd {
 }
 
 .diff-mode-eyebrow {
-  margin-top: 1px;
+  border-right: 1px solid var(--border);
+  padding-right: 10px;
+  white-space: nowrap;
+}
+
+.diff-title-arrow {
+  color: var(--muted);
+  font-weight: 400;
 }
 
 .diff-title-meta {

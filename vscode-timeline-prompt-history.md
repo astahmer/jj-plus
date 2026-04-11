@@ -416,6 +416,15 @@ jj file show -r b4bcbb72 apps/backend/instructions/lazy-di-rollout-plan.md
 
 ---
 
+- when the sidebar is collapsed the style is broken + the sidebar expand button seems missing (and now im stuck there cause the persistent state makes it so whenever i open the timeline the sidebar collapses almost instantly (which looks weird btw!))
+- "Split · Diffs · Range · Snapshot" should be AFTER the
+"wywrvxml/0
+10/04/2026, 19:27:39 · patch introduced by wywrvxml/0"
+- there's a weird squircle on the top left
+- try to improve the overall UI/UX however that makes sens as a pro designer; see the design interface skill, feel free to ask me questions (see the grill me skill) if needed
+
+---
+
 - the anchor-tooltip is in the top left and hovering the actual timeline anchors doesnt do anything
 - the << < timeline > >> arrow buttons are weirdly aligned/spaced with the timeline; fix that
 - the step-status-row takes a lot of space even when completely empty; not sure if thats even useful anymore?

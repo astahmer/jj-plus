@@ -103,6 +103,7 @@
     sidebarToggleButton: document.getElementById('sidebarToggleButton'),
     anchorTooltip: document.getElementById('anchorTooltip'),
     stepStatus: document.getElementById('stepStatus'),
+    stepStatusRow: document.getElementById('stepStatusRow'),
     snapshotLoadingIndicator: document.getElementById('snapshotLoadingIndicator'),
     diffModeEyebrow: document.getElementById('diffModeEyebrow'),
     diffTitle: document.getElementById('diffTitle'),
@@ -430,6 +431,13 @@
 
     function onPointerMove(moveEvent) {
       const delta = moveEvent.clientX - startX;
+      if (startWidth + delta < 100) {
+        state.sidebarCollapsed = true;
+        applySidebarState();
+        persistPreferences();
+        onPointerUp();
+        return;
+      }
       state.sidebarWidth = Math.max(180, Math.min(420, startWidth + delta));
       applySidebarState();
     }
@@ -704,6 +712,7 @@
       : pendingCount > 0
         ? 'Snapshots pending…'
         : 'Loading snapshots…';
+    elements.stepStatusRow.hidden = !elements.stepStatus.textContent && elements.snapshotLoadingIndicator.hidden;
   }
 
   function applyDiffFocusState() {
@@ -1310,7 +1319,17 @@
     const rawTitle = state.preview.title || '';
     const eyebrowText = elements.diffModeEyebrow.textContent || '';
     const snapshotInEyebrow = eyebrowText.toLowerCase().includes('snapshot');
-    elements.diffTitle.textContent = snapshotInEyebrow ? rawTitle.replace(/^snapshot\s*/i, '') : rawTitle;
+    if (snapshotInEyebrow) {
+      elements.diffTitle.innerHTML = 'Snapshot ' + renderIdentifierMarkup(toEntry.shortRevision, toEntry.changeId);
+    } else {
+      const fromMarkup = fromEntry.isWorkingTree
+        ? escapeHtml(fromEntry.shortRevision || 'working tree')
+        : renderIdentifierMarkup(fromEntry.shortRevision, fromEntry.changeId);
+      const toMarkup = toEntry.isWorkingTree
+        ? escapeHtml(toEntry.shortRevision || 'working tree')
+        : renderIdentifierMarkup(toEntry.shortRevision, toEntry.changeId);
+      elements.diffTitle.innerHTML = fromMarkup + ' <span class="diff-title-arrow">&#x2192;</span> ' + toMarkup;
+    }
     elements.diffTitleMeta.textContent = state.preview.subtitle || '';
     elements.diffSubtitle.textContent = toEntry.description || '';
     elements.diffStats.innerHTML = renderStatChips(state.preview);
@@ -1737,9 +1756,15 @@
     void elements.track.offsetWidth;
   }
 
-  elements.track.addEventListener('mouseover', (event) => {
+  let _hoveredAnchorEl = null;
+  elements.track.addEventListener('mousemove', (event) => {
     const anchor = event.target.closest('.track-anchor');
+    if (anchor === _hoveredAnchorEl) {
+      return;
+    }
+    _hoveredAnchorEl = anchor;
     if (!anchor) {
+      elements.anchorTooltip.hidden = true;
       return;
     }
     const entryIndex = Number(anchor.dataset.entryIndex);
@@ -1750,13 +1775,8 @@
     showAnchorTooltip(anchor, entry);
   });
 
-  elements.track.addEventListener('mouseout', (event) => {
-    if (!event.relatedTarget || !event.relatedTarget.closest || !event.relatedTarget.closest('.anchor-tooltip')) {
-      elements.anchorTooltip.hidden = true;
-    }
-  });
-
-  elements.anchorTooltip.addEventListener('mouseleave', () => {
+  elements.track.addEventListener('mouseleave', () => {
+    _hoveredAnchorEl = null;
     elements.anchorTooltip.hidden = true;
   });
 
