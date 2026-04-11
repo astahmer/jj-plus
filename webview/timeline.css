@@ -246,6 +246,41 @@ input {
   min-width: 0;
 }
 
+.history-id-button {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+}
+
+.history-id-button:hover .identifier,
+.mini-badge-copy:hover .identifier {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.identifier {
+  display: inline-flex;
+  align-items: baseline;
+  min-width: 0;
+  font-family: var(--code-font);
+}
+
+.identifier-prefix {
+  color: #c58cff;
+}
+
+.identifier-suffix,
+.identifier-plain {
+  color: var(--text);
+}
+
 .history-actions {
   display: inline-flex;
   align-items: center;
@@ -291,6 +326,10 @@ input {
 
 .mini-badge.other {
   color: var(--muted);
+}
+
+.mini-badge-copy {
+  cursor: pointer;
 }
 
 .history-action,
@@ -371,9 +410,15 @@ input {
 }
 
 .loading-indicator {
+  position: absolute;
+  top: -2px;
+  left: 50%;
+  transform: translateX(-50%);
   color: var(--accent-alt);
   font-size: 11px;
   min-height: 16px;
+  white-space: nowrap;
+  pointer-events: none;
 }
 
 .version-badge {
@@ -702,6 +747,8 @@ kbd {
   min-width: 0;
   display: grid;
   gap: 6px;
+  position: relative;
+  min-height: 34px;
 }
 
 .step-status {
@@ -755,6 +802,7 @@ kbd {
   gap: 6px;
   flex-wrap: wrap;
   justify-content: center;
+  padding-top: 12px;
 }
 
 .handle-pill {
@@ -797,6 +845,7 @@ kbd {
   background: rgba(255, 255, 255, 0.22);
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.24);
   pointer-events: none;
+  will-change: left, transform;
 }
 
 .track-anchor.in-range {

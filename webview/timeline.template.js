@@ -134,10 +134,10 @@
                   <div class="hotkey-section-title">Selection</div>
                   <div class="hotkey-row"><span class="hotkey-label">Move range</span><span class="hotkey-value"><kbd>←</kbd><kbd>→</kbd></span></div>
                   <div class="hotkey-row"><span class="hotkey-label">Fast move range</span><span class="hotkey-value"><kbd>Shift</kbd><kbd>←</kbd><kbd>→</kbd></span></div>
-                  <div class="hotkey-row"><span class="hotkey-label">Move from marker</span><span class="hotkey-value"><kbd>↑</kbd><kbd>↓</kbd></span></div>
-                  <div class="hotkey-row"><span class="hotkey-label">Move to marker</span><span class="hotkey-value"><kbd>Option</kbd><kbd>↑</kbd><kbd>↓</kbd></span></div>
+                  <div class="hotkey-row"><span class="hotkey-label">Move to marker</span><span class="hotkey-value"><kbd>↑</kbd><kbd>↓</kbd></span></div>
+                  <div class="hotkey-row"><span class="hotkey-label">Move from marker</span><span class="hotkey-value"><kbd>Option</kbd><kbd>↑</kbd><kbd>↓</kbd></span></div>
                   <div class="hotkey-row"><span class="hotkey-label">Dock range to start/end</span><span class="hotkey-value"><kbd>Cmd</kbd><kbd>←</kbd><kbd>→</kbd></span></div>
-                  <div class="hotkey-row"><span class="hotkey-label">Set from/to to visible edge</span><span class="hotkey-value"><kbd>Cmd</kbd><kbd>↑</kbd><kbd>↓</kbd></span></div>
+                  <div class="hotkey-row"><span class="hotkey-label">Set range boundary to visible edge</span><span class="hotkey-value"><kbd>Cmd</kbd><kbd>↑</kbd><kbd>↓</kbd></span></div>
                 </div>
                 <div class="hotkey-section">
                   <div class="hotkey-section-title">Actions</div>

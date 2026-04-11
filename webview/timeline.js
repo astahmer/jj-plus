@@ -45,6 +45,8 @@
     sidebarSearchQuery: '',
     pendingSidebarAnchorIndex: null,
     snapshotHydrationInFlight: false,
+    copiedIdentifierKey: '',
+    copiedIdentifierTimer: undefined,
   };
 
   const elements = {
@@ -532,13 +534,13 @@
 
     if (commandPressed && event.key === 'ArrowUp') {
       event.preventDefault();
-      setRangeBoundaryToVisibleEdge('from', 'start');
+      setRangeBoundaryToVisibleEdge('to', 'end');
       return;
     }
 
     if (commandPressed && event.key === 'ArrowDown') {
       event.preventDefault();
-      setRangeBoundaryToVisibleEdge('to', 'end');
+      setRangeBoundaryToVisibleEdge('from', 'start');
       return;
     }
 
@@ -580,13 +582,13 @@
 
     if (event.key === 'ArrowUp') {
       event.preventDefault();
-      nudgeRangeBoundary(event.altKey ? 'to' : 'from', -jumpAmount);
+      nudgeRangeBoundary(event.altKey ? 'from' : 'to', -jumpAmount);
       return;
     }
 
     if (event.key === 'ArrowDown') {
       event.preventDefault();
-      nudgeRangeBoundary(event.altKey ? 'to' : 'from', jumpAmount);
+      nudgeRangeBoundary(event.altKey ? 'from' : 'to', jumpAmount);
     }
   }
 
@@ -910,8 +912,8 @@
 
     elements.fromRevisionInput.value = fromEntry.shortRevision;
     elements.toRevisionInput.value = toEntry.shortRevision;
-    elements.fromHandleLabel.textContent = 'From ' + fromEntry.shortRevision;
-    elements.toHandleLabel.textContent = 'To ' + toEntry.shortRevision;
+    elements.fromHandleLabel.innerHTML = 'From ' + renderIdentifierMarkup(fromEntry.shortRevision, fromEntry.changeId);
+    elements.toHandleLabel.innerHTML = 'To ' + renderIdentifierMarkup(toEntry.shortRevision, toEntry.changeId);
     elements.rangeLabel.textContent = formatRangeTitle();
     elements.rangeSubtitle.textContent = formatRangeSubtitle(fromEntry, toEntry);
     elements.sidebarHint.textContent = getSidebarCollapsed() ? '' : (state.comparisonMode === 'step' ? 'Single' : 'Range');
@@ -1031,7 +1033,7 @@
 
       item.innerHTML = [
         '<div class="history-top">',
-        '<div class="history-primary"><strong>' + escapeHtml(getEntryPrimaryLabel(entry)) + '</strong>' + renderHistoryBadges(entry, isFrom, isTo) + '</div>',
+        '<div class="history-primary">' + renderEntryPrimary(entry) + renderHistoryBadges(entry, isFrom, isTo) + '</div>',
         '<div class="history-actions"><span>' + escapeHtml(entry.shortDate) + '</span>'
           + (entry.remoteUrl ? '<button class="history-action history-action-remote" type="button" title="Open this revision on GitHub">Remote</button>' : '')
           + (entry.hasPreviousEntry ? '<button class="history-action history-action-diff" type="button" title="Open diffs for this revision">Open diffs</button>' : '')
@@ -1063,6 +1065,13 @@
           });
         }
       }
+
+      Array.from(item.querySelectorAll('[data-copy-value]')).forEach((button) => {
+        button.addEventListener('click', async (event) => {
+          event.stopPropagation();
+          await copyIdentifier(String(button.getAttribute('data-copy-key') || ''), String(button.getAttribute('data-copy-value') || ''));
+        });
+      });
 
       const actionButton = item.querySelector('.history-action-diff');
       if (actionButton) {
@@ -1184,11 +1193,8 @@
 
   function renderHistoryBadges(entry, isFrom, isTo) {
     const parts = [];
-    if (entry.operationId) {
-      parts.push('<span class="mini-badge other">' + escapeHtml(entry.operationId) + '</span>');
-    }
     if (entry.operationKey) {
-      parts.push('<span class="mini-badge other">' + escapeHtml(entry.operationKey) + '</span>');
+      parts.push(renderCopyBadge('operation-key:' + entry.id, entry.operationKey, renderIdentifierMarkup(entry.operationKey, entry.changeId)));
     }
     if (!entry.touchesFile) {
       parts.push('<span class="mini-badge other">OTHER</span>');
@@ -1213,12 +1219,53 @@
     ].join('');
   }
 
-  function getEntryPrimaryLabel(entry) {
-    if (entry.operationId) {
-      return entry.operationId;
+  function renderEntryPrimary(entry) {
+    const copyKey = 'primary:' + entry.id;
+    const copyValue = entry.operationId || entry.revision || entry.shortRevision;
+    const markup = entry.operationId
+      ? '<span class="identifier identifier-plain">' + escapeHtml(entry.operationId) + '</span>'
+      : renderIdentifierMarkup(entry.shortRevision, entry.changeId);
+    const label = state.copiedIdentifierKey === copyKey ? 'Copied!' : markup;
+    return '<button class="history-id-button" type="button" data-copy-key="' + escapeHtml(copyKey) + '" data-copy-value="' + escapeHtml(copyValue) + '">' + label + '</button>';
+  }
+
+  function renderCopyBadge(copyKey, copyValue, markup) {
+    const label = state.copiedIdentifierKey === copyKey ? 'Copied!' : markup;
+    return '<button class="mini-badge other mini-badge-copy" type="button" data-copy-key="' + escapeHtml(copyKey) + '" data-copy-value="' + escapeHtml(copyValue) + '">' + label + '</button>';
+  }
+
+  function renderIdentifierMarkup(value, highlightedPrefix) {
+    const text = String(value || '');
+    const prefix = String(highlightedPrefix || '');
+    if (!prefix || !text.startsWith(prefix)) {
+      return '<span class="identifier"><span class="identifier-prefix">' + escapeHtml(text) + '</span></span>';
     }
 
-    return entry.shortRevision;
+    return '<span class="identifier"><span class="identifier-prefix">' + escapeHtml(prefix) + '</span><span class="identifier-suffix">' + escapeHtml(text.slice(prefix.length)) + '</span></span>';
+  }
+
+  async function copyIdentifier(copyKey, copyValue) {
+    if (!copyValue) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(copyValue);
+    } catch {
+      return;
+    }
+
+    state.copiedIdentifierKey = copyKey;
+    renderHistoryList();
+
+    if (state.copiedIdentifierTimer) {
+      window.clearTimeout(state.copiedIdentifierTimer);
+    }
+
+    state.copiedIdentifierTimer = window.setTimeout(() => {
+      state.copiedIdentifierKey = '';
+      renderHistoryList();
+    }, 2000);
   }
 
   function renderPreview() {
@@ -1659,18 +1706,23 @@
   }
 
   function renderTrackAnchors() {
-    elements.track.innerHTML = state.visibleEntries.map((entry, visibleIndex) => {
+    const fragment = document.createDocumentFragment();
+    state.visibleEntries.forEach((entry, visibleIndex) => {
       const left = timelineModel.getTimelineAnchorPercent(state.visibleEntries, visibleIndex);
       const inRange = entry.index >= Math.min(state.fromIndex, state.toIndex) && entry.index <= Math.max(state.fromIndex, state.toIndex);
       const isFrom = entry.index === state.fromIndex;
       const isTo = entry.index === state.toIndex;
-      return '<span class="track-anchor'
+      const anchor = document.createElement('span');
+      anchor.className = 'track-anchor'
         + (inRange ? ' in-range' : '')
         + (isFrom ? ' is-from' : '')
         + (isTo ? ' is-to' : '')
-        + (!entry.touchesFile ? ' is-intermediate' : '')
-        + '" style="left:' + String(left) + '%"></span>';
-    }).join('');
+        + (!entry.touchesFile ? ' is-intermediate' : '');
+      anchor.style.left = String(left) + '%';
+      fragment.appendChild(anchor);
+    });
+    elements.track.replaceChildren(fragment);
+    void elements.track.offsetWidth;
   }
 
   function getUnitPreviewRange(entryIndex) {
@@ -1688,20 +1740,27 @@
   }
 
   function prefetchSidebarPreviews() {
-    if (getEffectiveComparisonSource() === 'snapshot') {
+    const isSnapshotSource = getEffectiveComparisonSource() === 'snapshot';
+    if (isSnapshotSource && state.snapshotHydrationInFlight) {
       state.sidebarPreviewQueue = [];
       state.sidebarPreviewInFlightKey = '';
       return;
     }
 
-    state.sidebarPreviewQueue = timelineModel.getSidebarPreviewRequests(
+    const previewRequests = timelineModel.getSidebarPreviewRequests(
       state.visibleEntries,
       getEffectiveComparisonSource(),
       state.previewByRange,
       state.sidebarPreviewInFlightKey,
       getPreviewKey,
-      6
+      isSnapshotSource ? 4 : 6
     );
+    state.sidebarPreviewQueue = previewRequests.sort((left, right) => {
+      const activeIndex = state.toIndex;
+      const leftDistance = Math.abs(left.toIndex - activeIndex);
+      const rightDistance = Math.abs(right.toIndex - activeIndex);
+      return leftDistance - rightDistance;
+    });
     pumpSidebarPreviewQueue();
   }
 

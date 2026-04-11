@@ -435,6 +435,14 @@ async function handleTimelineMessage(panel, session, message) {
 
   const command = Reflect.get(message, 'command');
   if (command === 'ready') {
+    const comparisonSource = getTimelinePreferences(extensionContext).comparisonSource;
+    if (comparisonSource === 'snapshot' && session.backend === 'jj' && session.snapshotLoadedChangeIds.size === 0) {
+      await hydrateJjSnapshotEntries(session, [
+        Math.max(0, session.entries.length - 2),
+        Math.max(0, session.entries.length - 1),
+      ]);
+    }
+
     await panel.webview.postMessage({
       type: 'timeline-data',
       payload: buildTimelinePayload(session, getTimelinePreferences(extensionContext)),
