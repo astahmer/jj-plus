@@ -174,7 +174,31 @@
     const styleHref = escapeAttribute((options && options.styleHref) || './timeline.css');
     const modelSrc = escapeAttribute((options && options.modelSrc) || './timeline.model.js');
     const scriptSrc = escapeAttribute((options && options.scriptSrc) || './timeline.js');
+    const templateSrc = escapeAttribute((options && options.templateSrc) || './timeline.template.js');
+    const appSrc = escapeAttribute((options && options.appSrc) || '');
     const cspSource = options && options.cspSource;
+
+    if (appSrc) {
+      return `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    ${cspSource ? `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${cspSource} https: data:; style-src ${cspSource}; script-src ${cspSource};" />` : ''}
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>${title}</title>
+    <link rel="stylesheet" href="${styleHref}" />
+  </head>
+  <body>
+    <div
+      id="timelineApp"
+      data-template-src="${templateSrc}"
+      data-legacy-model-src="${modelSrc}"
+      data-legacy-controller-src="${scriptSrc}"
+    ></div>
+    <script type="module" src="${appSrc}"></script>
+  </body>
+</html>`;
+    }
 
     return `<!DOCTYPE html>
 <html lang="en">

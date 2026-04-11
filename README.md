@@ -16,6 +16,20 @@ It also includes a custom revision timeline panel for the active file. The panel
 3. Run `JJ: Open Range Multi Diff` from the command palette.
 4. Open a file and run `JJ: Open File Revision Timeline`.
 
+For the Vite-powered webview shell during UI work:
+
+```sh
+pnpm install
+pnpm dev:webview
+```
+
+For production packaging/builds, the extension now bundles the webview first:
+
+```sh
+pnpm build:webview
+pnpm build
+```
+
 ## Revision Timeline
 
 `JJ: Open File Revision Timeline` opens a custom webview panel for the active file.
