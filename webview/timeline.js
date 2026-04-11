@@ -100,6 +100,8 @@
     stepBackwardButton: document.getElementById('stepBackwardButton'),
     stepForwardButton: document.getElementById('stepForwardButton'),
     stepFastForwardButton: document.getElementById('stepFastForwardButton'),
+    sidebarToggleButton: document.getElementById('sidebarToggleButton'),
+    anchorTooltip: document.getElementById('anchorTooltip'),
     stepStatus: document.getElementById('stepStatus'),
     snapshotLoadingIndicator: document.getElementById('snapshotLoadingIndicator'),
     diffModeEyebrow: document.getElementById('diffModeEyebrow'),
@@ -354,8 +356,7 @@
     renderHotkeysPopover();
   });
 
-  elements.toggleSidebarAction.addEventListener('click', () => {
-    closeMenu();
+  function toggleSidebar() {
     if (state.compactViewport) {
       const nextCollapsed = !getSidebarCollapsed();
       state.sidebarCollapsed = false;
@@ -365,6 +366,15 @@
     }
     applySidebarState();
     persistPreferences();
+  }
+
+  elements.toggleSidebarAction.addEventListener('click', () => {
+    closeMenu();
+    toggleSidebar();
+  });
+
+  elements.sidebarToggleButton.addEventListener('click', () => {
+    toggleSidebar();
   });
 
   elements.toggleTimelinePaneButton.addEventListener('click', () => {
@@ -674,6 +684,9 @@
     elements.workspace.classList.toggle('is-collapsed', isCollapsed);
     elements.workspace.classList.toggle('is-compact', state.compactViewport);
     elements.toggleSidebarAction.textContent = isCollapsed ? 'Show Revisions' : 'Hide Revisions';
+    elements.sidebarToggleButton.textContent = isCollapsed ? '\u25B8' : '\u25C2';
+    elements.sidebarToggleButton.classList.toggle('is-collapsed', isCollapsed);
+    elements.sidebarToggleButton.setAttribute('aria-label', isCollapsed ? 'Show sidebar' : 'Hide sidebar');
   }
 
   function applyTimelinePaneState() {
@@ -1294,7 +1307,10 @@
       return;
     }
 
-    elements.diffTitle.textContent = state.preview.title;
+    const rawTitle = state.preview.title || '';
+    const eyebrowText = elements.diffModeEyebrow.textContent || '';
+    const snapshotInEyebrow = eyebrowText.toLowerCase().includes('snapshot');
+    elements.diffTitle.textContent = snapshotInEyebrow ? rawTitle.replace(/^snapshot\s*/i, '') : rawTitle;
     elements.diffTitleMeta.textContent = state.preview.subtitle || '';
     elements.diffSubtitle.textContent = toEntry.description || '';
     elements.diffStats.innerHTML = renderStatChips(state.preview);
@@ -1714,23 +1730,63 @@
         + (isTo ? ' is-to' : '')
         + (!entry.touchesFile ? ' is-intermediate' : '');
       anchor.style.left = String(left) + '%';
-      anchor.title = getAnchorTooltip(entry);
+      anchor.dataset.entryIndex = String(entry.index);
       fragment.appendChild(anchor);
     });
     elements.track.replaceChildren(fragment);
     void elements.track.offsetWidth;
   }
 
-  function getAnchorTooltip(entry) {
-    const lines = [];
-    lines.push(entry.isWorkingTree ? 'Current working tree' : entry.shortRevision);
+  elements.track.addEventListener('mouseover', (event) => {
+    const anchor = event.target.closest('.track-anchor');
+    if (!anchor) {
+      return;
+    }
+    const entryIndex = Number(anchor.dataset.entryIndex);
+    const entry = state.visibleEntries.find((e) => e.index === entryIndex);
+    if (!entry) {
+      return;
+    }
+    showAnchorTooltip(anchor, entry);
+  });
+
+  elements.track.addEventListener('mouseout', (event) => {
+    if (!event.relatedTarget || !event.relatedTarget.closest || !event.relatedTarget.closest('.anchor-tooltip')) {
+      elements.anchorTooltip.hidden = true;
+    }
+  });
+
+  elements.anchorTooltip.addEventListener('mouseleave', () => {
+    elements.anchorTooltip.hidden = true;
+  });
+
+  function showAnchorTooltip(anchorEl, entry) {
+    const tooltip = elements.anchorTooltip;
+    tooltip.innerHTML = buildAnchorTooltipHtml(entry);
+    tooltip.hidden = false;
+    const aRect = anchorEl.getBoundingClientRect();
+    const tRect = tooltip.getBoundingClientRect();
+    let left = aRect.left + aRect.width / 2 - tRect.width / 2;
+    left = Math.max(8, Math.min(window.innerWidth - tRect.width - 8, left));
+    const top = aRect.top - tRect.height - 8;
+    tooltip.style.left = String(left) + 'px';
+    tooltip.style.top = String(top) + 'px';
+  }
+
+  function buildAnchorTooltipHtml(entry) {
+    const parts = [];
+    if (entry.isWorkingTree) {
+      parts.push('<div class="anchor-tooltip-id">Current working tree</div>');
+    } else {
+      parts.push('<div class="anchor-tooltip-id">' + renderIdentifierMarkup(entry.shortRevision, entry.changeId) + '</div>');
+    }
     if (entry.relativeDate) {
-      lines.push(entry.relativeDate);
+      parts.push('<div class="anchor-tooltip-meta">' + escapeHtml(entry.relativeDate) + '</div>');
     }
     if (entry.description) {
-      lines.push(entry.description);
+      parts.push('<div class="anchor-tooltip-desc">' + escapeHtml(entry.description.slice(0, 80)) + (entry.description.length > 80 ? '…' : '') + '</div>');
     }
-    return lines.join('\n');
+    return parts.join('');
   }
 
   function getUnitPreviewRange(entryIndex) {

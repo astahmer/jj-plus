@@ -27,9 +27,14 @@
         <section class="panel diff-panel">
           <div class="timeline-pane" id="timelinePane">
             <div class="timeline-pane-head">
+              <button class="sidebar-toggle-button" id="sidebarToggleButton" type="button" aria-label="Toggle sidebar">&#x25C2;</button>
               <div class="timeline-pane-title">
                 <div class="eyebrow">Revision Timeline</div>
                 <span class="version-badge" id="timelineVersion"></span>
+              </div>
+              <div class="timeline-head-summary">
+                <div class="range-label" id="rangeLabel">Loading revisions...</div>
+                <div class="range-subtitle" id="rangeSubtitle"></div>
               </div>
               <button class="collapse-button" id="toggleTimelinePaneButton" type="button">Timeline only</button>
             </div>
@@ -57,20 +62,22 @@
 
               <div class="timeline-head">
                 <div class="revision-picker-row">
-                  <input class="revision-input" id="fromRevisionInput" list="revisionOptionsList" placeholder="From revision" autocomplete="off" />
+                  <div class="revision-picker-col">
+                    <input class="revision-input" id="fromRevisionInput" list="revisionOptionsList" placeholder="From revision" autocomplete="off" />
+                    <div class="revision-picker-meta">
+                      <button class="handle-pill from" id="fromHandleLabel" type="button">From</button>
+                      <span class="revision-picker-relative" id="fromRelativeLabel"></span>
+                    </div>
+                  </div>
                   <span class="revision-arrow">&#8594;</span>
-                  <input class="revision-input" id="toRevisionInput" list="revisionOptionsList" placeholder="To revision" autocomplete="off" />
+                  <div class="revision-picker-col">
+                    <input class="revision-input" id="toRevisionInput" list="revisionOptionsList" placeholder="To revision" autocomplete="off" />
+                    <div class="revision-picker-meta">
+                      <button class="handle-pill to" id="toHandleLabel" type="button">To</button>
+                      <span class="revision-picker-relative" id="toRelativeLabel"></span>
+                    </div>
+                  </div>
                   <datalist id="revisionOptionsList"></datalist>
-                </div>
-                <div class="revision-picker-meta-row">
-                  <div class="revision-picker-meta revision-picker-meta-from">
-                    <button class="handle-pill from" id="fromHandleLabel" type="button">From</button>
-                    <span class="revision-picker-relative" id="fromRelativeLabel"></span>
-                  </div>
-                  <div class="revision-picker-meta revision-picker-meta-to">
-                    <button class="handle-pill to" id="toHandleLabel" type="button">To</button>
-                    <span class="revision-picker-relative" id="toRelativeLabel"></span>
-                  </div>
                 </div>
                 <div class="control-row">
                   <div class="segmented" id="comparisonModes"></div>
@@ -82,49 +89,45 @@
                 </div>
               </div>
 
-              <div class="range-steps">
+              <div class="timeline-row">
                 <button class="step-button" id="stepFastBackwardButton" type="button" aria-label="Jump backward">&#171;</button>
                 <button class="step-button" id="stepBackwardButton" type="button" aria-label="Previous range">&#x2039;</button>
-                <div class="step-center">
-                  <div class="step-status" id="stepStatus"></div>
-                  <div class="loading-indicator" id="snapshotLoadingIndicator" hidden>Loading snapshots…</div>
+                <div class="timeline">
+                  <div class="selection-meta" id="selectionMeta"></div>
+                  <div class="track" id="track"></div>
+                  <div class="range-fill" id="rangeFill"></div>
+                  <button class="handle-marker from" id="fromMarker" type="button" aria-label="Adjust from revision"></button>
+                  <button class="handle-marker to" id="toMarker" type="button" aria-label="Adjust to revision"></button>
+                  <div class="month-row" id="monthRow"></div>
                 </div>
                 <button class="step-button" id="stepForwardButton" type="button" aria-label="Next range">&#x203A;</button>
                 <button class="step-button" id="stepFastForwardButton" type="button" aria-label="Jump forward">&#187;</button>
               </div>
 
-              <div class="timeline">
-                <div class="selection-meta" id="selectionMeta"></div>
-                <div class="track" id="track"></div>
-                <div class="range-fill" id="rangeFill"></div>
-                <button class="handle-marker from" id="fromMarker" type="button" aria-label="Adjust from revision"></button>
-                <button class="handle-marker to" id="toMarker" type="button" aria-label="Adjust to revision"></button>
-                <div class="month-row" id="monthRow"></div>
-              </div>
-
-              <div class="range-summary">
-                <div class="range-label" id="rangeLabel">Loading revisions...</div>
-                <div class="range-subtitle" id="rangeSubtitle"></div>
+              <div class="step-status-row">
+                <div class="step-status" id="stepStatus"></div>
+                <div class="loading-indicator" id="snapshotLoadingIndicator" hidden>Loading snapshots&#8230;</div>
               </div>
             </div>
           </div>
+          <div class="anchor-tooltip" id="anchorTooltip" hidden></div>
           <div class="timeline-resize-handle" id="timelineResizeHandle"></div>
           <div class="diff-content">
             <div class="diff-summary">
               <div class="diff-title-row">
-                <div>
-                  <div class="eyebrow" id="diffModeEyebrow">Diff</div>
-                  <div class="diff-title-inline">
+                <div class="diff-summary-left">
+                  <div class="diff-eyebrow-row">
+                    <div class="eyebrow" id="diffModeEyebrow">Diff</div>
                     <h3 class="diff-title" id="diffTitle">Loading diff...</h3>
                     <div class="diff-title-meta" id="diffTitleMeta"></div>
                   </div>
+                  <div class="diff-subtitle" id="diffSubtitle"></div>
                 </div>
                 <div class="diff-actions">
                   <div class="history-stats" id="diffStats"></div>
                   <button class="collapse-button" id="toggleDiffFocusButton" type="button">Focus diff</button>
                 </div>
               </div>
-              <div class="diff-subtitle" id="diffSubtitle"></div>
             </div>
             <div class="diff-rows" id="diffRows"></div>
           </div>
