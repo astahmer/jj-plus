@@ -54,7 +54,7 @@ input {
 }
 
 .workspace.is-collapsed {
-  grid-template-columns: 0px 0px minmax(0, 1fr);
+  grid-template-columns: 0px 6px minmax(0, 1fr);
 }
 
 .workspace.is-diff-focus {
@@ -78,11 +78,14 @@ input {
   transition: opacity 0.18s ease;
 }
 
-.workspace.is-collapsed .sidebar,
-.workspace.is-collapsed .resize-handle {
+.workspace.is-collapsed .sidebar {
   opacity: 0;
   pointer-events: none;
   visibility: hidden;
+}
+
+.workspace.is-collapsed .resize-handle::before {
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .resize-handle {
@@ -110,7 +113,7 @@ input {
 }
 
 .workspace.is-collapsed .diff-panel {
-  border-radius: 12px;
+  border-radius: 0 12px 12px 0;
 }
 
 .workspace.is-diff-focus .diff-panel {
@@ -237,6 +240,15 @@ input {
   justify-content: space-between;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.timeline-head {
+  align-items: flex-start;
+}
+
+.control-row {
+  align-self: flex-start;
+  margin-top: 2px;
 }
 
 .history-top {
@@ -558,7 +570,8 @@ input {
 }
 
 .hotkeys-version {
-  margin-top: 6px;
+  margin-left: 8px;
+  color: var(--muted);
 }
 
 .hotkeys-grid {
@@ -915,6 +928,13 @@ kbd {
   cursor: default;
 }
 
+.track-anchor::after {
+  content: "";
+  position: absolute;
+  inset: -8px;
+  border-radius: 999px;
+}
+
 .track-anchor.in-range {
   background: rgba(113, 183, 255, 0.8);
 }
@@ -1023,6 +1043,10 @@ kbd {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.anchor-tooltip[hidden] {
+  display: none;
 }
 
 .anchor-tooltip {

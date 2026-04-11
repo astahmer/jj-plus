@@ -135,9 +135,11 @@
             <div class="hotkeys-card">
               <div class="hotkeys-head">
                 <div>
-                  <div class="eyebrow">Shortcuts</div>
+                  <div style="display:flex;align-items:baseline;gap:6px;">
+                    <div class="eyebrow">Shortcuts</div>
+                    <div class="hotkeys-version" id="hotkeysVersion"></div>
+                  </div>
                   <div class="hotkeys-subtitle">Range selection, sidebar navigation, and diff actions</div>
-                  <div class="hotkeys-version" id="hotkeysVersion"></div>
                 </div>
                 <button class="collapse-button" id="closeHotkeysButton" type="button">Close</button>
               </div>
@@ -155,6 +157,7 @@
                   <div class="hotkey-section-title">Actions</div>
                   <div class="hotkey-row"><span class="hotkey-label">Open cumulative diff</span><span class="hotkey-value"><kbd>Space</kbd></span></div>
                   <div class="hotkey-row"><span class="hotkey-label">Toggle help</span><span class="hotkey-value"><kbd>?</kbd></span></div>
+                  <div class="hotkey-row"><span class="hotkey-label">Toggle sidebar</span><span class="hotkey-value"><kbd>B</kbd></span></div>
                   <div class="hotkey-row"><span class="hotkey-label">Pick range by click</span><span class="hotkey-note">Click one revision, then another</span></div>
                   <div class="hotkey-row"><span class="hotkey-label">Drag markers</span><span class="hotkey-note">Adjust range directly on the timeline</span></div>
                 </div>

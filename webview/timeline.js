@@ -159,7 +159,7 @@
       state.snapshotHydrationInFlight = false;
       elements.sidebarSearchInput.value = '';
       elements.timelineVersion.textContent = message.payload.version ? 'v' + message.payload.version : '';
-      elements.hotkeysVersion.textContent = message.payload.version ? 'Version ' + message.payload.version : '';
+      elements.hotkeysVersion.textContent = message.payload.version ? 'v' + message.payload.version : '';
 
       if (!state.data.entries.length) {
         renderEmpty();
@@ -418,19 +418,29 @@
   });
 
   elements.resizeHandle.addEventListener('pointerdown', (event) => {
-    if (state.compactViewport || getSidebarCollapsed()) {
+    if (state.compactViewport) {
       return;
     }
 
     event.preventDefault();
     const startX = event.clientX;
     const startWidth = state.sidebarWidth;
+    const wasCollapsed = getSidebarCollapsed();
     elements.resizeHandle.classList.add('is-dragging');
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', onPointerUp);
 
     function onPointerMove(moveEvent) {
       const delta = moveEvent.clientX - startX;
+      if (wasCollapsed) {
+        if (delta < 20) {
+          return;
+        }
+        state.sidebarCollapsed = false;
+        state.sidebarWidth = Math.max(180, Math.min(420, 180 + (delta - 20)));
+        applySidebarState();
+        return;
+      }
       if (startWidth + delta < 100) {
         state.sidebarCollapsed = true;
         applySidebarState();
@@ -539,7 +549,12 @@
       return;
     }
 
-    if (event.key === '?') {
+    if (event.key === '?' || event.key === 'b' || event.key === 'B') {
+      if (event.key === 'b' || event.key === 'B') {
+        event.preventDefault();
+        toggleSidebar();
+        return;
+      }
       event.preventDefault();
       state.hotkeysOpen = !state.hotkeysOpen;
       renderHotkeysPopover();
@@ -591,13 +606,13 @@
 
     if (event.key === 'ArrowUp') {
       event.preventDefault();
-      navigateSelection(-jumpAmount);
+      navigateSelection(jumpAmount);
       return;
     }
 
     if (event.key === 'ArrowDown') {
       event.preventDefault();
-      navigateSelection(jumpAmount);
+      navigateSelection(-jumpAmount);
     }
   }
 
@@ -949,8 +964,8 @@
 
   function formatRangeTitle() {
     const selectedCount = getSelectedRevisionCount();
-    const touchingCount = getSourceEntries().filter((entry) => entry.touchesFile).length;
-    return String(selectedCount) + '/' + String(touchingCount) + ' ' + (state.comparisonSource === 'snapshot' ? 'snapshots' : 'revisions');
+    const totalCount = state.visibleEntries.length;
+    return String(selectedCount) + '/' + String(totalCount) + ' ' + (state.comparisonSource === 'snapshot' ? 'snapshots' : 'revisions');
   }
 
   function formatRangeSubtitle(fromEntry, toEntry) {
