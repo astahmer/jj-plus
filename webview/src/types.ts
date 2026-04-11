@@ -120,3 +120,8 @@ export type TimelineHost = {
   send: (command: TimelineCommand) => void;
   subscribe: (listener: (message: TimelineInboundMessage) => void) => () => void;
 };
+
+export type TimelineFixture = {
+  timelineData: TimelineData;
+  previews: Record<string, DiffPreview>;
+};

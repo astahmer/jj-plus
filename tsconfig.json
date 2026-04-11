@@ -28,6 +28,7 @@
         "webview/**/*.ts",
         "webview/**/*.tsx",
         "playwright.config.ts",
-        "features/**/*.ts"
+        "features/**/*.ts",
+        "webview/public/e2e/**/*.json"
     ]
 }

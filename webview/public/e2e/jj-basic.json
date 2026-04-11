@@ -1,0 +1,820 @@
+{
+  "timelineData": {
+    "backend": "jj",
+    "workspacePath": "/Users/astahmer/dev/alex/visualjj-range-diff-helper/.e2e-runtime/repos/jj-basic",
+    "relativePath": "apps/backend/instructions/lazy-di-rollout-plan.md",
+    "fileName": "lazy-di-rollout-plan.md",
+    "version": "0.0.2",
+    "presets": {
+      "year": 365,
+      "7d": 7,
+      "30d": 30,
+      "90d": 90,
+      "all": null
+    },
+    "defaultIndex": 4,
+    "latestIndex": 4,
+    "preferences": {
+      "sidebarWidth": 280,
+      "layoutMode": "split",
+      "contentMode": "diffs",
+      "comparisonMode": "range",
+      "comparisonSource": "snapshot",
+      "preset": "90d",
+      "showIntermediateRevisions": true
+    },
+    "workspaceFiles": [
+      "apps/backend/instructions/lazy-di-rollout-plan.md",
+      "notes/todo.txt"
+    ],
+    "hasIntermediateRevisions": true,
+    "entries": [
+      {
+        "id": "2b200a18f04d",
+        "index": 0,
+        "revision": "2b200a18f04d",
+        "shortRevision": "w",
+        "changeId": "w",
+        "authorDate": "2026-04-08T10:00:00+00:00",
+        "authorName": "Fixture User",
+        "description": "initial plan",
+        "isWorkingTree": false,
+        "touchesFile": true,
+        "timestamp": 1775642400000,
+        "monthLabel": "April",
+        "shortDate": "Apr 8, 2026",
+        "relativeDate": "3 days ago",
+        "hasPreviousEntry": false
+      },
+      {
+        "id": "bb9568a2687d",
+        "index": 1,
+        "revision": "bb9568a2687d",
+        "shortRevision": "rx",
+        "changeId": "rx",
+        "authorDate": "2026-04-08T11:00:00+00:00",
+        "authorName": "Fixture User",
+        "description": "unrelated note",
+        "isWorkingTree": false,
+        "touchesFile": false,
+        "timestamp": 1775646000000,
+        "monthLabel": "April",
+        "shortDate": "Apr 8, 2026",
+        "relativeDate": "3 days ago",
+        "hasPreviousEntry": true
+      },
+      {
+        "id": "0374b9dba730",
+        "index": 2,
+        "revision": "0374b9dba730",
+        "shortRevision": "rm",
+        "changeId": "rm",
+        "authorDate": "2026-04-09T10:00:00+00:00",
+        "authorName": "Fixture User",
+        "description": "plan refinement",
+        "isWorkingTree": false,
+        "touchesFile": true,
+        "timestamp": 1775728800000,
+        "monthLabel": "April",
+        "shortDate": "Apr 9, 2026",
+        "relativeDate": "2 days ago",
+        "hasPreviousEntry": true
+      },
+      {
+        "id": "21ffe0250023",
+        "index": 3,
+        "revision": "21ffe0250023",
+        "shortRevision": "v",
+        "changeId": "v",
+        "authorDate": "2026-04-10T10:00:00+00:00",
+        "authorName": "Fixture User",
+        "description": "snapshot working copy",
+        "isWorkingTree": false,
+        "touchesFile": true,
+        "timestamp": 1775815200000,
+        "monthLabel": "April",
+        "shortDate": "Apr 10, 2026",
+        "relativeDate": "yesterday",
+        "hasPreviousEntry": true
+      },
+      {
+        "id": "554583e7bc19",
+        "index": 4,
+        "revision": "WORKTREE",
+        "shortRevision": "Current",
+        "authorDate": "2026-04-11T21:53:24+02:00",
+        "authorName": "Alexandre Stahmer",
+        "description": "Working tree",
+        "isWorkingTree": true,
+        "touchesFile": true,
+        "timestamp": 1775937204000,
+        "monthLabel": "April",
+        "shortDate": "Apr 11, 2026",
+        "relativeDate": "this minute",
+        "hasPreviousEntry": true
+      }
+    ],
+    "snapshotEntries": [
+      {
+        "id": "2b200a18f04d",
+        "index": 0,
+        "revision": "2b200a18f04d",
+        "shortRevision": "w",
+        "changeId": "w",
+        "authorDate": "2026-04-08T10:00:00+00:00",
+        "authorName": "Fixture User",
+        "description": "initial plan",
+        "isWorkingTree": false,
+        "touchesFile": true,
+        "timestamp": 1775642400000,
+        "monthLabel": "April",
+        "shortDate": "Apr 8, 2026",
+        "relativeDate": "3 days ago",
+        "hasPreviousEntry": false
+      },
+      {
+        "id": "bb9568a2687d",
+        "index": 1,
+        "revision": "bb9568a2687d",
+        "shortRevision": "rx",
+        "changeId": "rx",
+        "authorDate": "2026-04-08T11:00:00+00:00",
+        "authorName": "Fixture User",
+        "description": "unrelated note",
+        "isWorkingTree": false,
+        "touchesFile": false,
+        "timestamp": 1775646000000,
+        "monthLabel": "April",
+        "shortDate": "Apr 8, 2026",
+        "relativeDate": "3 days ago",
+        "hasPreviousEntry": true
+      },
+      {
+        "id": "0374b9dba730",
+        "index": 2,
+        "revision": "0374b9dba730",
+        "shortRevision": "rm",
+        "changeId": "rm",
+        "authorDate": "2026-04-09T10:00:00+00:00",
+        "authorName": "Fixture User",
+        "description": "plan refinement",
+        "isWorkingTree": false,
+        "touchesFile": true,
+        "timestamp": 1775728800000,
+        "monthLabel": "April",
+        "shortDate": "Apr 9, 2026",
+        "relativeDate": "2 days ago",
+        "hasPreviousEntry": true
+      },
+      {
+        "id": "21ffe0250023",
+        "index": 3,
+        "revision": "21ffe0250023",
+        "shortRevision": "v",
+        "changeId": "v",
+        "authorDate": "2026-04-10T10:00:00+00:00",
+        "authorName": "Fixture User",
+        "description": "snapshot working copy",
+        "isWorkingTree": false,
+        "touchesFile": true,
+        "timestamp": 1775815200000,
+        "monthLabel": "April",
+        "shortDate": "Apr 10, 2026",
+        "relativeDate": "yesterday",
+        "hasPreviousEntry": true
+      },
+      {
+        "id": "554583e7bc19",
+        "index": 4,
+        "revision": "WORKTREE",
+        "shortRevision": "Current",
+        "authorDate": "2026-04-11T21:53:24+02:00",
+        "authorName": "Alexandre Stahmer",
+        "description": "Working tree",
+        "isWorkingTree": true,
+        "touchesFile": true,
+        "timestamp": 1775937204000,
+        "monthLabel": "April",
+        "shortDate": "Apr 11, 2026",
+        "relativeDate": "this minute",
+        "hasPreviousEntry": true
+      }
+    ],
+    "snapshotState": {
+      "loadedChangeIds": [
+        "w",
+        "rx",
+        "rm",
+        "v"
+      ]
+    }
+  },
+  "previews": {
+    "0:1": {
+      "index": 1,
+      "title": "w -> rx",
+      "subtitle": "4/8/2026, 1:00:00 PM · unrelated note",
+      "additions": 0,
+      "deletions": 0,
+      "hunkCount": 0,
+      "hasChanges": false,
+      "fromIndex": 0,
+      "toIndex": 1,
+      "comparisonSource": "snapshot",
+      "rows": [
+        {
+          "type": "context",
+          "leftNumber": 1,
+          "rightNumber": 1,
+          "text": "## Initial revision"
+        },
+        {
+          "type": "context",
+          "leftNumber": 2,
+          "rightNumber": 2,
+          "text": ""
+        },
+        {
+          "type": "context",
+          "leftNumber": 3,
+          "rightNumber": 3,
+          "text": "1. Inventory"
+        },
+        {
+          "type": "context",
+          "leftNumber": 4,
+          "rightNumber": 4,
+          "text": "alpha line"
+        }
+      ],
+      "nonTextualDetails": []
+    },
+    "0:2": {
+      "index": 2,
+      "title": "w -> rm",
+      "subtitle": "4/9/2026, 12:00:00 PM · plan refinement",
+      "additions": 4,
+      "deletions": 4,
+      "hunkCount": 1,
+      "hasChanges": true,
+      "fromIndex": 0,
+      "toIndex": 2,
+      "comparisonSource": "snapshot",
+      "rows": [
+        {
+          "type": "remove",
+          "leftNumber": 1,
+          "rightNumber": null,
+          "text": "## Initial revision"
+        },
+        {
+          "type": "remove",
+          "leftNumber": 2,
+          "rightNumber": null,
+          "text": ""
+        },
+        {
+          "type": "remove",
+          "leftNumber": 3,
+          "rightNumber": null,
+          "text": "1. Inventory"
+        },
+        {
+          "type": "remove",
+          "leftNumber": 4,
+          "rightNumber": null,
+          "text": "alpha line"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 1,
+          "text": "## Second revision"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 2,
+          "text": ""
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 3,
+          "text": "1. Inventory"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 4,
+          "text": "beta line"
+        }
+      ],
+      "nonTextualDetails": []
+    },
+    "1:2": {
+      "index": 2,
+      "title": "rx -> rm",
+      "subtitle": "4/9/2026, 12:00:00 PM · plan refinement",
+      "additions": 4,
+      "deletions": 4,
+      "hunkCount": 1,
+      "hasChanges": true,
+      "fromIndex": 1,
+      "toIndex": 2,
+      "comparisonSource": "snapshot",
+      "rows": [
+        {
+          "type": "remove",
+          "leftNumber": 1,
+          "rightNumber": null,
+          "text": "## Initial revision"
+        },
+        {
+          "type": "remove",
+          "leftNumber": 2,
+          "rightNumber": null,
+          "text": ""
+        },
+        {
+          "type": "remove",
+          "leftNumber": 3,
+          "rightNumber": null,
+          "text": "1. Inventory"
+        },
+        {
+          "type": "remove",
+          "leftNumber": 4,
+          "rightNumber": null,
+          "text": "alpha line"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 1,
+          "text": "## Second revision"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 2,
+          "text": ""
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 3,
+          "text": "1. Inventory"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 4,
+          "text": "beta line"
+        }
+      ],
+      "nonTextualDetails": []
+    },
+    "0:3": {
+      "index": 3,
+      "title": "w -> v",
+      "subtitle": "4/10/2026, 12:00:00 PM · snapshot working copy",
+      "additions": 4,
+      "deletions": 4,
+      "hunkCount": 1,
+      "hasChanges": true,
+      "fromIndex": 0,
+      "toIndex": 3,
+      "comparisonSource": "snapshot",
+      "rows": [
+        {
+          "type": "remove",
+          "leftNumber": 1,
+          "rightNumber": null,
+          "text": "## Initial revision"
+        },
+        {
+          "type": "remove",
+          "leftNumber": 2,
+          "rightNumber": null,
+          "text": ""
+        },
+        {
+          "type": "remove",
+          "leftNumber": 3,
+          "rightNumber": null,
+          "text": "1. Inventory"
+        },
+        {
+          "type": "remove",
+          "leftNumber": 4,
+          "rightNumber": null,
+          "text": "alpha line"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 1,
+          "text": "## Third revision"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 2,
+          "text": ""
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 3,
+          "text": "1. Inventory"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 4,
+          "text": "gamma line"
+        }
+      ],
+      "nonTextualDetails": []
+    },
+    "1:3": {
+      "index": 3,
+      "title": "rx -> v",
+      "subtitle": "4/10/2026, 12:00:00 PM · snapshot working copy",
+      "additions": 4,
+      "deletions": 4,
+      "hunkCount": 1,
+      "hasChanges": true,
+      "fromIndex": 1,
+      "toIndex": 3,
+      "comparisonSource": "snapshot",
+      "rows": [
+        {
+          "type": "remove",
+          "leftNumber": 1,
+          "rightNumber": null,
+          "text": "## Initial revision"
+        },
+        {
+          "type": "remove",
+          "leftNumber": 2,
+          "rightNumber": null,
+          "text": ""
+        },
+        {
+          "type": "remove",
+          "leftNumber": 3,
+          "rightNumber": null,
+          "text": "1. Inventory"
+        },
+        {
+          "type": "remove",
+          "leftNumber": 4,
+          "rightNumber": null,
+          "text": "alpha line"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 1,
+          "text": "## Third revision"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 2,
+          "text": ""
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 3,
+          "text": "1. Inventory"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 4,
+          "text": "gamma line"
+        }
+      ],
+      "nonTextualDetails": []
+    },
+    "2:3": {
+      "index": 3,
+      "title": "rm -> v",
+      "subtitle": "4/10/2026, 12:00:00 PM · snapshot working copy",
+      "additions": 4,
+      "deletions": 4,
+      "hunkCount": 1,
+      "hasChanges": true,
+      "fromIndex": 2,
+      "toIndex": 3,
+      "comparisonSource": "snapshot",
+      "rows": [
+        {
+          "type": "remove",
+          "leftNumber": 1,
+          "rightNumber": null,
+          "text": "## Second revision"
+        },
+        {
+          "type": "remove",
+          "leftNumber": 2,
+          "rightNumber": null,
+          "text": ""
+        },
+        {
+          "type": "remove",
+          "leftNumber": 3,
+          "rightNumber": null,
+          "text": "1. Inventory"
+        },
+        {
+          "type": "remove",
+          "leftNumber": 4,
+          "rightNumber": null,
+          "text": "beta line"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 1,
+          "text": "## Third revision"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 2,
+          "text": ""
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 3,
+          "text": "1. Inventory"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 4,
+          "text": "gamma line"
+        }
+      ],
+      "nonTextualDetails": []
+    },
+    "0:4": {
+      "index": 4,
+      "title": "w -> Current",
+      "subtitle": "Working tree",
+      "additions": 4,
+      "deletions": 4,
+      "hunkCount": 1,
+      "hasChanges": true,
+      "fromIndex": 0,
+      "toIndex": 4,
+      "comparisonSource": "snapshot",
+      "rows": [
+        {
+          "type": "remove",
+          "leftNumber": 1,
+          "rightNumber": null,
+          "text": "## Initial revision"
+        },
+        {
+          "type": "remove",
+          "leftNumber": 2,
+          "rightNumber": null,
+          "text": ""
+        },
+        {
+          "type": "remove",
+          "leftNumber": 3,
+          "rightNumber": null,
+          "text": "1. Inventory"
+        },
+        {
+          "type": "remove",
+          "leftNumber": 4,
+          "rightNumber": null,
+          "text": "alpha line"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 1,
+          "text": "## Working tree"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 2,
+          "text": ""
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 3,
+          "text": "1. Inventory"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 4,
+          "text": "delta line"
+        }
+      ],
+      "nonTextualDetails": []
+    },
+    "1:4": {
+      "index": 4,
+      "title": "rx -> Current",
+      "subtitle": "Working tree",
+      "additions": 4,
+      "deletions": 4,
+      "hunkCount": 1,
+      "hasChanges": true,
+      "fromIndex": 1,
+      "toIndex": 4,
+      "comparisonSource": "snapshot",
+      "rows": [
+        {
+          "type": "remove",
+          "leftNumber": 1,
+          "rightNumber": null,
+          "text": "## Initial revision"
+        },
+        {
+          "type": "remove",
+          "leftNumber": 2,
+          "rightNumber": null,
+          "text": ""
+        },
+        {
+          "type": "remove",
+          "leftNumber": 3,
+          "rightNumber": null,
+          "text": "1. Inventory"
+        },
+        {
+          "type": "remove",
+          "leftNumber": 4,
+          "rightNumber": null,
+          "text": "alpha line"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 1,
+          "text": "## Working tree"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 2,
+          "text": ""
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 3,
+          "text": "1. Inventory"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 4,
+          "text": "delta line"
+        }
+      ],
+      "nonTextualDetails": []
+    },
+    "2:4": {
+      "index": 4,
+      "title": "rm -> Current",
+      "subtitle": "Working tree",
+      "additions": 4,
+      "deletions": 4,
+      "hunkCount": 1,
+      "hasChanges": true,
+      "fromIndex": 2,
+      "toIndex": 4,
+      "comparisonSource": "snapshot",
+      "rows": [
+        {
+          "type": "remove",
+          "leftNumber": 1,
+          "rightNumber": null,
+          "text": "## Second revision"
+        },
+        {
+          "type": "remove",
+          "leftNumber": 2,
+          "rightNumber": null,
+          "text": ""
+        },
+        {
+          "type": "remove",
+          "leftNumber": 3,
+          "rightNumber": null,
+          "text": "1. Inventory"
+        },
+        {
+          "type": "remove",
+          "leftNumber": 4,
+          "rightNumber": null,
+          "text": "beta line"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 1,
+          "text": "## Working tree"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 2,
+          "text": ""
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 3,
+          "text": "1. Inventory"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 4,
+          "text": "delta line"
+        }
+      ],
+      "nonTextualDetails": []
+    },
+    "3:4": {
+      "index": 4,
+      "title": "v -> Current",
+      "subtitle": "Working tree",
+      "additions": 4,
+      "deletions": 4,
+      "hunkCount": 1,
+      "hasChanges": true,
+      "fromIndex": 3,
+      "toIndex": 4,
+      "comparisonSource": "snapshot",
+      "rows": [
+        {
+          "type": "remove",
+          "leftNumber": 1,
+          "rightNumber": null,
+          "text": "## Third revision"
+        },
+        {
+          "type": "remove",
+          "leftNumber": 2,
+          "rightNumber": null,
+          "text": ""
+        },
+        {
+          "type": "remove",
+          "leftNumber": 3,
+          "rightNumber": null,
+          "text": "1. Inventory"
+        },
+        {
+          "type": "remove",
+          "leftNumber": 4,
+          "rightNumber": null,
+          "text": "gamma line"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 1,
+          "text": "## Working tree"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 2,
+          "text": ""
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 3,
+          "text": "1. Inventory"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 4,
+          "text": "delta line"
+        }
+      ],
+      "nonTextualDetails": []
+    }
+  }
+}

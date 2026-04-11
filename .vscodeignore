@@ -1,0 +1,17 @@
+.e2e-runtime/**
+.features-gen/**
+.git/**
+.github/**
+.vscode/**
+features/**
+playwright.config.ts
+scripts/**
+test/**
+test-results/**
+TODO.md
+tsconfig.json
+vscode-timeline-prompt-history.md
+webview/index.html
+webview/public/e2e/**
+webview/src/**
+webview-dist/e2e/**

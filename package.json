@@ -5,12 +5,13 @@
 	"private": true,
 	"description": "Open JJ multi-diff views for revision ranges.",
 	"scripts": {
-		"build": "pnpm build:webview && pnpm vsce package --skip-license",
+		"build": "pnpm build:webview && pnpm vsce package --skip-license --no-dependencies",
 		"build:webview": "vite build",
 		"dev": "vite --host 127.0.0.1 --open /",
 		"bddgen": "bddgen",
+		"fixtures:e2e": "node ./scripts/generate-e2e-fixtures.mjs",
 		"test": "node --test",
-		"test:e2e": "pnpm bddgen && playwright test",
+		"test:e2e": "pnpm fixtures:e2e && pnpm bddgen && playwright test",
 		"test:all": "pnpm test && pnpm test:e2e",
 		"typecheck": "tsc --noEmit"
 	},

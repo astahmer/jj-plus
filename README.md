@@ -27,6 +27,7 @@ For typechecking and browser-level end-to-end coverage of the standalone timelin
 
 ```sh
 pnpm typecheck
+pnpm fixtures:e2e
 pnpm test:e2e
 pnpm test:all
 ```

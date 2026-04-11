@@ -1,5 +1,4 @@
-import { buildMockPreview, mockData } from './mock-data';
-import type { TimelineCommand, TimelineHost, TimelineInboundMessage } from './types';
+import type { ComparisonSource, DiffPreview, TimelineCommand, TimelineFixture, TimelineHost, TimelineInboundMessage } from './types';
 
 type VsCodeApi = {
   postMessage: (message: TimelineCommand) => void;
@@ -31,20 +30,37 @@ export function createTimelineHost(): TimelineHost {
   }
 
   const listeners = new Set<(message: TimelineInboundMessage) => void>();
+  let fixturePromise: Promise<TimelineFixture> | null = null;
 
   return {
     send(command) {
       if (command.command === 'ready' || command.command === 'refresh') {
-        queueMicrotask(() => {
-          emit({ type: 'timeline-data', payload: mockData });
-          emit({ type: 'diff-preview', payload: buildMockPreview(mockData.defaultIndex - 1, mockData.defaultIndex) });
+        void getFixture().then((fixture) => {
+          emit({ type: 'timeline-data', payload: fixture.timelineData });
+          emit({
+            type: 'diff-preview',
+            payload: getFixturePreview(fixture, fixture.timelineData.defaultIndex - 1, fixture.timelineData.defaultIndex),
+          });
         });
         return;
       }
 
       if (command.command === 'select-entry') {
-        queueMicrotask(() => {
-          emit({ type: 'diff-preview', payload: buildMockPreview(command.fromIndex, command.toIndex) });
+        void getFixture().then((fixture) => {
+          emit({ type: 'diff-preview', payload: getFixturePreview(fixture, command.fromIndex, command.toIndex) });
+        });
+        return;
+      }
+
+      if (command.command === 'hydrate-snapshot-entries') {
+        void getFixture().then((fixture) => {
+          emit({
+            type: 'snapshot-entries',
+            payload: {
+              snapshotEntries: fixture.timelineData.snapshotEntries,
+              snapshotState: fixture.timelineData.snapshotState || { loadedChangeIds: [] },
+            },
+          });
         });
       }
     },
@@ -56,5 +72,42 @@ export function createTimelineHost(): TimelineHost {
 
   function emit(message: TimelineInboundMessage) {
     listeners.forEach((listener) => listener(message));
+  }
+
+  function getFixture() {
+    if (!fixturePromise) {
+      const fixtureName = new URLSearchParams(window.location.search).get('fixture') || 'jj-basic';
+      fixturePromise = fetch(`/e2e/${fixtureName}.json`).then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`Failed to load fixture ${fixtureName}: ${response.status}`);
+        }
+        return /** @type {Promise<TimelineFixture>} */ (response.json());
+      });
+    }
+    return fixturePromise;
+  }
+
+  function getFixturePreview(fixture: TimelineFixture, fromIndex: number, toIndex: number) {
+    const key = `${Math.min(fromIndex, toIndex)}:${Math.max(fromIndex, toIndex)}`;
+    const preview = fixture.previews[key];
+    if (preview) {
+      return preview;
+    }
+    const comparisonSource: ComparisonSource = fixture.timelineData.backend === 'jj' ? 'snapshot' : 'revision';
+    const fallback: DiffPreview = {
+      index: Math.max(fromIndex, toIndex),
+      title: 'No diff available',
+      subtitle: '',
+      additions: 0,
+      deletions: 0,
+      hunkCount: 0,
+      hasChanges: false,
+      fromIndex: Math.min(fromIndex, toIndex),
+      toIndex: Math.max(fromIndex, toIndex),
+      comparisonSource,
+      rows: [],
+      nonTextualDetails: [],
+    };
+    return fallback;
   }
 }

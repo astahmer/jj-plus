@@ -1,0 +1,807 @@
+{
+  "timelineData": {
+    "backend": "git",
+    "workspacePath": "/Users/astahmer/dev/alex/visualjj-range-diff-helper/.e2e-runtime/repos/git-basic",
+    "relativePath": "apps/backend/instructions/lazy-di-rollout-plan.md",
+    "fileName": "lazy-di-rollout-plan.md",
+    "version": "0.0.2",
+    "presets": {
+      "year": 365,
+      "7d": 7,
+      "30d": 30,
+      "90d": 90,
+      "all": null
+    },
+    "defaultIndex": 4,
+    "latestIndex": 4,
+    "preferences": {
+      "sidebarWidth": 280,
+      "layoutMode": "split",
+      "contentMode": "diffs",
+      "comparisonMode": "range",
+      "comparisonSource": "revision",
+      "preset": "90d",
+      "showIntermediateRevisions": true
+    },
+    "workspaceFiles": [
+      "apps/backend/instructions/lazy-di-rollout-plan.md",
+      "notes/todo.txt"
+    ],
+    "hasIntermediateRevisions": true,
+    "entries": [
+      {
+        "id": "2b200a18f04d93e4982dc7bb38a3c00afcc5101c",
+        "index": 0,
+        "revision": "2b200a18f04d93e4982dc7bb38a3c00afcc5101c",
+        "shortRevision": "2b200a18",
+        "authorDate": "2026-04-08T10:00:00Z",
+        "authorName": "Fixture User",
+        "description": "initial plan",
+        "isWorkingTree": false,
+        "touchesFile": false,
+        "timestamp": 1775642400000,
+        "monthLabel": "April",
+        "shortDate": "Apr 8, 2026",
+        "relativeDate": "3 days ago",
+        "hasPreviousEntry": false
+      },
+      {
+        "id": "bb9568a2687dc85c9ae3e383c391eaf4a4c5cb41",
+        "index": 1,
+        "revision": "bb9568a2687dc85c9ae3e383c391eaf4a4c5cb41",
+        "shortRevision": "bb9568a2",
+        "authorDate": "2026-04-08T11:00:00Z",
+        "authorName": "Fixture User",
+        "description": "unrelated note",
+        "isWorkingTree": false,
+        "touchesFile": false,
+        "timestamp": 1775646000000,
+        "monthLabel": "April",
+        "shortDate": "Apr 8, 2026",
+        "relativeDate": "3 days ago",
+        "hasPreviousEntry": true
+      },
+      {
+        "id": "0374b9dba7303dc4ed908407ee0d80a6b84248b1",
+        "index": 2,
+        "revision": "0374b9dba7303dc4ed908407ee0d80a6b84248b1",
+        "shortRevision": "0374b9db",
+        "authorDate": "2026-04-09T10:00:00Z",
+        "authorName": "Fixture User",
+        "description": "plan refinement",
+        "isWorkingTree": false,
+        "touchesFile": true,
+        "timestamp": 1775728800000,
+        "monthLabel": "April",
+        "shortDate": "Apr 9, 2026",
+        "relativeDate": "2 days ago",
+        "hasPreviousEntry": true
+      },
+      {
+        "id": "026ff36cf3dbfe79fdaa84edd85e9dc70d2d4039",
+        "index": 3,
+        "revision": "026ff36cf3dbfe79fdaa84edd85e9dc70d2d4039",
+        "shortRevision": "026ff36c",
+        "authorDate": "2026-04-10T10:00:00Z",
+        "authorName": "Fixture User",
+        "description": "finalized rollout",
+        "isWorkingTree": false,
+        "touchesFile": true,
+        "timestamp": 1775815200000,
+        "monthLabel": "April",
+        "shortDate": "Apr 10, 2026",
+        "relativeDate": "yesterday",
+        "hasPreviousEntry": true
+      },
+      {
+        "id": "working-tree",
+        "index": 4,
+        "revision": "WORKTREE",
+        "shortRevision": "Current",
+        "authorDate": "2026-04-11T12:00:00Z",
+        "authorName": "Fixture User",
+        "description": "Working tree",
+        "isWorkingTree": true,
+        "touchesFile": true,
+        "timestamp": 1775908800000,
+        "monthLabel": "April",
+        "shortDate": "Apr 11, 2026",
+        "relativeDate": "this minute",
+        "hasPreviousEntry": true
+      }
+    ],
+    "snapshotEntries": [
+      {
+        "id": "2b200a18f04d93e4982dc7bb38a3c00afcc5101c",
+        "index": 0,
+        "revision": "2b200a18f04d93e4982dc7bb38a3c00afcc5101c",
+        "shortRevision": "2b200a18",
+        "authorDate": "2026-04-08T10:00:00Z",
+        "authorName": "Fixture User",
+        "description": "initial plan",
+        "isWorkingTree": false,
+        "touchesFile": false,
+        "timestamp": 1775642400000,
+        "monthLabel": "April",
+        "shortDate": "Apr 8, 2026",
+        "relativeDate": "3 days ago",
+        "hasPreviousEntry": false
+      },
+      {
+        "id": "bb9568a2687dc85c9ae3e383c391eaf4a4c5cb41",
+        "index": 1,
+        "revision": "bb9568a2687dc85c9ae3e383c391eaf4a4c5cb41",
+        "shortRevision": "bb9568a2",
+        "authorDate": "2026-04-08T11:00:00Z",
+        "authorName": "Fixture User",
+        "description": "unrelated note",
+        "isWorkingTree": false,
+        "touchesFile": false,
+        "timestamp": 1775646000000,
+        "monthLabel": "April",
+        "shortDate": "Apr 8, 2026",
+        "relativeDate": "3 days ago",
+        "hasPreviousEntry": true
+      },
+      {
+        "id": "0374b9dba7303dc4ed908407ee0d80a6b84248b1",
+        "index": 2,
+        "revision": "0374b9dba7303dc4ed908407ee0d80a6b84248b1",
+        "shortRevision": "0374b9db",
+        "authorDate": "2026-04-09T10:00:00Z",
+        "authorName": "Fixture User",
+        "description": "plan refinement",
+        "isWorkingTree": false,
+        "touchesFile": true,
+        "timestamp": 1775728800000,
+        "monthLabel": "April",
+        "shortDate": "Apr 9, 2026",
+        "relativeDate": "2 days ago",
+        "hasPreviousEntry": true
+      },
+      {
+        "id": "026ff36cf3dbfe79fdaa84edd85e9dc70d2d4039",
+        "index": 3,
+        "revision": "026ff36cf3dbfe79fdaa84edd85e9dc70d2d4039",
+        "shortRevision": "026ff36c",
+        "authorDate": "2026-04-10T10:00:00Z",
+        "authorName": "Fixture User",
+        "description": "finalized rollout",
+        "isWorkingTree": false,
+        "touchesFile": true,
+        "timestamp": 1775815200000,
+        "monthLabel": "April",
+        "shortDate": "Apr 10, 2026",
+        "relativeDate": "yesterday",
+        "hasPreviousEntry": true
+      },
+      {
+        "id": "working-tree",
+        "index": 4,
+        "revision": "WORKTREE",
+        "shortRevision": "Current",
+        "authorDate": "2026-04-11T12:00:00Z",
+        "authorName": "Fixture User",
+        "description": "Working tree",
+        "isWorkingTree": true,
+        "touchesFile": true,
+        "timestamp": 1775908800000,
+        "monthLabel": "April",
+        "shortDate": "Apr 11, 2026",
+        "relativeDate": "this minute",
+        "hasPreviousEntry": true
+      }
+    ],
+    "snapshotState": {
+      "loadedChangeIds": []
+    }
+  },
+  "previews": {
+    "0:1": {
+      "index": 1,
+      "title": "2b200a18 -> bb9568a2",
+      "subtitle": "4/8/2026, 1:00:00 PM · unrelated note",
+      "additions": 0,
+      "deletions": 0,
+      "hunkCount": 0,
+      "hasChanges": false,
+      "fromIndex": 0,
+      "toIndex": 1,
+      "comparisonSource": "revision",
+      "rows": [
+        {
+          "type": "context",
+          "leftNumber": 1,
+          "rightNumber": 1,
+          "text": "## Initial revision"
+        },
+        {
+          "type": "context",
+          "leftNumber": 2,
+          "rightNumber": 2,
+          "text": ""
+        },
+        {
+          "type": "context",
+          "leftNumber": 3,
+          "rightNumber": 3,
+          "text": "1. Inventory"
+        },
+        {
+          "type": "context",
+          "leftNumber": 4,
+          "rightNumber": 4,
+          "text": "alpha line"
+        }
+      ],
+      "nonTextualDetails": []
+    },
+    "0:2": {
+      "index": 2,
+      "title": "2b200a18 -> 0374b9db",
+      "subtitle": "4/9/2026, 12:00:00 PM · plan refinement",
+      "additions": 4,
+      "deletions": 4,
+      "hunkCount": 1,
+      "hasChanges": true,
+      "fromIndex": 0,
+      "toIndex": 2,
+      "comparisonSource": "revision",
+      "rows": [
+        {
+          "type": "remove",
+          "leftNumber": 1,
+          "rightNumber": null,
+          "text": "## Initial revision"
+        },
+        {
+          "type": "remove",
+          "leftNumber": 2,
+          "rightNumber": null,
+          "text": ""
+        },
+        {
+          "type": "remove",
+          "leftNumber": 3,
+          "rightNumber": null,
+          "text": "1. Inventory"
+        },
+        {
+          "type": "remove",
+          "leftNumber": 4,
+          "rightNumber": null,
+          "text": "alpha line"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 1,
+          "text": "## Second revision"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 2,
+          "text": ""
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 3,
+          "text": "1. Inventory"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 4,
+          "text": "beta line"
+        }
+      ],
+      "nonTextualDetails": []
+    },
+    "1:2": {
+      "index": 2,
+      "title": "bb9568a2 -> 0374b9db",
+      "subtitle": "4/9/2026, 12:00:00 PM · plan refinement",
+      "additions": 4,
+      "deletions": 4,
+      "hunkCount": 1,
+      "hasChanges": true,
+      "fromIndex": 1,
+      "toIndex": 2,
+      "comparisonSource": "revision",
+      "rows": [
+        {
+          "type": "remove",
+          "leftNumber": 1,
+          "rightNumber": null,
+          "text": "## Initial revision"
+        },
+        {
+          "type": "remove",
+          "leftNumber": 2,
+          "rightNumber": null,
+          "text": ""
+        },
+        {
+          "type": "remove",
+          "leftNumber": 3,
+          "rightNumber": null,
+          "text": "1. Inventory"
+        },
+        {
+          "type": "remove",
+          "leftNumber": 4,
+          "rightNumber": null,
+          "text": "alpha line"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 1,
+          "text": "## Second revision"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 2,
+          "text": ""
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 3,
+          "text": "1. Inventory"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 4,
+          "text": "beta line"
+        }
+      ],
+      "nonTextualDetails": []
+    },
+    "0:3": {
+      "index": 3,
+      "title": "2b200a18 -> 026ff36c",
+      "subtitle": "4/10/2026, 12:00:00 PM · finalized rollout",
+      "additions": 4,
+      "deletions": 4,
+      "hunkCount": 1,
+      "hasChanges": true,
+      "fromIndex": 0,
+      "toIndex": 3,
+      "comparisonSource": "revision",
+      "rows": [
+        {
+          "type": "remove",
+          "leftNumber": 1,
+          "rightNumber": null,
+          "text": "## Initial revision"
+        },
+        {
+          "type": "remove",
+          "leftNumber": 2,
+          "rightNumber": null,
+          "text": ""
+        },
+        {
+          "type": "remove",
+          "leftNumber": 3,
+          "rightNumber": null,
+          "text": "1. Inventory"
+        },
+        {
+          "type": "remove",
+          "leftNumber": 4,
+          "rightNumber": null,
+          "text": "alpha line"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 1,
+          "text": "## Third revision"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 2,
+          "text": ""
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 3,
+          "text": "1. Inventory"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 4,
+          "text": "gamma line"
+        }
+      ],
+      "nonTextualDetails": []
+    },
+    "1:3": {
+      "index": 3,
+      "title": "bb9568a2 -> 026ff36c",
+      "subtitle": "4/10/2026, 12:00:00 PM · finalized rollout",
+      "additions": 4,
+      "deletions": 4,
+      "hunkCount": 1,
+      "hasChanges": true,
+      "fromIndex": 1,
+      "toIndex": 3,
+      "comparisonSource": "revision",
+      "rows": [
+        {
+          "type": "remove",
+          "leftNumber": 1,
+          "rightNumber": null,
+          "text": "## Initial revision"
+        },
+        {
+          "type": "remove",
+          "leftNumber": 2,
+          "rightNumber": null,
+          "text": ""
+        },
+        {
+          "type": "remove",
+          "leftNumber": 3,
+          "rightNumber": null,
+          "text": "1. Inventory"
+        },
+        {
+          "type": "remove",
+          "leftNumber": 4,
+          "rightNumber": null,
+          "text": "alpha line"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 1,
+          "text": "## Third revision"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 2,
+          "text": ""
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 3,
+          "text": "1. Inventory"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 4,
+          "text": "gamma line"
+        }
+      ],
+      "nonTextualDetails": []
+    },
+    "2:3": {
+      "index": 3,
+      "title": "0374b9db -> 026ff36c",
+      "subtitle": "4/10/2026, 12:00:00 PM · finalized rollout",
+      "additions": 4,
+      "deletions": 4,
+      "hunkCount": 1,
+      "hasChanges": true,
+      "fromIndex": 2,
+      "toIndex": 3,
+      "comparisonSource": "revision",
+      "rows": [
+        {
+          "type": "remove",
+          "leftNumber": 1,
+          "rightNumber": null,
+          "text": "## Second revision"
+        },
+        {
+          "type": "remove",
+          "leftNumber": 2,
+          "rightNumber": null,
+          "text": ""
+        },
+        {
+          "type": "remove",
+          "leftNumber": 3,
+          "rightNumber": null,
+          "text": "1. Inventory"
+        },
+        {
+          "type": "remove",
+          "leftNumber": 4,
+          "rightNumber": null,
+          "text": "beta line"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 1,
+          "text": "## Third revision"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 2,
+          "text": ""
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 3,
+          "text": "1. Inventory"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 4,
+          "text": "gamma line"
+        }
+      ],
+      "nonTextualDetails": []
+    },
+    "0:4": {
+      "index": 4,
+      "title": "2b200a18 -> Current",
+      "subtitle": "Working tree",
+      "additions": 4,
+      "deletions": 4,
+      "hunkCount": 1,
+      "hasChanges": true,
+      "fromIndex": 0,
+      "toIndex": 4,
+      "comparisonSource": "revision",
+      "rows": [
+        {
+          "type": "remove",
+          "leftNumber": 1,
+          "rightNumber": null,
+          "text": "## Initial revision"
+        },
+        {
+          "type": "remove",
+          "leftNumber": 2,
+          "rightNumber": null,
+          "text": ""
+        },
+        {
+          "type": "remove",
+          "leftNumber": 3,
+          "rightNumber": null,
+          "text": "1. Inventory"
+        },
+        {
+          "type": "remove",
+          "leftNumber": 4,
+          "rightNumber": null,
+          "text": "alpha line"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 1,
+          "text": "## Working tree"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 2,
+          "text": ""
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 3,
+          "text": "1. Inventory"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 4,
+          "text": "delta line"
+        }
+      ],
+      "nonTextualDetails": []
+    },
+    "1:4": {
+      "index": 4,
+      "title": "bb9568a2 -> Current",
+      "subtitle": "Working tree",
+      "additions": 4,
+      "deletions": 4,
+      "hunkCount": 1,
+      "hasChanges": true,
+      "fromIndex": 1,
+      "toIndex": 4,
+      "comparisonSource": "revision",
+      "rows": [
+        {
+          "type": "remove",
+          "leftNumber": 1,
+          "rightNumber": null,
+          "text": "## Initial revision"
+        },
+        {
+          "type": "remove",
+          "leftNumber": 2,
+          "rightNumber": null,
+          "text": ""
+        },
+        {
+          "type": "remove",
+          "leftNumber": 3,
+          "rightNumber": null,
+          "text": "1. Inventory"
+        },
+        {
+          "type": "remove",
+          "leftNumber": 4,
+          "rightNumber": null,
+          "text": "alpha line"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 1,
+          "text": "## Working tree"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 2,
+          "text": ""
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 3,
+          "text": "1. Inventory"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 4,
+          "text": "delta line"
+        }
+      ],
+      "nonTextualDetails": []
+    },
+    "2:4": {
+      "index": 4,
+      "title": "0374b9db -> Current",
+      "subtitle": "Working tree",
+      "additions": 4,
+      "deletions": 4,
+      "hunkCount": 1,
+      "hasChanges": true,
+      "fromIndex": 2,
+      "toIndex": 4,
+      "comparisonSource": "revision",
+      "rows": [
+        {
+          "type": "remove",
+          "leftNumber": 1,
+          "rightNumber": null,
+          "text": "## Second revision"
+        },
+        {
+          "type": "remove",
+          "leftNumber": 2,
+          "rightNumber": null,
+          "text": ""
+        },
+        {
+          "type": "remove",
+          "leftNumber": 3,
+          "rightNumber": null,
+          "text": "1. Inventory"
+        },
+        {
+          "type": "remove",
+          "leftNumber": 4,
+          "rightNumber": null,
+          "text": "beta line"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 1,
+          "text": "## Working tree"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 2,
+          "text": ""
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 3,
+          "text": "1. Inventory"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 4,
+          "text": "delta line"
+        }
+      ],
+      "nonTextualDetails": []
+    },
+    "3:4": {
+      "index": 4,
+      "title": "026ff36c -> Current",
+      "subtitle": "Working tree",
+      "additions": 4,
+      "deletions": 4,
+      "hunkCount": 1,
+      "hasChanges": true,
+      "fromIndex": 3,
+      "toIndex": 4,
+      "comparisonSource": "revision",
+      "rows": [
+        {
+          "type": "remove",
+          "leftNumber": 1,
+          "rightNumber": null,
+          "text": "## Third revision"
+        },
+        {
+          "type": "remove",
+          "leftNumber": 2,
+          "rightNumber": null,
+          "text": ""
+        },
+        {
+          "type": "remove",
+          "leftNumber": 3,
+          "rightNumber": null,
+          "text": "1. Inventory"
+        },
+        {
+          "type": "remove",
+          "leftNumber": 4,
+          "rightNumber": null,
+          "text": "gamma line"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 1,
+          "text": "## Working tree"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 2,
+          "text": ""
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 3,
+          "text": "1. Inventory"
+        },
+        {
+          "type": "add",
+          "leftNumber": null,
+          "rightNumber": 4,
+          "text": "delta line"
+        }
+      ],
+      "nonTextualDetails": []
+    }
+  }
+}

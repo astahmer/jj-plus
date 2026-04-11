@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 
 const { textsMatchIgnoringLineEndings, normalizeTextForComparison } = require('../lib/diff-helpers.js');
 const { dedupeAdjacentEntriesByChangeId, getGitHubRemoteBaseUrl, normalizeSnapshotOperationKey, parseJjEvolutionLine, parseJjEvolutionSummaryEntries, parseJjSummaryChangedPaths, parseJjSummaryRenameLines } = require('../lib/history-helpers.js');
-const { getEntriesForSource, getPendingSnapshotRevisionIndexes, getSelectedEntryCount, getSidebarPreviewRequests, getTimelineAnchorPercent, getUnitPreviewRange } = require('../webview/timeline.model.js');
+const { getEntriesForSource, getPendingSnapshotRevisionIndexes, getSelectedEntryCount, getSidebarPreviewRequests, getTimelineAnchorPercent, getUnitPreviewRange } = require('../lib/timeline-model.js');
 
 test('normalizeTextForComparison normalizes CRLF to LF', () => {
   assert.equal(normalizeTextForComparison('a\r\nb\r\n'), 'a\nb\n');
