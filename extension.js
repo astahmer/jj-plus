@@ -3008,13 +3008,6 @@ function getTimelineWebviewHtml(webview) {
 
   const appStylePath = vscode.Uri.joinPath(extensionContext.extensionUri, 'webview-dist', 'timeline-app.css');
   const appScriptPath = vscode.Uri.joinPath(extensionContext.extensionUri, 'webview-dist', 'timeline-app.js');
-  const templatePath = vscode.Uri.joinPath(extensionContext.extensionUri, 'webview', 'timeline.template.js');
-  const modelUri = webview.asWebviewUri(
-    vscode.Uri.joinPath(extensionContext.extensionUri, 'webview', 'timeline.model.js')
-  );
-  const scriptUri = webview.asWebviewUri(
-    vscode.Uri.joinPath(extensionContext.extensionUri, 'webview', 'timeline.js')
-  );
   const hasBundledWebview = fsSync.existsSync(appStylePath.fsPath) && fsSync.existsSync(appScriptPath.fsPath);
 
   return renderTimelineDocumentHtml({
@@ -3023,9 +3016,6 @@ function getTimelineWebviewHtml(webview) {
     styleHref: hasBundledWebview
       ? String(webview.asWebviewUri(appStylePath))
       : String(webview.asWebviewUri(vscode.Uri.joinPath(extensionContext.extensionUri, 'webview', 'timeline.css'))),
-    modelSrc: String(modelUri),
-    scriptSrc: String(scriptUri),
-    templateSrc: String(webview.asWebviewUri(templatePath)),
     appSrc: hasBundledWebview
       ? String(webview.asWebviewUri(appScriptPath))
       : '',

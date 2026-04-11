@@ -4,31 +4,19 @@
 	"version": "0.0.2",
 	"private": true,
 	"description": "Open JJ multi-diff views for revision ranges.",
-	"repository": {
-		"type": "git",
-		"url": "https://github.com/astahmer/jj-range-diff.git"
+	"scripts": {
+		"build": "pnpm build:webview && pnpm vsce package --skip-license",
+		"build:webview": "vite build",
+		"dev": "vite --host 127.0.0.1 --open /",
+		"bddgen": "bddgen",
+		"test": "node --test",
+		"test:e2e": "pnpm bddgen && playwright test",
+		"test:all": "pnpm test && pnpm test:e2e",
+		"typecheck": "tsc --noEmit"
 	},
-	"categories": [
-		"Other",
-		"Programming Languages",
-		"Visualization"
-	],
-	"publisher": "astahmer",
-	"activationEvents": [
-		"onUri",
-		"onStartupFinished"
-	],
 	"main": "./extension.js",
 	"bin": {
 		"jj-range-diff": "./bin.js"
-	},
-	"dependencies": {
-		"solid-js": "^1.9.9"
-	},
-	"devDependencies": {
-		"@vscode/vsce": "3.7.1",
-		"vite": "^7.3.1",
-		"vite-plugin-solid": "^2.11.8"
 	},
 	"contributes": {
 		"commands": [
@@ -42,13 +30,33 @@
 			}
 		]
 	},
+	"dependencies": {
+		"solid-js": "^1.9.9"
+	},
+	"devDependencies": {
+		"@playwright/test": "^1.58.2",
+		"@types/node": "^24.5.2",
+		"@vscode/vsce": "3.7.1",
+		"playwright-bdd": "^8.4.1",
+		"typescript": "^5.9.3",
+		"vite": "^7.3.1",
+		"vite-plugin-solid": "^2.11.8"
+	},
 	"engines": {
 		"vscode": "^1.86.0"
 	},
-	"scripts": {
-		"build": "pnpm build:webview && pnpx @vscode/vsce package --skip-license",
-		"build:webview": "vite build",
-		"dev:webview": "vite --host 127.0.0.1 --open /webview/index.html",
-		"test": "node --test"
-	}
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/astahmer/jj-range-diff.git"
+	},
+	"categories": [
+		"Other",
+		"Programming Languages",
+		"Visualization"
+	],
+	"publisher": "astahmer",
+	"activationEvents": [
+		"onUri",
+		"onStartupFinished"
+	]
 }

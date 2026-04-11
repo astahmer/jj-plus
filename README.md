@@ -23,6 +23,14 @@ pnpm install
 pnpm dev:webview
 ```
 
+For typechecking and browser-level end-to-end coverage of the standalone timeline app:
+
+```sh
+pnpm typecheck
+pnpm test:e2e
+pnpm test:all
+```
+
 For production packaging/builds, the extension now bundles the webview first:
 
 ```sh

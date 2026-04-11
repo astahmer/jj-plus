@@ -5,6 +5,9 @@ import solid from 'vite-plugin-solid';
 export default defineConfig({
   root: resolve(process.cwd(), 'webview'),
   plugins: [solid()],
+  server: {
+    port: 4173,
+  },
   build: {
     outDir: resolve(process.cwd(), 'webview-dist'),
     emptyOutDir: true,

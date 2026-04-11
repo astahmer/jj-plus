@@ -1,1 +1,5 @@
 *.vsix
+.features-gen/
+playwright-report/
+test-results/
+webview-dist

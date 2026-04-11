@@ -172,9 +172,6 @@
   function renderTimelineDocumentHtml(options) {
     const title = escapeHtml((options && options.title) || 'Revision Timeline');
     const styleHref = escapeAttribute((options && options.styleHref) || './timeline.css');
-    const modelSrc = escapeAttribute((options && options.modelSrc) || './timeline.model.js');
-    const scriptSrc = escapeAttribute((options && options.scriptSrc) || './timeline.js');
-    const templateSrc = escapeAttribute((options && options.templateSrc) || './timeline.template.js');
     const appSrc = escapeAttribute((options && options.appSrc) || '');
     const cspSource = options && options.cspSource;
 
@@ -189,12 +186,7 @@
     <link rel="stylesheet" href="${styleHref}" />
   </head>
   <body>
-    <div
-      id="timelineApp"
-      data-template-src="${templateSrc}"
-      data-legacy-model-src="${modelSrc}"
-      data-legacy-controller-src="${scriptSrc}"
-    ></div>
+    <div id="timelineApp"></div>
     <script type="module" src="${appSrc}"></script>
   </body>
 </html>`;
