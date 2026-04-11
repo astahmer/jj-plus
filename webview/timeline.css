@@ -50,10 +50,11 @@ input {
   min-height: 0;
   display: grid;
   grid-template-columns: minmax(0, var(--sidebar-width)) 6px minmax(0, 1fr);
+  transition: grid-template-columns 0.18s ease;
 }
 
 .workspace.is-collapsed {
-  grid-template-columns: 0 0 minmax(0, 1fr);
+  grid-template-columns: 0px 0px minmax(0, 1fr);
 }
 
 .workspace.is-diff-focus {
@@ -74,11 +75,14 @@ input {
   overflow: hidden;
   border-radius: 12px 0 0 12px;
   border-right: 0;
+  transition: opacity 0.18s ease;
 }
 
 .workspace.is-collapsed .sidebar,
 .workspace.is-collapsed .resize-handle {
-  display: none;
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
 }
 
 .resize-handle {
@@ -102,6 +106,7 @@ input {
   display: grid;
   grid-template-rows: minmax(196px, var(--timeline-pane-height)) 6px minmax(0, 1fr);
   border-radius: 0 12px 12px 0;
+  transition: border-radius 0.18s ease;
 }
 
 .workspace.is-collapsed .diff-panel {
@@ -387,36 +392,36 @@ input {
 }
 
 .timeline-pane-head {
-  padding: 10px 12px 0;
+  padding: 8px 12px 0;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .sidebar-toggle-button {
   flex-shrink: 0;
-  width: 26px;
-  height: 26px;
-  border-radius: 7px;
-  border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.04);
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: 0;
+  background: transparent;
   color: var(--muted);
-  font-size: 13px;
+  font-size: 12px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: color 0.12s, border-color 0.12s;
+  transition: color 0.12s, background 0.12s;
 }
 
 .sidebar-toggle-button:hover {
-  border-color: rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.07);
   color: var(--text);
 }
 
 .sidebar-toggle-button.is-collapsed {
   color: var(--accent-alt);
-  border-color: rgba(113, 183, 255, 0.3);
+  background: rgba(113, 183, 255, 0.1);
 }
 
 .timeline-head-summary {
@@ -424,8 +429,9 @@ input {
   min-width: 0;
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: 6px;
   overflow: hidden;
+  white-space: nowrap;
 }
 
 .timeline-pane-title {
@@ -781,9 +787,12 @@ kbd {
 }
 
 .range-label {
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 600;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .timeline-row {
@@ -974,15 +983,15 @@ kbd {
 
 .diff-title {
   margin: 0;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 600;
   letter-spacing: -0.01em;
 }
 
-.diff-eyebrow-row {
+.diff-title-block {
   display: flex;
   align-items: baseline;
-  gap: 8px;
+  gap: 10px;
   flex-wrap: wrap;
   min-width: 0;
 }
@@ -990,7 +999,11 @@ kbd {
 .diff-summary-left {
   min-width: 0;
   display: grid;
-  gap: 2px;
+  gap: 3px;
+}
+
+.diff-mode-eyebrow {
+  margin-top: 1px;
 }
 
 .diff-title-meta {

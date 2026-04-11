@@ -713,7 +713,8 @@
 
   function applyPreferences(preferences) {
     state.sidebarWidth = typeof preferences.sidebarWidth === 'number' ? preferences.sidebarWidth : state.sidebarWidth;
-    state.sidebarCollapsed = preferences.sidebarCollapsed === true;
+    // sidebarCollapsed is intentionally NOT restored — sidebar always starts expanded
+    // state.sidebarCollapsed = preferences.sidebarCollapsed === true;
     state.timelinePaneHeight = typeof preferences.timelinePaneHeight === 'number' ? preferences.timelinePaneHeight : state.timelinePaneHeight;
     state.timelinePaneCollapsed = preferences.timelinePaneCollapsed === true;
     state.layoutMode = preferences.layoutMode === 'unified' ? 'unified' : 'split';
@@ -733,7 +734,6 @@
       vscode.postMessage({
         command: 'persist-state',
         sidebarWidth: state.sidebarWidth,
-        sidebarCollapsed: state.sidebarCollapsed,
         timelinePaneHeight: state.timelinePaneHeight,
         timelinePaneCollapsed: state.timelinePaneCollapsed,
         layoutMode: state.layoutMode,

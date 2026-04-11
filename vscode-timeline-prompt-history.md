@@ -416,6 +416,16 @@ jj file show -r b4bcbb72 apps/backend/instructions/lazy-di-rollout-plan.md
 
 ---
 
+- the anchor-tooltip is in the top left and hovering the actual timeline anchors doesnt do anything
+- the << < timeline > >> arrow buttons are weirdly aligned/spaced with the timeline; fix that
+- the step-status-row takes a lot of space even when completely empty; not sure if thats even useful anymore?
+- lets reduce the vertical spacing in the timeline section between vertical elements like the selected file and the from/to datalist and also the from/to datalist & the timeline
+- resizing the sidebar on the left (to the max of whats possible) should trigger the collapsing
+- `Split · Diffs · Range · Snapshot` should be on the right of `wywrvxml/0
+10/04/2026, 19:27:39 · patch introduced by wywrvxml/0` and `wywrvxml/0` should use the tag+colored form as well
+
+---
+
 <!-- TODO -->
 - "Open a file in the editor to browse its revision timeline" when no file is currently open we should probably show an input field with the list of files to select from the workspace no?
 - we should be able to see how the file evolved over time with automatically with a play button that animate this evolution

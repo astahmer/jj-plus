@@ -116,12 +116,12 @@
             <div class="diff-summary">
               <div class="diff-title-row">
                 <div class="diff-summary-left">
-                  <div class="diff-eyebrow-row">
-                    <div class="eyebrow" id="diffModeEyebrow">Diff</div>
+                  <div class="diff-title-block">
                     <h3 class="diff-title" id="diffTitle">Loading diff...</h3>
                     <div class="diff-title-meta" id="diffTitleMeta"></div>
                   </div>
                   <div class="diff-subtitle" id="diffSubtitle"></div>
+                  <div class="eyebrow diff-mode-eyebrow" id="diffModeEyebrow">Diff</div>
                 </div>
                 <div class="diff-actions">
                   <div class="history-stats" id="diffStats"></div>
