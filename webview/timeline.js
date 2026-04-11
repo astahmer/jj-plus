@@ -84,6 +84,8 @@
     toMarker: document.getElementById('toMarker'),
     fromHandleLabel: document.getElementById('fromHandleLabel'),
     toHandleLabel: document.getElementById('toHandleLabel'),
+    fromRelativeLabel: document.getElementById('fromRelativeLabel'),
+    toRelativeLabel: document.getElementById('toRelativeLabel'),
     track: document.getElementById('track'),
     monthRow: document.getElementById('monthRow'),
     sidebarHint: document.getElementById('sidebarHint'),
@@ -102,6 +104,7 @@
     snapshotLoadingIndicator: document.getElementById('snapshotLoadingIndicator'),
     diffModeEyebrow: document.getElementById('diffModeEyebrow'),
     diffTitle: document.getElementById('diffTitle'),
+    diffTitleMeta: document.getElementById('diffTitleMeta'),
     diffSubtitle: document.getElementById('diffSubtitle'),
     diffStats: document.getElementById('diffStats'),
     selectionMeta: document.getElementById('selectionMeta'),
@@ -532,18 +535,6 @@
       return;
     }
 
-    if (commandPressed && event.key === 'ArrowUp') {
-      event.preventDefault();
-      setRangeBoundaryToVisibleEdge('to', 'end');
-      return;
-    }
-
-    if (commandPressed && event.key === 'ArrowDown') {
-      event.preventDefault();
-      setRangeBoundaryToVisibleEdge('from', 'start');
-      return;
-    }
-
     if (event.metaKey && event.key === 'ArrowLeft') {
       event.preventDefault();
       moveRangeToVisibleEdge('start');
@@ -582,13 +573,13 @@
 
     if (event.key === 'ArrowUp') {
       event.preventDefault();
-      nudgeRangeBoundary(event.altKey ? 'from' : 'to', -jumpAmount);
+      navigateSelection(-jumpAmount);
       return;
     }
 
     if (event.key === 'ArrowDown') {
       event.preventDefault();
-      nudgeRangeBoundary(event.altKey ? 'from' : 'to', jumpAmount);
+      navigateSelection(jumpAmount);
     }
   }
 
@@ -914,10 +905,12 @@
     elements.toRevisionInput.value = toEntry.shortRevision;
     elements.fromHandleLabel.innerHTML = 'From ' + renderIdentifierMarkup(fromEntry.shortRevision, fromEntry.changeId);
     elements.toHandleLabel.innerHTML = 'To ' + renderIdentifierMarkup(toEntry.shortRevision, toEntry.changeId);
-    elements.rangeLabel.textContent = formatRangeTitle();
-    elements.rangeSubtitle.textContent = formatRangeSubtitle(fromEntry, toEntry);
-    elements.sidebarHint.textContent = getSidebarCollapsed() ? '' : (state.comparisonMode === 'step' ? 'Single' : 'Range');
-    elements.selectionMeta.textContent = formatSelectionMeta(activeFromEntry, activeToEntry, knownPreview);
+    elements.fromRelativeLabel.textContent = fromEntry.relativeDate || '';
+    elements.toRelativeLabel.textContent = toEntry.relativeDate || '';
+    elements.rangeLabel.textContent = formatRangeSubtitle(fromEntry, toEntry);
+    elements.rangeSubtitle.textContent = formatRangeTitle();
+    elements.sidebarHint.textContent = '';
+    elements.selectionMeta.textContent = '';
     elements.diffModeEyebrow.textContent = layoutModeLabels[state.layoutMode]
       + ' · ' + contentModeLabels[state.contentMode]
       + ' · ' + comparisonModeLabels[state.comparisonMode]
@@ -935,7 +928,7 @@
   function formatRangeTitle() {
     const selectedCount = getSelectedRevisionCount();
     const touchingCount = getSourceEntries().filter((entry) => entry.touchesFile).length;
-    return String(selectedCount) + '/' + String(touchingCount) + ' ' + (state.comparisonSource === 'snapshot' ? 'snapshots' : 'revisions') + ' selected';
+    return String(selectedCount) + '/' + String(touchingCount) + ' ' + (state.comparisonSource === 'snapshot' ? 'snapshots' : 'revisions');
   }
 
   function formatRangeSubtitle(fromEntry, toEntry) {
@@ -1279,6 +1272,7 @@
     const toEntry = sourceEntries[activeRange.toIndex];
     if (!fromEntry || !toEntry) {
       elements.diffTitle.textContent = 'No diff available';
+      elements.diffTitleMeta.textContent = '';
       elements.diffSubtitle.textContent = '';
       elements.diffStats.innerHTML = '';
       elements.diffRows.innerHTML = '<div class="empty-diff">Pick a revision range to inspect it.</div>';
@@ -1293,6 +1287,7 @@
       || previewSource !== getEffectiveComparisonSource()
     ) {
       elements.diffTitle.textContent = 'Loading diff…';
+      elements.diffTitleMeta.textContent = '';
       elements.diffSubtitle.textContent = toEntry.description;
       elements.diffStats.innerHTML = '';
       elements.diffRows.innerHTML = '<div class="empty-diff">Computing diff preview…</div>';
@@ -1300,7 +1295,8 @@
     }
 
     elements.diffTitle.textContent = state.preview.title;
-    elements.diffSubtitle.textContent = state.preview.subtitle;
+    elements.diffTitleMeta.textContent = state.preview.subtitle || '';
+    elements.diffSubtitle.textContent = toEntry.description || '';
     elements.diffStats.innerHTML = renderStatChips(state.preview);
 
     const visibleRows = getDisplayRows(state.preview);
@@ -1411,15 +1407,10 @@
     const availableCount = Math.max(0, state.visibleEntries.length - 1);
     const isSnapshotMode = state.data.backend === 'jj' && state.comparisonSource === 'snapshot';
     if (state.comparisonMode === 'range') {
-      elements.stepStatus.textContent = availableCount > 0
-        ? 'Range view · ' + String(availableCount) + ' ' + (isSnapshotMode ? 'snapshots' : 'single diffs') + ' available'
-        : 'Range view';
+      elements.stepStatus.textContent = '';
     } else {
       const current = Math.max(1, getVisibleIndexForAbsoluteIndex(state.toIndex));
-      const sourcePrefix = isSnapshotMode
-        ? 'Snapshot'
-        : 'Single diff';
-      elements.stepStatus.textContent = sourcePrefix + ' ' + String(current) + ' of ' + String(Math.max(1, availableCount));
+      elements.stepStatus.textContent = String(current) + '/' + String(Math.max(1, availableCount)) + ' ' + (isSnapshotMode ? 'snapshots' : 'diffs');
     }
 
     elements.stepBackwardButton.disabled = !canNavigateSelection(-1);
@@ -1442,6 +1433,8 @@
 
   function navigateSelection(direction) {
     clearPendingSidebarSelection();
+    const previousFromIndex = state.fromIndex;
+    const previousToIndex = state.toIndex;
     if (state.comparisonMode === 'step') {
       moveSingleSelection(direction);
     } else {
@@ -1449,7 +1442,9 @@
     }
 
     renderSelection();
-    scrollSidebarToEntry(state.comparisonMode === 'step' ? state.toIndex : state.fromIndex, false);
+    if (previousFromIndex !== state.fromIndex || previousToIndex !== state.toIndex) {
+      scrollSidebarToEntry(state.comparisonMode === 'step' ? state.toIndex : state.fromIndex, false);
+    }
     persistPreferences();
     requestPreview(0);
   }
@@ -1719,10 +1714,23 @@
         + (isTo ? ' is-to' : '')
         + (!entry.touchesFile ? ' is-intermediate' : '');
       anchor.style.left = String(left) + '%';
+      anchor.title = getAnchorTooltip(entry);
       fragment.appendChild(anchor);
     });
     elements.track.replaceChildren(fragment);
     void elements.track.offsetWidth;
+  }
+
+  function getAnchorTooltip(entry) {
+    const lines = [];
+    lines.push(entry.isWorkingTree ? 'Current working tree' : entry.shortRevision);
+    if (entry.relativeDate) {
+      lines.push(entry.relativeDate);
+    }
+    if (entry.description) {
+      lines.push(entry.description);
+    }
+    return lines.join('\n');
   }
 
   function getUnitPreviewRange(entryIndex) {

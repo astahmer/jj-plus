@@ -62,6 +62,16 @@
                   <input class="revision-input" id="toRevisionInput" list="revisionOptionsList" placeholder="To revision" autocomplete="off" />
                   <datalist id="revisionOptionsList"></datalist>
                 </div>
+                <div class="revision-picker-meta-row">
+                  <div class="revision-picker-meta revision-picker-meta-from">
+                    <button class="handle-pill from" id="fromHandleLabel" type="button">From</button>
+                    <span class="revision-picker-relative" id="fromRelativeLabel"></span>
+                  </div>
+                  <div class="revision-picker-meta revision-picker-meta-to">
+                    <button class="handle-pill to" id="toHandleLabel" type="button">To</button>
+                    <span class="revision-picker-relative" id="toRelativeLabel"></span>
+                  </div>
+                </div>
                 <div class="control-row">
                   <div class="segmented" id="comparisonModes"></div>
                   <div class="segmented" id="comparisonSources"></div>
@@ -76,12 +86,8 @@
                 <button class="step-button" id="stepFastBackwardButton" type="button" aria-label="Jump backward">&#171;</button>
                 <button class="step-button" id="stepBackwardButton" type="button" aria-label="Previous range">&#x2039;</button>
                 <div class="step-center">
-                  <div class="step-status" id="stepStatus">Range view</div>
+                  <div class="step-status" id="stepStatus"></div>
                   <div class="loading-indicator" id="snapshotLoadingIndicator" hidden>Loading snapshots…</div>
-                  <div class="handle-pills">
-                    <button class="handle-pill from" id="fromHandleLabel" type="button">From</button>
-                    <button class="handle-pill to" id="toHandleLabel" type="button">To</button>
-                  </div>
                 </div>
                 <button class="step-button" id="stepForwardButton" type="button" aria-label="Next range">&#x203A;</button>
                 <button class="step-button" id="stepFastForwardButton" type="button" aria-label="Jump forward">&#187;</button>
@@ -108,7 +114,10 @@
               <div class="diff-title-row">
                 <div>
                   <div class="eyebrow" id="diffModeEyebrow">Diff</div>
-                  <h3 class="diff-title" id="diffTitle">Loading diff...</h3>
+                  <div class="diff-title-inline">
+                    <h3 class="diff-title" id="diffTitle">Loading diff...</h3>
+                    <div class="diff-title-meta" id="diffTitleMeta"></div>
+                  </div>
                 </div>
                 <div class="diff-actions">
                   <div class="history-stats" id="diffStats"></div>
@@ -134,10 +143,10 @@
                   <div class="hotkey-section-title">Selection</div>
                   <div class="hotkey-row"><span class="hotkey-label">Move range</span><span class="hotkey-value"><kbd>←</kbd><kbd>→</kbd></span></div>
                   <div class="hotkey-row"><span class="hotkey-label">Fast move range</span><span class="hotkey-value"><kbd>Shift</kbd><kbd>←</kbd><kbd>→</kbd></span></div>
-                  <div class="hotkey-row"><span class="hotkey-label">Move to marker</span><span class="hotkey-value"><kbd>↑</kbd><kbd>↓</kbd></span></div>
-                  <div class="hotkey-row"><span class="hotkey-label">Move from marker</span><span class="hotkey-value"><kbd>Option</kbd><kbd>↑</kbd><kbd>↓</kbd></span></div>
+                  <div class="hotkey-row"><span class="hotkey-label">Move range vertically</span><span class="hotkey-value"><kbd>↑</kbd><kbd>↓</kbd></span></div>
+                  <div class="hotkey-row"><span class="hotkey-label">Adjust to marker</span><span class="hotkey-value"><kbd>Option</kbd><kbd>←</kbd><kbd>→</kbd></span></div>
+                  <div class="hotkey-row"><span class="hotkey-label">Adjust from marker</span><span class="hotkey-value"><kbd>Ctrl</kbd><kbd>←</kbd><kbd>→</kbd></span></div>
                   <div class="hotkey-row"><span class="hotkey-label">Dock range to start/end</span><span class="hotkey-value"><kbd>Cmd</kbd><kbd>←</kbd><kbd>→</kbd></span></div>
-                  <div class="hotkey-row"><span class="hotkey-label">Set range boundary to visible edge</span><span class="hotkey-value"><kbd>Cmd</kbd><kbd>↑</kbd><kbd>↓</kbd></span></div>
                 </div>
                 <div class="hotkey-section">
                   <div class="hotkey-section-title">Actions</div>

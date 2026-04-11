@@ -405,6 +405,17 @@ jj file show -r b4bcbb72 apps/backend/instructions/lazy-di-rollout-plan.md
 
 ---
 
+- the "loading snapshot" position is overlapping
+- i changed my mind again; i think up/down arrow keys are still confusing. maybe up should just move the position just like left does and down = right? lets try that and see if it fits better. tho i'd like your opinion on this/what does the state of the art software do in such cases?
+- the change id appears too many times; seems like a waste of space. since we want to keep using native datalist we have no choice but to keep the "from xxx/y" "to aaa/b" tags somewhere; but lets move then right below their matching datalist. then also below it we can show the relative time (what is currently on the left just above the timeline)
+- anchor points should have tooltip showing the change id/index (if any index) + relative time + the short description
+- the X/Y snapshots selected takes too much space (a full line); we can probably move it on the same line as the date range (right below it currently) with the same font size. can this line be emoved near the "revision timeline {version}" ? maybe that would be even nicer
+- the "range view - 18 snapshos available" seems useless? we already know that we're looking at the range mode by looking at the toggles + the number of snapshots is already below with the 5/19
+- when using the right arrow key while the timeline is already at the rightmost AND that the selected range in the sidebar items is not entirely visible then it tries to scroll it into view which triggers a visible glitch for 0.1s and then goes back to where we were
+- in the diff section; can we move the "snapshot xxx/index" near the section title? its already written "split - diffs - range - snapshot" so we could just move the change id there; using a colored font like in the other places. im thinking even the line just below with the "timestamp / patch introduced by" could be moved to the right of the title (keeping its current font size/color tho)
+
+---
+
 <!-- TODO -->
 - "Open a file in the editor to browse its revision timeline" when no file is currently open we should probably show an input field with the list of files to select from the workspace no?
 - we should be able to see how the file evolved over time with automatically with a play button that animate this evolution

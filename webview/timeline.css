@@ -410,13 +410,10 @@ input {
 }
 
 .loading-indicator {
-  position: absolute;
-  top: -2px;
-  left: 50%;
-  transform: translateX(-50%);
+  justify-self: center;
   color: var(--accent-alt);
   font-size: 11px;
-  min-height: 16px;
+  min-height: 14px;
   white-space: nowrap;
   pointer-events: none;
 }
@@ -615,6 +612,29 @@ kbd {
   min-width: 0;
 }
 
+.revision-picker-meta-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+
+.revision-picker-meta {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.revision-picker-meta-to {
+  justify-items: end;
+}
+
+.revision-picker-relative {
+  color: var(--muted);
+  font-size: 11px;
+  min-height: 14px;
+}
+
 .revision-input {
   width: 100%;
   min-width: 0;
@@ -746,9 +766,8 @@ kbd {
 .step-center {
   min-width: 0;
   display: grid;
-  gap: 6px;
-  position: relative;
-  min-height: 34px;
+  gap: 3px;
+  min-height: 30px;
 }
 
 .step-status {
@@ -756,6 +775,7 @@ kbd {
   color: var(--muted);
   font-size: 11px;
   text-align: center;
+  min-height: 14px;
 }
 
 .segmented {
@@ -919,13 +939,25 @@ kbd {
 
 .range-summary {
   display: grid;
-  gap: 2px;
+  gap: 1px;
 }
 
 .diff-title {
   margin: 0;
   font-size: 15px;
   letter-spacing: -0.02em;
+}
+
+.diff-title-inline {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.diff-title-meta {
+  color: var(--muted);
+  font-size: 11px;
 }
 
 .stat {
