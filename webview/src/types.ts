@@ -121,7 +121,11 @@ export type TimelineHost = {
   subscribe: (listener: (message: TimelineInboundMessage) => void) => () => void;
 };
 
-export type TimelineFixture = {
+export type TimelineFixtureFile = {
   timelineData: TimelineData;
-  previews: Record<string, DiffPreview>;
+  previews: Partial<Record<ComparisonSource, Record<string, DiffPreview>>>;
+};
+
+export type TimelineFixture = TimelineFixtureFile & {
+  files?: Record<string, TimelineFixtureFile>;
 };

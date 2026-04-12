@@ -1,12 +1,35 @@
 import { For, Show } from 'solid-js';
 import type { Accessor } from 'solid-js';
 import type { DiffPreview, FileRevisionEntry, LayoutMode } from '../types';
+import type { ComparisonMode, ComparisonSource, ContentMode } from '../types';
+import { collapseDiffRows } from '../timeline-model';
+import { RevisionIdentifier } from './RevisionIdentifier';
 
 type DiffPanelProps = {
   preview: Accessor<DiffPreview | null>;
   fromEntry: Accessor<FileRevisionEntry | undefined>;
   toEntry: Accessor<FileRevisionEntry | undefined>;
   layoutMode: Accessor<LayoutMode>;
+  contentMode: Accessor<ContentMode>;
+  comparisonMode: Accessor<ComparisonMode>;
+  comparisonSource: Accessor<ComparisonSource>;
+  diffFocusMode: Accessor<boolean>;
+  onToggleDiffFocus: () => void;
+};
+
+const comparisonModeLabels: Record<ComparisonMode, string> = {
+  range: 'Range',
+  step: 'Single',
+};
+
+const comparisonSourceLabels: Record<ComparisonSource, string> = {
+  revision: 'Revision',
+  snapshot: 'Snapshot',
+};
+
+const contentModeLabels: Record<ContentMode, string> = {
+  diffs: 'Diffs',
+  full: 'Whole file',
 };
 
 export function DiffPanel(props: DiffPanelProps) {
@@ -14,9 +37,59 @@ export function DiffPanel(props: DiffPanelProps) {
     const fromEntry = props.fromEntry();
     const toEntry = props.toEntry();
     if (!fromEntry || !toEntry) {
-      return 'No diff available';
+      return null;
     }
-    return `${fromEntry.shortRevision} → ${toEntry.shortRevision}`;
+
+    return (
+      <>
+        <RevisionIdentifier value={fromEntry.shortRevision} highlightPrefix={fromEntry.changeId} plain={fromEntry.isWorkingTree} />
+        <span class="diff-title-arrow">→</span>
+        <RevisionIdentifier value={toEntry.shortRevision} highlightPrefix={toEntry.changeId} plain={toEntry.isWorkingTree} />
+      </>
+    );
+  };
+
+  const displayRows = () => {
+    const preview = props.preview();
+    if (!preview) {
+      return [];
+    }
+
+    if (props.contentMode() === 'full') {
+      return preview.rows;
+    }
+
+    if (!preview.hasChanges) {
+      return [];
+    }
+
+    return collapseDiffRows(preview.rows, 3);
+  };
+
+  const eyebrowLabel = () => {
+    return `${props.layoutMode()} · ${contentModeLabels[props.contentMode()]} · ${comparisonModeLabels[props.comparisonMode()]} · ${comparisonSourceLabels[props.comparisonSource()]} preview`;
+  };
+
+  const emptyState = () => {
+    const preview = props.preview();
+    if (!preview) {
+      return <div class="empty-diff">Loading diff…</div>;
+    }
+
+    if (props.contentMode() === 'diffs' && !preview.hasChanges) {
+      return (
+        <div class="empty-diff">
+          <div>No textual changes in this selection.</div>
+          <Show when={preview.nonTextualDetails?.length}>
+            <div class="empty-diff-details">
+              <For each={preview.nonTextualDetails || []}>{(detail) => <div>{detail}</div>}</For>
+            </div>
+          </Show>
+        </div>
+      );
+    }
+
+    return <div class="empty-diff">The file has no content at this revision.</div>;
   };
 
   return (
@@ -27,13 +100,13 @@ export function DiffPanel(props: DiffPanelProps) {
           <div class="diff-title-row">
             <div class="diff-summary-left">
               <div class="diff-title-block">
-                <h3 class="diff-title" id="diffTitle">{title()}</h3>
+                <h3 class="diff-title" id="diffTitle"><Show when={title()} fallback={'No diff available'}>{title()}</Show></h3>
                 <div class="diff-title-meta">{props.preview()?.subtitle || ''}</div>
               </div>
               <div class="diff-subtitle">{props.toEntry()?.description || ''}</div>
             </div>
             <div class="diff-actions">
-              <div class="eyebrow diff-mode-eyebrow">{props.layoutMode()} · preview</div>
+              <div class="eyebrow diff-mode-eyebrow" id="diffModeEyebrow">{eyebrowLabel()}</div>
               <div class="history-stats">
                 <Show when={props.preview()}>
                   <span class="stat stat--plus">+{props.preview()?.additions}</span>
@@ -41,13 +114,13 @@ export function DiffPanel(props: DiffPanelProps) {
                   <span class="stat">{props.preview()?.hunkCount} hunks</span>
                 </Show>
               </div>
-              <button class="collapse-button" type="button">Focus diff</button>
+              <button class="collapse-button" id="toggleDiffFocusButton" type="button" onClick={props.onToggleDiffFocus}>{props.diffFocusMode() ? 'Exit focus' : 'Focus diff'}</button>
             </div>
           </div>
         </div>
-        <div class="diff-rows" id="diffRows" data-layout-mode={props.layoutMode()}>
-          <Show when={props.preview()} fallback={<div class="empty-diff">Loading diff…</div>}>
-            <For each={props.preview()?.rows || []}>
+        <div class="diff-rows" id="diffRows" data-layout-mode={props.layoutMode()} data-content-mode={props.contentMode()}>
+          <Show when={displayRows().length} fallback={emptyState()}>
+            <For each={displayRows()}>
               {(row) => props.layoutMode() === 'split'
                 ? <SplitRow row={row} />
                 : <UnifiedRow row={row} />}

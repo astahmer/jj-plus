@@ -1,24 +1,32 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { promisify } from 'node:util';
+
+const require = createRequire(import.meta.url);
+const {
+  normalizeSnapshotOperationKey,
+  parseJjEvolutionSummaryEntries,
+  parseJjSummaryChangedPaths,
+} = require('../lib/history-helpers.js');
 
 const execFileAsync = promisify(execFile);
 const rootDir = process.cwd();
 const runtimeDir = path.join(rootDir, '.e2e-runtime');
 const reposDir = path.join(runtimeDir, 'repos');
 const outputDir = path.join(rootDir, 'webview', 'public', 'e2e');
-const relativeFilePath = 'apps/backend/instructions/lazy-di-rollout-plan.md';
+const defaultRelativeFilePath = 'apps/backend/instructions/lazy-di-rollout-plan.md';
+const secondaryRelativeFilePath = 'apps/backend/src/service.ts';
+const trackedFilePaths = [defaultRelativeFilePath, secondaryRelativeFilePath];
+const remoteBaseUrl = 'https://github.com/astahmer/visualjj-range-diff-helper';
 
 await fs.rm(runtimeDir, { recursive: true, force: true });
 await fs.mkdir(reposDir, { recursive: true });
 await fs.mkdir(outputDir, { recursive: true });
 
-const gitFixture = await generateGitFixture();
-const jjFixture = await generateJjFixture();
-
-await fs.writeFile(path.join(outputDir, 'git-basic.json'), JSON.stringify(gitFixture, null, 2) + '\n');
-await fs.writeFile(path.join(outputDir, 'jj-basic.json'), JSON.stringify(jjFixture, null, 2) + '\n');
+await fs.writeFile(path.join(outputDir, 'git-basic.json'), JSON.stringify(await generateGitFixture(), null, 2) + '\n');
+await fs.writeFile(path.join(outputDir, 'jj-basic.json'), JSON.stringify(await generateJjFixture(), null, 2) + '\n');
 
 async function generateGitFixture() {
   const repoDir = path.join(reposDir, 'git-basic');
@@ -27,23 +35,33 @@ async function generateGitFixture() {
   await run('git', ['config', 'user.name', 'Fixture User'], repoDir);
   await run('git', ['config', 'user.email', 'fixture@example.com'], repoDir);
 
-  await commit(repoDir, '2026-04-08T10:00:00Z', 'initial plan', {
-    [relativeFilePath]: baseFileContent('Initial revision', 'alpha line'),
+  await commit(repoDir, '2026-04-08T10:00:00Z', 'initial workspace', {
+    [defaultRelativeFilePath]: buildPlanContent('Initial revision', 'alpha line', 'Capture the initial rollout notes.'),
+    [secondaryRelativeFilePath]: buildServiceContent('alpha', 'Bootstrap service wiring.'),
   });
+
   await commit(repoDir, '2026-04-08T11:00:00Z', 'unrelated note', {
     'notes/todo.txt': 'unrelated note\n',
   });
+
   await commit(repoDir, '2026-04-09T10:00:00Z', 'plan refinement', {
-    [relativeFilePath]: baseFileContent('Second revision', 'beta line'),
-  });
-  await commit(repoDir, '2026-04-10T10:00:00Z', 'finalized rollout', {
-    [relativeFilePath]: baseFileContent('Third revision', 'gamma line'),
-  });
-  await writeFiles(repoDir, {
-    [relativeFilePath]: baseFileContent('Working tree', 'delta line'),
+    [defaultRelativeFilePath]: buildPlanContent('Second revision', 'beta line', 'Refine the plan for the next review.'),
   });
 
-  return buildFixtureFromGitRepo(repoDir, 'git');
+  await commit(repoDir, '2026-04-09T16:00:00Z', 'service extraction', {
+    [secondaryRelativeFilePath]: buildServiceContent('beta', 'Extract the service helper into its own file.'),
+  });
+
+  await commit(repoDir, '2026-04-10T10:00:00Z', 'finalized rollout', {
+    [defaultRelativeFilePath]: buildPlanContent('Third revision', 'gamma line', 'Finalize the rollout checklist.'),
+  });
+
+  await writeFiles(repoDir, {
+    [defaultRelativeFilePath]: buildPlanContent('Working tree', 'delta line', 'Uncommitted plan changes.'),
+    [secondaryRelativeFilePath]: buildServiceContent('gamma', 'Local service tweaks that are not committed yet.'),
+  });
+
+  return buildRepositoryFixture(repoDir, 'git');
 }
 
 async function generateJjFixture() {
@@ -53,36 +71,77 @@ async function generateJjFixture() {
   await run('git', ['config', 'user.name', 'Fixture User'], repoDir);
   await run('git', ['config', 'user.email', 'fixture@example.com'], repoDir);
 
-  await commit(repoDir, '2026-04-08T10:00:00Z', 'initial plan', {
-    [relativeFilePath]: baseFileContent('Initial revision', 'alpha line'),
+  await commit(repoDir, '2026-04-08T10:00:00Z', 'initial workspace', {
+    [defaultRelativeFilePath]: buildPlanContent('Initial revision', 'alpha line', 'Capture the initial rollout notes.'),
+    [secondaryRelativeFilePath]: buildServiceContent('alpha', 'Bootstrap service wiring.'),
   });
+
   await commit(repoDir, '2026-04-08T11:00:00Z', 'unrelated note', {
     'notes/todo.txt': 'unrelated note\n',
   });
+
   await commit(repoDir, '2026-04-09T10:00:00Z', 'plan refinement', {
-    [relativeFilePath]: baseFileContent('Second revision', 'beta line'),
-  });
-  await commit(repoDir, '2026-04-10T10:00:00Z', 'snapshot working copy', {
-    [relativeFilePath]: baseFileContent('Third revision', 'gamma line'),
-  });
-  await writeFiles(repoDir, {
-    [relativeFilePath]: baseFileContent('Working tree', 'delta line'),
+    [defaultRelativeFilePath]: buildPlanContent('Second revision', 'beta line', 'Refine the plan for the next review.'),
   });
 
-  return buildFixtureFromJjRepo(repoDir);
+  await commit(repoDir, '2026-04-09T16:00:00Z', 'service extraction', {
+    [secondaryRelativeFilePath]: buildServiceContent('beta', 'Extract the service helper into its own file.'),
+  });
+
+  await writeFiles(repoDir, {
+    [defaultRelativeFilePath]: buildPlanContent('Snapshot draft', 'gamma line', 'First mutable JJ snapshot.'),
+    [secondaryRelativeFilePath]: buildServiceContent('gamma', 'First mutable JJ snapshot for the service helper.'),
+  });
+  await run('jj', ['describe', '-m', 'snapshot working copy'], repoDir);
+
+  await writeFiles(repoDir, {
+    [defaultRelativeFilePath]: buildPlanContent('Snapshot refinement', 'epsilon line', 'Second mutable JJ snapshot.'),
+    [secondaryRelativeFilePath]: buildServiceContent('epsilon', 'Second mutable JJ snapshot for the service helper.'),
+  });
+  await run('jj', ['describe', '-m', 'snapshot working copy'], repoDir);
+
+  await writeFiles(repoDir, {
+    [defaultRelativeFilePath]: buildPlanContent('Working tree', 'zeta line', 'Uncommitted JJ working tree changes.'),
+    [secondaryRelativeFilePath]: buildServiceContent('zeta', 'Uncommitted JJ working tree service changes.'),
+  });
+
+  return buildRepositoryFixture(repoDir, 'jj');
 }
 
-async function buildFixtureFromGitRepo(repoDir, backend) {
-  const entries = await getGitEntries(repoDir);
+async function buildRepositoryFixture(repoDir, backend) {
   const workspaceFiles = await getWorkspaceFiles(repoDir);
-  const fileName = path.basename(relativeFilePath);
-  const previewMap = await buildPreviewMap(repoDir, entries, backend);
+  const fileEntries = await Promise.all(trackedFilePaths.map(async (relativePath) => {
+    const fileFixture = await buildFileFixture(repoDir, backend, relativePath, workspaceFiles);
+    return [relativePath, fileFixture];
+  }));
+  const files = Object.fromEntries(fileEntries);
+
+  return {
+    ...files[defaultRelativeFilePath],
+    files,
+  };
+}
+
+async function buildFileFixture(repoDir, backend, relativePath, workspaceFiles) {
+  const entries = backend === 'jj'
+    ? await getJjEntries(repoDir, relativePath)
+    : await getGitEntries(repoDir, relativePath);
+  const snapshotEntries = backend === 'jj'
+    ? await getJjSnapshotEntries(repoDir, relativePath, entries)
+    : [];
+  const loadedChangeIds = backend === 'jj'
+    ? [...new Set(entries.map((entry) => entry.changeId).filter(Boolean))]
+    : [];
+  const snapshotSourceEntries = backend === 'jj'
+    ? composeSnapshotEntries(entries, snapshotEntries, new Set(loadedChangeIds))
+    : entries;
+
   return {
     timelineData: {
       backend,
       workspacePath: repoDir,
-      relativePath: relativeFilePath,
-      fileName,
+      relativePath,
+      fileName: path.basename(relativePath),
       version: '0.0.2',
       presets: { year: 365, '7d': 7, '30d': 30, '90d': 90, all: Number.POSITIVE_INFINITY },
       defaultIndex: entries.length - 1,
@@ -99,57 +158,37 @@ async function buildFixtureFromGitRepo(repoDir, backend) {
       workspaceFiles,
       hasIntermediateRevisions: entries.some((entry) => !entry.touchesFile),
       entries,
-      snapshotEntries: backend === 'jj' ? entries : entries,
+      snapshotEntries,
       snapshotState: {
-        loadedChangeIds: entries.map((entry) => entry.changeId).filter(Boolean),
+        loadedChangeIds,
       },
     },
-    previews: previewMap,
+    previews: {
+      revision: await buildPreviewMap(repoDir, entries, backend, relativePath, 'revision'),
+      snapshot: backend === 'jj'
+        ? await buildPreviewMap(repoDir, snapshotSourceEntries, backend, relativePath, 'snapshot')
+        : await buildPreviewMap(repoDir, entries, backend, relativePath, 'revision'),
+    },
   };
 }
 
-async function buildFixtureFromJjRepo(repoDir) {
-  const entries = await getJjEntries(repoDir);
-  const workspaceFiles = await getWorkspaceFiles(repoDir);
-  const previewMap = await buildPreviewMap(repoDir, entries, 'jj');
-  return {
-    timelineData: {
-      backend: 'jj',
-      workspacePath: repoDir,
-      relativePath: relativeFilePath,
-      fileName: path.basename(relativeFilePath),
-      version: '0.0.2',
-      presets: { year: 365, '7d': 7, '30d': 30, '90d': 90, all: Number.POSITIVE_INFINITY },
-      defaultIndex: entries.length - 1,
-      latestIndex: entries.length - 1,
-      preferences: {
-        sidebarWidth: 280,
-        layoutMode: 'split',
-        contentMode: 'diffs',
-        comparisonMode: 'range',
-        comparisonSource: 'snapshot',
-        preset: '90d',
-        showIntermediateRevisions: true,
-      },
-      workspaceFiles,
-      hasIntermediateRevisions: entries.some((entry) => !entry.touchesFile),
-      entries,
-      snapshotEntries: entries,
-      snapshotState: {
-        loadedChangeIds: entries.map((entry) => entry.changeId).filter(Boolean),
-      },
-    },
-    previews: previewMap,
-  };
+async function getGitEntries(repoDir, relativePath) {
+  const entries = await getGitHistoryEntries(repoDir, relativePath);
+  const workingTreeEntry = await makeWorkingTreeEntry(repoDir, entries.at(-1), relativePath, 'git');
+  if (workingTreeEntry) {
+    entries.push(workingTreeEntry);
+  }
+
+  return reindexEntries(entries);
 }
 
-async function getGitEntries(repoDir) {
+async function getGitHistoryEntries(repoDir, relativePath) {
   const { stdout } = await run('git', ['log', '--reverse', '--format=%H%x09%cI%x09%an%x09%s'], repoDir);
   const revisions = stdout.trim().split(/\r?\n/).filter(Boolean);
   const entries = [];
   for (const [index, line] of revisions.entries()) {
     const [revision, authorDate, authorName, description] = line.split('\t');
-    const touchesFile = await gitTouchesFile(repoDir, revision);
+    const touchesFile = await gitTouchesFile(repoDir, revision, relativePath);
     entries.push(makeEntry({
       id: revision,
       index,
@@ -161,17 +200,14 @@ async function getGitEntries(repoDir) {
       description,
       touchesFile,
       isWorkingTree: false,
+      filePath: relativePath,
     }));
   }
 
-  const workingTreeEntry = await makeWorkingTreeEntry(repoDir, entries.at(-1));
-  if (workingTreeEntry) {
-    entries.push(workingTreeEntry);
-  }
   return entries;
 }
 
-async function getJjEntries(repoDir) {
+async function getJjEntries(repoDir, relativePath) {
   const template = [
     'commit_id.short()',
     '"\\t"',
@@ -184,12 +220,12 @@ async function getJjEntries(repoDir) {
     'description.first_line()',
     '"\\n"',
   ].join(' ++ ');
-  const { stdout } = await run('jj', ['log', '--no-graph', '--reversed', '-r', 'all() ~ root()', '-T', template], repoDir);
+  const { stdout } = await run('jj', ['log', '--no-graph', '--reversed', '--limit', '100', '-T', template], repoDir);
   const revisions = stdout.trim().split(/\r?\n/).filter(Boolean);
   const entries = [];
   for (const [index, line] of revisions.entries()) {
     const [revision, changeId, authorDate, authorName, description] = line.split('\t');
-    const touchesFile = await jjTouchesFile(repoDir, revision);
+    const touchesFile = await jjTouchesFile(repoDir, revision, relativePath);
     entries.push(makeEntry({
       id: revision,
       index,
@@ -201,44 +237,102 @@ async function getJjEntries(repoDir) {
       description,
       touchesFile,
       isWorkingTree: false,
+      filePath: relativePath,
     }));
   }
 
-  const lastEntry = entries.at(-1);
-  if (lastEntry && (!lastEntry.description || lastEntry.description === '')) {
-    lastEntry.shortRevision = 'Current';
-    lastEntry.revision = 'WORKTREE';
-    lastEntry.description = 'Working tree';
-    lastEntry.isWorkingTree = true;
-    lastEntry.changeId = undefined;
-  }
-
-  const workingTreeEntry = await makeWorkingTreeEntry(repoDir, entries.at(-1));
+  const workingTreeEntry = await makeWorkingTreeEntry(repoDir, entries.at(-1), relativePath, 'jj');
   if (workingTreeEntry) {
     entries.push(workingTreeEntry);
   }
-  return entries;
+
+  return reindexEntries(entries);
 }
 
-async function buildPreviewMap(repoDir, entries, backend) {
+async function getJjSnapshotEntries(repoDir, relativePath, revisionEntries) {
+  const snapshotEntries = [];
+
+  for (const entry of revisionEntries) {
+    if (!entry.changeId || entry.isWorkingTree || !entry.touchesFile) {
+      continue;
+    }
+
+    let stdout = '';
+    try {
+      ({ stdout } = await run('jj', ['evolog', '--no-graph', '--summary', '--limit', '100', '-r', entry.revision], repoDir));
+    } catch {
+      continue;
+    }
+
+    const evolutionEntries = parseJjEvolutionSummaryEntries(stdout)
+      .filter((evolutionEntry) => parseJjSummaryChangedPaths(evolutionEntry.summaryLines).includes(relativePath))
+      .map((evolutionEntry) => makeEntry({
+        id: `snapshot:${evolutionEntry.operationId || evolutionEntry.changeKey || evolutionEntry.revision}`,
+        index: 0,
+        revision: evolutionEntry.revision,
+        shortRevision: normalizeSnapshotOperationKey(evolutionEntry.changeKey) || evolutionEntry.revision.slice(0, 8),
+        changeId: entry.changeId,
+        authorDate: normalizeSnapshotAuthorDate(evolutionEntry.authorDate, entry.authorDate),
+        authorName: evolutionEntry.authorName || entry.authorName,
+        description: normalizeSnapshotDescription(evolutionEntry.description, evolutionEntry.operationDescription),
+        touchesFile: true,
+        isWorkingTree: false,
+        filePath: relativePath,
+      }));
+
+    snapshotEntries.push(...evolutionEntries);
+  }
+
+  snapshotEntries.sort((left, right) => left.timestamp - right.timestamp || left.revision.localeCompare(right.revision));
+  return reindexEntries(snapshotEntries);
+}
+
+function composeSnapshotEntries(revisionEntries, snapshotEntries, loadedChangeIds) {
+  if (!loadedChangeIds.size) {
+    return revisionEntries;
+  }
+
+  const snapshotEntriesByChangeId = snapshotEntries.reduce((groups, entry) => {
+    if (!entry.changeId) {
+      return groups;
+    }
+
+    const existing = groups.get(entry.changeId) || [];
+    existing.push(entry);
+    groups.set(entry.changeId, existing);
+    return groups;
+  }, new Map());
+
+  return reindexEntries(revisionEntries.flatMap((entry) => {
+    if (!entry.changeId || entry.isWorkingTree || !entry.touchesFile || !loadedChangeIds.has(entry.changeId)) {
+      return [entry];
+    }
+
+    return snapshotEntriesByChangeId.get(entry.changeId) || [entry];
+  }));
+}
+
+async function buildPreviewMap(repoDir, entries, backend, relativePath, comparisonSource) {
   const previews = {};
   for (let toIndex = 1; toIndex < entries.length; toIndex += 1) {
     for (let fromIndex = 0; fromIndex < toIndex; fromIndex += 1) {
-      previews[`${fromIndex}:${toIndex}`] = await buildPreview(repoDir, entries, backend, fromIndex, toIndex);
+      previews[`${fromIndex}:${toIndex}`] = await buildPreview(repoDir, entries, backend, relativePath, comparisonSource, fromIndex, toIndex);
     }
   }
+
   return previews;
 }
 
-async function buildPreview(repoDir, entries, backend, fromIndex, toIndex) {
+async function buildPreview(repoDir, entries, backend, relativePath, comparisonSource, fromIndex, toIndex) {
   const fromEntry = entries[fromIndex];
   const toEntry = entries[toIndex];
-  const beforeText = await getEntryContent(repoDir, backend, fromEntry);
-  const afterText = await getEntryContent(repoDir, backend, toEntry);
+  const beforeText = await getEntryContent(repoDir, backend, fromEntry, relativePath);
+  const afterText = await getEntryContent(repoDir, backend, toEntry, relativePath);
   const rows = buildRows(beforeText, afterText);
   const additions = rows.filter((row) => row.type === 'add').length;
   const deletions = rows.filter((row) => row.type === 'remove').length;
   const hunkCount = rows.some((row) => row.type === 'add' || row.type === 'remove') ? 1 : 0;
+
   return {
     index: toIndex,
     title: `${fromEntry.shortRevision} -> ${toEntry.shortRevision}`,
@@ -249,22 +343,44 @@ async function buildPreview(repoDir, entries, backend, fromIndex, toIndex) {
     hasChanges: additions > 0 || deletions > 0,
     fromIndex,
     toIndex,
-    comparisonSource: backend === 'jj' ? 'snapshot' : 'revision',
+    comparisonSource,
     rows,
     nonTextualDetails: [],
   };
 }
 
-async function getEntryContent(repoDir, backend, entry) {
+async function getEntryContent(repoDir, backend, entry, relativePath) {
   if (entry.isWorkingTree) {
-    return fs.readFile(path.join(repoDir, relativeFilePath), 'utf8');
+    return fs.readFile(path.join(repoDir, relativePath), 'utf8');
   }
-  if (backend === 'jj') {
-    const { stdout } = await run('git', ['show', `${entry.revision}:${relativeFilePath}`], repoDir);
+
+  return backend === 'jj'
+    ? showJjFileAtRevision(repoDir, entry.revision, relativePath)
+    : showGitFileAtRevision(repoDir, entry.revision, relativePath);
+}
+
+async function showGitFileAtRevision(repoDir, revision, relativePath) {
+  try {
+    const { stdout } = await run('git', ['show', `${revision}:${relativePath}`], repoDir);
     return stdout;
+  } catch (error) {
+    if (isMissingFileAtRevisionError(error)) {
+      return '';
+    }
+    throw error;
   }
-  const { stdout } = await run('git', ['show', `${entry.revision}:${relativeFilePath}`], repoDir);
-  return stdout;
+}
+
+async function showJjFileAtRevision(repoDir, revision, relativePath) {
+  try {
+    const { stdout } = await run('jj', ['file', 'show', '-r', revision, relativePath], repoDir);
+    return stdout;
+  } catch (error) {
+    if (isMissingFileAtRevisionError(error)) {
+      return '';
+    }
+    throw error;
+  }
 }
 
 function buildRows(beforeText, afterText) {
@@ -294,10 +410,9 @@ function buildRows(beforeText, afterText) {
   for (let index = start; index <= endAfter; index += 1) {
     rows.push({ type: 'add', leftNumber: null, rightNumber: index + 1, text: afterLines[index] });
   }
+
   const trailingContext = afterLines.slice(endAfter + 1);
-  const trailingStartLeft = endBefore + 1;
-  const trailingStartRight = endAfter + 1;
-  rows.push(...buildContextRows(trailingContext, trailingStartLeft, trailingStartRight));
+  rows.push(...buildContextRows(trailingContext, endBefore + 1, endAfter + 1));
   return rows;
 }
 
@@ -323,6 +438,7 @@ function buildContextRows(lines, leftOffset = 0, rightOffset = 0) {
     rightNumber: rightOffset + lines.length - 3 + index + 1,
     text: line,
   }));
+
   return [
     ...head,
     { type: 'skip', leftNumber: null, rightNumber: null, text: `Show ${lines.length - 6} unchanged lines` },
@@ -332,17 +448,21 @@ function buildContextRows(lines, leftOffset = 0, rightOffset = 0) {
 
 function splitLines(value) {
   const normalized = value.replace(/\r\n/g, '\n');
+  if (!normalized) {
+    return [];
+  }
+
   return normalized.endsWith('\n') ? normalized.slice(0, -1).split('\n') : normalized.split('\n');
 }
 
-async function gitTouchesFile(repoDir, revision) {
-  const { stdout } = await run('git', ['diff-tree', '--no-commit-id', '--name-only', '-r', revision, '--', relativeFilePath], repoDir);
+async function gitTouchesFile(repoDir, revision, relativePath) {
+  const { stdout } = await run('git', ['diff-tree', '--root', '--no-commit-id', '--name-only', '-r', revision, '--', relativePath], repoDir);
   return stdout.trim().length > 0;
 }
 
-async function jjTouchesFile(repoDir, revision) {
-  const { stdout } = await run('jj', ['show', '--summary', '-r', revision], repoDir);
-  return stdout.includes(relativeFilePath);
+async function jjTouchesFile(repoDir, revision, relativePath) {
+  const { stdout } = await run('jj', ['diff', '--name-only', '-r', revision], repoDir);
+  return stdout.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).includes(relativePath);
 }
 
 async function getWorkspaceFiles(repoDir) {
@@ -350,29 +470,29 @@ async function getWorkspaceFiles(repoDir) {
   return stdout.split(/\r?\n/).filter(Boolean).sort((a, b) => a.localeCompare(b));
 }
 
-async function makeWorkingTreeEntry(repoDir, previousEntry) {
-  const content = await fs.readFile(path.join(repoDir, relativeFilePath), 'utf8');
-  const previousContent = previousEntry ? await getEntryContent(repoDir, 'git', previousEntry) : '';
+async function makeWorkingTreeEntry(repoDir, previousEntry, relativePath, backend) {
+  const content = await fs.readFile(path.join(repoDir, relativePath), 'utf8');
+  const previousContent = previousEntry ? await getEntryContent(repoDir, backend, previousEntry, relativePath) : '';
   if (content === previousContent) {
     return null;
   }
 
-  const authorDate = '2026-04-11T12:00:00Z';
   return makeEntry({
-    id: 'working-tree',
+    id: `working-tree:${relativePath}`,
     index: previousEntry ? previousEntry.index + 1 : 0,
     revision: 'WORKTREE',
     shortRevision: 'Current',
     changeId: undefined,
-    authorDate,
+    authorDate: '2026-04-11T12:00:00Z',
     authorName: 'Fixture User',
     description: 'Working tree',
     touchesFile: true,
     isWorkingTree: true,
+    filePath: relativePath,
   });
 }
 
-function makeEntry({ id, index, revision, shortRevision, changeId, authorDate, authorName, description, touchesFile, isWorkingTree }) {
+function makeEntry({ id, index, revision, shortRevision, changeId, authorDate, authorName, description, touchesFile, isWorkingTree, filePath }) {
   const timestamp = Date.parse(authorDate);
   return {
     id,
@@ -386,11 +506,39 @@ function makeEntry({ id, index, revision, shortRevision, changeId, authorDate, a
     isWorkingTree,
     touchesFile,
     timestamp,
+    filePath,
     monthLabel: new Intl.DateTimeFormat('en', { month: 'long' }).format(timestamp),
     shortDate: new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' }).format(timestamp),
     relativeDate: relativeTime(timestamp),
     hasPreviousEntry: index > 0,
+    remoteUrl: isWorkingTree ? undefined : `${remoteBaseUrl}/commit/${revision}`,
   };
+}
+
+function reindexEntries(entries) {
+  return entries.map((entry, index) => ({
+    ...entry,
+    index,
+    hasPreviousEntry: index > 0,
+  }));
+}
+
+function normalizeSnapshotAuthorDate(authorDate, fallbackAuthorDate) {
+  const value = String(authorDate || '').trim();
+  if (value && !Number.isNaN(Date.parse(value))) {
+    return value;
+  }
+
+  return fallbackAuthorDate;
+}
+
+function normalizeSnapshotDescription(description, operationDescription) {
+  const trimmed = String(description || '').trim();
+  if (!trimmed || trimmed === '(no description set)' || trimmed === '(empty) (no description set)') {
+    return operationDescription || 'Snapshot';
+  }
+
+  return trimmed;
 }
 
 function relativeTime(timestamp) {
@@ -422,8 +570,29 @@ async function writeFiles(repoDir, files) {
   }
 }
 
-function baseFileContent(title, line) {
-  return `## ${title}\n\n1. Inventory\n${line}\n`;
+function buildPlanContent(title, line, note) {
+  return `## ${title}\n\n1. Inventory\n${line}\n\n2. Notes\n${note}\n`;
+}
+
+function buildServiceContent(version, note) {
+  return [
+    'export function buildServiceLabel() {',
+    `  return '${version}';`,
+    '}',
+    '',
+    `export const serviceNote = '${note}';`,
+    '',
+  ].join('\n');
+}
+
+function isMissingFileAtRevisionError(error) {
+  const message = error instanceof Error ? error.message : String(error);
+  return /exists on disk, but not in/i.test(message)
+    || /path .* does not exist in/i.test(message)
+    || /no such path/i.test(message)
+    || /no matching entries/i.test(message)
+    || /No such file or directory/i.test(message)
+    || /Path .* not found/i.test(message);
 }
 
 async function run(command, args, cwd, env = {}) {
