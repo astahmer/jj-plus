@@ -1,8 +1,22 @@
+import type { FileRevisionEntry } from '../types';
+
 type RevisionIdentifierProps = {
   value: string;
   highlightPrefix?: string;
   plain?: boolean;
 };
+
+export function getRevisionIdentifierValue(entry: Pick<FileRevisionEntry, 'shortRevision' | 'changeId' | 'revision' | 'isWorkingTree'>) {
+  if (entry.isWorkingTree || !entry.changeId) {
+    return entry.shortRevision;
+  }
+
+  if (entry.shortRevision === entry.changeId && entry.revision) {
+    return `${entry.changeId}/${entry.revision.slice(0, 8)}`;
+  }
+
+  return entry.shortRevision;
+}
 
 export function RevisionIdentifier(props: RevisionIdentifierProps) {
   if (props.plain) {

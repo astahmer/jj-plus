@@ -2,7 +2,7 @@ import { For, Show } from 'solid-js';
 import type { Accessor } from 'solid-js';
 import { getTimelineAnchorPercent } from '../timeline-model';
 import type { ComparisonMode, ComparisonSource, ContentMode, FileRevisionEntry, HistoryBackend, LayoutMode, TimelinePreset } from '../types';
-import { RevisionIdentifier } from './RevisionIdentifier';
+import { RevisionIdentifier, getRevisionIdentifierValue } from './RevisionIdentifier';
 
 type TimelinePaneProps = {
   backend: Accessor<HistoryBackend | null>;
@@ -11,6 +11,8 @@ type TimelinePaneProps = {
   fileInputValue: Accessor<string>;
   fromIndex: Accessor<number>;
   toIndex: Accessor<number>;
+  pendingSelectionIndex: Accessor<number | null>;
+  hoveredSelectionIndex: Accessor<number | null>;
   rangeLabel: Accessor<string>;
   rangeSubtitle: Accessor<string>;
   selectionMeta: Accessor<string>;
@@ -44,6 +46,7 @@ type TimelinePaneProps = {
   onOpenRangeFilesDiff: () => void;
   onCancelActiveRequest: () => void;
   onRefresh: () => void;
+  onResetPreferences: () => void;
   onSetComparisonMode: (value: ComparisonMode) => void;
   onSetComparisonSource: (value: ComparisonSource) => void;
   onSetLayoutMode: (value: LayoutMode) => void;
@@ -52,6 +55,7 @@ type TimelinePaneProps = {
   onToggleIntermediate: () => void;
   onStep: (amount: number) => void;
   onSelectEntry: (entryIndex: number) => void;
+  onHoverEntry: (entryIndex: number | null) => void;
   onSubmitRevision: (side: 'from' | 'to', value: string) => void;
 };
 
@@ -70,6 +74,7 @@ export function TimelinePane(props: TimelinePaneProps) {
   const toPercent = () => getTimelineAnchorPercent(props.visibleEntries(), props.visibleEntries().findIndex((entry) => entry.index === props.toIndex()));
   const collapseLabel = () => props.timelinePaneCollapsed() ? 'Expand' : 'Timeline only';
   const intermediateLabel = () => props.showIntermediateRevisions() ? 'Hide In-Between' : 'Show In-Between';
+  const showStepStatusRow = () => Boolean(props.stepStatus()) || props.showSnapshotStatus();
 
   return (
     <div class={`timeline-pane${props.timelinePaneCollapsed() ? ' is-collapsed' : ''}`} id="timelinePane">
@@ -127,6 +132,7 @@ export function TimelinePane(props: TimelinePaneProps) {
                 <button class="menu-item" id="openRangeFilesButton" type="button" onClick={props.onOpenRangeFilesDiff}>Open diffs</button>
                 <button class="menu-item" id="cancelActiveRequestAction" type="button" onClick={props.onCancelActiveRequest}>Cancel request</button>
                 <button class="menu-item" id="refreshButton" type="button" onClick={props.onRefresh}>Refresh</button>
+                <button class="menu-item" id="resetPreferencesAction" type="button" onClick={props.onResetPreferences}>Reset preferences</button>
               </div>
             </div>
           </div>
@@ -151,7 +157,7 @@ export function TimelinePane(props: TimelinePaneProps) {
                 <button class="handle-pill from" id="fromHandleLabel" type="button" onClick={() => currentFromEntry() && props.onSelectEntry(currentFromEntry()!.index)}>
                   <span>From </span>
                   <Show when={currentFromEntry()}>
-                    <RevisionIdentifier value={currentFromEntry()!.shortRevision} highlightPrefix={currentFromEntry()!.changeId} plain={currentFromEntry()!.isWorkingTree} />
+                    <RevisionIdentifier value={getRevisionIdentifierValue(currentFromEntry()!)} highlightPrefix={currentFromEntry()!.changeId} plain={currentFromEntry()!.isWorkingTree} />
                   </Show>
                 </button>
                 <span class="revision-picker-relative" id="fromRelativeLabel">{currentFromEntry()?.relativeDate}</span>
@@ -175,7 +181,7 @@ export function TimelinePane(props: TimelinePaneProps) {
                 <button class="handle-pill to" id="toHandleLabel" type="button" onClick={() => currentToEntry() && props.onSelectEntry(currentToEntry()!.index)}>
                   <span>To </span>
                   <Show when={currentToEntry()}>
-                    <RevisionIdentifier value={currentToEntry()!.shortRevision} highlightPrefix={currentToEntry()!.changeId} plain={currentToEntry()!.isWorkingTree} />
+                    <RevisionIdentifier value={getRevisionIdentifierValue(currentToEntry()!)} highlightPrefix={currentToEntry()!.changeId} plain={currentToEntry()!.isWorkingTree} />
                   </Show>
                 </button>
                 <span class="revision-picker-relative" id="toRelativeLabel">{currentToEntry()?.relativeDate}</span>
@@ -219,28 +225,41 @@ export function TimelinePane(props: TimelinePaneProps) {
           <button class="step-button" id="stepBackwardButton" type="button" aria-label="Previous range" disabled={!props.canStepBackward()} onClick={() => props.onStep(-1)}>‹</button>
           <div class="timeline">
             <div class="selection-meta" id="selectionMeta">{props.selectionMeta()}</div>
-            <div class="track">
-              <div class="range-fill" style={{ left: `${fromPercent()}%`, width: `${Math.max(0, toPercent() - fromPercent())}%` }} />
+            <div class="track" id="track">
               <For each={props.visibleEntries()}>
                 {(entry, index) => {
                   const percent = () => getTimelineAnchorPercent(props.visibleEntries(), index());
                   const isFrom = () => entry.index === props.fromIndex();
                   const isTo = () => entry.index === props.toIndex();
                   const inRange = () => entry.index >= Math.min(props.fromIndex(), props.toIndex()) && entry.index <= Math.max(props.fromIndex(), props.toIndex());
+                  const inPendingRange = () => {
+                    const pendingIndex = props.pendingSelectionIndex();
+                    const hoveredIndex = props.hoveredSelectionIndex();
+                    if (pendingIndex === null || hoveredIndex === null) {
+                      return false;
+                    }
+
+                    return entry.index >= Math.min(pendingIndex, hoveredIndex) && entry.index <= Math.max(pendingIndex, hoveredIndex);
+                  };
                   return (
                     <button
-                      class={`track-anchor${inRange() ? ' in-range' : ''}${isFrom() ? ' is-from' : ''}${isTo() ? ' is-to' : ''}${!entry.touchesFile ? ' is-intermediate' : ''}`}
+                      class={`track-anchor${inRange() ? ' in-range' : ''}${inPendingRange() ? ' pending-range' : ''}${isFrom() ? ' is-from' : ''}${isTo() ? ' is-to' : ''}${!entry.touchesFile ? ' is-intermediate' : ''}`}
                       style={{ left: `${percent()}%` }}
+                      data-entry-index={entry.index}
                       type="button"
-                      title={`${entry.shortRevision} · ${entry.description}`}
                       onClick={() => props.onSelectEntry(entry.index)}
+                      onMouseEnter={() => props.onHoverEntry(entry.index)}
+                      onMouseLeave={() => props.onHoverEntry(null)}
+                      onFocus={() => props.onHoverEntry(entry.index)}
+                      onBlur={() => props.onHoverEntry(null)}
                     />
                   );
                 }}
               </For>
-              <div class="handle-marker from" style={{ left: `${fromPercent()}%` }} />
-              <div class="handle-marker to" style={{ left: `${toPercent()}%` }} />
             </div>
+            <div class="range-fill" id="rangeFill" style={{ left: `${fromPercent()}%`, width: `${Math.max(0, toPercent() - fromPercent())}%` }} />
+            <button class="handle-marker from" id="fromMarker" type="button" aria-label="Adjust from revision" style={{ left: `${fromPercent()}%` }} />
+            <button class="handle-marker to" id="toMarker" type="button" aria-label="Adjust to revision" style={{ left: `${toPercent()}%` }} />
             <div class="month-row">
               <For each={groupMonthLabels(props.visibleEntries())}>{(label) => <div>{label}</div>}</For>
             </div>
@@ -249,12 +268,16 @@ export function TimelinePane(props: TimelinePaneProps) {
           <button class="step-button" id="stepFastForwardButton" type="button" aria-label="Jump forward" disabled={!props.canStepForward()} onClick={() => props.onStep(5)}>»</button>
         </div>
 
-        <div class="step-status-row">
-          <div class="step-status" id="stepStatus">{props.stepStatus()}</div>
-          <Show when={props.showSnapshotStatus()}>
-            <div class="loading-indicator" id="snapshotLoadingIndicator">{props.snapshotStatusLabel()}</div>
-          </Show>
-        </div>
+        <Show when={showStepStatusRow()}>
+          <div class="step-status-row">
+            <Show when={props.stepStatus()}>
+              <div class="step-status" id="stepStatus">{props.stepStatus()}</div>
+            </Show>
+            <Show when={props.showSnapshotStatus()}>
+              <div class="loading-indicator" id="snapshotLoadingIndicator">{props.snapshotStatusLabel()}</div>
+            </Show>
+          </div>
+        </Show>
       </div>
 
       <Show when={props.hotkeysOpen()}>

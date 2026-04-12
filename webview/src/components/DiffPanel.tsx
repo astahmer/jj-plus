@@ -1,9 +1,9 @@
 import { For, Show } from 'solid-js';
+import { createStore } from 'solid-js/store';
 import type { Accessor } from 'solid-js';
 import type { DiffPreview, FileRevisionEntry, LayoutMode } from '../types';
 import type { ComparisonMode, ComparisonSource, ContentMode } from '../types';
-import { collapseDiffRows } from '../timeline-model';
-import { RevisionIdentifier } from './RevisionIdentifier';
+import { RevisionIdentifier, getRevisionIdentifierValue } from './RevisionIdentifier';
 
 type DiffPanelProps = {
   preview: Accessor<DiffPreview | null>;
@@ -33,8 +33,17 @@ const contentModeLabels: Record<ContentMode, string> = {
 };
 
 export function DiffPanel(props: DiffPanelProps) {
+  const [expandedRanges, setExpandedRanges] = createStore<Record<string, Record<string, boolean>>>({});
   const activePreview = () => props.preview();
   const activeComparisonSource = () => activePreview()?.comparisonSource || props.comparisonSource();
+  const activePreviewKey = () => {
+    const preview = activePreview();
+    if (!preview) {
+      return '';
+    }
+
+    return `${preview.comparisonSource || activeComparisonSource()}:${Math.min(preview.fromIndex, preview.toIndex)}:${Math.max(preview.fromIndex, preview.toIndex)}`;
+  };
 
   const title = () => {
     const preview = activePreview();
@@ -48,7 +57,7 @@ export function DiffPanel(props: DiffPanelProps) {
       return (
         <>
           <span>Snapshot </span>
-          <RevisionIdentifier value={toEntry.shortRevision} highlightPrefix={toEntry.changeId} plain={toEntry.isWorkingTree} />
+          <RevisionIdentifier value={getRevisionIdentifierValue(toEntry)} highlightPrefix={toEntry.changeId} plain={toEntry.isWorkingTree} />
         </>
       );
     }
@@ -59,9 +68,9 @@ export function DiffPanel(props: DiffPanelProps) {
 
     return (
       <>
-        <RevisionIdentifier value={fromEntry.shortRevision} highlightPrefix={fromEntry.changeId} plain={fromEntry.isWorkingTree} />
+        <RevisionIdentifier value={getRevisionIdentifierValue(fromEntry)} highlightPrefix={fromEntry.changeId} plain={fromEntry.isWorkingTree} />
         <span class="diff-title-arrow">→</span>
-        <RevisionIdentifier value={toEntry.shortRevision} highlightPrefix={toEntry.changeId} plain={toEntry.isWorkingTree} />
+        <RevisionIdentifier value={getRevisionIdentifierValue(toEntry)} highlightPrefix={toEntry.changeId} plain={toEntry.isWorkingTree} />
       </>
     );
   };
@@ -80,7 +89,7 @@ export function DiffPanel(props: DiffPanelProps) {
       return [];
     }
 
-    return collapseDiffRows(preview.rows, 3);
+    return collapseRowsForPreview(preview.rows, activePreviewKey(), expandedRanges, 3);
   };
 
   const eyebrowLabel = () => {
@@ -109,6 +118,14 @@ export function DiffPanel(props: DiffPanelProps) {
     return <div class="empty-diff">The file has no content at this revision.</div>;
   };
 
+  const toggleRange = (previewKey: string, rangeKey: string) => {
+    if (!previewKey || !rangeKey) {
+      return;
+    }
+
+    setExpandedRanges(previewKey, rangeKey, (value) => value !== true);
+  };
+
   return (
     <>
       <div class="timeline-resize-handle" id="timelineResizeHandle" />
@@ -120,7 +137,9 @@ export function DiffPanel(props: DiffPanelProps) {
                 <h3 class="diff-title" id="diffTitle"><Show when={title()} fallback={'No diff available'}>{title()}</Show></h3>
                 <div class="diff-title-meta">{activePreview()?.subtitle || ''}</div>
               </div>
-              <div class="diff-subtitle">{props.toEntry()?.description || ''}</div>
+              <Show when={activeComparisonSource() === 'snapshot'}>
+                <div class="diff-subtitle">{props.toEntry()?.description || ''}</div>
+              </Show>
             </div>
             <div class="diff-actions">
               <div class="eyebrow diff-mode-eyebrow" id="diffModeEyebrow">{eyebrowLabel()}</div>
@@ -135,7 +154,20 @@ export function DiffPanel(props: DiffPanelProps) {
             </div>
           </div>
         </div>
-        <div class="diff-rows" id="diffRows" data-layout-mode={props.layoutMode()} data-content-mode={props.contentMode()}>
+        <div
+          class="diff-rows"
+          id="diffRows"
+          data-layout-mode={props.layoutMode()}
+          data-content-mode={props.contentMode()}
+          onClick={(event) => {
+            const button = (event.target as HTMLElement | null)?.closest('.skip-button') as HTMLButtonElement | null;
+            if (!button) {
+              return;
+            }
+
+            toggleRange(button.dataset.previewKey || '', button.dataset.rangeKey || '');
+          }}
+        >
           <Show when={displayRows().length} fallback={emptyState()}>
             <Show
               when={props.layoutMode() === 'split'}
@@ -152,7 +184,11 @@ export function DiffPanel(props: DiffPanelProps) {
 
 function UnifiedRow(props: { row: DiffPreview['rows'][number] }) {
   if (props.row.type === 'skip') {
-    return <div class="diff-row diff-row--skip">{props.row.text}</div>;
+    return (
+      <div class="diff-row diff-row--skip">
+        <button class="skip-button" type="button" data-preview-key={props.row.previewKey || ''} data-range-key={props.row.rangeKey || ''}>{props.row.text}</button>
+      </div>
+    );
   }
 
   const marker = props.row.type === 'add' ? '+' : props.row.type === 'remove' ? '-' : ' ';
@@ -174,7 +210,11 @@ type SplitDisplayRow =
 
 function SplitRow(props: { row: SplitDisplayRow }) {
   if (props.row.type === 'skip') {
-    return <div class="split-row split-row--skip">{props.row.skip.text}</div>;
+    return (
+      <div class="split-row split-row--skip">
+        <button class="skip-button" type="button" data-preview-key={props.row.skip.previewKey || ''} data-range-key={props.row.skip.rangeKey || ''}>{props.row.skip.text}</button>
+      </div>
+    );
   }
 
   if (props.row.type === 'context') {
@@ -239,4 +279,76 @@ function buildSplitRows(rows: DiffPreview['rows']): SplitDisplayRow[] {
   }
 
   return splitRows;
+}
+
+function collapseRowsForPreview(
+  rows: DiffPreview['rows'],
+  previewKey: string,
+  expandedRanges: Record<string, Record<string, boolean>>,
+  contextSize: number,
+) {
+  const changeIndexes = rows
+    .map((row, index) => (row.type === 'add' || row.type === 'remove' ? index : -1))
+    .filter((index) => index >= 0);
+
+  if (!changeIndexes.length) {
+    return rows.slice(0, 80);
+  }
+
+  const ranges: Array<[number, number]> = [];
+  for (const changeIndex of changeIndexes) {
+    const start = Math.max(0, changeIndex - contextSize);
+    const end = Math.min(rows.length - 1, changeIndex + contextSize);
+    const previousRange = ranges[ranges.length - 1];
+    if (!previousRange || start > previousRange[1] + 1) {
+      ranges.push([start, end]);
+      continue;
+    }
+
+    previousRange[1] = Math.max(previousRange[1], end);
+  }
+
+  const visible: DiffPreview['rows'] = [];
+  let previousEnd = -1;
+  for (const [start, end] of ranges) {
+    visible.push(...buildCollapsedSection(rows, previousEnd + 1, start - 1, previewKey, expandedRanges));
+    visible.push(...rows.slice(start, end + 1));
+    previousEnd = end;
+  }
+  visible.push(...buildCollapsedSection(rows, previousEnd + 1, rows.length - 1, previewKey, expandedRanges));
+  return visible;
+}
+
+function buildCollapsedSection(
+  rows: DiffPreview['rows'],
+  start: number,
+  end: number,
+  previewKey: string,
+  expandedRanges: Record<string, Record<string, boolean>>,
+) {
+  if (end < start) {
+    return [];
+  }
+
+  const rangeKey = `${start}:${end}`;
+  const isExpanded = expandedRanges[previewKey]?.[rangeKey] === true;
+  if (!isExpanded) {
+    return [{
+      type: 'skip' as const,
+      leftNumber: null,
+      rightNumber: null,
+      text: `Show ${end - start + 1} unchanged lines`,
+      rangeKey,
+      previewKey,
+    }];
+  }
+
+  return rows.slice(start, end + 1).concat([{
+    type: 'skip' as const,
+    leftNumber: null,
+    rightNumber: null,
+    text: `Hide ${end - start + 1} unchanged lines`,
+    rangeKey,
+    previewKey,
+  }]);
 }
