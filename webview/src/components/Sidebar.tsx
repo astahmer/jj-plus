@@ -23,13 +23,14 @@ export function Sidebar(props: SidebarProps) {
       <div class="sidebar-head">
         <div class="sidebar-head-main">
           <div class="eyebrow">Revisions</div>
-          <div class="sidebar-hint">{props.fileCount()} visible</div>
+          <div class="sidebar-hint" id="sidebarHint">{props.fileCount()} visible</div>
         </div>
-        <button class="sidebar-head-action" type="button" onClick={props.onOpenRangeDiff}>Open diff</button>
+        <button class="sidebar-head-action" id="openSidebarRangeDiffButton" type="button" onClick={props.onOpenRangeDiff}>Open diff</button>
       </div>
       <div class="sidebar-search-wrap">
         <input
           class="sidebar-search-input"
+          id="sidebarSearchInput"
           type="search"
           placeholder="Search revisions"
           autocomplete="off"
@@ -37,7 +38,7 @@ export function Sidebar(props: SidebarProps) {
           onInput={(event) => props.onSearchInput(event.currentTarget.value)}
         />
       </div>
-      <div class="history-list">
+      <div class="history-list" id="historyList">
         <For each={props.entries()}>
           {(entry) => {
             const active = () => entry.index === props.activeFromIndex() || entry.index === props.activeToIndex();

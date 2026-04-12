@@ -1,17 +1,23 @@
 import { defineConfig, devices } from '@playwright/test';
 import { defineBddConfig } from 'playwright-bdd';
 
-const testDir = defineBddConfig({
+const bddTestDir = defineBddConfig({
   features: 'features/**/*.feature',
   steps: ['features/steps/**/*.ts', 'features/support/**/*.ts'],
   outputDir: '.features-gen',
 });
 
 export default defineConfig({
-  testDir,
+  testDir: bddTestDir,
   fullyParallel: true,
   retries: process.env.CI ? 2 : 0,
   reporter: 'list',
+  expect: {
+    toHaveScreenshot: {
+      animations: 'disabled',
+      caret: 'hide',
+    },
+  },
   use: {
     baseURL: 'http://127.0.0.1:4173',
     trace: 'on-first-retry',
@@ -19,6 +25,12 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'visual',
+      testDir: '.',
+      testMatch: 'tests/**/*.spec.ts',
       use: { ...devices['Desktop Chrome'] },
     },
   ],

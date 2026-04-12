@@ -20,6 +20,20 @@ const defaultRelativeFilePath = 'apps/backend/instructions/lazy-di-rollout-plan.
 const secondaryRelativeFilePath = 'apps/backend/src/service.ts';
 const trackedFilePaths = [defaultRelativeFilePath, secondaryRelativeFilePath];
 const remoteBaseUrl = 'https://github.com/astahmer/visualjj-range-diff-helper';
+const displayLocale = 'en-US';
+const displayTimeZone = 'Europe/Paris';
+const monthFormatter = new Intl.DateTimeFormat(displayLocale, { month: 'long', timeZone: displayTimeZone });
+const shortDateFormatter = new Intl.DateTimeFormat(displayLocale, { month: 'short', day: 'numeric', year: 'numeric', timeZone: displayTimeZone });
+const subtitleDateFormatter = new Intl.DateTimeFormat(displayLocale, {
+  year: 'numeric',
+  month: 'numeric',
+  day: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+  second: '2-digit',
+  hour12: true,
+  timeZone: displayTimeZone,
+});
 
 await fs.rm(runtimeDir, { recursive: true, force: true });
 await fs.mkdir(reposDir, { recursive: true });
@@ -99,6 +113,8 @@ async function generateJjFixture() {
     [secondaryRelativeFilePath]: buildServiceContent('epsilon', 'Second mutable JJ snapshot for the service helper.'),
   });
   await run('jj', ['describe', '-m', 'snapshot working copy'], repoDir);
+
+  await run('jj', ['commit', '-m', 'snapshot working copy'], repoDir);
 
   await writeFiles(repoDir, {
     [defaultRelativeFilePath]: buildPlanContent('Working tree', 'zeta line', 'Uncommitted JJ working tree changes.'),
@@ -225,6 +241,10 @@ async function getJjEntries(repoDir, relativePath) {
   const entries = [];
   for (const [index, line] of revisions.entries()) {
     const [revision, changeId, authorDate, authorName, description] = line.split('\t');
+    if (/^0+$/u.test(revision)) {
+      continue;
+    }
+
     const touchesFile = await jjTouchesFile(repoDir, revision, relativePath);
     entries.push(makeEntry({
       id: revision,
@@ -239,6 +259,16 @@ async function getJjEntries(repoDir, relativePath) {
       isWorkingTree: false,
       filePath: relativePath,
     }));
+  }
+
+  const lastEntry = entries.at(-1);
+  if (lastEntry && (!lastEntry.description || lastEntry.description === '')) {
+    lastEntry.revision = 'WORKTREE';
+    lastEntry.shortRevision = 'Current';
+    lastEntry.description = 'Working tree';
+    lastEntry.isWorkingTree = true;
+    lastEntry.changeId = undefined;
+    lastEntry.remoteUrl = undefined;
   }
 
   const workingTreeEntry = await makeWorkingTreeEntry(repoDir, entries.at(-1), relativePath, 'jj');
@@ -336,7 +366,7 @@ async function buildPreview(repoDir, entries, backend, relativePath, comparisonS
   return {
     index: toIndex,
     title: `${fromEntry.shortRevision} -> ${toEntry.shortRevision}`,
-    subtitle: toEntry.isWorkingTree ? 'Working tree' : `${new Date(toEntry.authorDate).toLocaleString()} · ${toEntry.description}`,
+    subtitle: toEntry.isWorkingTree ? 'Working tree' : `${subtitleDateFormatter.format(new Date(toEntry.authorDate))} · ${toEntry.description}`,
     additions,
     deletions,
     hunkCount,
@@ -507,8 +537,8 @@ function makeEntry({ id, index, revision, shortRevision, changeId, authorDate, a
     touchesFile,
     timestamp,
     filePath,
-    monthLabel: new Intl.DateTimeFormat('en', { month: 'long' }).format(timestamp),
-    shortDate: new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' }).format(timestamp),
+    monthLabel: monthFormatter.format(timestamp),
+    shortDate: shortDateFormatter.format(timestamp),
     relativeDate: relativeTime(timestamp),
     hasPreviousEntry: index > 0,
     remoteUrl: isWorkingTree ? undefined : `${remoteBaseUrl}/commit/${revision}`,

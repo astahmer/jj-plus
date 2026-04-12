@@ -205,6 +205,7 @@ export function createTimelineHost(): TimelineHost {
     const key = getPreferencesKey(activeRelativePath);
     const nextPreferences: TimelinePreferences = {
       sidebarWidth: command.sidebarWidth,
+      sidebarCollapsed: command.sidebarCollapsed,
       timelinePaneHeight: command.timelinePaneHeight,
       timelinePaneCollapsed: command.timelinePaneCollapsed,
       layoutMode: command.layoutMode,

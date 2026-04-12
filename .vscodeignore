@@ -7,6 +7,7 @@ features/**
 playwright.config.ts
 scripts/**
 test/**
+tests/**
 test-results/**
 TODO.md
 tsconfig.json

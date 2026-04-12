@@ -138,8 +138,9 @@ export function App() {
   });
 
   createEffect(() => {
-    if (state.data && state.fileInputValue !== state.data.relativePath) {
-      setState('fileInputValue', state.data.relativePath);
+    const relativePath = state.data?.relativePath;
+    if (relativePath) {
+      setState('fileInputValue', relativePath);
     }
   });
 
@@ -151,6 +152,7 @@ export function App() {
     const command: TimelineCommand = {
       command: 'persist-state',
       sidebarWidth: state.sidebarWidth,
+      sidebarCollapsed: state.sidebarCollapsed,
       timelinePaneHeight: state.timelinePaneHeight,
       timelinePaneCollapsed: state.timelinePaneCollapsed,
       layoutMode: state.layoutMode,
@@ -209,7 +211,7 @@ export function App() {
         preset: (preferences.preset as TimelinePreset) || 'year',
         fromIndex: Math.max(0, message.payload.defaultIndex - 1),
         toIndex: message.payload.defaultIndex,
-        sidebarCollapsed: false,
+        sidebarCollapsed: preferences.sidebarCollapsed === true,
         actionsMenuOpen: false,
         hotkeysOpen: false,
         pendingSelectionIndex: null,
@@ -334,6 +336,10 @@ export function App() {
 
   function toggleSidebar() {
     setState('sidebarCollapsed', (value) => !value);
+  }
+
+  function toggleSidebarFromMenu() {
+    setState({ sidebarCollapsed: !state.sidebarCollapsed, actionsMenuOpen: false });
   }
 
   function toggleTimelinePane() {
@@ -587,6 +593,7 @@ export function App() {
             onFileInput={(value) => setState('fileInputValue', value)}
             onSubmitFile={submitFile}
             onToggleSidebar={toggleSidebar}
+            onToggleSidebarMenu={toggleSidebarFromMenu}
             onToggleTimelinePane={toggleTimelinePane}
             onToggleHotkeys={toggleHotkeys}
             onToggleActionsMenu={toggleActionsMenu}

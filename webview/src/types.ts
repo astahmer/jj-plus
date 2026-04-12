@@ -106,6 +106,7 @@ export type TimelineCommand =
   | {
       command: 'persist-state';
       sidebarWidth: number;
+      sidebarCollapsed: boolean;
       timelinePaneHeight: number;
       timelinePaneCollapsed: boolean;
       layoutMode: LayoutMode;

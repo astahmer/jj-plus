@@ -1,8 +1,9 @@
-import { expect } from '@playwright/test';
+import { expect, type Page } from '@playwright/test';
 import { Given, Then, When } from '../support/fixtures';
 
 Given('I open the standalone revision timeline app for fixture {string}', async ({ page }, fixture: string) => {
   await page.goto(`/?fixture=${fixture}`);
+  await expect(page.getByText('Revision Timeline')).toBeVisible();
 });
 
 Then('I should see the revision timeline header', async ({ page }) => {
@@ -14,16 +15,11 @@ Then('I should see a diff title for the selected revision range', async ({ page 
 });
 
 When('I select the revision {string} from the sidebar', async ({ page }, value: string) => {
-  await page.locator('.history-list .history-item').filter({ hasText: value }).first().click();
+  await sidebarRevision(page, value).click();
 });
 
 Then('the diff title should contain {string}', async ({ page }, value: string) => {
   await expect(page.locator('#diffTitle')).toContainText(value);
-});
-
-Then('the diff title should change', async ({ page }) => {
-  const title = page.locator('#diffTitle');
-  await expect(title).not.toHaveText('No diff available');
 });
 
 Then('I should see the range count {string}', async ({ page }, value: string) => {
@@ -50,12 +46,20 @@ Then('I should see {int} sidebar revision', async ({ page }, count: number) => {
   await expect(page.locator('.history-list .history-item')).toHaveCount(count);
 });
 
+Then('I should see {int} sidebar revisions', async ({ page }, count: number) => {
+  await expect(page.locator('.history-list .history-item')).toHaveCount(count);
+});
+
 When('I press the {string} key', async ({ page }, key: string) => {
-  await page.keyboard.press(key);
+  await page.keyboard.press(normalizeKey(key));
 });
 
 When('I click the previous range button', async ({ page }) => {
-  await page.locator('.timeline-row .step-button').nth(1).click();
+  await page.locator('#stepBackwardButton').click();
+});
+
+When('I click the next range button', async ({ page }) => {
+  await page.locator('#stepForwardButton').click();
 });
 
 When('I switch the layout mode to {string}', async ({ page }, value: string) => {
@@ -65,3 +69,156 @@ When('I switch the layout mode to {string}', async ({ page }, value: string) => 
 Then('the diff layout mode should be {string}', async ({ page }, value: string) => {
   await expect(page.locator('#diffRows')).toHaveAttribute('data-layout-mode', value);
 });
+
+When('I switch the comparison source to {string}', async ({ page }, value: string) => {
+  await page.getByRole('button', { name: value, exact: true }).click();
+});
+
+When('I switch the comparison mode to {string}', async ({ page }, value: string) => {
+  await page.getByRole('button', { name: value, exact: true }).click();
+});
+
+When('I switch the content mode to {string}', async ({ page }, value: string) => {
+  await page.getByRole('button', { name: value, exact: true }).click();
+});
+
+When('I submit {string} into the {string} picker', async ({ page }, value: string, picker: string) => {
+  const input = page.locator(picker === 'From revision' ? '#fromRevisionInput' : '#toRevisionInput');
+  await input.fill(value);
+  await input.press('Enter');
+});
+
+When('I open the actions menu', async ({ page }) => {
+  await page.locator('#actionsButton').click();
+  await expect(page.locator('#actionsMenu')).toBeVisible();
+});
+
+When('I choose the action menu item {string}', async ({ page }, value: string) => {
+  await page.locator('#actionsMenu').getByRole('button', { name: value, exact: true }).click();
+});
+
+When('I click the {string} row action for revision {string}', async ({ page }, action: string, revision: string) => {
+  await sidebarRevision(page, revision).getByRole('button', { name: action, exact: true }).click();
+});
+
+When('I click the sidebar open diff button', async ({ page }) => {
+  await page.locator('#openSidebarRangeDiffButton').click();
+});
+
+When('I switch to file {string}', async ({ page }, relativePath: string) => {
+  const switcher = page.locator('#fileSwitcher');
+  await switcher.fill(relativePath);
+  await switcher.press('Enter');
+  await page.waitForFunction(
+    (path) => window.__TIMELINE_TEST_STATE__?.activeRelativePath === path,
+    relativePath
+  );
+});
+
+When('I click the timeline collapse button', async ({ page }) => {
+  await page.locator('#toggleTimelinePaneButton').click();
+});
+
+When('I click the diff focus button', async ({ page }) => {
+  await page.locator('#toggleDiffFocusButton').click();
+});
+
+When('I select the preset {string}', async ({ page }, value: string) => {
+  await page.getByRole('button', { name: value, exact: true }).click();
+});
+
+When('I reload the page', async ({ page }) => {
+  await page.reload();
+  await expect(page.getByText('Revision Timeline')).toBeVisible();
+});
+
+Then('the selection meta should contain {string}', async ({ page }, value: string) => {
+  await expect(page.locator('#selectionMeta')).toContainText(value);
+});
+
+Then('the diff mode eyebrow should contain {string}', async ({ page }, value: string) => {
+  await expect.poll(async () => {
+    const text = await page.locator('#diffModeEyebrow').textContent();
+    return text?.trim().toLowerCase() || '';
+  }).toContain(value.toLowerCase());
+});
+
+Then('the diff content mode should be {string}', async ({ page }, value: string) => {
+  await expect(page.locator('#diffRows')).toHaveAttribute('data-content-mode', value);
+});
+
+Then('the step status should contain {string}', async ({ page }, value: string) => {
+  await expect(page.locator('#stepStatus')).toContainText(value);
+});
+
+Then('the hotkeys popover should be visible', async ({ page }) => {
+  await expect(page.locator('#hotkeysPopover')).toBeVisible();
+});
+
+Then('the hotkeys popover should be hidden', async ({ page }) => {
+  await expect(page.locator('#hotkeysPopover')).toHaveCount(0);
+});
+
+Then('the workspace should be collapsed', async ({ page }) => {
+  await expect(page.locator('.workspace')).toHaveClass(/is-collapsed/);
+});
+
+Then('the workspace should be in diff focus mode', async ({ page }) => {
+  await expect(page.locator('.workspace')).toHaveClass(/is-diff-focus/);
+});
+
+Then('the workspace should not be in diff focus mode', async ({ page }) => {
+  await expect(page.locator('.workspace')).not.toHaveClass(/is-diff-focus/);
+});
+
+Then('the timeline pane should be collapsed', async ({ page }) => {
+  await expect(page.locator('#timelinePane')).toHaveClass(/is-collapsed/);
+});
+
+Then('the button {string} should be active', async ({ page }, value: string) => {
+  await expect(page.getByRole('button', { name: value, exact: true })).toHaveClass(/active/);
+});
+
+Then('the button {string} should not be active', async ({ page }, value: string) => {
+  await expect(page.getByRole('button', { name: value, exact: true })).not.toHaveClass(/active/);
+});
+
+Then('the button {string} should not be visible', async ({ page }, value: string) => {
+  await expect(page.getByRole('button', { name: value, exact: true })).toHaveCount(0);
+});
+
+Then('the last host action should be {string}', async ({ page }, command: string) => {
+  await expect.poll(async () => (await getTestState(page))?.lastAction?.command || null).toBe(command);
+});
+
+Then('the last host action payload should include {string} as {string}', async ({ page }, field: string, value: string) => {
+  await expect.poll(async () => {
+    const payload = (await getTestState(page))?.lastAction?.payload || {};
+    const actual = Reflect.get(payload, field);
+    return actual == null ? null : String(actual);
+  }).toBe(value);
+});
+
+Then('the active fixture file should be {string}', async ({ page }, relativePath: string) => {
+  await expect.poll(async () => (await getTestState(page))?.activeRelativePath || null).toBe(relativePath);
+});
+
+Then('the file switcher value should be {string}', async ({ page }, value: string) => {
+  await expect(page.locator('#fileSwitcher')).toHaveValue(value);
+});
+
+Then('the diff rows should contain {string}', async ({ page }, value: string) => {
+  await expect(page.locator('#diffRows')).toContainText(value);
+});
+
+function sidebarRevision(page: Page, value: string) {
+  return page.locator('.history-list .history-item').filter({ hasText: value }).first();
+}
+
+function normalizeKey(key: string) {
+  return key === '?' ? 'Shift+/' : key;
+}
+
+async function getTestState(page: Page) {
+  return page.evaluate(() => window.__TIMELINE_TEST_STATE__ || null);
+}

@@ -33,6 +33,7 @@ type TimelinePaneProps = {
   onFileInput: (value: string) => void;
   onSubmitFile: (value: string) => void;
   onToggleSidebar: () => void;
+  onToggleSidebarMenu: () => void;
   onToggleTimelinePane: () => void;
   onToggleHotkeys: () => void;
   onToggleActionsMenu: () => void;
@@ -90,7 +91,7 @@ export function TimelinePane(props: TimelinePaneProps) {
         <button class="collapse-button" id="toggleTimelinePaneButton" type="button" onClick={props.onToggleTimelinePane}>{collapseLabel()}</button>
       </div>
 
-      <div class="diff-head">
+      <div class="diff-head" id="timelineChrome">
         <div class="diff-head-top">
           <div class="file-switcher-row">
             <input
@@ -117,6 +118,7 @@ export function TimelinePane(props: TimelinePaneProps) {
             <div class="menu-wrap">
               <button class="menu-button" id="actionsButton" type="button" onClick={props.onToggleActionsMenu}>...</button>
               <div class={`menu${props.actionsMenuOpen() ? ' open' : ''}`} id="actionsMenu">
+                <button class="menu-item" id="toggleSidebarAction" type="button" onClick={props.onToggleSidebarMenu}>{props.sidebarCollapsed() ? 'Show Sidebar' : 'Hide Sidebar'}</button>
                 <button class="menu-item" id="openCurrentFileAction" type="button" onClick={props.onOpenCurrentFile}>Open File</button>
                 <button class="menu-item" id="openEditorButton" type="button" onClick={props.onOpenEditorDiff}>Open diff</button>
                 <button class="menu-item" id="openRangeFilesButton" type="button" onClick={props.onOpenRangeFilesDiff}>Open diffs</button>
@@ -144,7 +146,7 @@ export function TimelinePane(props: TimelinePaneProps) {
               />
               <div class="revision-picker-meta">
                 <button class="handle-pill from" id="fromHandleLabel" type="button" onClick={() => currentFromEntry() && props.onSelectEntry(currentFromEntry()!.index)}>From {currentFromEntry()?.shortRevision}</button>
-                <span class="revision-picker-relative">{currentFromEntry()?.relativeDate}</span>
+                <span class="revision-picker-relative" id="fromRelativeLabel">{currentFromEntry()?.relativeDate}</span>
               </div>
             </div>
             <span class="revision-arrow">→</span>
@@ -163,7 +165,7 @@ export function TimelinePane(props: TimelinePaneProps) {
               />
               <div class="revision-picker-meta">
                 <button class="handle-pill to" id="toHandleLabel" type="button" onClick={() => currentToEntry() && props.onSelectEntry(currentToEntry()!.index)}>To {currentToEntry()?.shortRevision}</button>
-                <span class="revision-picker-relative">{currentToEntry()?.relativeDate}</span>
+                <span class="revision-picker-relative" id="toRelativeLabel">{currentToEntry()?.relativeDate}</span>
               </div>
             </div>
             <datalist id="revisionOptionsList">
@@ -172,7 +174,7 @@ export function TimelinePane(props: TimelinePaneProps) {
           </div>
 
           <div class="control-row">
-            <div class="segmented">
+            <div class="segmented" id="comparisonModes">
               <Segment active={props.comparisonMode() === 'range'} onClick={() => props.onSetComparisonMode('range')}>Range</Segment>
               <Segment active={props.comparisonMode() === 'step'} onClick={() => props.onSetComparisonMode('step')}>Single</Segment>
             </div>
@@ -182,16 +184,16 @@ export function TimelinePane(props: TimelinePaneProps) {
                 <Segment active={props.comparisonSource() === 'snapshot'} onClick={() => props.onSetComparisonSource('snapshot')}>Snapshot</Segment>
               </div>
             </Show>
-            <div class="segmented">
+            <div class="segmented" id="layoutModes">
               <Segment active={props.layoutMode() === 'split'} onClick={() => props.onSetLayoutMode('split')}>Split</Segment>
               <Segment active={props.layoutMode() === 'unified'} onClick={() => props.onSetLayoutMode('unified')}>Unified</Segment>
             </div>
-            <div class="segmented">
+            <div class="segmented" id="contentModes">
               <Segment active={props.contentMode() === 'diffs'} onClick={() => props.onSetContentMode('diffs')}>Diffs</Segment>
               <Segment active={props.contentMode() === 'full'} onClick={() => props.onSetContentMode('full')}>Whole file</Segment>
             </div>
-            <button class={`toggle-chip${props.showIntermediateRevisions() ? ' active' : ''}`} type="button" onClick={props.onToggleIntermediate}>Show In-Between</button>
-            <div class="segmented">
+            <button class={`toggle-chip${props.showIntermediateRevisions() ? ' active' : ''}`} id="intermediateToggle" type="button" onClick={props.onToggleIntermediate}>Show In-Between</button>
+            <div class="segmented" id="presets">
               <For each={(['year', '7d', '30d', '90d', 'all'] as TimelinePreset[])}>
                 {(value) => <Segment active={props.preset() === value} onClick={() => props.onSetPreset(value)}>{presetLabels[value]}</Segment>}
               </For>
@@ -200,8 +202,8 @@ export function TimelinePane(props: TimelinePaneProps) {
         </div>
 
         <div class="timeline-row">
-          <button class="step-button" type="button" disabled={!props.canStepBackward()} onClick={() => props.onStep(-5)}>«</button>
-          <button class="step-button" type="button" disabled={!props.canStepBackward()} onClick={() => props.onStep(-1)}>‹</button>
+          <button class="step-button" id="stepFastBackwardButton" type="button" aria-label="Jump backward" disabled={!props.canStepBackward()} onClick={() => props.onStep(-5)}>«</button>
+          <button class="step-button" id="stepBackwardButton" type="button" aria-label="Previous range" disabled={!props.canStepBackward()} onClick={() => props.onStep(-1)}>‹</button>
           <div class="timeline">
             <div class="selection-meta" id="selectionMeta">{props.selectionMeta()}</div>
             <div class="track">
@@ -230,8 +232,8 @@ export function TimelinePane(props: TimelinePaneProps) {
               <For each={groupMonthLabels(props.visibleEntries())}>{(label) => <strong>{label}</strong>}</For>
             </div>
           </div>
-          <button class="step-button" type="button" disabled={!props.canStepForward()} onClick={() => props.onStep(1)}>›</button>
-          <button class="step-button" type="button" disabled={!props.canStepForward()} onClick={() => props.onStep(5)}>»</button>
+          <button class="step-button" id="stepForwardButton" type="button" aria-label="Next range" disabled={!props.canStepForward()} onClick={() => props.onStep(1)}>›</button>
+          <button class="step-button" id="stepFastForwardButton" type="button" aria-label="Jump forward" disabled={!props.canStepForward()} onClick={() => props.onStep(5)}>»</button>
         </div>
 
         <div class="step-status-row">
