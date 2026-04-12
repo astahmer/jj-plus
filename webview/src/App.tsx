@@ -72,7 +72,7 @@ export function App() {
     }
 
     return visibleEntries().filter((entry) => {
-      return [entry.shortRevision, entry.description, entry.changeId, entry.shortDate]
+      return [entry.shortRevision, entry.description, entry.changeId, entry.shortDate, entry.authorName, entry.operationId, entry.monthLabel]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(query));
     });
@@ -536,12 +536,12 @@ export function App() {
     }
     if (event.key === 'ArrowUp') {
       event.preventDefault();
-      stepSelection(jumpAmount);
+      stepSelection(-jumpAmount);
       return;
     }
     if (event.key === 'ArrowDown') {
       event.preventDefault();
-      stepSelection(-jumpAmount);
+      stepSelection(jumpAmount);
     }
   }
 
