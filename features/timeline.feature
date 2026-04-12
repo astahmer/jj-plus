@@ -20,7 +20,7 @@ Feature: Revision timeline app
     Then the selection meta should contain "Pick another revision to complete the range."
     When I select the revision "woumzsyy/0" from the sidebar
     Then the diff title should contain "Current"
-    And the diff title should contain "woumzsyy/0"
+    And the diff title should contain "Snapshot"
 
   Scenario: Toggling in-between revisions changes the visible count
     Given I open the standalone revision timeline app for fixture "jj-basic"
@@ -29,13 +29,14 @@ Feature: Revision timeline app
     Then I should see the range count "2/5 snapshots"
     And I should see 5 sidebar revisions
     And the button "Show In-Between" should not be active
+    And the in-between toggle should contain "Show In-Between 5/7"
 
   Scenario: Switching the comparison source updates the preview mode
     Given I open the standalone revision timeline app for fixture "jj-basic"
     When I toggle the in-between revisions filter
     And I switch the comparison source to "Revision"
     Then I should see the range count "2/4 revisions"
-    And the diff mode eyebrow should contain "REVISION PREVIEW"
+    And the diff mode eyebrow should contain "REVISION"
     And the button "Revision" should be active
 
   Scenario: Switching layout, content, and comparison modes changes the rendered preview
@@ -47,7 +48,7 @@ Feature: Revision timeline app
     And I switch the comparison mode to "Single"
     Then the diff layout mode should be "unified"
     And the diff content mode should be "full"
-    And the diff mode eyebrow should contain "UNIFIED · WHOLE FILE · SINGLE · REVISION PREVIEW"
+    And the diff mode eyebrow should contain "UNIFIED · WHOLE FILE · SINGLE · REVISION"
     And the step status should contain "3/3 diffs"
 
   Scenario: Searching revisions filters the sidebar list
@@ -79,6 +80,24 @@ Feature: Revision timeline app
     When I press the "Space" key
     Then the last host action should be "open-range-files-diff"
 
+  Scenario: Keyboard shortcuts focus controls and exit diff focus mode
+    Given I open the standalone revision timeline app for fixture "git-basic"
+    When I press the "/" key
+    Then the focused element should be "fileSwitcher"
+    When I press the "f" key
+    Then the focused element should be "fromRevisionInput"
+    When I press the "t" key
+    Then the focused element should be "toRevisionInput"
+    When I press the "b" key
+    Then the workspace should be collapsed
+    When I press the "s" key
+    Then the focused element should be "sidebarSearchInput"
+    And the workspace should not be collapsed
+    When I press the "d" key
+    Then the workspace should be in diff focus mode
+    When I press the "Escape" key
+    Then the workspace should not be in diff focus mode
+
   Scenario: The actions menu dispatches extension actions
     Given I open the standalone revision timeline app for fixture "jj-basic"
     When I open the actions menu
@@ -102,7 +121,7 @@ Feature: Revision timeline app
   Scenario: Sidebar actions dispatch extension actions
     Given I open the standalone revision timeline app for fixture "jj-basic"
     When I click the sidebar open diff button
-    Then the last host action should be "open-editor-diff"
+    Then the last host action should be "open-range-files-diff"
     When I click the "Remote" row action for revision "plan refinement"
     Then the last host action should be "open-revision-remote"
     And the last host action payload should include "revision" as "woumzsyy/0"
@@ -116,6 +135,13 @@ Feature: Revision timeline app
     And the file switcher value should be "apps/backend/src/service.ts"
     And the diff rows should contain "buildServiceLabel"
 
+  Scenario: Pending timeline selections show a range preview tooltip
+    Given I open the standalone revision timeline app for fixture "git-basic"
+    When I click timeline anchor 2
+    And I hover timeline anchor 0
+    Then the range tooltip should contain "Pending selection"
+    And the range tooltip should contain "3 revisions"
+
   Scenario: Focus mode hides the surrounding chrome without losing the diff
     Given I open the standalone revision timeline app for fixture "git-basic"
     When I click the diff focus button
@@ -123,7 +149,7 @@ Feature: Revision timeline app
     When I click the diff focus button
     Then the workspace should not be in diff focus mode
 
-  Scenario: Sidebar and timeline preferences persist across reloads
+  Scenario: Timeline preferences persist across reloads without restoring a collapsed sidebar
     Given I open the standalone revision timeline app for fixture "git-basic"
     When I open the actions menu
     And I choose the action menu item "Hide Sidebar"
@@ -131,10 +157,9 @@ Feature: Revision timeline app
     And I switch the content mode to "Whole file"
     And I select the preset "All"
     And I click the timeline collapse button
-    Then the workspace should be collapsed
     And the timeline pane should be collapsed
     When I reload the page
-    Then the workspace should be collapsed
+    Then the workspace should not be collapsed
     And the timeline pane should be collapsed
     When I click the timeline collapse button
     And the diff layout mode should be "unified"

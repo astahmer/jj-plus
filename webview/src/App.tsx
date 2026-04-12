@@ -1,27 +1,30 @@
 import { Show, createEffect, createMemo, createSignal, onCleanup, onMount } from 'solid-js';
-import { createStore } from 'solid-js/store';
+import { createStore, reconcile } from 'solid-js/store';
 import { Sidebar } from './components/Sidebar';
 import { TimelinePane } from './components/TimelinePane';
 import { DiffPanel } from './components/DiffPanel';
 import { createTimelineHost } from './host';
-import { getEntriesForSource, getPendingSnapshotRevisionIndexes, getSelectedEntryCount, getSidebarPreviewRequests, getUnitPreviewRange } from './timeline-model';
+import { getEntriesForSource, getIntermediateToggleLabel, getPendingSelectionRange, getPendingSnapshotRevisionIndexes, getSelectedEntryCount, getSidebarPreviewRequests, getUnitPreviewRange } from './timeline-model';
 import type { ComparisonMode, ComparisonSource, ContentMode, DiffPreview, FileRevisionEntry, HistoryBackend, LayoutMode, TimelineCommand, TimelineData, TimelineInboundMessage, TimelinePreset } from './types';
 import { RevisionIdentifier, getRevisionIdentifierValue } from './components/RevisionIdentifier';
 
 type TooltipState =
   | {
-      kind: 'timestamp';
+      kind: 'info';
       left: number;
       top: number;
-      exactTimestamp: string;
+      label: string | null;
+      value: string;
     }
   | {
-      kind: 'segment';
+      kind: 'range';
       left: number;
       top: number;
       fromEntry: FileRevisionEntry;
       toEntry: FileRevisionEntry;
       preview: DiffPreview | null;
+      pending: boolean;
+      selectedCount: number;
     };
 
 type UiState = {
@@ -78,18 +81,29 @@ const initialState: UiState = {
   pendingRangeResolutionKey: '',
 };
 
+const TIMELINE_EXPANDED_MIN_HEIGHT = 176;
+const TIMELINE_COLLAPSED_HEIGHT = 128;
+const TIMELINE_MAX_HEIGHT = 520;
+
 export function App() {
   const host = createTimelineHost();
   const [state, setState] = createStore<UiState>(initialState);
   const [ready, setReady] = createSignal(false);
   const [tooltip, setTooltip] = createSignal<TooltipState | null>(null);
-  const effectiveComparisonSource = createMemo<ComparisonSource>(() => state.data?.backend === 'jj' ? state.comparisonSource : 'revision');
+  const effectiveComparisonSource = createMemo<ComparisonSource>(() => {
+    if (state.data?.backend !== 'jj') {
+      return 'revision';
+    }
+
+    return state.comparisonSource === 'snapshot' ? 'snapshot' : 'revision';
+  });
 
   const revisionEntries = createMemo<FileRevisionEntry[]>(() => getEntriesForSource(state.data, 'revision'));
   const revisionVisibleEntries = createMemo<FileRevisionEntry[]>(() => filterEntries(revisionEntries(), state.data, state.preset, state.showIntermediateRevisions));
 
   const sourceEntries = createMemo<FileRevisionEntry[]>(() => getEntriesForSource(state.data, effectiveComparisonSource()));
   const visibleEntries = createMemo<FileRevisionEntry[]>(() => filterEntries(sourceEntries(), state.data, state.preset, state.showIntermediateRevisions));
+  const presetEntries = createMemo<FileRevisionEntry[]>(() => filterEntries(sourceEntries(), state.data, state.preset, true));
 
   const filteredSidebarEntries = createMemo(() => {
     const query = state.sidebarSearchQuery.trim().toLowerCase();
@@ -117,6 +131,8 @@ export function App() {
     const selectedCount = getSelectedEntryCount(visibleEntries(), state.fromIndex, state.toIndex);
     return `${selectedCount}/${visibleEntries().length} ${effectiveComparisonSource() === 'snapshot' ? 'snapshots' : 'revisions'}`;
   });
+  const intermediateLabel = createMemo(() => getIntermediateToggleLabel(visibleEntries().length, presetEntries().length, state.showIntermediateRevisions));
+  const pendingSelectionRange = createMemo(() => getPendingSelectionRange(visibleEntries(), state.pendingSelectionIndex, state.hoveredSelectionIndex));
 
   const currentFromEntry = createMemo(() => sourceEntries().find((entry) => entry.index === state.fromIndex));
   const currentToEntry = createMemo(() => sourceEntries().find((entry) => entry.index === state.toIndex));
@@ -125,9 +141,9 @@ export function App() {
   const canStepForward = createMemo(() => canNavigateSelection(visibleEntries(), state.fromIndex, state.toIndex, state.comparisonMode, 1));
   const selectionMeta = createMemo(() => state.pendingSelectionIndex === null
     ? 'Click an anchor or a sidebar entry to change the preview.'
-    : state.hoveredSelectionIndex === null
+    : pendingSelectionRange() === null
       ? 'Pick another revision to complete the range.'
-      : `Selecting ${getSelectedEntryCount(visibleEntries(), state.pendingSelectionIndex, state.hoveredSelectionIndex)} revisions…`);
+      : `Selecting ${pendingSelectionRange()!.selectedCount} revisions…`);
   const stepStatus = createMemo(() => {
     if (state.comparisonMode === 'step') {
       const current = Math.max(1, visibleEntries().findIndex((entry) => entry.index === state.toIndex));
@@ -157,6 +173,11 @@ export function App() {
 
     return state.previewByRange[buildPreviewKey(range.fromIndex, range.toIndex, effectiveComparisonSource())] || null;
   };
+
+  function clearPreviewState() {
+    setState('previewByRange', reconcile({}));
+    setState({ sidebarPreviewInFlightKey: '', pendingRangeResolutionKey: '' });
+  }
 
   onMount(() => {
     const unsubscribe = host.subscribe(handleMessage);
@@ -222,16 +243,25 @@ export function App() {
     const onTimelineResizePointerDown = (event: PointerEvent) => {
       event.preventDefault();
       const startY = event.clientY;
-      const startHeight = state.timelinePaneCollapsed ? 196 : state.timelinePaneHeight;
+      const startHeight = state.timelinePaneCollapsed ? TIMELINE_COLLAPSED_HEIGHT : state.timelinePaneHeight;
       if (state.timelinePaneCollapsed) {
-        setState({ timelinePaneCollapsed: false, timelinePaneHeight: startHeight });
+        setState({ timelinePaneCollapsed: false });
       }
 
       timelineResizeHandle?.classList.add('is-dragging');
 
       const onPointerMove = (moveEvent: PointerEvent) => {
         const delta = moveEvent.clientY - startY;
-        setState('timelinePaneHeight', Math.max(196, Math.min(420, startHeight + delta)));
+        const nextHeight = Math.max(96, Math.min(TIMELINE_MAX_HEIGHT, startHeight + delta));
+        if (nextHeight <= TIMELINE_COLLAPSED_HEIGHT) {
+          setState('timelinePaneCollapsed', true);
+          return;
+        }
+
+        setState({
+          timelinePaneCollapsed: false,
+          timelinePaneHeight: Math.max(TIMELINE_EXPANDED_MIN_HEIGHT, nextHeight),
+        });
       };
 
       const onPointerUp = () => {
@@ -249,13 +279,23 @@ export function App() {
         return;
       }
 
+      const anchor = (event.target as HTMLElement | null)?.closest('.track-anchor[data-entry-index]') as HTMLElement | null;
+      if (state.pendingSelectionIndex !== null && anchor) {
+        const hoveredSelectionIndex = Number(anchor.dataset.entryIndex || '');
+        const pendingTooltip = Number.isInteger(hoveredSelectionIndex)
+          ? buildRangeTooltipState(visibleEntries(), state.previewByRange, effectiveComparisonSource(), state.pendingSelectionIndex, hoveredSelectionIndex, event.clientX, event.clientY, true)
+          : null;
+        setTooltip(pendingTooltip);
+        return;
+      }
+
       const segment = getSegmentTooltipState(visibleEntries(), state.previewByRange, effectiveComparisonSource(), event.clientX, event.clientY);
       setTooltip(segment);
     };
 
     const onTrackMouseLeave = () => {
       if (!draggingTimeline) {
-        setTooltip((current) => current?.kind === 'segment' ? null : current);
+        setTooltip((current) => current?.kind === 'range' ? null : current);
       }
     };
 
@@ -265,7 +305,7 @@ export function App() {
       }
 
       setState({ pendingSelectionIndex: null, hoveredSelectionIndex: null });
-      setTooltip((current) => current?.kind === 'segment' ? null : current);
+  setTooltip((current) => current?.kind === 'range' ? null : current);
       draggingTimeline = true;
       event.preventDefault();
       event.stopPropagation();
@@ -281,6 +321,7 @@ export function App() {
       const width = Math.max(1, startToVisibleIndex - startFromVisibleIndex);
       const startX = event.clientX;
       const denominator = Math.max(1, visibleEntries().length - 1);
+      track?.classList.add('is-dragging');
       rangeFill?.classList.add('is-dragging');
 
       const onPointerMove = (moveEvent: PointerEvent) => {
@@ -296,6 +337,7 @@ export function App() {
 
       const onPointerUp = () => {
         draggingTimeline = false;
+        track?.classList.remove('is-dragging');
         rangeFill?.classList.remove('is-dragging');
         window.removeEventListener('pointermove', onPointerMove);
         window.removeEventListener('pointerup', onPointerUp);
@@ -311,10 +353,11 @@ export function App() {
       }
 
       setState({ comparisonMode: 'range', pendingSelectionIndex: null, hoveredSelectionIndex: null });
-      setTooltip((current) => current?.kind === 'segment' ? null : current);
+  setTooltip((current) => current?.kind === 'range' ? null : current);
       draggingTimeline = true;
       event.preventDefault();
       event.stopPropagation();
+  track?.classList.add('is-dragging');
 
       updateMarkerSelection(side, event.clientX, visibleEntries(), state.fromIndex, state.toIndex, setState);
 
@@ -324,6 +367,7 @@ export function App() {
 
       const onPointerUp = () => {
         draggingTimeline = false;
+        track?.classList.remove('is-dragging');
         window.removeEventListener('pointermove', onPointerMove);
         window.removeEventListener('pointerup', onPointerUp);
       };
@@ -369,7 +413,7 @@ export function App() {
 
   createEffect(() => {
     document.documentElement.style.setProperty('--sidebar-width', `${state.sidebarWidth}px`);
-    document.documentElement.style.setProperty('--timeline-pane-height', `${state.timelinePaneCollapsed ? 118 : state.timelinePaneHeight}px`);
+    document.documentElement.style.setProperty('--timeline-pane-height', `${state.timelinePaneCollapsed ? TIMELINE_COLLAPSED_HEIGHT : state.timelinePaneHeight}px`);
   });
 
   createEffect(() => {
@@ -422,6 +466,24 @@ export function App() {
       comparisonSource: effectiveComparisonSource(),
     });
   });
+
+  createEffect((previousSource: ComparisonSource | null) => {
+    if (!ready() || !state.data || state.data.backend !== 'jj') {
+      return state.data?.backend === 'jj' ? state.comparisonSource : null;
+    }
+
+    const currentSource = state.comparisonSource;
+    if (previousSource !== null && previousSource !== currentSource) {
+      host.send({
+        command: 'select-entry',
+        fromIndex: state.fromIndex,
+        toIndex: state.toIndex,
+        comparisonSource: currentSource,
+      });
+    }
+
+    return currentSource;
+  }, null);
 
   createEffect(() => {
     if (!state.data || state.data.backend !== 'jj' || effectiveComparisonSource() !== 'snapshot') {
@@ -486,11 +548,9 @@ export function App() {
         hoveredSelectionIndex: null,
         oldestFirst: false,
         fileInputValue: message.payload.relativePath,
-        previewByRange: {},
-        sidebarPreviewInFlightKey: '',
-        pendingRangeResolutionKey: '',
         sidebarSearchQuery: '',
       });
+      clearPreviewState();
       return;
     }
 
@@ -539,10 +599,8 @@ export function App() {
           data: nextData,
           fromIndex: nextFromIndex ?? state.fromIndex,
           toIndex: nextToIndex ?? state.toIndex,
-          previewByRange: {},
-          sidebarPreviewInFlightKey: '',
-          pendingRangeResolutionKey: '',
         });
+        clearPreviewState();
         return;
       }
 
@@ -701,7 +759,15 @@ export function App() {
   }
 
   function toggleTimelinePane() {
-    setState('timelinePaneCollapsed', (value) => !value);
+    if (state.timelinePaneCollapsed) {
+      setState({
+        timelinePaneCollapsed: false,
+        timelinePaneHeight: Math.max(TIMELINE_EXPANDED_MIN_HEIGHT, state.timelinePaneHeight),
+      });
+      return;
+    }
+
+    setState({ timelinePaneCollapsed: true, actionsMenuOpen: false, hotkeysOpen: false });
   }
 
   function toggleDiffFocus() {
@@ -784,10 +850,8 @@ export function App() {
       pendingSelectionIndex: null,
       hoveredSelectionIndex: null,
       oldestFirst: false,
-      previewByRange: {},
-      sidebarPreviewInFlightKey: '',
-      pendingRangeResolutionKey: '',
     });
+    clearPreviewState();
   }
 
   function setComparisonMode(value: ComparisonMode) {
@@ -818,10 +882,8 @@ export function App() {
       toIndex,
       pendingSelectionIndex: null,
       hoveredSelectionIndex: null,
-      previewByRange: {},
-      sidebarPreviewInFlightKey: '',
-      pendingRangeResolutionKey: '',
     });
+    clearPreviewState();
   }
 
   function setPreset(value: TimelinePreset) {
@@ -869,10 +931,29 @@ export function App() {
     setState({ fromIndex, toIndex, pendingSelectionIndex: null, hoveredSelectionIndex: null });
   }
 
+  function focusInputField(elementId: string, openSidebar = false) {
+    if (openSidebar && state.sidebarCollapsed) {
+      setState('sidebarCollapsed', false);
+    }
+
+    window.requestAnimationFrame(() => {
+      const element = document.getElementById(elementId) as HTMLInputElement | null;
+      if (!element) {
+        return;
+      }
+
+      element.focus();
+      element.select();
+    });
+  }
+
   function onKeyDown(event: KeyboardEvent) {
     const target = event.target as HTMLElement | null;
     const tagName = target?.tagName?.toLowerCase();
-    if (tagName === 'input' || tagName === 'textarea') {
+    const lowerKey = event.key.toLowerCase();
+    const isModifierless = !event.metaKey && !event.ctrlKey && !event.altKey;
+    const allowWhileEditing = isModifierless && (lowerKey === 'b' || lowerKey === 'd' || lowerKey === 'f' || lowerKey === 's' || lowerKey === 't' || event.key === '/' || event.key === 'Escape');
+    if ((tagName === 'input' || tagName === 'textarea') && !allowWhileEditing) {
       return;
     }
 
@@ -884,15 +965,51 @@ export function App() {
       return;
     }
 
-    if (!event.metaKey && !event.ctrlKey && !event.altKey && (event.key === 'b' || event.key === 'B')) {
+    if (!event.metaKey && !event.ctrlKey && !event.altKey && lowerKey === 'b') {
       event.preventDefault();
       toggleSidebar();
+      return;
+    }
+
+    if (!event.metaKey && !event.ctrlKey && !event.altKey && lowerKey === 'd') {
+      event.preventDefault();
+      toggleDiffFocus();
+      return;
+    }
+
+    if (!event.metaKey && !event.ctrlKey && !event.altKey && lowerKey === 'f') {
+      event.preventDefault();
+      focusInputField('fromRevisionInput');
+      return;
+    }
+
+    if (!event.metaKey && !event.ctrlKey && !event.altKey && lowerKey === 't') {
+      event.preventDefault();
+      focusInputField('toRevisionInput');
+      return;
+    }
+
+    if (!event.metaKey && !event.ctrlKey && !event.altKey && event.key === '/') {
+      event.preventDefault();
+      focusInputField('fileSwitcher');
+      return;
+    }
+
+    if (!event.metaKey && !event.ctrlKey && !event.altKey && lowerKey === 's') {
+      event.preventDefault();
+      focusInputField('sidebarSearchInput', true);
       return;
     }
 
     if (event.key === 'Escape' && (state.hotkeysOpen || state.actionsMenuOpen)) {
       event.preventDefault();
       setState({ hotkeysOpen: false, actionsMenuOpen: false, pendingSelectionIndex: null, hoveredSelectionIndex: null });
+      return;
+    }
+
+    if (event.key === 'Escape' && state.diffFocusMode) {
+      event.preventDefault();
+      setState('diffFocusMode', false);
       return;
     }
 
@@ -954,23 +1071,65 @@ export function App() {
     setState('hoveredSelectionIndex', entryIndex);
   }
 
-  function showTimestampTooltip(event: MouseEvent, entry: FileRevisionEntry) {
+  function showAnchorTooltip(entryIndex: number, target: HTMLElement) {
+    const rect = target.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const anchorTop = rect.top;
+
+    if (state.pendingSelectionIndex !== null) {
+      setTooltip(buildRangeTooltipState(
+        visibleEntries(),
+        state.previewByRange,
+        effectiveComparisonSource(),
+        state.pendingSelectionIndex,
+        entryIndex,
+        centerX,
+        anchorTop,
+        true,
+      ));
+      return;
+    }
+
+    const unitRange = getUnitPreviewRange(visibleEntries(), entryIndex);
+    if (!unitRange) {
+      hideRangeTooltip();
+      return;
+    }
+
+    setTooltip(buildRangeTooltipState(
+      visibleEntries(),
+      state.previewByRange,
+      effectiveComparisonSource(),
+      unitRange.fromIndex,
+      unitRange.toIndex,
+      centerX,
+      anchorTop,
+      false,
+    ));
+  }
+
+  function hideRangeTooltip() {
+    setTooltip((current) => current?.kind === 'range' ? null : current);
+  }
+
+  function showInfoTooltip(event: MouseEvent, label: string | null, value: string) {
     const target = event.currentTarget as HTMLElement | null;
     const rect = target?.getBoundingClientRect();
-    if (!rect) {
+    if (!rect || !value) {
       return;
     }
 
     setTooltip({
-      kind: 'timestamp',
+      kind: 'info',
       left: rect.left + rect.width / 2,
       top: rect.top - 8,
-      exactTimestamp: formatExactTimestamp(entry.authorDate),
+      label,
+      value: label === 'Timestamp' ? formatExactTimestamp(value) : value,
     });
   }
 
   function hideTooltip() {
-    setTooltip((current) => current?.kind === 'timestamp' ? null : current);
+    setTooltip((current) => current?.kind === 'info' ? null : current);
   }
 
   return (
@@ -993,11 +1152,11 @@ export function App() {
           onOpenRevisionFilesDiff={openRevisionFilesDiff}
           onOpenRevisionRemote={openRevisionRemote}
           previewForEntry={previewForEntry}
-          onShowTimestampTooltip={showTimestampTooltip}
+          onShowInfoTooltip={showInfoTooltip}
           onHideTooltip={hideTooltip}
         />
         <div class="resize-handle" id="resizeHandle" />
-        <section class="panel diff-panel">
+        <section class={`panel diff-panel${state.timelinePaneCollapsed ? ' is-timeline-only' : ''}`}>
           <TimelinePane
             backend={() => (state.data?.backend || null) as HistoryBackend | null}
             visibleEntries={visibleEntries}
@@ -1013,9 +1172,9 @@ export function App() {
             stepStatus={stepStatus}
             version={version}
             comparisonMode={() => state.comparisonMode}
-            comparisonSource={effectiveComparisonSource}
             layoutMode={() => state.layoutMode}
             contentMode={() => state.contentMode}
+            intermediateLabel={intermediateLabel}
             preset={() => state.preset}
             showIntermediateRevisions={() => state.showIntermediateRevisions}
             hasIntermediateRevisions={() => state.data?.hasIntermediateRevisions === true}
@@ -1028,7 +1187,7 @@ export function App() {
             diffFocusMode={() => state.diffFocusMode}
             canStepBackward={canStepBackward}
             canStepForward={canStepForward}
-            onFileInput={(value) => setState('fileInputValue', value)}
+            onFileInput={() => undefined}
             onSubmitFile={submitFile}
             onToggleSidebar={toggleSidebar}
             onToggleSidebarMenu={toggleSidebarFromMenu}
@@ -1050,17 +1209,19 @@ export function App() {
             onStep={stepSelection}
             onSelectEntry={handleEntrySelection}
             onHoverEntry={setHoveredEntry}
+            onShowAnchorTooltip={showAnchorTooltip}
+            onHideRangeTooltip={hideRangeTooltip}
             onSubmitRevision={submitRevision}
           />
           <DiffPanel
-            preview={preview}
-            fromEntry={currentFromEntry}
-            toEntry={currentToEntry}
-            layoutMode={() => state.layoutMode}
-            contentMode={() => state.contentMode}
-            comparisonMode={() => state.comparisonMode}
-            comparisonSource={effectiveComparisonSource}
-            diffFocusMode={() => state.diffFocusMode}
+            preview={preview()}
+            fromEntry={currentFromEntry()}
+            toEntry={currentToEntry()}
+            layoutMode={state.layoutMode}
+            contentMode={state.contentMode}
+            comparisonMode={state.comparisonMode}
+            comparisonSource={effectiveComparisonSource()}
+            diffFocusMode={state.diffFocusMode}
             onToggleDiffFocus={toggleDiffFocus}
           />
         </section>
@@ -1068,16 +1229,23 @@ export function App() {
       <Show when={tooltip()}>
         {(activeTooltip) => {
           const current = activeTooltip();
+          const tooltipLeft = clampTooltipX(current.left);
           return (
-            <div class={`anchor-tooltip${current.kind === 'segment' ? ' anchor-tooltip--segment' : ''}`} style={{ left: `${current.left}px`, top: `${current.top}px`, transform: 'translate(-50%, calc(-100% - 8px))' }}>
-              {current.kind === 'timestamp'
-                ? <div class="anchor-tooltip-meta">{current.exactTimestamp}</div>
+            <div class={`anchor-tooltip${current.kind === 'range' ? ' anchor-tooltip--segment' : ''}${current.kind === 'range' && current.pending ? ' anchor-tooltip--pending' : ''}`} style={{ left: `${tooltipLeft}px`, top: `${Math.max(48, current.top)}px`, transform: 'translate(-50%, calc(-100% - 8px))' }}>
+              {current.kind === 'info'
+                ? <>
+                    <Show when={current.label}>
+                      <div class="anchor-tooltip-label">{current.label}</div>
+                    </Show>
+                    <div class="anchor-tooltip-meta">{current.value}</div>
+                  </>
                 : <>
                     <div class="anchor-tooltip-id anchor-tooltip-range">
                       <RevisionIdentifier value={getRevisionIdentifierValue(current.fromEntry)} highlightPrefix={current.fromEntry.changeId} plain={current.fromEntry.isWorkingTree} />
                       <span class="diff-title-arrow">→</span>
                       <RevisionIdentifier value={getRevisionIdentifierValue(current.toEntry)} highlightPrefix={current.toEntry.changeId} plain={current.toEntry.isWorkingTree} />
                     </div>
+                    <div class="anchor-tooltip-label">{current.pending ? `Pending selection · ${current.selectedCount} revisions` : `Segment preview · ${current.selectedCount} revisions`}</div>
                     <div class="anchor-tooltip-meta">From {current.fromEntry.relativeDate || 'unknown'} · {formatExactTimestamp(current.fromEntry.authorDate)}</div>
                     <div class="anchor-tooltip-meta">To {current.toEntry.relativeDate || 'unknown'} · {formatExactTimestamp(current.toEntry.authorDate)}</div>
                     <div class="anchor-tooltip-desc">{current.preview?.subtitle || current.toEntry.description}</div>
@@ -1214,6 +1382,36 @@ function ensureMinimumRangeWidth(
   });
 }
 
+function buildRangeTooltipState(
+  entries: FileRevisionEntry[],
+  previewByRange: Record<string, DiffPreview>,
+  comparisonSource: ComparisonSource,
+  fromIndex: number,
+  toIndex: number,
+  clientX: number,
+  clientY: number,
+  pending: boolean,
+): TooltipState | null {
+  const normalizedFromIndex = Math.min(fromIndex, toIndex);
+  const normalizedToIndex = Math.max(fromIndex, toIndex);
+  const fromEntry = entries.find((entry) => entry.index === normalizedFromIndex);
+  const toEntry = entries.find((entry) => entry.index === normalizedToIndex);
+  if (!fromEntry || !toEntry) {
+    return null;
+  }
+
+  return {
+    kind: 'range',
+    left: clientX,
+    top: clientY,
+    fromEntry,
+    toEntry,
+    preview: previewByRange[buildPreviewKey(normalizedFromIndex, normalizedToIndex, comparisonSource)] || null,
+    pending,
+    selectedCount: getSelectedEntryCount(entries, normalizedFromIndex, normalizedToIndex),
+  };
+}
+
 function getSegmentTooltipState(
   entries: FileRevisionEntry[],
   previewByRange: Record<string, DiffPreview>,
@@ -1232,15 +1430,7 @@ function getSegmentTooltipState(
     return null;
   }
 
-  const preview = previewByRange[buildPreviewKey(fromEntry.index, toEntry.index, comparisonSource)] || null;
-  return {
-    kind: 'segment',
-    left: clientX,
-    top: clientY,
-    fromEntry,
-    toEntry,
-    preview,
-  };
+  return buildRangeTooltipState(entries, previewByRange, comparisonSource, fromEntry.index, toEntry.index, clientX, clientY, false);
 }
 
 function formatExactTimestamp(authorDate: string) {
@@ -1250,6 +1440,14 @@ function formatExactTimestamp(authorDate: string) {
   }
 
   return date.toLocaleString();
+}
+
+function clampTooltipX(left: number) {
+  if (typeof window === 'undefined') {
+    return left;
+  }
+
+  return Math.min(window.innerWidth - 180, Math.max(180, left));
 }
 
 function normalizeSelection(entries: FileRevisionEntry[], fromIndex: number, toIndex: number, comparisonMode: ComparisonMode): [number, number] {

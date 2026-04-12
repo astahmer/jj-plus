@@ -20,7 +20,7 @@ type SidebarProps = {
   onOpenRevisionFilesDiff: (entryIndex: number) => void;
   onOpenRevisionRemote: (entryIndex: number) => void;
   previewForEntry: (entryIndex: number) => DiffPreview | null;
-  onShowTimestampTooltip: (event: MouseEvent, entry: FileRevisionEntry) => void;
+  onShowInfoTooltip: (event: MouseEvent, label: string | null, value: string) => void;
   onHideTooltip: () => void;
 };
 
@@ -82,9 +82,10 @@ export function Sidebar(props: SidebarProps) {
         <Show when={props.entries().length} fallback={<div class="empty">{props.searchValue().trim() ? 'No revisions match the current search.' : 'No revisions in the current filter.'}</div>}>
           <For each={props.entries()}>
             {(entry) => {
-              const isFrom = () => entry.index === props.activeFromIndex();
-              const isTo = () => entry.index === props.activeToIndex();
-              const inRange = () => entry.index >= Math.min(props.activeFromIndex(), props.activeToIndex()) && entry.index <= Math.max(props.activeFromIndex(), props.activeToIndex());
+              const showCommittedSelection = () => props.pendingAnchorIndex() === null;
+              const isFrom = () => showCommittedSelection() && entry.index === props.activeFromIndex();
+              const isTo = () => showCommittedSelection() && entry.index === props.activeToIndex();
+              const inRange = () => showCommittedSelection() && entry.index >= Math.min(props.activeFromIndex(), props.activeToIndex()) && entry.index <= Math.max(props.activeFromIndex(), props.activeToIndex());
               const pending = () => props.pendingAnchorIndex() === entry.index;
               const preview = () => props.previewForEntry(entry.index);
               const inPendingRange = () => {
@@ -97,12 +98,10 @@ export function Sidebar(props: SidebarProps) {
                 return entry.index >= Math.min(pendingIndex, hoveredIndex) && entry.index <= Math.max(pendingIndex, hoveredIndex);
               };
               const copyKey = `primary:${entry.id}`;
-              const primaryCopyValue = entry.operationId || entry.revision || entry.shortRevision;
+              const primaryCopyValue = getRevisionIdentifierValue(entry) || entry.shortRevision || entry.revision || entry.id;
               const primaryContent = () => copiedIdentifierKey() === copyKey
                 ? 'Copied!'
-                : entry.operationId
-                  ? <span class="identifier"><span class="identifier-plain">{entry.operationId}</span></span>
-                  : <RevisionIdentifier value={getRevisionIdentifierValue(entry)} highlightPrefix={entry.changeId} plain={entry.isWorkingTree} />;
+                : <RevisionIdentifier value={getRevisionIdentifierValue(entry)} highlightPrefix={entry.changeId} plain={entry.isWorkingTree} />;
               const operationCopyKey = `operation-key:${entry.id}`;
 
               return (
@@ -127,6 +126,12 @@ export function Sidebar(props: SidebarProps) {
                       <button
                         class="history-id-button"
                         type="button"
+                        onMouseEnter={(event) => {
+                          if (entry.operationId) {
+                            props.onShowInfoTooltip(event, 'Operation', entry.operationId);
+                          }
+                        }}
+                        onMouseLeave={props.onHideTooltip}
                         onClick={(event) => {
                           event.stopPropagation();
                           void copyIdentifier(copyKey, primaryCopyValue);
@@ -161,7 +166,7 @@ export function Sidebar(props: SidebarProps) {
                     <div class="history-actions">
                       <span
                         class="history-date-trigger"
-                        onMouseEnter={(event) => props.onShowTimestampTooltip(event, entry)}
+                        onMouseEnter={(event) => props.onShowInfoTooltip(event, 'Timestamp', entry.authorDate)}
                         onMouseLeave={props.onHideTooltip}
                       >
                         {entry.shortDate}
@@ -197,7 +202,7 @@ export function Sidebar(props: SidebarProps) {
                     <span class="history-meta">
                       <span
                         class="history-meta-timestamp"
-                        onMouseEnter={(event) => props.onShowTimestampTooltip(event, entry)}
+                        onMouseEnter={(event) => props.onShowInfoTooltip(event, 'Timestamp', entry.authorDate)}
                         onMouseLeave={props.onHideTooltip}
                       >
                         {entry.relativeDate}

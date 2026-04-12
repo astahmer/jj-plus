@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 
 const { textsMatchIgnoringLineEndings, normalizeTextForComparison } = require('../lib/diff-helpers.js');
 const { dedupeAdjacentEntriesByChangeId, getGitHubRemoteBaseUrl, normalizeSnapshotOperationKey, parseJjEvolutionLine, parseJjEvolutionSummaryEntries, parseJjSummaryChangedPaths, parseJjSummaryRenameLines } = require('../lib/history-helpers.js');
-const { getEntriesForSource, getPendingSnapshotRevisionIndexes, getSelectedEntryCount, getSidebarPreviewRequests, getTimelineAnchorPercent, getUnitPreviewRange } = require('../lib/timeline-model.js');
+const { getEntriesForSource, getIntermediateToggleLabel, getPendingSelectionRange, getPendingSnapshotRevisionIndexes, getSelectedEntryCount, getSidebarPreviewRequests, getTimelineAnchorPercent, getUnitPreviewRange } = require('../lib/timeline-model.js');
 
 test('normalizeTextForComparison normalizes CRLF to LF', () => {
   assert.equal(normalizeTextForComparison('a\r\nb\r\n'), 'a\nb\n');
@@ -180,6 +180,28 @@ test('timeline model computes unit preview ranges and selected counts', () => {
   assert.deepEqual(getUnitPreviewRange(visibleEntries, 10), { fromIndex: 8, toIndex: 10 });
   assert.equal(getUnitPreviewRange(visibleEntries, 4), null);
   assert.equal(getSelectedEntryCount(visibleEntries, 8, 14), 3);
+});
+
+test('timeline model derives the pending selection range from the anchored start and hovered end', () => {
+  const visibleEntries = [
+    { index: 1, revision: 'a' },
+    { index: 4, revision: 'b' },
+    { index: 9, revision: 'c' },
+  ];
+
+  assert.deepEqual(getPendingSelectionRange(visibleEntries, 9, 4), {
+    fromEntry: visibleEntries[1],
+    toEntry: visibleEntries[2],
+    selectedCount: 2,
+  });
+  assert.equal(getPendingSelectionRange(visibleEntries, 4, 4), null);
+  assert.equal(getPendingSelectionRange(visibleEntries, null, 4), null);
+});
+
+test('timeline model formats the in-between toggle label with visible and total counts', () => {
+  assert.equal(getIntermediateToggleLabel(5, 9, false), 'Show In-Between 5/9');
+  assert.equal(getIntermediateToggleLabel(9, 9, true), 'Hide In-Between 9/9');
+  assert.equal(getIntermediateToggleLabel(0, 0, false), 'Show In-Between');
 });
 
 test('timeline model positions anchors with equal spacing across visible entries', () => {

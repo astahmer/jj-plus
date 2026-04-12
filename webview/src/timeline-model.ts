@@ -121,6 +121,41 @@ export function getSidebarPreviewRequests(
   return requests;
 }
 
+export function getPendingSelectionRange(
+  visibleEntries: FileRevisionEntry[],
+  pendingSelectionIndex: number | null,
+  hoveredSelectionIndex: number | null,
+): { fromEntry: FileRevisionEntry; toEntry: FileRevisionEntry; selectedCount: number } | null {
+  if (pendingSelectionIndex === null || hoveredSelectionIndex === null || pendingSelectionIndex === hoveredSelectionIndex) {
+    return null;
+  }
+
+  const fromIndex = Math.min(pendingSelectionIndex, hoveredSelectionIndex);
+  const toIndex = Math.max(pendingSelectionIndex, hoveredSelectionIndex);
+  const fromEntry = visibleEntries.find((entry) => entry.index === fromIndex);
+  const toEntry = visibleEntries.find((entry) => entry.index === toIndex);
+  if (!fromEntry || !toEntry) {
+    return null;
+  }
+
+  return {
+    fromEntry,
+    toEntry,
+    selectedCount: getSelectedEntryCount(visibleEntries, fromIndex, toIndex),
+  };
+}
+
+export function getIntermediateToggleLabel(visibleCount: number, totalCount: number, showIntermediateRevisions: boolean): string {
+  const action = showIntermediateRevisions ? 'Hide' : 'Show';
+  const safeTotal = Math.max(0, totalCount);
+  if (!safeTotal) {
+    return `${action} In-Between`;
+  }
+
+  const safeVisibleCount = Math.min(Math.max(0, visibleCount), safeTotal);
+  return `${action} In-Between ${safeVisibleCount}/${safeTotal}`;
+}
+
 export function collapseDiffRows(rows: DiffRow[], contextSize: number): DiffRow[] {
   const changeIndexes = rows
     .map((row, index) => (row.type === 'add' || row.type === 'remove' ? index : -1))

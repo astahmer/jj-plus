@@ -23,6 +23,6 @@ async function openFixture(page: Parameters<typeof test>[0]['page'], fixture: st
   await expect(page.getByText('Revision Timeline')).toBeVisible();
   await expect(page.locator('#diffTitle')).not.toHaveText('No diff available');
   if (fixture === 'jj-basic') {
-    await expect(page.locator('#snapshotLoadingIndicator')).toContainText('Snapshots loaded');
+    await expect(page.getByRole('button', { name: 'Snapshot', exact: true })).toBeVisible();
   }
 }

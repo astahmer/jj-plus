@@ -1,8 +1,9 @@
-import { For, Show } from 'solid-js';
+import { For, Show, createMemo } from 'solid-js';
 import type { Accessor } from 'solid-js';
 import { getTimelineAnchorPercent } from '../timeline-model';
 import type { ComparisonMode, ComparisonSource, ContentMode, FileRevisionEntry, HistoryBackend, LayoutMode, TimelinePreset } from '../types';
 import { RevisionIdentifier, getRevisionIdentifierValue } from './RevisionIdentifier';
+import { Combobox, type ComboboxOption } from './Combobox';
 
 type TimelinePaneProps = {
   backend: Accessor<HistoryBackend | null>;
@@ -19,9 +20,9 @@ type TimelinePaneProps = {
   stepStatus: Accessor<string>;
   version: Accessor<string>;
   comparisonMode: Accessor<ComparisonMode>;
-  comparisonSource: Accessor<ComparisonSource>;
   layoutMode: Accessor<LayoutMode>;
   contentMode: Accessor<ContentMode>;
+  intermediateLabel: Accessor<string>;
   preset: Accessor<TimelinePreset>;
   showIntermediateRevisions: Accessor<boolean>;
   hasIntermediateRevisions: Accessor<boolean>;
@@ -56,6 +57,8 @@ type TimelinePaneProps = {
   onStep: (amount: number) => void;
   onSelectEntry: (entryIndex: number) => void;
   onHoverEntry: (entryIndex: number | null) => void;
+  onShowAnchorTooltip: (entryIndex: number, target: HTMLElement) => void;
+  onHideRangeTooltip: () => void;
   onSubmitRevision: (side: 'from' | 'to', value: string) => void;
 };
 
@@ -68,13 +71,29 @@ const presetLabels: Record<TimelinePreset, string> = {
 };
 
 export function TimelinePane(props: TimelinePaneProps) {
+  const activeComparisonSource = createMemo<ComparisonSource>(() => props.rangeSubtitle().toLowerCase().includes('snapshot') ? 'snapshot' : 'revision');
   const currentFromEntry = () => props.visibleEntries().find((entry) => entry.index === props.fromIndex()) || props.visibleEntries()[0];
   const currentToEntry = () => props.visibleEntries().find((entry) => entry.index === props.toIndex()) || props.visibleEntries()[props.visibleEntries().length - 1];
   const fromPercent = () => getTimelineAnchorPercent(props.visibleEntries(), props.visibleEntries().findIndex((entry) => entry.index === props.fromIndex()));
   const toPercent = () => getTimelineAnchorPercent(props.visibleEntries(), props.visibleEntries().findIndex((entry) => entry.index === props.toIndex()));
   const collapseLabel = () => props.timelinePaneCollapsed() ? 'Expand' : 'Timeline only';
-  const intermediateLabel = () => props.showIntermediateRevisions() ? 'Hide In-Between' : 'Show In-Between';
   const showStepStatusRow = () => Boolean(props.stepStatus()) || props.showSnapshotStatus();
+  const fileOptions = () => props.workspaceFiles().map((value) => ({ value } satisfies ComboboxOption));
+  const comparisonSourceControls = createMemo(() => {
+    const comparisonSource = activeComparisonSource();
+    return (
+      <div class="segmented" id="comparisonSources">
+        <button class={`segment${comparisonSource === 'revision' ? ' active' : ''}`} type="button" aria-pressed={comparisonSource === 'revision'} onClick={() => props.onSetComparisonSource('revision')}>Revision</button>
+        <button class={`segment${comparisonSource === 'snapshot' ? ' active' : ''}`} type="button" aria-pressed={comparisonSource === 'snapshot'} onClick={() => props.onSetComparisonSource('snapshot')}>Snapshot</button>
+      </div>
+    );
+  });
+  const revisionOptions = () => props.visibleEntries().map((entry) => ({
+    value: entry.shortRevision,
+    label: getRevisionIdentifierValue(entry),
+    description: [entry.relativeDate, entry.description].filter(Boolean).join(' · '),
+    keywords: [entry.revision, entry.changeId, entry.authorName].filter(Boolean) as string[],
+  } satisfies ComboboxOption));
 
   return (
     <div class={`timeline-pane${props.timelinePaneCollapsed() ? ' is-collapsed' : ''}`} id="timelinePane">
@@ -102,24 +121,15 @@ export function TimelinePane(props: TimelinePaneProps) {
       <div class="diff-head" id="timelineChrome">
         <div class="diff-head-top">
           <div class="file-switcher-row">
-            <input
-              class="file-input"
+            <Combobox
               id="fileSwitcher"
-              list="workspaceFilesList"
+              inputClass="file-input"
               value={props.fileInputValue()}
               placeholder="Switch file..."
-              autocomplete="off"
-              onInput={(event) => props.onFileInput(event.currentTarget.value)}
-              onChange={(event) => props.onSubmitFile(event.currentTarget.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  props.onSubmitFile(event.currentTarget.value);
-                }
-              }}
+              options={fileOptions()}
+              onInput={props.onFileInput}
+              onCommit={props.onSubmitFile}
             />
-            <datalist id="workspaceFilesList">
-              <For each={props.workspaceFiles()}>{(value) => <option value={value} />}</For>
-            </datalist>
           </div>
           <div class="head-actions">
             <button class="menu-button" id="toggleHotkeysButton" type="button" aria-label="Show hotkeys" onClick={props.onToggleHotkeys}>?</button>
@@ -141,17 +151,13 @@ export function TimelinePane(props: TimelinePaneProps) {
         <div class="timeline-head">
           <div class="revision-picker-row">
             <div class="revision-picker-col">
-              <input
-                class="revision-input"
+              <Combobox
                 id="fromRevisionInput"
-                list="revisionOptionsList"
+                inputClass="revision-input"
                 value={currentFromEntry()?.shortRevision || ''}
-                onChange={(event) => props.onSubmitRevision('from', event.currentTarget.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    props.onSubmitRevision('from', event.currentTarget.value);
-                  }
-                }}
+                options={revisionOptions()}
+                onInput={() => undefined}
+                onCommit={(value) => props.onSubmitRevision('from', value)}
               />
               <div class="revision-picker-meta">
                 <button class="handle-pill from" id="fromHandleLabel" type="button" onClick={() => currentFromEntry() && props.onSelectEntry(currentFromEntry()!.index)}>
@@ -165,17 +171,13 @@ export function TimelinePane(props: TimelinePaneProps) {
             </div>
             <span class="revision-arrow">→</span>
             <div class="revision-picker-col">
-              <input
-                class="revision-input"
+              <Combobox
                 id="toRevisionInput"
-                list="revisionOptionsList"
+                inputClass="revision-input"
                 value={currentToEntry()?.shortRevision || ''}
-                onChange={(event) => props.onSubmitRevision('to', event.currentTarget.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter') {
-                    props.onSubmitRevision('to', event.currentTarget.value);
-                  }
-                }}
+                options={revisionOptions()}
+                onInput={() => undefined}
+                onCommit={(value) => props.onSubmitRevision('to', value)}
               />
               <div class="revision-picker-meta">
                 <button class="handle-pill to" id="toHandleLabel" type="button" onClick={() => currentToEntry() && props.onSelectEntry(currentToEntry()!.index)}>
@@ -187,34 +189,26 @@ export function TimelinePane(props: TimelinePaneProps) {
                 <span class="revision-picker-relative" id="toRelativeLabel">{currentToEntry()?.relativeDate}</span>
               </div>
             </div>
-            <datalist id="revisionOptionsList">
-              <For each={props.visibleEntries()}>{(entry) => <option value={entry.shortRevision} />}</For>
-            </datalist>
           </div>
 
           <div class="control-row">
             <div class="segmented" id="comparisonModes">
-              <Segment active={props.comparisonMode() === 'range'} onClick={() => props.onSetComparisonMode('range')}>Range</Segment>
-              <Segment active={props.comparisonMode() === 'step'} onClick={() => props.onSetComparisonMode('step')}>Single</Segment>
+              <button class={`segment${props.comparisonMode() === 'range' ? ' active' : ''}`} type="button" aria-pressed={props.comparisonMode() === 'range'} onClick={() => props.onSetComparisonMode('range')}>Range</button>
+              <button class={`segment${props.comparisonMode() === 'step' ? ' active' : ''}`} type="button" aria-pressed={props.comparisonMode() === 'step'} onClick={() => props.onSetComparisonMode('step')}>Single</button>
             </div>
-            <Show when={props.backend() === 'jj'}>
-              <div class="segmented" id="comparisonSources">
-                <Segment active={props.comparisonSource() === 'revision'} onClick={() => props.onSetComparisonSource('revision')}>Revision</Segment>
-                <Segment active={props.comparisonSource() === 'snapshot'} onClick={() => props.onSetComparisonSource('snapshot')}>Snapshot</Segment>
-              </div>
-            </Show>
+            <Show when={props.backend() === 'jj'}>{comparisonSourceControls()}</Show>
             <div class="segmented" id="layoutModes">
-              <Segment active={props.layoutMode() === 'split'} onClick={() => props.onSetLayoutMode('split')}>Split</Segment>
-              <Segment active={props.layoutMode() === 'unified'} onClick={() => props.onSetLayoutMode('unified')}>Unified</Segment>
+              <button class={`segment${props.layoutMode() === 'split' ? ' active' : ''}`} type="button" aria-pressed={props.layoutMode() === 'split'} onClick={() => props.onSetLayoutMode('split')}>Split</button>
+              <button class={`segment${props.layoutMode() === 'unified' ? ' active' : ''}`} type="button" aria-pressed={props.layoutMode() === 'unified'} onClick={() => props.onSetLayoutMode('unified')}>Unified</button>
             </div>
             <div class="segmented" id="contentModes">
-              <Segment active={props.contentMode() === 'diffs'} onClick={() => props.onSetContentMode('diffs')}>Diffs</Segment>
-              <Segment active={props.contentMode() === 'full'} onClick={() => props.onSetContentMode('full')}>Whole file</Segment>
+              <button class={`segment${props.contentMode() === 'diffs' ? ' active' : ''}`} type="button" aria-pressed={props.contentMode() === 'diffs'} onClick={() => props.onSetContentMode('diffs')}>Diffs</button>
+              <button class={`segment${props.contentMode() === 'full' ? ' active' : ''}`} type="button" aria-pressed={props.contentMode() === 'full'} onClick={() => props.onSetContentMode('full')}>Whole file</button>
             </div>
-            <button class={`toggle-chip${props.showIntermediateRevisions() ? ' active' : ''}`} id="intermediateToggle" type="button" disabled={!props.hasIntermediateRevisions()} onClick={props.onToggleIntermediate}>{intermediateLabel()}</button>
+            <button class={`toggle-chip${props.showIntermediateRevisions() ? ' active' : ''}`} id="intermediateToggle" type="button" aria-label={props.showIntermediateRevisions() ? 'Hide In-Between' : 'Show In-Between'} disabled={!props.hasIntermediateRevisions()} onClick={props.onToggleIntermediate}>{props.intermediateLabel()}</button>
             <div class="segmented" id="presets">
               <For each={(['year', '7d', '30d', '90d', 'all'] as TimelinePreset[])}>
-                {(value) => <Segment active={props.preset() === value} onClick={() => props.onSetPreset(value)}>{presetLabels[value]}</Segment>}
+                {(value) => <button class={`segment${props.preset() === value ? ' active' : ''}`} type="button" aria-pressed={props.preset() === value} onClick={() => props.onSetPreset(value)}>{presetLabels[value]}</button>}
               </For>
             </div>
           </div>
@@ -229,9 +223,10 @@ export function TimelinePane(props: TimelinePaneProps) {
               <For each={props.visibleEntries()}>
                 {(entry, index) => {
                   const percent = () => getTimelineAnchorPercent(props.visibleEntries(), index());
-                  const isFrom = () => entry.index === props.fromIndex();
-                  const isTo = () => entry.index === props.toIndex();
-                  const inRange = () => entry.index >= Math.min(props.fromIndex(), props.toIndex()) && entry.index <= Math.max(props.fromIndex(), props.toIndex());
+                  const showCommittedSelection = () => props.pendingSelectionIndex() === null;
+                  const isFrom = () => showCommittedSelection() && entry.index === props.fromIndex();
+                  const isTo = () => showCommittedSelection() && entry.index === props.toIndex();
+                  const inRange = () => showCommittedSelection() && entry.index >= Math.min(props.fromIndex(), props.toIndex()) && entry.index <= Math.max(props.fromIndex(), props.toIndex());
                   const inPendingRange = () => {
                     const pendingIndex = props.pendingSelectionIndex();
                     const hoveredIndex = props.hoveredSelectionIndex();
@@ -248,10 +243,22 @@ export function TimelinePane(props: TimelinePaneProps) {
                       data-entry-index={entry.index}
                       type="button"
                       onClick={() => props.onSelectEntry(entry.index)}
-                      onMouseEnter={() => props.onHoverEntry(entry.index)}
-                      onMouseLeave={() => props.onHoverEntry(null)}
-                      onFocus={() => props.onHoverEntry(entry.index)}
-                      onBlur={() => props.onHoverEntry(null)}
+                      onMouseEnter={(event) => {
+                        props.onHoverEntry(entry.index);
+                        props.onShowAnchorTooltip(entry.index, event.currentTarget);
+                      }}
+                      onMouseLeave={() => {
+                        props.onHoverEntry(null);
+                        props.onHideRangeTooltip();
+                      }}
+                      onFocus={(event) => {
+                        props.onHoverEntry(entry.index);
+                        props.onShowAnchorTooltip(entry.index, event.currentTarget);
+                      }}
+                      onBlur={() => {
+                        props.onHoverEntry(null);
+                        props.onHideRangeTooltip();
+                      }}
                     />
                   );
                 }}
@@ -306,8 +313,13 @@ export function TimelinePane(props: TimelinePaneProps) {
               <div class="hotkey-section">
                 <div class="hotkey-section-title">Actions</div>
                 <div class="hotkey-row"><span class="hotkey-label">Open cumulative diff</span><span class="hotkey-value"><kbd>Space</kbd></span></div>
+                <div class="hotkey-row"><span class="hotkey-label">Focus diff</span><span class="hotkey-value"><kbd>D</kbd></span></div>
                 <div class="hotkey-row"><span class="hotkey-label">Toggle help</span><span class="hotkey-value"><kbd>?</kbd></span></div>
                 <div class="hotkey-row"><span class="hotkey-label">Toggle sidebar</span><span class="hotkey-value"><kbd>B</kbd></span></div>
+                <div class="hotkey-row"><span class="hotkey-label">Focus file switcher</span><span class="hotkey-value"><kbd>/</kbd></span></div>
+                <div class="hotkey-row"><span class="hotkey-label">Focus from / to pickers</span><span class="hotkey-value"><kbd>F</kbd><kbd>T</kbd></span></div>
+                <div class="hotkey-row"><span class="hotkey-label">Focus sidebar search</span><span class="hotkey-value"><kbd>S</kbd></span></div>
+                <div class="hotkey-row"><span class="hotkey-label">Exit focus / overlays</span><span class="hotkey-value"><kbd>Esc</kbd></span></div>
                 <div class="hotkey-row"><span class="hotkey-label">Pick range by click</span><span class="hotkey-note">Click one revision, then another</span></div>
                 <div class="hotkey-row"><span class="hotkey-label">Drag markers</span><span class="hotkey-note">Adjust range directly on the timeline</span></div>
               </div>
@@ -317,10 +329,6 @@ export function TimelinePane(props: TimelinePaneProps) {
       </Show>
     </div>
   );
-}
-
-function Segment(props: { active: boolean; onClick: () => void; children: string }) {
-  return <button class={`segment${props.active ? ' active' : ''}`} type="button" onClick={props.onClick}>{props.children}</button>;
 }
 
 function groupMonthLabels(entries: FileRevisionEntry[]): string[] {

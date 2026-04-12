@@ -57,6 +57,7 @@ export function createTimelineHost(): TimelineHost {
       if (command.command === 'select-entry') {
         void getFixture().then((fixture) => {
           const fileFixture = getActiveFileFixture(fixture);
+          recordAction(command, fileFixture);
           emit({ type: 'diff-preview', payload: getFixturePreview(fileFixture, command.fromIndex, command.toIndex, command.comparisonSource) });
         });
         return;
@@ -241,7 +242,7 @@ export function createTimelineHost(): TimelineHost {
       fileName: fileFixture.timelineData.fileName,
     };
 
-    if (command.command === 'open-editor-diff' || command.command === 'open-range-files-diff') {
+    if (command.command === 'select-entry' || command.command === 'open-editor-diff' || command.command === 'open-range-files-diff') {
       payload.fromIndex = command.fromIndex;
       payload.toIndex = command.toIndex;
       payload.comparisonSource = command.comparisonSource;

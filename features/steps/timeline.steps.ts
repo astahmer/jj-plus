@@ -35,7 +35,7 @@ Then('I should see the backend label {string}', async ({ page }, value: string) 
 });
 
 When('I toggle the in-between revisions filter', async ({ page }) => {
-  await page.getByRole('button', { name: 'Show In-Between' }).click();
+  await page.locator('#intermediateToggle').click();
 });
 
 When('I search revisions for {string}', async ({ page }, value: string) => {
@@ -163,6 +163,10 @@ Then('the workspace should be collapsed', async ({ page }) => {
   await expect(page.locator('.workspace')).toHaveClass(/is-collapsed/);
 });
 
+Then('the workspace should not be collapsed', async ({ page }) => {
+  await expect(page.locator('.workspace')).not.toHaveClass(/is-collapsed/);
+});
+
 Then('the workspace should be in diff focus mode', async ({ page }) => {
   await expect(page.locator('.workspace')).toHaveClass(/is-diff-focus/);
 });
@@ -175,16 +179,24 @@ Then('the timeline pane should be collapsed', async ({ page }) => {
   await expect(page.locator('#timelinePane')).toHaveClass(/is-collapsed/);
 });
 
+Then('the focused element should be {string}', async ({ page }, id: string) => {
+  await expect.poll(async () => page.evaluate(() => document.activeElement?.id || null)).toBe(id);
+});
+
 Then('the button {string} should be active', async ({ page }, value: string) => {
-  await expect(page.getByRole('button', { name: value, exact: true })).toHaveClass(/active/);
+  await expect(buttonByName(page, value)).toHaveClass(/active/);
 });
 
 Then('the button {string} should not be active', async ({ page }, value: string) => {
-  await expect(page.getByRole('button', { name: value, exact: true })).not.toHaveClass(/active/);
+  await expect(buttonByName(page, value)).not.toHaveClass(/active/);
 });
 
 Then('the button {string} should not be visible', async ({ page }, value: string) => {
-  await expect(page.getByRole('button', { name: value, exact: true })).toHaveCount(0);
+  await expect(buttonByName(page, value)).toHaveCount(0);
+});
+
+Then('the in-between toggle should contain {string}', async ({ page }, value: string) => {
+  await expect(page.locator('#intermediateToggle')).toContainText(value);
 });
 
 Then('the last host action should be {string}', async ({ page }, command: string) => {
@@ -211,6 +223,24 @@ Then('the diff rows should contain {string}', async ({ page }, value: string) =>
   await expect(page.locator('#diffRows')).toContainText(value);
 });
 
+When('I click timeline anchor {int}', async ({ page }, index: number) => {
+  await page.locator('.track-anchor').nth(index).click();
+});
+
+When('I hover timeline anchor {int}', async ({ page }, index: number) => {
+  const locator = page.locator('.track-anchor').nth(index);
+  const box = await locator.boundingBox();
+  if (!box) {
+    throw new Error(`Timeline anchor ${index} has no bounding box.`);
+  }
+
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+});
+
+Then('the range tooltip should contain {string}', async ({ page }, value: string) => {
+  await expect(page.locator('.anchor-tooltip')).toContainText(value);
+});
+
 function sidebarRevision(page: Page, value: string) {
   return page.locator('.history-list .history-item').filter({ hasText: value }).first();
 }
@@ -221,4 +251,12 @@ function normalizeKey(key: string) {
 
 async function getTestState(page: Page) {
   return page.evaluate(() => window.__TIMELINE_TEST_STATE__ || null);
+}
+
+function buttonByName(page: Page, value: string) {
+  if (value === 'Show In-Between' || value === 'Hide In-Between') {
+    return page.locator('#intermediateToggle');
+  }
+
+  return page.getByRole('button', { name: value, exact: true });
 }
