@@ -97,7 +97,7 @@ async function main() {
 	}
 
 	process.stderr.write(
-		`Failed to open IDE for ${EXTENSION_ID}. ${lastFailure || 'No supported launcher was found.'}\n`
+		`Failed to open IDE for ${EXTENSION_ID}. ${lastFailure || 'No supported launcher was found.'}\n`,
 	);
 	process.exitCode = 1;
 }

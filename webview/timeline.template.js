@@ -1,16 +1,16 @@
 /* oxlint-disable unicorn/consistent-function-scoping */
 
 (function (root, factory) {
-  const api = factory();
+	const api = factory();
 
-  if (typeof module === 'object' && module.exports) {
-    module.exports = api;
-  }
+	if (typeof module === 'object' && module.exports) {
+		module.exports = api;
+	}
 
-  /** @type {typeof globalThis & { TimelineTemplate?: unknown }} */ (root).TimelineTemplate = api;
+	/** @type {typeof globalThis & { TimelineTemplate?: unknown }} */ (root).TimelineTemplate = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
-  function renderTimelineBodyHtml() {
-    return `<div class="app">
+	function renderTimelineBodyHtml() {
+		return `<div class="app">
       <section class="workspace" id="workspace">
         <aside class="panel sidebar" id="sidebar">
           <div class="sidebar-head">
@@ -169,18 +169,18 @@
         </section>
       </section>
     </div>`;
-  }
+	}
 
-  function renderTimelineDocumentHtml(options) {
-    const title = escapeHtml((options && options.title) || 'Revision Timeline');
-    const styleHref = escapeAttribute((options && options.styleHref) || './timeline.css');
-    const appSrc = escapeAttribute((options && options.appSrc) || '');
-    const modelSrc = escapeAttribute((options && options.modelSrc) || '');
-    const scriptSrc = escapeAttribute((options && options.scriptSrc) || '');
-    const cspSource = options && options.cspSource;
+	function renderTimelineDocumentHtml(options) {
+		const title = escapeHtml((options && options.title) || 'Revision Timeline');
+		const styleHref = escapeAttribute((options && options.styleHref) || './timeline.css');
+		const appSrc = escapeAttribute((options && options.appSrc) || '');
+		const modelSrc = escapeAttribute((options && options.modelSrc) || '');
+		const scriptSrc = escapeAttribute((options && options.scriptSrc) || '');
+		const cspSource = options && options.cspSource;
 
-    if (appSrc) {
-      return `<!DOCTYPE html>
+		if (appSrc) {
+			return `<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -194,9 +194,9 @@
     <script type="module" src="${appSrc}"></script>
   </body>
 </html>`;
-    }
+		}
 
-    return `<!DOCTYPE html>
+		return `<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -211,21 +211,18 @@
     ${scriptSrc ? `<script src="${scriptSrc}"></script>` : ''}
   </body>
 </html>`;
-  }
+	}
 
-  function escapeHtml(value) {
-    return String(value)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
-  }
+	function escapeHtml(value) {
+		return String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+	}
 
-  function escapeAttribute(value) {
-    return escapeHtml(value).replace(/"/g, '&quot;');
-  }
+	function escapeAttribute(value) {
+		return escapeHtml(value).replace(/"/g, '&quot;');
+	}
 
-  return {
-    renderTimelineBodyHtml,
-    renderTimelineDocumentHtml,
-  };
+	return {
+		renderTimelineBodyHtml,
+		renderTimelineDocumentHtml,
+	};
 });

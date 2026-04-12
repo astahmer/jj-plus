@@ -14,10 +14,7 @@
 	"jsxSingleQuote": false,
 	"insertFinalNewline": true,
 	"sortTailwindcss": {
-		"functions": [
-			"clsx",
-			"cn"
-		],
+		"functions": ["clsx", "cn"],
 		"preserveWhitespace": true
 	},
 	"sortPackageJson": {

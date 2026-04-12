@@ -4,40 +4,37 @@
 	"version": "0.0.2",
 	"private": true,
 	"description": "Open JJ multi-diff views for revision ranges.",
-	"packageManager": "pnpm@10.33.0+sha512.10568bb4a6afb58c9eb3630da90cc9516417abebd3fabbe6739f0ae795728da1491e9db5a544c76ad8eb7570f5c4bb3d6c637b2cb41bfdcdb47fa823c8649319",
+	"categories": [
+		"Other",
+		"Programming Languages",
+		"Visualization"
+	],
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/astahmer/jj-range-diff.git"
+	},
+	"publisher": "astahmer",
+	"bin": {
+		"jj-range-diff": "./bin.js"
+	},
+	"main": "./extension.js",
 	"scripts": {
+		"bddgen": "bddgen",
 		"build": "pnpm build:webview && pnpm vsce package --skip-license --no-dependencies",
 		"build:webview": "vite build",
 		"dev": "vite --host 127.0.0.1 --open /",
-		"bddgen": "bddgen",
 		"fixtures:e2e": "node ./scripts/generate-e2e-fixtures.mjs",
 		"fmt": "oxfmt --write",
 		"lint": "pnpm lint:ox && pnpm lint:knip",
 		"lint:knip": "knip",
 		"lint:ox": "oxlint .",
 		"test": "node --test",
+		"test:all": "pnpm test && pnpm test:e2e && pnpm test:integration",
 		"test:e2e": "pnpm fixtures:e2e && pnpm bddgen && playwright test",
 		"test:integration": "pnpm build:webview && pnpm fixtures:e2e && node ./integration/vscode/run.js",
-		"test:all": "pnpm test && pnpm test:e2e && pnpm test:integration",
 		"typecheck": "pnpm typecheck:web && pnpm typecheck:js",
 		"typecheck:js": "tsc --noEmit -p tsconfig.js.json",
 		"typecheck:web": "tsc --noEmit -p tsconfig.json"
-	},
-	"main": "./extension.js",
-	"bin": {
-		"jj-range-diff": "./bin.js"
-	},
-	"contributes": {
-		"commands": [
-			{
-				"command": "jj-range-diff.openRangeMultiDiff",
-				"title": "JJ: Open Range Multi Diff"
-			},
-			{
-				"command": "jj-range-diff.openFileRevisionTimeline",
-				"title": "JJ: Open File Revision Timeline"
-			}
-		]
 	},
 	"dependencies": {
 		"solid-js": "^1.9.12"
@@ -58,21 +55,24 @@
 		"vite": "^8.0.8",
 		"vite-plugin-solid": "^2.11.12"
 	},
+	"contributes": {
+		"commands": [
+			{
+				"command": "jj-range-diff.openRangeMultiDiff",
+				"title": "JJ: Open Range Multi Diff"
+			},
+			{
+				"command": "jj-range-diff.openFileRevisionTimeline",
+				"title": "JJ: Open File Revision Timeline"
+			}
+		]
+	},
+	"activationEvents": [
+		"onStartupFinished",
+		"onUri"
+	],
 	"engines": {
 		"vscode": "^1.86.0"
 	},
-	"repository": {
-		"type": "git",
-		"url": "https://github.com/astahmer/jj-range-diff.git"
-	},
-	"categories": [
-		"Other",
-		"Programming Languages",
-		"Visualization"
-	],
-	"publisher": "astahmer",
-	"activationEvents": [
-		"onUri",
-		"onStartupFinished"
-	]
+	"packageManager": "pnpm@10.33.0+sha512.10568bb4a6afb58c9eb3630da90cc9516417abebd3fabbe6739f0ae795728da1491e9db5a544c76ad8eb7570f5c4bb3d6c637b2cb41bfdcdb47fa823c8649319"
 }

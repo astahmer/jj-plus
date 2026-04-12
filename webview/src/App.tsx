@@ -4,82 +4,101 @@ import { Sidebar } from './components/sidebar';
 import { TimelinePane } from './components/timeline-pane';
 import { DiffPanel } from './components/diff-panel';
 import { createTimelineHost } from './host';
-import { getEntriesForSource, getIntermediateToggleLabel, getPendingSelectionRange, getPendingSnapshotRevisionIndexes, getSelectedEntryCount, getSidebarPreviewRequests, getUnitPreviewRange } from './timeline-model';
-import type { ComparisonMode, ComparisonSource, ContentMode, DiffPreview, FileRevisionEntry, LayoutMode, TimelineCommand, TimelineData, TimelineInboundMessage, TimelinePreset } from './types';
+import {
+	getEntriesForSource,
+	getIntermediateToggleLabel,
+	getPendingSelectionRange,
+	getPendingSnapshotRevisionIndexes,
+	getSelectedEntryCount,
+	getSidebarPreviewRequests,
+	getUnitPreviewRange,
+} from './timeline-model';
+import type {
+	ComparisonMode,
+	ComparisonSource,
+	ContentMode,
+	DiffPreview,
+	FileRevisionEntry,
+	LayoutMode,
+	TimelineCommand,
+	TimelineData,
+	TimelineInboundMessage,
+	TimelinePreset,
+} from './types';
 import { TimelineProvider, type TimelineContextValue } from './timeline-context';
 import { RevisionIdentifier, getRevisionIdentifierValue } from './components/revision-identifier';
 
 type TooltipState =
-  | {
-      kind: 'info';
-      left: number;
-      top: number;
-      label: string | null;
-      value: string;
-    }
-  | {
-      kind: 'range';
-      left: number;
-      top: number;
-      fromEntry: FileRevisionEntry;
-      toEntry: FileRevisionEntry;
-      preview: DiffPreview | null;
-      pending: boolean;
-      selectedCount: number;
-    };
+	| {
+			kind: 'info';
+			left: number;
+			top: number;
+			label: string | null;
+			value: string;
+	  }
+	| {
+			kind: 'range';
+			left: number;
+			top: number;
+			fromEntry: FileRevisionEntry;
+			toEntry: FileRevisionEntry;
+			preview: DiffPreview | null;
+			pending: boolean;
+			selectedCount: number;
+	  };
 
 type UiState = {
-  data: TimelineData | null;
-  fromIndex: number;
-  toIndex: number;
-  comparisonMode: ComparisonMode;
-  comparisonSource: ComparisonSource;
-  layoutMode: LayoutMode;
-  contentMode: ContentMode;
-  preset: TimelinePreset;
-  showIntermediateRevisions: boolean;
-  sidebarSearchQuery: string;
-  sidebarWidth: number;
-  timelinePaneHeight: number;
-  timelinePaneCollapsed: boolean;
-  sidebarCollapsed: boolean;
-  diffFocusMode: boolean;
-  actionsMenuOpen: boolean;
-  hotkeysOpen: boolean;
-  pendingSelectionIndex: number | null;
-  hoveredSelectionIndex: number | null;
-  oldestFirst: boolean;
-  fileInputValue: string;
-  previewByRange: Record<string, DiffPreview>;
-  sidebarPreviewInFlightKey: string;
-  pendingRangeResolutionKey: string;
+	data: TimelineData | null;
+	fromIndex: number;
+	toIndex: number;
+	comparisonMode: ComparisonMode;
+	comparisonSource: ComparisonSource;
+	layoutMode: LayoutMode;
+	contentMode: ContentMode;
+	preset: TimelinePreset;
+	showIntermediateRevisions: boolean;
+	sidebarSearchQuery: string;
+	sidebarWidth: number;
+	timelinePaneHeight: number;
+	timelinePaneCollapsed: boolean;
+	sidebarCollapsed: boolean;
+	diffFocusMode: boolean;
+	actionsMenuOpen: boolean;
+	hotkeysOpen: boolean;
+	pendingSelectionIndex: number | null;
+	hoveredSelectionIndex: number | null;
+	oldestFirst: boolean;
+	fileInputValue: string;
+	previewByRange: Record<string, DiffPreview>;
+	sidebarPreviewInFlightKey: string;
+	pendingRangeResolutionKey: string;
 };
 
 const initialState: UiState = {
-  data: null,
-  fromIndex: 0,
-  toIndex: 0,
-  comparisonMode: 'range',
-  comparisonSource: 'revision',
-  layoutMode: 'split',
-  contentMode: 'diffs',
-  preset: 'year',
-  showIntermediateRevisions: false,
-  sidebarSearchQuery: '',
-  sidebarWidth: 280,
-  timelinePaneHeight: 278,
-  timelinePaneCollapsed: false,
-  sidebarCollapsed: false,
-  diffFocusMode: false,
-  actionsMenuOpen: false,
-  hotkeysOpen: false,
-  pendingSelectionIndex: null,
-  hoveredSelectionIndex: null,
-  oldestFirst: false,
-  fileInputValue: '',
-  previewByRange: {},
-  sidebarPreviewInFlightKey: '',
-  pendingRangeResolutionKey: '',
+	data: null,
+	fromIndex: 0,
+	toIndex: 0,
+	comparisonMode: 'range',
+	comparisonSource: 'revision',
+	layoutMode: 'split',
+	contentMode: 'diffs',
+	preset: 'year',
+	showIntermediateRevisions: false,
+	sidebarSearchQuery: '',
+	sidebarWidth: 280,
+	timelinePaneHeight: 278,
+	timelinePaneCollapsed: false,
+	sidebarCollapsed: false,
+	diffFocusMode: false,
+	actionsMenuOpen: false,
+	hotkeysOpen: false,
+	pendingSelectionIndex: null,
+	hoveredSelectionIndex: null,
+	oldestFirst: false,
+	fileInputValue: '',
+	previewByRange: {},
+	sidebarPreviewInFlightKey: '',
+	pendingRangeResolutionKey: '',
 };
 
 const TIMELINE_EXPANDED_MIN_HEIGHT = 176;
@@ -87,1471 +106,1705 @@ const TIMELINE_COLLAPSED_HEIGHT = 128;
 const TIMELINE_MAX_HEIGHT = 520;
 
 export function App() {
-  const host = createTimelineHost();
-  const [state, setState] = createStore<UiState>(initialState);
-  const [ready, setReady] = createSignal(false);
-  const [tooltip, setTooltip] = createSignal<TooltipState | null>(null);
-  const effectiveComparisonSource = createMemo<ComparisonSource>(() => {
-    if (state.data?.backend !== 'jj') {
-      return 'revision';
-    }
-
-    return state.comparisonSource === 'snapshot' ? 'snapshot' : 'revision';
-  });
-
-  const revisionEntries = createMemo<FileRevisionEntry[]>(() => getEntriesForSource(state.data, 'revision'));
-  const revisionVisibleEntries = createMemo<FileRevisionEntry[]>(() => filterEntries(revisionEntries(), state.data, state.preset, state.showIntermediateRevisions));
-
-  const sourceEntries = createMemo<FileRevisionEntry[]>(() => getEntriesForSource(state.data, effectiveComparisonSource()));
-  const visibleEntries = createMemo<FileRevisionEntry[]>(() => filterEntries(sourceEntries(), state.data, state.preset, state.showIntermediateRevisions));
-  const presetEntries = createMemo<FileRevisionEntry[]>(() => filterEntries(sourceEntries(), state.data, state.preset, true));
-
-  const filteredSidebarEntries = createMemo(() => {
-    const query = state.sidebarSearchQuery.trim().toLowerCase();
-    const filteredEntries = !query
-      ? visibleEntries()
-      : visibleEntries().filter((entry) => {
-        return [entry.shortRevision, entry.description, entry.changeId, entry.shortDate, entry.authorName, entry.operationId, entry.operationKey, entry.monthLabel]
-          .filter(Boolean)
-          .some((value) => String(value).toLowerCase().includes(query));
-      });
-
-    return state.oldestFirst ? filteredEntries : filteredEntries.toReversed();
-  });
-
-  const rangeLabel = createMemo(() => {
-    const fromEntry = visibleEntries().find((entry) => entry.index === state.fromIndex);
-    const toEntry = visibleEntries().find((entry) => entry.index === state.toIndex);
-    if (!fromEntry || !toEntry || !state.data) {
-      return 'Loading revisions...';
-    }
-    return `${fromEntry.shortDate || 'Today'} - ${toEntry.shortDate || 'Today'} · ${state.data.backend.toUpperCase()}`;
-  });
-
-  const rangeSubtitle = createMemo(() => {
-    const selectedCount = getSelectedEntryCount(visibleEntries(), state.fromIndex, state.toIndex);
-    return `${selectedCount}/${visibleEntries().length} ${effectiveComparisonSource() === 'snapshot' ? 'snapshots' : 'revisions'}`;
-  });
-  const intermediateLabel = createMemo(() => getIntermediateToggleLabel(visibleEntries().length, presetEntries().length, state.showIntermediateRevisions));
-  const pendingSelectionRange = createMemo(() => getPendingSelectionRange(visibleEntries(), state.pendingSelectionIndex, state.hoveredSelectionIndex));
-
-  const currentFromEntry = createMemo(() => sourceEntries().find((entry) => entry.index === state.fromIndex));
-  const currentToEntry = createMemo(() => sourceEntries().find((entry) => entry.index === state.toIndex));
-  const version = createMemo(() => state.data?.version ? `v${state.data.version}` : '');
-  const canStepBackward = createMemo(() => canNavigateSelection(visibleEntries(), state.fromIndex, state.toIndex, state.comparisonMode, -1));
-  const canStepForward = createMemo(() => canNavigateSelection(visibleEntries(), state.fromIndex, state.toIndex, state.comparisonMode, 1));
-  const selectionMeta = createMemo(() => state.pendingSelectionIndex === null
-    ? 'Click an anchor or a sidebar entry to change the preview.'
-    : pendingSelectionRange() === null
-      ? 'Pick another revision to complete the range.'
-      : `Selecting ${pendingSelectionRange()!.selectedCount} revisions…`);
-  const stepStatus = createMemo(() => {
-    if (state.comparisonMode === 'step') {
-      const current = Math.max(1, visibleEntries().findIndex((entry) => entry.index === state.toIndex));
-      return `${current}/${Math.max(1, visibleEntries().length - 1)} ${effectiveComparisonSource() === 'snapshot' ? 'snapshots' : 'diffs'}`;
-    }
-
-    return '';
-  });
-  const pendingSnapshotRevisionIndexes = createMemo(() => {
-    if (!state.data || state.data.backend !== 'jj' || effectiveComparisonSource() !== 'snapshot') {
-      return [];
-    }
-
-    const loaded = new Set(state.data.snapshotState?.loadedChangeIds || []);
-    return getPendingSnapshotRevisionIndexes(revisionVisibleEntries(), loaded, 8, [state.fromIndex, state.toIndex]);
-  });
-  const showSnapshotStatus = createMemo(() => state.data?.backend === 'jj' && effectiveComparisonSource() === 'snapshot' && pendingSnapshotRevisionIndexes().length > 0);
-  const snapshotStatusLabel = createMemo(() => pendingSnapshotRevisionIndexes().length ? 'Loading snapshots…' : '');
-  const activePreviewKey = createMemo(() => buildPreviewKey(state.fromIndex, state.toIndex, effectiveComparisonSource()));
-  const preview = createMemo<DiffPreview | null>(() => state.previewByRange[activePreviewKey()] || null);
-
-  const previewForEntry = (entryIndex: number) => {
-    const range = getUnitPreviewRange(visibleEntries(), entryIndex);
-    if (!range) {
-      return null;
-    }
-
-    return state.previewByRange[buildPreviewKey(range.fromIndex, range.toIndex, effectiveComparisonSource())] || null;
-  };
-
-  function clearPreviewState() {
-    setState('previewByRange', reconcile({}));
-    setState({ sidebarPreviewInFlightKey: '', pendingRangeResolutionKey: '' });
-  }
-
-  onMount(() => {
-    const unsubscribe = host.subscribe(handleMessage);
-    host.send({ command: 'ready' });
-    setReady(true);
-    window.addEventListener('keydown', onKeyDown);
-    document.addEventListener('click', onDocumentClick);
-    const resizeHandle = document.getElementById('resizeHandle');
-    const timelineResizeHandle = document.getElementById('timelineResizeHandle');
-    const track = document.getElementById('track');
-    const rangeFill = document.getElementById('rangeFill');
-    const fromMarker = document.getElementById('fromMarker');
-    const toMarker = document.getElementById('toMarker');
-    let draggingTimeline = false;
-
-    const onSidebarResizePointerDown = (event: PointerEvent) => {
-      if (window.matchMedia('(max-width: 980px)').matches) {
-        return;
-      }
-
-      event.preventDefault();
-      const startX = event.clientX;
-      const startWidth = state.sidebarWidth;
-      const wasCollapsed = state.sidebarCollapsed;
-      resizeHandle?.classList.add('is-dragging');
-
-      const onPointerMove = (moveEvent: PointerEvent) => {
-        const delta = moveEvent.clientX - startX;
-        if (wasCollapsed) {
-          if (delta < 20) {
-            return;
-          }
-
-          setState({
-            sidebarCollapsed: false,
-            sidebarWidth: Math.max(180, Math.min(420, 180 + (delta - 20))),
-          });
-          return;
-        }
-
-        if (startWidth + delta < 100) {
-          setState('sidebarCollapsed', true);
-          onPointerUp();
-          return;
-        }
-
-        setState({
-          sidebarCollapsed: false,
-          sidebarWidth: Math.max(180, Math.min(420, startWidth + delta)),
-        });
-      };
-
-      const onPointerUp = () => {
-        resizeHandle?.classList.remove('is-dragging');
-        window.removeEventListener('pointermove', onPointerMove);
-        window.removeEventListener('pointerup', onPointerUp);
-      };
-
-      window.addEventListener('pointermove', onPointerMove);
-      window.addEventListener('pointerup', onPointerUp);
-    };
-
-    const onTimelineResizePointerDown = (event: PointerEvent) => {
-      event.preventDefault();
-      const startY = event.clientY;
-      const startHeight = state.timelinePaneCollapsed ? TIMELINE_COLLAPSED_HEIGHT : state.timelinePaneHeight;
-      if (state.timelinePaneCollapsed) {
-        setState({ timelinePaneCollapsed: false });
-      }
-
-      timelineResizeHandle?.classList.add('is-dragging');
-
-      const onPointerMove = (moveEvent: PointerEvent) => {
-        const delta = moveEvent.clientY - startY;
-        const nextHeight = Math.max(96, Math.min(TIMELINE_MAX_HEIGHT, startHeight + delta));
-        if (nextHeight <= TIMELINE_COLLAPSED_HEIGHT) {
-          setState('timelinePaneCollapsed', true);
-          return;
-        }
-
-        setState({
-          timelinePaneCollapsed: false,
-          timelinePaneHeight: Math.max(TIMELINE_EXPANDED_MIN_HEIGHT, nextHeight),
-        });
-      };
-
-      const onPointerUp = () => {
-        timelineResizeHandle?.classList.remove('is-dragging');
-        window.removeEventListener('pointermove', onPointerMove);
-        window.removeEventListener('pointerup', onPointerUp);
-      };
-
-      window.addEventListener('pointermove', onPointerMove);
-      window.addEventListener('pointerup', onPointerUp);
-    };
-
-    const onTrackMouseMove = (event: MouseEvent) => {
-      if (draggingTimeline) {
-        return;
-      }
-
-      const anchor = (event.target as HTMLElement | null)?.closest('.track-anchor[data-entry-index]') as HTMLElement | null;
-      if (state.pendingSelectionIndex !== null && anchor) {
-        const hoveredSelectionIndex = Number(anchor.dataset.entryIndex || '');
-        const pendingTooltip = Number.isInteger(hoveredSelectionIndex)
-          ? buildRangeTooltipState(visibleEntries(), state.previewByRange, effectiveComparisonSource(), state.pendingSelectionIndex, hoveredSelectionIndex, event.clientX, event.clientY, true)
-          : null;
-        setTooltip(pendingTooltip);
-        return;
-      }
-
-      const segment = getSegmentTooltipState(visibleEntries(), state.previewByRange, effectiveComparisonSource(), event.clientX, event.clientY);
-      setTooltip(segment);
-    };
-
-    const onTrackMouseLeave = () => {
-      if (!draggingTimeline) {
-        setTooltip((current) => current?.kind === 'range' ? null : current);
-      }
-    };
-
-    const beginRangeDrag = (event: PointerEvent) => {
-      if (!visibleEntries().length) {
-        return;
-      }
-
-      setState({ pendingSelectionIndex: null, hoveredSelectionIndex: null });
-  setTooltip((current) => current?.kind === 'range' ? null : current);
-      draggingTimeline = true;
-      event.preventDefault();
-      event.stopPropagation();
-
-      const trackRect = track?.getBoundingClientRect();
-      if (!trackRect) {
-        draggingTimeline = false;
-        return;
-      }
-
-      const startFromVisibleIndex = getVisibleIndexForAbsoluteIndex(visibleEntries(), state.fromIndex);
-      const startToVisibleIndex = getVisibleIndexForAbsoluteIndex(visibleEntries(), state.toIndex);
-      const width = Math.max(1, startToVisibleIndex - startFromVisibleIndex);
-      const startX = event.clientX;
-      const denominator = Math.max(1, visibleEntries().length - 1);
-      track?.classList.add('is-dragging');
-      rangeFill?.classList.add('is-dragging');
-
-      const onPointerMove = (moveEvent: PointerEvent) => {
-        const deltaRatio = (moveEvent.clientX - startX) / Math.max(1, trackRect.width);
-        const deltaSteps = Math.round(deltaRatio * denominator);
-        const nextFromVisibleIndex = Math.min(Math.max(startFromVisibleIndex + deltaSteps, 0), Math.max(0, visibleEntries().length - 1 - width));
-        const nextToVisibleIndex = nextFromVisibleIndex + width;
-        setState({
-          fromIndex: visibleEntries()[nextFromVisibleIndex].index,
-          toIndex: visibleEntries()[nextToVisibleIndex].index,
-        });
-      };
-
-      const onPointerUp = () => {
-        draggingTimeline = false;
-        track?.classList.remove('is-dragging');
-        rangeFill?.classList.remove('is-dragging');
-        window.removeEventListener('pointermove', onPointerMove);
-        window.removeEventListener('pointerup', onPointerUp);
-      };
-
-      window.addEventListener('pointermove', onPointerMove);
-      window.addEventListener('pointerup', onPointerUp);
-    };
-
-    const beginMarkerDrag = (side: 'from' | 'to', event: PointerEvent) => {
-      if (!visibleEntries().length) {
-        return;
-      }
-
-      setState({ comparisonMode: 'range', pendingSelectionIndex: null, hoveredSelectionIndex: null });
-  setTooltip((current) => current?.kind === 'range' ? null : current);
-      draggingTimeline = true;
-      event.preventDefault();
-      event.stopPropagation();
-  track?.classList.add('is-dragging');
-
-      updateMarkerSelection(side, event.clientX, visibleEntries(), state.fromIndex, state.toIndex, setState);
-
-      const onPointerMove = (moveEvent: PointerEvent) => {
-        updateMarkerSelection(side, moveEvent.clientX, visibleEntries(), state.fromIndex, state.toIndex, setState);
-      };
-
-      const onPointerUp = () => {
-        draggingTimeline = false;
-        track?.classList.remove('is-dragging');
-        window.removeEventListener('pointermove', onPointerMove);
-        window.removeEventListener('pointerup', onPointerUp);
-      };
-
-      window.addEventListener('pointermove', onPointerMove);
-      window.addEventListener('pointerup', onPointerUp);
-    };
-
-    resizeHandle?.addEventListener('pointerdown', onSidebarResizePointerDown);
-    timelineResizeHandle?.addEventListener('pointerdown', onTimelineResizePointerDown);
-    rangeFill?.addEventListener('pointerdown', beginRangeDrag);
-    track?.addEventListener('pointerdown', (event) => {
-      if ((event.target as HTMLElement | null)?.closest('.track-anchor')) {
-        return;
-      }
-
-      const visibleIndex = getVisibleIndexFromClientX(visibleEntries(), event.clientX);
-      if (visibleIndex < 0) {
-        return;
-      }
-
-      const fromVisibleIndex = getVisibleIndexForAbsoluteIndex(visibleEntries(), state.fromIndex);
-      const toVisibleIndex = getVisibleIndexForAbsoluteIndex(visibleEntries(), state.toIndex);
-      if (visibleIndex >= Math.min(fromVisibleIndex, toVisibleIndex) && visibleIndex <= Math.max(fromVisibleIndex, toVisibleIndex)) {
-        beginRangeDrag(event);
-      }
-    });
-    track?.addEventListener('mousemove', onTrackMouseMove);
-    track?.addEventListener('mouseleave', onTrackMouseLeave);
-    fromMarker?.addEventListener('pointerdown', (event) => beginMarkerDrag('from', event));
-    toMarker?.addEventListener('pointerdown', (event) => beginMarkerDrag('to', event));
-
-    onCleanup(() => {
-      unsubscribe();
-      window.removeEventListener('keydown', onKeyDown);
-      document.removeEventListener('click', onDocumentClick);
-      resizeHandle?.removeEventListener('pointerdown', onSidebarResizePointerDown);
-      timelineResizeHandle?.removeEventListener('pointerdown', onTimelineResizePointerDown);
-      track?.removeEventListener('mousemove', onTrackMouseMove);
-      track?.removeEventListener('mouseleave', onTrackMouseLeave);
-    });
-  });
-
-  createEffect(() => {
-    document.documentElement.style.setProperty('--sidebar-width', `${state.sidebarWidth}px`);
-    document.documentElement.style.setProperty('--timeline-pane-height', `${state.timelinePaneCollapsed ? TIMELINE_COLLAPSED_HEIGHT : state.timelinePaneHeight}px`);
-  });
-
-  createEffect(() => {
-    const relativePath = state.data?.relativePath;
-    if (relativePath) {
-      setState('fileInputValue', relativePath);
-    }
-  });
-
-  createEffect(() => {
-    if (!ready() || !state.data) {
-      return;
-    }
-
-    const command: TimelineCommand = {
-      command: 'persist-state',
-      sidebarWidth: state.sidebarWidth,
-      sidebarCollapsed: state.sidebarCollapsed,
-      timelinePaneHeight: state.timelinePaneHeight,
-      timelinePaneCollapsed: state.timelinePaneCollapsed,
-      layoutMode: state.layoutMode,
-      contentMode: state.contentMode,
-      comparisonMode: state.comparisonMode,
-      comparisonSource: effectiveComparisonSource(),
-      showIntermediateRevisions: state.showIntermediateRevisions,
-      preset: state.preset,
-    };
-    host.send(command);
-  });
-
-  createEffect(() => {
-    if (!ready() || !state.data || visibleEntries().length < 2) {
-      return;
-    }
-
-    const [fromIndex, toIndex] = normalizeSelection(visibleEntries(), state.fromIndex, state.toIndex, state.comparisonMode);
-    if (fromIndex !== state.fromIndex || toIndex !== state.toIndex) {
-      setState({ fromIndex, toIndex });
-      return;
-    }
-
-    if (state.previewByRange[activePreviewKey()]) {
-      return;
-    }
-
-    host.send({
-      command: 'select-entry',
-      fromIndex,
-      toIndex,
-      comparisonSource: effectiveComparisonSource(),
-    });
-  });
-
-  createEffect((previousSource: ComparisonSource | null) => {
-    if (!ready() || !state.data || state.data.backend !== 'jj') {
-      return state.data?.backend === 'jj' ? state.comparisonSource : null;
-    }
-
-    const currentSource = state.comparisonSource;
-    if (previousSource !== null && previousSource !== currentSource) {
-      host.send({
-        command: 'select-entry',
-        fromIndex: state.fromIndex,
-        toIndex: state.toIndex,
-        comparisonSource: currentSource,
-      });
-    }
-
-    return currentSource;
-  }, null);
-
-  createEffect(() => {
-    if (!state.data || state.data.backend !== 'jj' || effectiveComparisonSource() !== 'snapshot') {
-      return;
-    }
-    const pending = pendingSnapshotRevisionIndexes();
-    if (pending.length) {
-      host.send({ command: 'hydrate-snapshot-entries', revisionIndexes: pending });
-    }
-  });
-
-  createEffect(() => {
-    if (!ready() || !state.data || visibleEntries().length < 2 || state.sidebarPreviewInFlightKey) {
-      return;
-    }
-
-    if (state.data.backend === 'jj' && effectiveComparisonSource() === 'snapshot' && pendingSnapshotRevisionIndexes().length) {
-      return;
-    }
-
-    const [nextRequest] = getSidebarPreviewRequests(
-      visibleEntries(),
-      effectiveComparisonSource(),
-      state.previewByRange,
-      activePreviewKey(),
-      buildPreviewKey,
-    ).toSorted((left, right) => Math.abs(left.toIndex - state.toIndex) - Math.abs(right.toIndex - state.toIndex));
-
-    if (!nextRequest) {
-      return;
-    }
-
-    setState('sidebarPreviewInFlightKey', nextRequest.key);
-    host.send({
-      command: 'select-entry',
-      fromIndex: nextRequest.fromIndex,
-      toIndex: nextRequest.toIndex,
-      comparisonSource: nextRequest.comparisonSource,
-    });
-  });
-
-  function handleMessage(message: TimelineInboundMessage) {
-    if (message.type === 'timeline-data') {
-      const preferences = message.payload.preferences || {};
-      setState({
-        data: message.payload,
-        sidebarWidth: preferences.sidebarWidth || 280,
-        timelinePaneHeight: preferences.timelinePaneHeight || 278,
-        timelinePaneCollapsed: preferences.timelinePaneCollapsed === true,
-        layoutMode: preferences.layoutMode || 'split',
-        contentMode: preferences.contentMode || 'diffs',
-        comparisonMode: preferences.comparisonMode || 'range',
-        comparisonSource: message.payload.backend === 'jj' ? (preferences.comparisonSource || 'revision') : 'revision',
-        showIntermediateRevisions: preferences.showIntermediateRevisions === true,
-        preset: (preferences.preset as TimelinePreset) || 'year',
-        fromIndex: Math.max(0, message.payload.defaultIndex - 1),
-        toIndex: message.payload.defaultIndex,
-        sidebarCollapsed: false,
-        actionsMenuOpen: false,
-        hotkeysOpen: false,
-        pendingSelectionIndex: null,
-        hoveredSelectionIndex: null,
-        oldestFirst: false,
-        fileInputValue: message.payload.relativePath,
-        sidebarSearchQuery: '',
-      });
-      clearPreviewState();
-      return;
-    }
-
-    if (message.type === 'diff-preview') {
-      const comparisonSource = message.payload.comparisonSource || effectiveComparisonSource();
-      const previewKey = buildPreviewKey(message.payload.fromIndex, message.payload.toIndex, comparisonSource);
-
-      setState('previewByRange', previewKey, message.payload);
-      if (state.sidebarPreviewInFlightKey === previewKey) {
-        setState('sidebarPreviewInFlightKey', '');
-      }
-
-      if (previewKey !== activePreviewKey()) {
-        return;
-      }
-
-      if (!state.showIntermediateRevisions && state.comparisonMode === 'range' && !message.payload.hasChanges && message.payload.fromIndex !== message.payload.toIndex) {
-        maybeResolveHiddenRangeToNonEmpty(message.payload);
-        return;
-      }
-
-      setState('pendingRangeResolutionKey', '');
-      return;
-    }
-
-    if (message.type === 'snapshot-entries' && state.data) {
-      const selectedSourceEntries = sourceEntries();
-      const selectedFromEntryId = selectedSourceEntries.find((entry) => entry.index === state.fromIndex)?.id || null;
-      const selectedToEntryId = selectedSourceEntries.find((entry) => entry.index === state.toIndex)?.id || null;
-      const nextData = {
-        ...state.data,
-        snapshotEntries: message.payload.snapshotEntries,
-        snapshotState: message.payload.snapshotState,
-      };
-
-      if (state.data.backend === 'jj' && state.comparisonSource === 'snapshot') {
-        const nextSourceEntries = getEntriesForSource(nextData, 'snapshot');
-        const nextFromIndex = selectedFromEntryId
-          ? nextSourceEntries.find((entry) => entry.id === selectedFromEntryId)?.index
-          : undefined;
-        const nextToIndex = selectedToEntryId
-          ? nextSourceEntries.find((entry) => entry.id === selectedToEntryId)?.index
-          : undefined;
-
-        setState({
-          data: nextData,
-          fromIndex: nextFromIndex ?? state.fromIndex,
-          toIndex: nextToIndex ?? state.toIndex,
-        });
-        clearPreviewState();
-        return;
-      }
-
-      setState('data', nextData);
-      return;
-    }
-
-    if (message.type === 'resolved-range') {
-      setState('pendingRangeResolutionKey', '');
-      if (!message.payload) {
-        return;
-      }
-
-      setState({
-        fromIndex: message.payload.fromIndex,
-        toIndex: message.payload.toIndex,
-        pendingSelectionIndex: null,
-        hoveredSelectionIndex: null,
-      });
-    }
-  }
-
-  function maybeResolveHiddenRangeToNonEmpty(nextPreview: DiffPreview) {
-    const candidateIndexes = visibleEntries()
-      .filter((entry) => entry.index >= Math.min(nextPreview.fromIndex, nextPreview.toIndex) && entry.index <= Math.max(nextPreview.fromIndex, nextPreview.toIndex))
-      .map((entry) => entry.index);
-
-    if (candidateIndexes.length < 2) {
-      return;
-    }
-
-    const resolutionKey = candidateIndexes.join(':');
-    if (state.pendingRangeResolutionKey === resolutionKey) {
-      return;
-    }
-
-    setState('pendingRangeResolutionKey', resolutionKey);
-    host.send({
-      command: 'resolve-nonempty-range',
-      candidateIndexes,
-    });
-  }
-
-  function onDocumentClick(event: MouseEvent) {
-    const target = event.target as HTMLElement | null;
-    if (state.actionsMenuOpen && !target?.closest('.menu-wrap')) {
-      setState('actionsMenuOpen', false);
-    }
-
-    if (state.hotkeysOpen && !target?.closest('.hotkeys-card') && !target?.closest('#toggleHotkeysButton')) {
-      setState('hotkeysOpen', false);
-    }
-  }
-
-  function selectUnitRange(entryIndex: number) {
-    const entries = visibleEntries();
-    const visibleIndex = entries.findIndex((entry) => entry.index === entryIndex);
-    if (visibleIndex <= 0) {
-      return;
-    }
-
-    setState({
-      fromIndex: entries[visibleIndex - 1].index,
-      toIndex: entries[visibleIndex].index,
-      hoveredSelectionIndex: null,
-    });
-  }
-
-  function handleEntrySelection(entryIndex: number) {
-    setState({ actionsMenuOpen: false, hoveredSelectionIndex: null });
-
-    if (state.comparisonMode === 'step') {
-      setState('pendingSelectionIndex', null);
-      selectUnitRange(entryIndex);
-      return;
-    }
-
-    if (state.pendingSelectionIndex === null) {
-      setState('pendingSelectionIndex', entryIndex);
-      return;
-    }
-
-    if (state.pendingSelectionIndex === entryIndex) {
-      setState('pendingSelectionIndex', null);
-      return;
-    }
-
-    setState({
-      fromIndex: Math.min(state.pendingSelectionIndex, entryIndex),
-      toIndex: Math.max(state.pendingSelectionIndex, entryIndex),
-      pendingSelectionIndex: null,
-    });
-  }
-
-  function stepSelection(amount: number) {
-    const entries = visibleEntries();
-    if (!entries.length) {
-      return;
-    }
-
-    setState('pendingSelectionIndex', null);
-    if (state.comparisonMode === 'step') {
-      const [fromIndex, toIndex] = shiftStepSelection(entries, state.toIndex, amount);
-      setState({ fromIndex, toIndex, hoveredSelectionIndex: null });
-      return;
-    }
-
-    const [fromIndex, toIndex] = shiftRangeSelection(entries, state.fromIndex, state.toIndex, amount);
-    setState({ fromIndex, toIndex, hoveredSelectionIndex: null });
-  }
-
-  function submitRevision(side: 'from' | 'to', value: string) {
-    const query = value.trim().toLowerCase();
-    const match = visibleEntries().find((entry) => entry.shortRevision.toLowerCase() === query)
-      || visibleEntries().find((entry) => entry.revision.toLowerCase().startsWith(query));
-    if (!match) {
-      return;
-    }
-    setState('pendingSelectionIndex', null);
-    if (state.comparisonMode === 'step') {
-      selectUnitRange(match.index);
-      return;
-    }
-    if (side === 'from') {
-      setState({ fromIndex: Math.min(match.index, state.toIndex), hoveredSelectionIndex: null });
-    } else {
-      setState({ toIndex: Math.max(match.index, state.fromIndex), hoveredSelectionIndex: null });
-    }
-  }
-
-  function submitFile(value: string) {
-    const relativePath = value.trim();
-    if (!state.data || !relativePath || relativePath === state.data.relativePath || !state.data.workspaceFiles.includes(relativePath)) {
-      return;
-    }
-
-    setState({
-      actionsMenuOpen: false,
-      hotkeysOpen: false,
-      pendingSelectionIndex: null,
-      hoveredSelectionIndex: null,
-    });
-    host.send({ command: 'switch-file', relativePath });
-  }
-
-  function toggleSidebar() {
-    setState('sidebarCollapsed', (value) => !value);
-  }
-
-  function toggleSortOrder() {
-    setState('oldestFirst', (value) => !value);
-  }
-
-  function toggleSidebarFromMenu() {
-    setState({ sidebarCollapsed: !state.sidebarCollapsed, actionsMenuOpen: false });
-  }
-
-  function toggleTimelinePane() {
-    if (state.timelinePaneCollapsed) {
-      setState({
-        timelinePaneCollapsed: false,
-        timelinePaneHeight: Math.max(TIMELINE_EXPANDED_MIN_HEIGHT, state.timelinePaneHeight),
-      });
-      return;
-    }
-
-    setState({ timelinePaneCollapsed: true, actionsMenuOpen: false, hotkeysOpen: false });
-  }
-
-  function toggleDiffFocus() {
-    setState('diffFocusMode', (value) => !value);
-  }
-
-  function toggleActionsMenu() {
-    setState({ actionsMenuOpen: !state.actionsMenuOpen, hotkeysOpen: false });
-  }
-
-  function toggleHotkeys() {
-    setState({ hotkeysOpen: !state.hotkeysOpen, actionsMenuOpen: false });
-  }
-
-  function sendRangeCommand(command: 'open-editor-diff' | 'open-range-files-diff') {
-    host.send({
-      command,
-      fromIndex: state.fromIndex,
-      toIndex: state.toIndex,
-      comparisonSource: effectiveComparisonSource(),
-    });
-    setState({ actionsMenuOpen: false, hotkeysOpen: false });
-  }
-
-  function openRevisionFilesDiff(entryIndex: number) {
-    host.send({
-      command: 'open-revision-files-diff',
-      entryIndex,
-      comparisonSource: effectiveComparisonSource(),
-    });
-  }
-
-  function openRevisionRemote(entryIndex: number) {
-    host.send({
-      command: 'open-revision-remote',
-      entryIndex,
-      comparisonSource: effectiveComparisonSource(),
-    });
-  }
-
-  function openCurrentFile() {
-    host.send({ command: 'open-current-file' });
-    setState('actionsMenuOpen', false);
-  }
-
-  function cancelActiveRequest() {
-    host.send({ command: 'cancel-active-request' });
-    setState('actionsMenuOpen', false);
-  }
-
-  function refreshTimeline() {
-    host.send({ command: 'refresh' });
-    setState({ actionsMenuOpen: false, hotkeysOpen: false, pendingSelectionIndex: null, hoveredSelectionIndex: null });
-  }
-
-  function resetPreferences() {
-    if (!state.data) {
-      return;
-    }
-
-    const nextSourceEntries = filterEntries(getEntriesForSource(state.data, 'revision'), state.data, 'year', false);
-    const { fromIndex, toIndex } = getDefaultSelection(nextSourceEntries);
-    setState({
-      fromIndex,
-      toIndex,
-      comparisonMode: 'range',
-      comparisonSource: 'revision',
-      layoutMode: 'split',
-      contentMode: 'diffs',
-      preset: 'year',
-      showIntermediateRevisions: false,
-      sidebarSearchQuery: '',
-      sidebarWidth: 280,
-      timelinePaneHeight: 278,
-      timelinePaneCollapsed: false,
-      sidebarCollapsed: false,
-      diffFocusMode: false,
-      actionsMenuOpen: false,
-      hotkeysOpen: false,
-      pendingSelectionIndex: null,
-      hoveredSelectionIndex: null,
-      oldestFirst: false,
-    });
-    clearPreviewState();
-  }
-
-  function setComparisonMode(value: ComparisonMode) {
-    if (value === state.comparisonMode) {
-      return;
-    }
-
-    if (value === 'step') {
-      const [fromIndex, toIndex] = alignStepSelection(visibleEntries(), state.toIndex);
-      setState({ comparisonMode: value, fromIndex, toIndex, pendingSelectionIndex: null, hoveredSelectionIndex: null, pendingRangeResolutionKey: '' });
-      return;
-    }
-
-    setState({ comparisonMode: value, pendingSelectionIndex: null, hoveredSelectionIndex: null, pendingRangeResolutionKey: '' });
-  }
-
-  function setComparisonSource(value: ComparisonSource) {
-    if (state.data?.backend !== 'jj' || value === state.comparisonSource) {
-      return;
-    }
-
-    const nextVisibleEntries = filterEntries(getEntriesForSource(state.data, value), state.data, state.preset, state.showIntermediateRevisions);
-    const { fromIndex, toIndex } = getDefaultSelection(nextVisibleEntries);
-
-    setState({
-      comparisonSource: value,
-      fromIndex,
-      toIndex,
-      pendingSelectionIndex: null,
-      hoveredSelectionIndex: null,
-    });
-    clearPreviewState();
-  }
-
-  function setPreset(value: TimelinePreset) {
-    if (!state.data || value === state.preset) {
-      setState({ preset: value, pendingSelectionIndex: null, hoveredSelectionIndex: null, pendingRangeResolutionKey: '' });
-      return;
-    }
-
-    const nextVisibleEntries = filterEntries(getEntriesForSource(state.data, effectiveComparisonSource()), state.data, value, state.showIntermediateRevisions);
-    const { fromIndex, toIndex } = getDefaultSelection(nextVisibleEntries);
-    setState({ preset: value, fromIndex, toIndex, pendingSelectionIndex: null, hoveredSelectionIndex: null, pendingRangeResolutionKey: '' });
-  }
-
-  function toggleIntermediateRevisions() {
-    if (!state.data?.hasIntermediateRevisions) {
-      return;
-    }
-
-    setState({ showIntermediateRevisions: !state.showIntermediateRevisions, pendingSelectionIndex: null, hoveredSelectionIndex: null, pendingRangeResolutionKey: '' });
-  }
-
-  function dockRange(edge: 'start' | 'end') {
-    const entries = visibleEntries();
-    if (entries.length < 2) {
-      return;
-    }
-
-    setState('pendingSelectionIndex', null);
-    if (state.comparisonMode === 'step') {
-      const nextToVisibleIndex = edge === 'start' ? 1 : entries.length - 1;
-      setState({ fromIndex: entries[nextToVisibleIndex - 1].index, toIndex: entries[nextToVisibleIndex].index, hoveredSelectionIndex: null });
-      return;
-    }
-
-    const [fromIndex, toIndex] = dockRangeSelection(entries, state.fromIndex, state.toIndex, edge);
-    setState({ fromIndex, toIndex, hoveredSelectionIndex: null });
-  }
-
-  function adjustBoundary(side: 'from' | 'to', amount: number) {
-    if (state.comparisonMode === 'step') {
-      return;
-    }
-
-    const [fromIndex, toIndex] = adjustRangeBoundary(visibleEntries(), state.fromIndex, state.toIndex, side, amount);
-    setState({ fromIndex, toIndex, pendingSelectionIndex: null, hoveredSelectionIndex: null });
-  }
-
-  function focusInputField(elementId: string, openSidebar = false) {
-    if (openSidebar && state.sidebarCollapsed) {
-      setState('sidebarCollapsed', false);
-    }
-
-    window.requestAnimationFrame(() => {
-      const element = document.getElementById(elementId) as HTMLInputElement | null;
-      if (!element) {
-        return;
-      }
-
-      element.focus();
-      element.select();
-    });
-  }
-
-  function onKeyDown(event: KeyboardEvent) {
-    const target = event.target as HTMLElement | null;
-    const tagName = target?.tagName?.toLowerCase();
-    const lowerKey = event.key.toLowerCase();
-    const isModifierless = !event.metaKey && !event.ctrlKey && !event.altKey;
-    const allowWhileEditing = isModifierless && (lowerKey === 'b' || lowerKey === 'd' || lowerKey === 'f' || lowerKey === 's' || lowerKey === 't' || event.key === '/' || event.key === 'Escape');
-    if ((tagName === 'input' || tagName === 'textarea') && !allowWhileEditing) {
-      return;
-    }
-
-    const jumpAmount = event.shiftKey ? 5 : 1;
-
-    if (event.key === '?' || (event.shiftKey && event.key === '/')) {
-      event.preventDefault();
-      toggleHotkeys();
-      return;
-    }
-
-    if (!event.metaKey && !event.ctrlKey && !event.altKey && lowerKey === 'b') {
-      event.preventDefault();
-      toggleSidebar();
-      return;
-    }
-
-    if (!event.metaKey && !event.ctrlKey && !event.altKey && lowerKey === 'd') {
-      event.preventDefault();
-      toggleDiffFocus();
-      return;
-    }
-
-    if (!event.metaKey && !event.ctrlKey && !event.altKey && lowerKey === 'f') {
-      event.preventDefault();
-      focusInputField('fromRevisionInput');
-      return;
-    }
-
-    if (!event.metaKey && !event.ctrlKey && !event.altKey && lowerKey === 't') {
-      event.preventDefault();
-      focusInputField('toRevisionInput');
-      return;
-    }
-
-    if (!event.metaKey && !event.ctrlKey && !event.altKey && event.key === '/') {
-      event.preventDefault();
-      focusInputField('fileSwitcher');
-      return;
-    }
-
-    if (!event.metaKey && !event.ctrlKey && !event.altKey && lowerKey === 's') {
-      event.preventDefault();
-      focusInputField('sidebarSearchInput', true);
-      return;
-    }
-
-    if (event.key === 'Escape' && (state.hotkeysOpen || state.actionsMenuOpen)) {
-      event.preventDefault();
-      setState({ hotkeysOpen: false, actionsMenuOpen: false, pendingSelectionIndex: null, hoveredSelectionIndex: null });
-      return;
-    }
-
-    if (event.key === 'Escape' && state.diffFocusMode) {
-      event.preventDefault();
-      setState('diffFocusMode', false);
-      return;
-    }
-
-    if (event.key === ' ') {
-      event.preventDefault();
-      sendRangeCommand('open-range-files-diff');
-      return;
-    }
-
-    if (event.metaKey && event.key === 'ArrowLeft') {
-      event.preventDefault();
-      dockRange('start');
-      return;
-    }
-
-    if (event.metaKey && event.key === 'ArrowRight') {
-      event.preventDefault();
-      dockRange('end');
-      return;
-    }
-
-    if (event.key === 'ArrowLeft') {
-      event.preventDefault();
-      if (event.altKey) {
-        adjustBoundary('to', -jumpAmount);
-      } else if (event.ctrlKey) {
-        adjustBoundary('from', -jumpAmount);
-      } else {
-        stepSelection(-jumpAmount);
-      }
-      return;
-    }
-
-    if (event.key === 'ArrowRight') {
-      event.preventDefault();
-      if (event.altKey) {
-        adjustBoundary('to', jumpAmount);
-      } else if (event.ctrlKey) {
-        adjustBoundary('from', jumpAmount);
-      } else {
-        stepSelection(jumpAmount);
-      }
-      return;
-    }
-
-    if (event.key === 'ArrowUp') {
-      event.preventDefault();
-      stepSelection(jumpAmount);
-      return;
-    }
-
-    if (event.key === 'ArrowDown') {
-      event.preventDefault();
-      stepSelection(-jumpAmount);
-    }
-  }
-
-  function setHoveredEntry(entryIndex: number | null) {
-    setState('hoveredSelectionIndex', entryIndex);
-  }
-
-  function showAnchorTooltip(entryIndex: number, target: HTMLElement) {
-    const rect = target.getBoundingClientRect();
-    const centerX = rect.left + rect.width / 2;
-    const anchorTop = rect.top;
-
-    if (state.pendingSelectionIndex !== null) {
-      setTooltip(buildRangeTooltipState(
-        visibleEntries(),
-        state.previewByRange,
-        effectiveComparisonSource(),
-        state.pendingSelectionIndex,
-        entryIndex,
-        centerX,
-        anchorTop,
-        true,
-      ));
-      return;
-    }
-
-    const unitRange = getUnitPreviewRange(visibleEntries(), entryIndex);
-    if (!unitRange) {
-      hideRangeTooltip();
-      return;
-    }
-
-    setTooltip(buildRangeTooltipState(
-      visibleEntries(),
-      state.previewByRange,
-      effectiveComparisonSource(),
-      unitRange.fromIndex,
-      unitRange.toIndex,
-      centerX,
-      anchorTop,
-      false,
-    ));
-  }
-
-  function hideRangeTooltip() {
-    setTooltip((current) => current?.kind === 'range' ? null : current);
-  }
-
-  function showInfoTooltip(event: MouseEvent, label: string | null, value: string) {
-    const target = event.currentTarget as HTMLElement | null;
-    const rect = target?.getBoundingClientRect();
-    if (!rect || !value) {
-      return;
-    }
-
-    setTooltip({
-      kind: 'info',
-      left: rect.left + rect.width / 2,
-      top: rect.top - 8,
-      label,
-      value: label === 'Timestamp' ? formatExactTimestamp(value) : value,
-    });
-  }
-
-  function hideTooltip() {
-    setTooltip((current) => current?.kind === 'info' ? null : current);
-  }
-
-  const timelineContextValue: TimelineContextValue = {
-    state: {
-      backend: () => state.data?.backend || null,
-      visibleEntries,
-      sidebarEntries: filteredSidebarEntries,
-      workspaceFiles: () => state.data?.workspaceFiles || [],
-      fileInputValue: () => state.fileInputValue,
-      fromIndex: () => state.fromIndex,
-      toIndex: () => state.toIndex,
-      pendingSelectionIndex: () => state.pendingSelectionIndex,
-      hoveredSelectionIndex: () => state.hoveredSelectionIndex,
-      rangeLabel,
-      rangeSubtitle,
-      selectionMeta,
-      stepStatus,
-      version,
-      comparisonMode: () => state.comparisonMode,
-      comparisonSource: effectiveComparisonSource,
-      layoutMode: () => state.layoutMode,
-      contentMode: () => state.contentMode,
-      intermediateLabel,
-      preset: () => state.preset,
-      showIntermediateRevisions: () => state.showIntermediateRevisions,
-      hasIntermediateRevisions: () => state.data?.hasIntermediateRevisions === true,
-      sidebarCollapsed: () => state.sidebarCollapsed,
-      timelinePaneCollapsed: () => state.timelinePaneCollapsed,
-      actionsMenuOpen: () => state.actionsMenuOpen,
-      hotkeysOpen: () => state.hotkeysOpen,
-      showSnapshotStatus,
-      snapshotStatusLabel,
-      diffFocusMode: () => state.diffFocusMode,
-      canStepBackward,
-      canStepForward,
-      currentFromEntry,
-      currentToEntry,
-      preview,
-      previewForEntry,
-      sidebarSearchQuery: () => state.sidebarSearchQuery,
-      visibleEntryCount: () => visibleEntries().length,
-      oldestFirst: () => state.oldestFirst,
-    },
-    actions: {
-      selectEntry: handleEntrySelection,
-      hoverEntry: setHoveredEntry,
-      setSidebarSearchQuery: (value) => setState('sidebarSearchQuery', value),
-      toggleSortOrder,
-      openSelectionDiffs: () => sendRangeCommand('open-range-files-diff'),
-      openRevisionFilesDiff,
-      openRevisionRemote,
-      showInfoTooltip,
-      hideInfoTooltip: hideTooltip,
-      submitFile,
-      toggleSidebar,
-      toggleSidebarFromMenu,
-      toggleTimelinePane,
-      toggleHotkeys,
-      toggleActionsMenu,
-      openCurrentFile,
-      openEditorDiff: () => sendRangeCommand('open-editor-diff'),
-      cancelActiveRequest,
-      refreshTimeline,
-      resetPreferences,
-      setComparisonMode,
-      setComparisonSource,
-      setLayoutMode: (value) => setState('layoutMode', value),
-      setContentMode: (value) => setState('contentMode', value),
-      setPreset,
-      toggleIntermediateRevisions,
-      stepSelection,
-      showAnchorTooltip,
-      hideRangeTooltip,
-      submitRevision,
-      toggleDiffFocus,
-    },
-  };
-
-  return (
-    <TimelineProvider value={timelineContextValue}>
-      <div class="app">
-        <section class={`workspace${state.sidebarCollapsed ? ' is-collapsed' : ''}${state.diffFocusMode ? ' is-diff-focus' : ''}`}>
-          <Sidebar />
-          <div class="resize-handle" id="resizeHandle" />
-          <section class={`panel diff-panel${state.timelinePaneCollapsed ? ' is-timeline-only' : ''}`}>
-            <TimelinePane />
-            <DiffPanel />
-          </section>
-        </section>
-        <Show when={tooltip()}>
-          {(activeTooltip) => {
-            const current = activeTooltip();
-            const tooltipLeft = clampTooltipX(current.left);
-            return (
-              <div class={`anchor-tooltip${current.kind === 'range' ? ' anchor-tooltip--segment' : ''}${current.kind === 'range' && current.pending ? ' anchor-tooltip--pending' : ''}`} style={{ left: `${tooltipLeft}px`, top: `${Math.max(48, current.top)}px`, transform: 'translate(-50%, calc(-100% - 8px))' }}>
-                {current.kind === 'info'
-                  ? <>
-                      <Show when={current.label}>
-                        <div class="anchor-tooltip-label">{current.label}</div>
-                      </Show>
-                      <div class="anchor-tooltip-meta">{current.value}</div>
-                    </>
-                  : <>
-                      <div class="anchor-tooltip-id anchor-tooltip-range">
-                        <RevisionIdentifier value={getRevisionIdentifierValue(current.fromEntry)} highlightPrefix={current.fromEntry.changeId} plain={current.fromEntry.isWorkingTree} />
-                        <span class="diff-title-arrow">→</span>
-                        <RevisionIdentifier value={getRevisionIdentifierValue(current.toEntry)} highlightPrefix={current.toEntry.changeId} plain={current.toEntry.isWorkingTree} />
-                      </div>
-                      <div class="anchor-tooltip-label">{current.pending ? `Pending selection · ${current.selectedCount} revisions` : `Segment preview · ${current.selectedCount} revisions`}</div>
-                      <div class="anchor-tooltip-meta">From {current.fromEntry.relativeDate || 'unknown'} · {formatExactTimestamp(current.fromEntry.authorDate)}</div>
-                      <div class="anchor-tooltip-meta">To {current.toEntry.relativeDate || 'unknown'} · {formatExactTimestamp(current.toEntry.authorDate)}</div>
-                      <div class="anchor-tooltip-desc">{current.preview?.subtitle || current.toEntry.description}</div>
-                    </>}
-              </div>
-            );
-          }}
-        </Show>
-      </div>
-    </TimelineProvider>
-  );
+	const host = createTimelineHost();
+	const [state, setState] = createStore<UiState>(initialState);
+	const [ready, setReady] = createSignal(false);
+	const [tooltip, setTooltip] = createSignal<TooltipState | null>(null);
+	const effectiveComparisonSource = createMemo<ComparisonSource>(() => {
+		if (state.data?.backend !== 'jj') {
+			return 'revision';
+		}
+
+		return state.comparisonSource === 'snapshot' ? 'snapshot' : 'revision';
+	});
+
+	const revisionEntries = createMemo<FileRevisionEntry[]>(() => getEntriesForSource(state.data, 'revision'));
+	const revisionVisibleEntries = createMemo<FileRevisionEntry[]>(() =>
+		filterEntries(revisionEntries(), state.data, state.preset, state.showIntermediateRevisions),
+	);
+
+	const sourceEntries = createMemo<FileRevisionEntry[]>(() =>
+		getEntriesForSource(state.data, effectiveComparisonSource()),
+	);
+	const visibleEntries = createMemo<FileRevisionEntry[]>(() =>
+		filterEntries(sourceEntries(), state.data, state.preset, state.showIntermediateRevisions),
+	);
+	const presetEntries = createMemo<FileRevisionEntry[]>(() =>
+		filterEntries(sourceEntries(), state.data, state.preset, true),
+	);
+
+	const filteredSidebarEntries = createMemo(() => {
+		const query = state.sidebarSearchQuery.trim().toLowerCase();
+		const filteredEntries = !query
+			? visibleEntries()
+			: visibleEntries().filter((entry) => {
+					return [
+						entry.shortRevision,
+						entry.description,
+						entry.changeId,
+						entry.shortDate,
+						entry.authorName,
+						entry.operationId,
+						entry.operationKey,
+						entry.monthLabel,
+					]
+						.filter(Boolean)
+						.some((value) => String(value).toLowerCase().includes(query));
+				});
+
+		return state.oldestFirst ? filteredEntries : filteredEntries.toReversed();
+	});
+
+	const rangeLabel = createMemo(() => {
+		const fromEntry = visibleEntries().find((entry) => entry.index === state.fromIndex);
+		const toEntry = visibleEntries().find((entry) => entry.index === state.toIndex);
+		if (!fromEntry || !toEntry || !state.data) {
+			return 'Loading revisions...';
+		}
+		return `${fromEntry.shortDate || 'Today'} - ${toEntry.shortDate || 'Today'} · ${state.data.backend.toUpperCase()}`;
+	});
+
+	const rangeSubtitle = createMemo(() => {
+		const selectedCount = getSelectedEntryCount(visibleEntries(), state.fromIndex, state.toIndex);
+		return `${selectedCount}/${visibleEntries().length} ${effectiveComparisonSource() === 'snapshot' ? 'snapshots' : 'revisions'}`;
+	});
+	const intermediateLabel = createMemo(() =>
+		getIntermediateToggleLabel(visibleEntries().length, presetEntries().length, state.showIntermediateRevisions),
+	);
+	const pendingSelectionRange = createMemo(() =>
+		getPendingSelectionRange(visibleEntries(), state.pendingSelectionIndex, state.hoveredSelectionIndex),
+	);
+
+	const currentFromEntry = createMemo(() => sourceEntries().find((entry) => entry.index === state.fromIndex));
+	const currentToEntry = createMemo(() => sourceEntries().find((entry) => entry.index === state.toIndex));
+	const version = createMemo(() => (state.data?.version ? `v${state.data.version}` : ''));
+	const canStepBackward = createMemo(() =>
+		canNavigateSelection(visibleEntries(), state.fromIndex, state.toIndex, state.comparisonMode, -1),
+	);
+	const canStepForward = createMemo(() =>
+		canNavigateSelection(visibleEntries(), state.fromIndex, state.toIndex, state.comparisonMode, 1),
+	);
+	const selectionMeta = createMemo(() =>
+		state.pendingSelectionIndex === null
+			? 'Click an anchor or a sidebar entry to change the preview.'
+			: pendingSelectionRange() === null
+				? 'Pick another revision to complete the range.'
+				: `Selecting ${pendingSelectionRange()!.selectedCount} revisions…`,
+	);
+	const stepStatus = createMemo(() => {
+		if (state.comparisonMode === 'step') {
+			const current = Math.max(
+				1,
+				visibleEntries().findIndex((entry) => entry.index === state.toIndex),
+			);
+			return `${current}/${Math.max(1, visibleEntries().length - 1)} ${effectiveComparisonSource() === 'snapshot' ? 'snapshots' : 'diffs'}`;
+		}
+
+		return '';
+	});
+	const pendingSnapshotRevisionIndexes = createMemo(() => {
+		if (!state.data || state.data.backend !== 'jj' || effectiveComparisonSource() !== 'snapshot') {
+			return [];
+		}
+
+		const loaded = new Set(state.data.snapshotState?.loadedChangeIds || []);
+		return getPendingSnapshotRevisionIndexes(revisionVisibleEntries(), loaded, 8, [state.fromIndex, state.toIndex]);
+	});
+	const showSnapshotStatus = createMemo(
+		() =>
+			state.data?.backend === 'jj' &&
+			effectiveComparisonSource() === 'snapshot' &&
+			pendingSnapshotRevisionIndexes().length > 0,
+	);
+	const snapshotStatusLabel = createMemo(() => (pendingSnapshotRevisionIndexes().length ? 'Loading snapshots…' : ''));
+	const activePreviewKey = createMemo(() =>
+		buildPreviewKey(state.fromIndex, state.toIndex, effectiveComparisonSource()),
+	);
+	const preview = createMemo<DiffPreview | null>(() => state.previewByRange[activePreviewKey()] || null);
+
+	const previewForEntry = (entryIndex: number) => {
+		const range = getUnitPreviewRange(visibleEntries(), entryIndex);
+		if (!range) {
+			return null;
+		}
+
+		return state.previewByRange[buildPreviewKey(range.fromIndex, range.toIndex, effectiveComparisonSource())] || null;
+	};
+
+	function clearPreviewState() {
+		setState('previewByRange', reconcile({}));
+		setState({ sidebarPreviewInFlightKey: '', pendingRangeResolutionKey: '' });
+	}
+
+	onMount(() => {
+		const unsubscribe = host.subscribe(handleMessage);
+		host.send({ command: 'ready' });
+		setReady(true);
+		window.addEventListener('keydown', onKeyDown);
+		document.addEventListener('click', onDocumentClick);
+		const resizeHandle = document.getElementById('resizeHandle');
+		const timelineResizeHandle = document.getElementById('timelineResizeHandle');
+		const track = document.getElementById('track');
+		const rangeFill = document.getElementById('rangeFill');
+		const fromMarker = document.getElementById('fromMarker');
+		const toMarker = document.getElementById('toMarker');
+		let draggingTimeline = false;
+
+		const onSidebarResizePointerDown = (event: PointerEvent) => {
+			if (window.matchMedia('(max-width: 980px)').matches) {
+				return;
+			}
+
+			event.preventDefault();
+			const startX = event.clientX;
+			const startWidth = state.sidebarWidth;
+			const wasCollapsed = state.sidebarCollapsed;
+			resizeHandle?.classList.add('is-dragging');
+
+			const onPointerMove = (moveEvent: PointerEvent) => {
+				const delta = moveEvent.clientX - startX;
+				if (wasCollapsed) {
+					if (delta < 20) {
+						return;
+					}
+
+					setState({
+						sidebarCollapsed: false,
+						sidebarWidth: Math.max(180, Math.min(420, 180 + (delta - 20))),
+					});
+					return;
+				}
+
+				if (startWidth + delta < 100) {
+					setState('sidebarCollapsed', true);
+					onPointerUp();
+					return;
+				}
+
+				setState({
+					sidebarCollapsed: false,
+					sidebarWidth: Math.max(180, Math.min(420, startWidth + delta)),
+				});
+			};
+
+			const onPointerUp = () => {
+				resizeHandle?.classList.remove('is-dragging');
+				window.removeEventListener('pointermove', onPointerMove);
+				window.removeEventListener('pointerup', onPointerUp);
+			};
+
+			window.addEventListener('pointermove', onPointerMove);
+			window.addEventListener('pointerup', onPointerUp);
+		};
+
+		const onTimelineResizePointerDown = (event: PointerEvent) => {
+			event.preventDefault();
+			const startY = event.clientY;
+			const startHeight = state.timelinePaneCollapsed ? TIMELINE_COLLAPSED_HEIGHT : state.timelinePaneHeight;
+			if (state.timelinePaneCollapsed) {
+				setState({ timelinePaneCollapsed: false });
+			}
+
+			timelineResizeHandle?.classList.add('is-dragging');
+
+			const onPointerMove = (moveEvent: PointerEvent) => {
+				const delta = moveEvent.clientY - startY;
+				const nextHeight = Math.max(96, Math.min(TIMELINE_MAX_HEIGHT, startHeight + delta));
+				if (nextHeight <= TIMELINE_COLLAPSED_HEIGHT) {
+					setState('timelinePaneCollapsed', true);
+					return;
+				}
+
+				setState({
+					timelinePaneCollapsed: false,
+					timelinePaneHeight: Math.max(TIMELINE_EXPANDED_MIN_HEIGHT, nextHeight),
+				});
+			};
+
+			const onPointerUp = () => {
+				timelineResizeHandle?.classList.remove('is-dragging');
+				window.removeEventListener('pointermove', onPointerMove);
+				window.removeEventListener('pointerup', onPointerUp);
+			};
+
+			window.addEventListener('pointermove', onPointerMove);
+			window.addEventListener('pointerup', onPointerUp);
+		};
+
+		const onTrackMouseMove = (event: MouseEvent) => {
+			if (draggingTimeline) {
+				return;
+			}
+
+			const anchor = (event.target as HTMLElement | null)?.closest(
+				'.track-anchor[data-entry-index]',
+			) as HTMLElement | null;
+			if (state.pendingSelectionIndex !== null && anchor) {
+				const hoveredSelectionIndex = Number(anchor.dataset.entryIndex || '');
+				const pendingTooltip = Number.isInteger(hoveredSelectionIndex)
+					? buildRangeTooltipState(
+							visibleEntries(),
+							state.previewByRange,
+							effectiveComparisonSource(),
+							state.pendingSelectionIndex,
+							hoveredSelectionIndex,
+							event.clientX,
+							event.clientY,
+							true,
+						)
+					: null;
+				setTooltip(pendingTooltip);
+				return;
+			}
+
+			const segment = getSegmentTooltipState(
+				visibleEntries(),
+				state.previewByRange,
+				effectiveComparisonSource(),
+				event.clientX,
+				event.clientY,
+			);
+			setTooltip(segment);
+		};
+
+		const onTrackMouseLeave = () => {
+			if (!draggingTimeline) {
+				setTooltip((current) => (current?.kind === 'range' ? null : current));
+			}
+		};
+
+		const beginRangeDrag = (event: PointerEvent) => {
+			if (!visibleEntries().length) {
+				return;
+			}
+
+			setState({ pendingSelectionIndex: null, hoveredSelectionIndex: null });
+			setTooltip((current) => (current?.kind === 'range' ? null : current));
+			draggingTimeline = true;
+			event.preventDefault();
+			event.stopPropagation();
+
+			const trackRect = track?.getBoundingClientRect();
+			if (!trackRect) {
+				draggingTimeline = false;
+				return;
+			}
+
+			const startFromVisibleIndex = getVisibleIndexForAbsoluteIndex(visibleEntries(), state.fromIndex);
+			const startToVisibleIndex = getVisibleIndexForAbsoluteIndex(visibleEntries(), state.toIndex);
+			const width = Math.max(1, startToVisibleIndex - startFromVisibleIndex);
+			const startX = event.clientX;
+			const denominator = Math.max(1, visibleEntries().length - 1);
+			track?.classList.add('is-dragging');
+			rangeFill?.classList.add('is-dragging');
+
+			const onPointerMove = (moveEvent: PointerEvent) => {
+				const deltaRatio = (moveEvent.clientX - startX) / Math.max(1, trackRect.width);
+				const deltaSteps = Math.round(deltaRatio * denominator);
+				const nextFromVisibleIndex = Math.min(
+					Math.max(startFromVisibleIndex + deltaSteps, 0),
+					Math.max(0, visibleEntries().length - 1 - width),
+				);
+				const nextToVisibleIndex = nextFromVisibleIndex + width;
+				setState({
+					fromIndex: visibleEntries()[nextFromVisibleIndex].index,
+					toIndex: visibleEntries()[nextToVisibleIndex].index,
+				});
+			};
+
+			const onPointerUp = () => {
+				draggingTimeline = false;
+				track?.classList.remove('is-dragging');
+				rangeFill?.classList.remove('is-dragging');
+				window.removeEventListener('pointermove', onPointerMove);
+				window.removeEventListener('pointerup', onPointerUp);
+			};
+
+			window.addEventListener('pointermove', onPointerMove);
+			window.addEventListener('pointerup', onPointerUp);
+		};
+
+		const beginMarkerDrag = (side: 'from' | 'to', event: PointerEvent) => {
+			if (!visibleEntries().length) {
+				return;
+			}
+
+			setState({ comparisonMode: 'range', pendingSelectionIndex: null, hoveredSelectionIndex: null });
+			setTooltip((current) => (current?.kind === 'range' ? null : current));
+			draggingTimeline = true;
+			event.preventDefault();
+			event.stopPropagation();
+			track?.classList.add('is-dragging');
+
+			updateMarkerSelection(side, event.clientX, visibleEntries(), state.fromIndex, state.toIndex, setState);
+
+			const onPointerMove = (moveEvent: PointerEvent) => {
+				updateMarkerSelection(side, moveEvent.clientX, visibleEntries(), state.fromIndex, state.toIndex, setState);
+			};
+
+			const onPointerUp = () => {
+				draggingTimeline = false;
+				track?.classList.remove('is-dragging');
+				window.removeEventListener('pointermove', onPointerMove);
+				window.removeEventListener('pointerup', onPointerUp);
+			};
+
+			window.addEventListener('pointermove', onPointerMove);
+			window.addEventListener('pointerup', onPointerUp);
+		};
+
+		resizeHandle?.addEventListener('pointerdown', onSidebarResizePointerDown);
+		timelineResizeHandle?.addEventListener('pointerdown', onTimelineResizePointerDown);
+		rangeFill?.addEventListener('pointerdown', beginRangeDrag);
+		track?.addEventListener('pointerdown', (event) => {
+			if ((event.target as HTMLElement | null)?.closest('.track-anchor')) {
+				return;
+			}
+
+			const visibleIndex = getVisibleIndexFromClientX(visibleEntries(), event.clientX);
+			if (visibleIndex < 0) {
+				return;
+			}
+
+			const fromVisibleIndex = getVisibleIndexForAbsoluteIndex(visibleEntries(), state.fromIndex);
+			const toVisibleIndex = getVisibleIndexForAbsoluteIndex(visibleEntries(), state.toIndex);
+			if (
+				visibleIndex >= Math.min(fromVisibleIndex, toVisibleIndex) &&
+				visibleIndex <= Math.max(fromVisibleIndex, toVisibleIndex)
+			) {
+				beginRangeDrag(event);
+			}
+		});
+		track?.addEventListener('mousemove', onTrackMouseMove);
+		track?.addEventListener('mouseleave', onTrackMouseLeave);
+		fromMarker?.addEventListener('pointerdown', (event) => beginMarkerDrag('from', event));
+		toMarker?.addEventListener('pointerdown', (event) => beginMarkerDrag('to', event));
+
+		onCleanup(() => {
+			unsubscribe();
+			window.removeEventListener('keydown', onKeyDown);
+			document.removeEventListener('click', onDocumentClick);
+			resizeHandle?.removeEventListener('pointerdown', onSidebarResizePointerDown);
+			timelineResizeHandle?.removeEventListener('pointerdown', onTimelineResizePointerDown);
+			track?.removeEventListener('mousemove', onTrackMouseMove);
+			track?.removeEventListener('mouseleave', onTrackMouseLeave);
+		});
+	});
+
+	createEffect(() => {
+		document.documentElement.style.setProperty('--sidebar-width', `${state.sidebarWidth}px`);
+		document.documentElement.style.setProperty(
+			'--timeline-pane-height',
+			`${state.timelinePaneCollapsed ? TIMELINE_COLLAPSED_HEIGHT : state.timelinePaneHeight}px`,
+		);
+	});
+
+	createEffect(() => {
+		const relativePath = state.data?.relativePath;
+		if (relativePath) {
+			setState('fileInputValue', relativePath);
+		}
+	});
+
+	createEffect(() => {
+		if (!ready() || !state.data) {
+			return;
+		}
+
+		const command: TimelineCommand = {
+			command: 'persist-state',
+			sidebarWidth: state.sidebarWidth,
+			sidebarCollapsed: state.sidebarCollapsed,
+			timelinePaneHeight: state.timelinePaneHeight,
+			timelinePaneCollapsed: state.timelinePaneCollapsed,
+			layoutMode: state.layoutMode,
+			contentMode: state.contentMode,
+			comparisonMode: state.comparisonMode,
+			comparisonSource: effectiveComparisonSource(),
+			showIntermediateRevisions: state.showIntermediateRevisions,
+			preset: state.preset,
+		};
+		host.send(command);
+	});
+
+	createEffect(() => {
+		if (!ready() || !state.data || visibleEntries().length < 2) {
+			return;
+		}
+
+		const [fromIndex, toIndex] = normalizeSelection(
+			visibleEntries(),
+			state.fromIndex,
+			state.toIndex,
+			state.comparisonMode,
+		);
+		if (fromIndex !== state.fromIndex || toIndex !== state.toIndex) {
+			setState({ fromIndex, toIndex });
+			return;
+		}
+
+		if (state.previewByRange[activePreviewKey()]) {
+			return;
+		}
+
+		host.send({
+			command: 'select-entry',
+			fromIndex,
+			toIndex,
+			comparisonSource: effectiveComparisonSource(),
+		});
+	});
+
+	createEffect((previousSource: ComparisonSource | null) => {
+		if (!ready() || !state.data || state.data.backend !== 'jj') {
+			return state.data?.backend === 'jj' ? state.comparisonSource : null;
+		}
+
+		const currentSource = state.comparisonSource;
+		if (previousSource !== null && previousSource !== currentSource) {
+			host.send({
+				command: 'select-entry',
+				fromIndex: state.fromIndex,
+				toIndex: state.toIndex,
+				comparisonSource: currentSource,
+			});
+		}
+
+		return currentSource;
+	}, null);
+
+	createEffect(() => {
+		if (!state.data || state.data.backend !== 'jj' || effectiveComparisonSource() !== 'snapshot') {
+			return;
+		}
+		const pending = pendingSnapshotRevisionIndexes();
+		if (pending.length) {
+			host.send({ command: 'hydrate-snapshot-entries', revisionIndexes: pending });
+		}
+	});
+
+	createEffect(() => {
+		if (!ready() || !state.data || visibleEntries().length < 2 || state.sidebarPreviewInFlightKey) {
+			return;
+		}
+
+		if (
+			state.data.backend === 'jj' &&
+			effectiveComparisonSource() === 'snapshot' &&
+			pendingSnapshotRevisionIndexes().length
+		) {
+			return;
+		}
+
+		const [nextRequest] = getSidebarPreviewRequests(
+			visibleEntries(),
+			effectiveComparisonSource(),
+			state.previewByRange,
+			activePreviewKey(),
+			buildPreviewKey,
+		).toSorted((left, right) => Math.abs(left.toIndex - state.toIndex) - Math.abs(right.toIndex - state.toIndex));
+
+		if (!nextRequest) {
+			return;
+		}
+
+		setState('sidebarPreviewInFlightKey', nextRequest.key);
+		host.send({
+			command: 'select-entry',
+			fromIndex: nextRequest.fromIndex,
+			toIndex: nextRequest.toIndex,
+			comparisonSource: nextRequest.comparisonSource,
+		});
+	});
+
+	function handleMessage(message: TimelineInboundMessage) {
+		if (message.type === 'timeline-data') {
+			const preferences = message.payload.preferences || {};
+			setState({
+				data: message.payload,
+				sidebarWidth: preferences.sidebarWidth || 280,
+				timelinePaneHeight: preferences.timelinePaneHeight || 278,
+				timelinePaneCollapsed: preferences.timelinePaneCollapsed === true,
+				layoutMode: preferences.layoutMode || 'split',
+				contentMode: preferences.contentMode || 'diffs',
+				comparisonMode: preferences.comparisonMode || 'range',
+				comparisonSource: message.payload.backend === 'jj' ? preferences.comparisonSource || 'revision' : 'revision',
+				showIntermediateRevisions: preferences.showIntermediateRevisions === true,
+				preset: (preferences.preset as TimelinePreset) || 'year',
+				fromIndex: Math.max(0, message.payload.defaultIndex - 1),
+				toIndex: message.payload.defaultIndex,
+				sidebarCollapsed: false,
+				actionsMenuOpen: false,
+				hotkeysOpen: false,
+				pendingSelectionIndex: null,
+				hoveredSelectionIndex: null,
+				oldestFirst: false,
+				fileInputValue: message.payload.relativePath,
+				sidebarSearchQuery: '',
+			});
+			clearPreviewState();
+			return;
+		}
+
+		if (message.type === 'diff-preview') {
+			const comparisonSource = message.payload.comparisonSource || effectiveComparisonSource();
+			const previewKey = buildPreviewKey(message.payload.fromIndex, message.payload.toIndex, comparisonSource);
+
+			setState('previewByRange', previewKey, message.payload);
+			if (state.sidebarPreviewInFlightKey === previewKey) {
+				setState('sidebarPreviewInFlightKey', '');
+			}
+
+			if (previewKey !== activePreviewKey()) {
+				return;
+			}
+
+			if (
+				!state.showIntermediateRevisions &&
+				state.comparisonMode === 'range' &&
+				!message.payload.hasChanges &&
+				message.payload.fromIndex !== message.payload.toIndex
+			) {
+				maybeResolveHiddenRangeToNonEmpty(message.payload);
+				return;
+			}
+
+			setState('pendingRangeResolutionKey', '');
+			return;
+		}
+
+		if (message.type === 'snapshot-entries' && state.data) {
+			const selectedSourceEntries = sourceEntries();
+			const selectedFromEntryId = selectedSourceEntries.find((entry) => entry.index === state.fromIndex)?.id || null;
+			const selectedToEntryId = selectedSourceEntries.find((entry) => entry.index === state.toIndex)?.id || null;
+			const nextData = {
+				...state.data,
+				snapshotEntries: message.payload.snapshotEntries,
+				snapshotState: message.payload.snapshotState,
+			};
+
+			if (state.data.backend === 'jj' && state.comparisonSource === 'snapshot') {
+				const nextSourceEntries = getEntriesForSource(nextData, 'snapshot');
+				const nextFromIndex = selectedFromEntryId
+					? nextSourceEntries.find((entry) => entry.id === selectedFromEntryId)?.index
+					: undefined;
+				const nextToIndex = selectedToEntryId
+					? nextSourceEntries.find((entry) => entry.id === selectedToEntryId)?.index
+					: undefined;
+
+				setState({
+					data: nextData,
+					fromIndex: nextFromIndex ?? state.fromIndex,
+					toIndex: nextToIndex ?? state.toIndex,
+				});
+				clearPreviewState();
+				return;
+			}
+
+			setState('data', nextData);
+			return;
+		}
+
+		if (message.type === 'resolved-range') {
+			setState('pendingRangeResolutionKey', '');
+			if (!message.payload) {
+				return;
+			}
+
+			setState({
+				fromIndex: message.payload.fromIndex,
+				toIndex: message.payload.toIndex,
+				pendingSelectionIndex: null,
+				hoveredSelectionIndex: null,
+			});
+		}
+	}
+
+	function maybeResolveHiddenRangeToNonEmpty(nextPreview: DiffPreview) {
+		const candidateIndexes = visibleEntries()
+			.filter(
+				(entry) =>
+					entry.index >= Math.min(nextPreview.fromIndex, nextPreview.toIndex) &&
+					entry.index <= Math.max(nextPreview.fromIndex, nextPreview.toIndex),
+			)
+			.map((entry) => entry.index);
+
+		if (candidateIndexes.length < 2) {
+			return;
+		}
+
+		const resolutionKey = candidateIndexes.join(':');
+		if (state.pendingRangeResolutionKey === resolutionKey) {
+			return;
+		}
+
+		setState('pendingRangeResolutionKey', resolutionKey);
+		host.send({
+			command: 'resolve-nonempty-range',
+			candidateIndexes,
+		});
+	}
+
+	function onDocumentClick(event: MouseEvent) {
+		const target = event.target as HTMLElement | null;
+		if (state.actionsMenuOpen && !target?.closest('.menu-wrap')) {
+			setState('actionsMenuOpen', false);
+		}
+
+		if (state.hotkeysOpen && !target?.closest('.hotkeys-card') && !target?.closest('#toggleHotkeysButton')) {
+			setState('hotkeysOpen', false);
+		}
+	}
+
+	function selectUnitRange(entryIndex: number) {
+		const entries = visibleEntries();
+		const visibleIndex = entries.findIndex((entry) => entry.index === entryIndex);
+		if (visibleIndex <= 0) {
+			return;
+		}
+
+		setState({
+			fromIndex: entries[visibleIndex - 1].index,
+			toIndex: entries[visibleIndex].index,
+			hoveredSelectionIndex: null,
+		});
+	}
+
+	function handleEntrySelection(entryIndex: number) {
+		setState({ actionsMenuOpen: false, hoveredSelectionIndex: null });
+
+		if (state.comparisonMode === 'step') {
+			setState('pendingSelectionIndex', null);
+			selectUnitRange(entryIndex);
+			return;
+		}
+
+		if (state.pendingSelectionIndex === null) {
+			setState('pendingSelectionIndex', entryIndex);
+			return;
+		}
+
+		if (state.pendingSelectionIndex === entryIndex) {
+			setState('pendingSelectionIndex', null);
+			return;
+		}
+
+		setState({
+			fromIndex: Math.min(state.pendingSelectionIndex, entryIndex),
+			toIndex: Math.max(state.pendingSelectionIndex, entryIndex),
+			pendingSelectionIndex: null,
+		});
+	}
+
+	function stepSelection(amount: number) {
+		const entries = visibleEntries();
+		if (!entries.length) {
+			return;
+		}
+
+		setState('pendingSelectionIndex', null);
+		if (state.comparisonMode === 'step') {
+			const [fromIndex, toIndex] = shiftStepSelection(entries, state.toIndex, amount);
+			setState({ fromIndex, toIndex, hoveredSelectionIndex: null });
+			return;
+		}
+
+		const [fromIndex, toIndex] = shiftRangeSelection(entries, state.fromIndex, state.toIndex, amount);
+		setState({ fromIndex, toIndex, hoveredSelectionIndex: null });
+	}
+
+	function submitRevision(side: 'from' | 'to', value: string) {
+		const query = value.trim().toLowerCase();
+		const match =
+			visibleEntries().find((entry) => entry.shortRevision.toLowerCase() === query) ||
+			visibleEntries().find((entry) => entry.revision.toLowerCase().startsWith(query));
+		if (!match) {
+			return;
+		}
+		setState('pendingSelectionIndex', null);
+		if (state.comparisonMode === 'step') {
+			selectUnitRange(match.index);
+			return;
+		}
+		if (side === 'from') {
+			setState({ fromIndex: Math.min(match.index, state.toIndex), hoveredSelectionIndex: null });
+		} else {
+			setState({ toIndex: Math.max(match.index, state.fromIndex), hoveredSelectionIndex: null });
+		}
+	}
+
+	function submitFile(value: string) {
+		const relativePath = value.trim();
+		if (
+			!state.data ||
+			!relativePath ||
+			relativePath === state.data.relativePath ||
+			!state.data.workspaceFiles.includes(relativePath)
+		) {
+			return;
+		}
+
+		setState({
+			actionsMenuOpen: false,
+			hotkeysOpen: false,
+			pendingSelectionIndex: null,
+			hoveredSelectionIndex: null,
+		});
+		host.send({ command: 'switch-file', relativePath });
+	}
+
+	function toggleSidebar() {
+		setState('sidebarCollapsed', (value) => !value);
+	}
+
+	function toggleSortOrder() {
+		setState('oldestFirst', (value) => !value);
+	}
+
+	function toggleSidebarFromMenu() {
+		setState({ sidebarCollapsed: !state.sidebarCollapsed, actionsMenuOpen: false });
+	}
+
+	function toggleTimelinePane() {
+		if (state.timelinePaneCollapsed) {
+			setState({
+				timelinePaneCollapsed: false,
+				timelinePaneHeight: Math.max(TIMELINE_EXPANDED_MIN_HEIGHT, state.timelinePaneHeight),
+			});
+			return;
+		}
+
+		setState({ timelinePaneCollapsed: true, actionsMenuOpen: false, hotkeysOpen: false });
+	}
+
+	function toggleDiffFocus() {
+		setState('diffFocusMode', (value) => !value);
+	}
+
+	function toggleActionsMenu() {
+		setState({ actionsMenuOpen: !state.actionsMenuOpen, hotkeysOpen: false });
+	}
+
+	function toggleHotkeys() {
+		setState({ hotkeysOpen: !state.hotkeysOpen, actionsMenuOpen: false });
+	}
+
+	function sendRangeCommand(command: 'open-editor-diff' | 'open-range-files-diff') {
+		host.send({
+			command,
+			fromIndex: state.fromIndex,
+			toIndex: state.toIndex,
+			comparisonSource: effectiveComparisonSource(),
+		});
+		setState({ actionsMenuOpen: false, hotkeysOpen: false });
+	}
+
+	function openRevisionFilesDiff(entryIndex: number) {
+		host.send({
+			command: 'open-revision-files-diff',
+			entryIndex,
+			comparisonSource: effectiveComparisonSource(),
+		});
+	}
+
+	function openRevisionRemote(entryIndex: number) {
+		host.send({
+			command: 'open-revision-remote',
+			entryIndex,
+			comparisonSource: effectiveComparisonSource(),
+		});
+	}
+
+	function openCurrentFile() {
+		host.send({ command: 'open-current-file' });
+		setState('actionsMenuOpen', false);
+	}
+
+	function cancelActiveRequest() {
+		host.send({ command: 'cancel-active-request' });
+		setState('actionsMenuOpen', false);
+	}
+
+	function refreshTimeline() {
+		host.send({ command: 'refresh' });
+		setState({ actionsMenuOpen: false, hotkeysOpen: false, pendingSelectionIndex: null, hoveredSelectionIndex: null });
+	}
+
+	function resetPreferences() {
+		if (!state.data) {
+			return;
+		}
+
+		const nextSourceEntries = filterEntries(getEntriesForSource(state.data, 'revision'), state.data, 'year', false);
+		const { fromIndex, toIndex } = getDefaultSelection(nextSourceEntries);
+		setState({
+			fromIndex,
+			toIndex,
+			comparisonMode: 'range',
+			comparisonSource: 'revision',
+			layoutMode: 'split',
+			contentMode: 'diffs',
+			preset: 'year',
+			showIntermediateRevisions: false,
+			sidebarSearchQuery: '',
+			sidebarWidth: 280,
+			timelinePaneHeight: 278,
+			timelinePaneCollapsed: false,
+			sidebarCollapsed: false,
+			diffFocusMode: false,
+			actionsMenuOpen: false,
+			hotkeysOpen: false,
+			pendingSelectionIndex: null,
+			hoveredSelectionIndex: null,
+			oldestFirst: false,
+		});
+		clearPreviewState();
+	}
+
+	function setComparisonMode(value: ComparisonMode) {
+		if (value === state.comparisonMode) {
+			return;
+		}
+
+		if (value === 'step') {
+			const [fromIndex, toIndex] = alignStepSelection(visibleEntries(), state.toIndex);
+			setState({
+				comparisonMode: value,
+				fromIndex,
+				toIndex,
+				pendingSelectionIndex: null,
+				hoveredSelectionIndex: null,
+				pendingRangeResolutionKey: '',
+			});
+			return;
+		}
+
+		setState({
+			comparisonMode: value,
+			pendingSelectionIndex: null,
+			hoveredSelectionIndex: null,
+			pendingRangeResolutionKey: '',
+		});
+	}
+
+	function setComparisonSource(value: ComparisonSource) {
+		if (state.data?.backend !== 'jj' || value === state.comparisonSource) {
+			return;
+		}
+
+		const nextVisibleEntries = filterEntries(
+			getEntriesForSource(state.data, value),
+			state.data,
+			state.preset,
+			state.showIntermediateRevisions,
+		);
+		const { fromIndex, toIndex } = getDefaultSelection(nextVisibleEntries);
+
+		setState({
+			comparisonSource: value,
+			fromIndex,
+			toIndex,
+			pendingSelectionIndex: null,
+			hoveredSelectionIndex: null,
+		});
+		clearPreviewState();
+	}
+
+	function setPreset(value: TimelinePreset) {
+		if (!state.data || value === state.preset) {
+			setState({
+				preset: value,
+				pendingSelectionIndex: null,
+				hoveredSelectionIndex: null,
+				pendingRangeResolutionKey: '',
+			});
+			return;
+		}
+
+		const nextVisibleEntries = filterEntries(
+			getEntriesForSource(state.data, effectiveComparisonSource()),
+			state.data,
+			value,
+			state.showIntermediateRevisions,
+		);
+		const { fromIndex, toIndex } = getDefaultSelection(nextVisibleEntries);
+		setState({
+			preset: value,
+			fromIndex,
+			toIndex,
+			pendingSelectionIndex: null,
+			hoveredSelectionIndex: null,
+			pendingRangeResolutionKey: '',
+		});
+	}
+
+	function toggleIntermediateRevisions() {
+		if (!state.data?.hasIntermediateRevisions) {
+			return;
+		}
+
+		setState({
+			showIntermediateRevisions: !state.showIntermediateRevisions,
+			pendingSelectionIndex: null,
+			hoveredSelectionIndex: null,
+			pendingRangeResolutionKey: '',
+		});
+	}
+
+	function dockRange(edge: 'start' | 'end') {
+		const entries = visibleEntries();
+		if (entries.length < 2) {
+			return;
+		}
+
+		setState('pendingSelectionIndex', null);
+		if (state.comparisonMode === 'step') {
+			const nextToVisibleIndex = edge === 'start' ? 1 : entries.length - 1;
+			setState({
+				fromIndex: entries[nextToVisibleIndex - 1].index,
+				toIndex: entries[nextToVisibleIndex].index,
+				hoveredSelectionIndex: null,
+			});
+			return;
+		}
+
+		const [fromIndex, toIndex] = dockRangeSelection(entries, state.fromIndex, state.toIndex, edge);
+		setState({ fromIndex, toIndex, hoveredSelectionIndex: null });
+	}
+
+	function adjustBoundary(side: 'from' | 'to', amount: number) {
+		if (state.comparisonMode === 'step') {
+			return;
+		}
+
+		const [fromIndex, toIndex] = adjustRangeBoundary(visibleEntries(), state.fromIndex, state.toIndex, side, amount);
+		setState({ fromIndex, toIndex, pendingSelectionIndex: null, hoveredSelectionIndex: null });
+	}
+
+	function focusInputField(elementId: string, openSidebar = false) {
+		if (openSidebar && state.sidebarCollapsed) {
+			setState('sidebarCollapsed', false);
+		}
+
+		window.requestAnimationFrame(() => {
+			const element = document.getElementById(elementId) as HTMLInputElement | null;
+			if (!element) {
+				return;
+			}
+
+			element.focus();
+			element.select();
+		});
+	}
+
+	function onKeyDown(event: KeyboardEvent) {
+		const target = event.target as HTMLElement | null;
+		const tagName = target?.tagName?.toLowerCase();
+		const lowerKey = event.key.toLowerCase();
+		const isModifierless = !event.metaKey && !event.ctrlKey && !event.altKey;
+		const allowWhileEditing =
+			isModifierless &&
+			(lowerKey === 'b' ||
+				lowerKey === 'd' ||
+				lowerKey === 'f' ||
+				lowerKey === 's' ||
+				lowerKey === 't' ||
+				event.key === '/' ||
+				event.key === 'Escape');
+		if ((tagName === 'input' || tagName === 'textarea') && !allowWhileEditing) {
+			return;
+		}
+
+		const jumpAmount = event.shiftKey ? 5 : 1;
+
+		if (event.key === '?' || (event.shiftKey && event.key === '/')) {
+			event.preventDefault();
+			toggleHotkeys();
+			return;
+		}
+
+		if (!event.metaKey && !event.ctrlKey && !event.altKey && lowerKey === 'b') {
+			event.preventDefault();
+			toggleSidebar();
+			return;
+		}
+
+		if (!event.metaKey && !event.ctrlKey && !event.altKey && lowerKey === 'd') {
+			event.preventDefault();
+			toggleDiffFocus();
+			return;
+		}
+
+		if (!event.metaKey && !event.ctrlKey && !event.altKey && lowerKey === 'f') {
+			event.preventDefault();
+			focusInputField('fromRevisionInput');
+			return;
+		}
+
+		if (!event.metaKey && !event.ctrlKey && !event.altKey && lowerKey === 't') {
+			event.preventDefault();
+			focusInputField('toRevisionInput');
+			return;
+		}
+
+		if (!event.metaKey && !event.ctrlKey && !event.altKey && event.key === '/') {
+			event.preventDefault();
+			focusInputField('fileSwitcher');
+			return;
+		}
+
+		if (!event.metaKey && !event.ctrlKey && !event.altKey && lowerKey === 's') {
+			event.preventDefault();
+			focusInputField('sidebarSearchInput', true);
+			return;
+		}
+
+		if (event.key === 'Escape' && (state.hotkeysOpen || state.actionsMenuOpen)) {
+			event.preventDefault();
+			setState({
+				hotkeysOpen: false,
+				actionsMenuOpen: false,
+				pendingSelectionIndex: null,
+				hoveredSelectionIndex: null,
+			});
+			return;
+		}
+
+		if (event.key === 'Escape' && state.diffFocusMode) {
+			event.preventDefault();
+			setState('diffFocusMode', false);
+			return;
+		}
+
+		if (event.key === ' ') {
+			event.preventDefault();
+			sendRangeCommand('open-range-files-diff');
+			return;
+		}
+
+		if (event.metaKey && event.key === 'ArrowLeft') {
+			event.preventDefault();
+			dockRange('start');
+			return;
+		}
+
+		if (event.metaKey && event.key === 'ArrowRight') {
+			event.preventDefault();
+			dockRange('end');
+			return;
+		}
+
+		if (event.key === 'ArrowLeft') {
+			event.preventDefault();
+			if (event.altKey) {
+				adjustBoundary('to', -jumpAmount);
+			} else if (event.ctrlKey) {
+				adjustBoundary('from', -jumpAmount);
+			} else {
+				stepSelection(-jumpAmount);
+			}
+			return;
+		}
+
+		if (event.key === 'ArrowRight') {
+			event.preventDefault();
+			if (event.altKey) {
+				adjustBoundary('to', jumpAmount);
+			} else if (event.ctrlKey) {
+				adjustBoundary('from', jumpAmount);
+			} else {
+				stepSelection(jumpAmount);
+			}
+			return;
+		}
+
+		if (event.key === 'ArrowUp') {
+			event.preventDefault();
+			stepSelection(jumpAmount);
+			return;
+		}
+
+		if (event.key === 'ArrowDown') {
+			event.preventDefault();
+			stepSelection(-jumpAmount);
+		}
+	}
+
+	function setHoveredEntry(entryIndex: number | null) {
+		setState('hoveredSelectionIndex', entryIndex);
+	}
+
+	function showAnchorTooltip(entryIndex: number, target: HTMLElement) {
+		const rect = target.getBoundingClientRect();
+		const centerX = rect.left + rect.width / 2;
+		const anchorTop = rect.top;
+
+		if (state.pendingSelectionIndex !== null) {
+			setTooltip(
+				buildRangeTooltipState(
+					visibleEntries(),
+					state.previewByRange,
+					effectiveComparisonSource(),
+					state.pendingSelectionIndex,
+					entryIndex,
+					centerX,
+					anchorTop,
+					true,
+				),
+			);
+			return;
+		}
+
+		const unitRange = getUnitPreviewRange(visibleEntries(), entryIndex);
+		if (!unitRange) {
+			hideRangeTooltip();
+			return;
+		}
+
+		setTooltip(
+			buildRangeTooltipState(
+				visibleEntries(),
+				state.previewByRange,
+				effectiveComparisonSource(),
+				unitRange.fromIndex,
+				unitRange.toIndex,
+				centerX,
+				anchorTop,
+				false,
+			),
+		);
+	}
+
+	function hideRangeTooltip() {
+		setTooltip((current) => (current?.kind === 'range' ? null : current));
+	}
+
+	function showInfoTooltip(event: MouseEvent, label: string | null, value: string) {
+		const target = event.currentTarget as HTMLElement | null;
+		const rect = target?.getBoundingClientRect();
+		if (!rect || !value) {
+			return;
+		}
+
+		setTooltip({
+			kind: 'info',
+			left: rect.left + rect.width / 2,
+			top: rect.top - 8,
+			label,
+			value: label === 'Timestamp' ? formatExactTimestamp(value) : value,
+		});
+	}
+
+	function hideTooltip() {
+		setTooltip((current) => (current?.kind === 'info' ? null : current));
+	}
+
+	const timelineContextValue: TimelineContextValue = {
+		state: {
+			backend: () => state.data?.backend || null,
+			visibleEntries,
+			sidebarEntries: filteredSidebarEntries,
+			workspaceFiles: () => state.data?.workspaceFiles || [],
+			fileInputValue: () => state.fileInputValue,
+			fromIndex: () => state.fromIndex,
+			toIndex: () => state.toIndex,
+			pendingSelectionIndex: () => state.pendingSelectionIndex,
+			hoveredSelectionIndex: () => state.hoveredSelectionIndex,
+			rangeLabel,
+			rangeSubtitle,
+			selectionMeta,
+			stepStatus,
+			version,
+			comparisonMode: () => state.comparisonMode,
+			comparisonSource: effectiveComparisonSource,
+			layoutMode: () => state.layoutMode,
+			contentMode: () => state.contentMode,
+			intermediateLabel,
+			preset: () => state.preset,
+			showIntermediateRevisions: () => state.showIntermediateRevisions,
+			hasIntermediateRevisions: () => state.data?.hasIntermediateRevisions === true,
+			sidebarCollapsed: () => state.sidebarCollapsed,
+			timelinePaneCollapsed: () => state.timelinePaneCollapsed,
+			actionsMenuOpen: () => state.actionsMenuOpen,
+			hotkeysOpen: () => state.hotkeysOpen,
+			showSnapshotStatus,
+			snapshotStatusLabel,
+			diffFocusMode: () => state.diffFocusMode,
+			canStepBackward,
+			canStepForward,
+			currentFromEntry,
+			currentToEntry,
+			preview,
+			previewForEntry,
+			sidebarSearchQuery: () => state.sidebarSearchQuery,
+			visibleEntryCount: () => visibleEntries().length,
+			oldestFirst: () => state.oldestFirst,
+		},
+		actions: {
+			selectEntry: handleEntrySelection,
+			hoverEntry: setHoveredEntry,
+			setSidebarSearchQuery: (value) => setState('sidebarSearchQuery', value),
+			toggleSortOrder,
+			openSelectionDiffs: () => sendRangeCommand('open-range-files-diff'),
+			openRevisionFilesDiff,
+			openRevisionRemote,
+			showInfoTooltip,
+			hideInfoTooltip: hideTooltip,
+			submitFile,
+			toggleSidebar,
+			toggleSidebarFromMenu,
+			toggleTimelinePane,
+			toggleHotkeys,
+			toggleActionsMenu,
+			openCurrentFile,
+			openEditorDiff: () => sendRangeCommand('open-editor-diff'),
+			cancelActiveRequest,
+			refreshTimeline,
+			resetPreferences,
+			setComparisonMode,
+			setComparisonSource,
+			setLayoutMode: (value) => setState('layoutMode', value),
+			setContentMode: (value) => setState('contentMode', value),
+			setPreset,
+			toggleIntermediateRevisions,
+			stepSelection,
+			showAnchorTooltip,
+			hideRangeTooltip,
+			submitRevision,
+			toggleDiffFocus,
+		},
+	};
+
+	return (
+		<TimelineProvider value={timelineContextValue}>
+			<div class="app">
+				<section
+					class={`workspace${state.sidebarCollapsed ? ' is-collapsed' : ''}${state.diffFocusMode ? ' is-diff-focus' : ''}`}
+				>
+					<Sidebar />
+					<div class="resize-handle" id="resizeHandle" />
+					<section class={`panel diff-panel${state.timelinePaneCollapsed ? ' is-timeline-only' : ''}`}>
+						<TimelinePane />
+						<DiffPanel />
+					</section>
+				</section>
+				<Show when={tooltip()}>
+					{(activeTooltip) => {
+						const current = activeTooltip();
+						const tooltipLeft = clampTooltipX(current.left);
+						return (
+							<div
+								class={`anchor-tooltip${current.kind === 'range' ? ' anchor-tooltip--segment' : ''}${current.kind === 'range' && current.pending ? ' anchor-tooltip--pending' : ''}`}
+								style={{
+									left: `${tooltipLeft}px`,
+									top: `${Math.max(48, current.top)}px`,
+									transform: 'translate(-50%, calc(-100% - 8px))',
+								}}
+							>
+								{current.kind === 'info' ? (
+									<>
+										<Show when={current.label}>
+											<div class="anchor-tooltip-label">{current.label}</div>
+										</Show>
+										<div class="anchor-tooltip-meta">{current.value}</div>
+									</>
+								) : (
+									<>
+										<div class="anchor-tooltip-id anchor-tooltip-range">
+											<RevisionIdentifier
+												value={getRevisionIdentifierValue(current.fromEntry)}
+												highlightPrefix={current.fromEntry.changeId}
+												plain={current.fromEntry.isWorkingTree}
+											/>
+											<span class="diff-title-arrow">→</span>
+											<RevisionIdentifier
+												value={getRevisionIdentifierValue(current.toEntry)}
+												highlightPrefix={current.toEntry.changeId}
+												plain={current.toEntry.isWorkingTree}
+											/>
+										</div>
+										<div class="anchor-tooltip-label">
+											{current.pending
+												? `Pending selection · ${current.selectedCount} revisions`
+												: `Segment preview · ${current.selectedCount} revisions`}
+										</div>
+										<div class="anchor-tooltip-meta">
+											From {current.fromEntry.relativeDate || 'unknown'} ·{' '}
+											{formatExactTimestamp(current.fromEntry.authorDate)}
+										</div>
+										<div class="anchor-tooltip-meta">
+											To {current.toEntry.relativeDate || 'unknown'} ·{' '}
+											{formatExactTimestamp(current.toEntry.authorDate)}
+										</div>
+										<div class="anchor-tooltip-desc">{current.preview?.subtitle || current.toEntry.description}</div>
+									</>
+								)}
+							</div>
+						);
+					}}
+				</Show>
+			</div>
+		</TimelineProvider>
+	);
 }
 
-function filterEntries(entries: FileRevisionEntry[], data: TimelineData | null, preset: TimelinePreset, showIntermediateRevisions: boolean) {
-  if (!data) {
-    return [];
-  }
+function filterEntries(
+	entries: FileRevisionEntry[],
+	data: TimelineData | null,
+	preset: TimelinePreset,
+	showIntermediateRevisions: boolean,
+) {
+	if (!data) {
+		return [];
+	}
 
-  const lastEntry = entries[entries.length - 1];
-  if (!lastEntry) {
-    return [];
-  }
+	const lastEntry = entries[entries.length - 1];
+	if (!lastEntry) {
+		return [];
+	}
 
-  const windowDays = data.presets[preset];
-  const cutoff = Number.isFinite(windowDays)
-    ? lastEntry.timestamp - windowDays * 24 * 60 * 60 * 1000
-    : Number.NEGATIVE_INFINITY;
+	const windowDays = data.presets[preset];
+	const cutoff = Number.isFinite(windowDays)
+		? lastEntry.timestamp - windowDays * 24 * 60 * 60 * 1000
+		: Number.NEGATIVE_INFINITY;
 
-  const fallbackEntries = entries.filter((entry) => showIntermediateRevisions || entry.touchesFile);
-  const filteredEntries = entries
-    .filter((entry) => entry.timestamp >= cutoff)
-    .filter((entry) => showIntermediateRevisions || entry.touchesFile);
+	const fallbackEntries = entries.filter((entry) => showIntermediateRevisions || entry.touchesFile);
+	const filteredEntries = entries
+		.filter((entry) => entry.timestamp >= cutoff)
+		.filter((entry) => showIntermediateRevisions || entry.touchesFile);
 
-  return filteredEntries.length >= 2 ? filteredEntries : fallbackEntries;
+	return filteredEntries.length >= 2 ? filteredEntries : fallbackEntries;
 }
 
 function getDefaultSelection(entries: FileRevisionEntry[]) {
-  if (entries.length < 2) {
-    const index = entries[0]?.index || 0;
-    return { fromIndex: index, toIndex: index };
-  }
+	if (entries.length < 2) {
+		const index = entries[0]?.index || 0;
+		return { fromIndex: index, toIndex: index };
+	}
 
-  return {
-    fromIndex: entries[entries.length - 2].index,
-    toIndex: entries[entries.length - 1].index,
-  };
+	return {
+		fromIndex: entries[entries.length - 2].index,
+		toIndex: entries[entries.length - 1].index,
+	};
 }
 
 function buildPreviewKey(fromIndex: number, toIndex: number, comparisonSource: ComparisonSource) {
-  const normalizedFromIndex = Math.min(fromIndex, toIndex);
-  const normalizedToIndex = Math.max(fromIndex, toIndex);
-  return `${comparisonSource}:${normalizedFromIndex}:${normalizedToIndex}`;
+	const normalizedFromIndex = Math.min(fromIndex, toIndex);
+	const normalizedToIndex = Math.max(fromIndex, toIndex);
+	return `${comparisonSource}:${normalizedFromIndex}:${normalizedToIndex}`;
 }
 
 function getVisibleIndexForAbsoluteIndex(entries: FileRevisionEntry[], entryIndex: number) {
-  return entries.findIndex((entry) => entry.index === entryIndex);
+	return entries.findIndex((entry) => entry.index === entryIndex);
 }
 
 function getVisibleIndexFromClientX(entries: FileRevisionEntry[], clientX: number) {
-  const track = document.getElementById('track');
-  const trackRect = track?.getBoundingClientRect();
-  if (!trackRect || !entries.length) {
-    return -1;
-  }
+	const track = document.getElementById('track');
+	const trackRect = track?.getBoundingClientRect();
+	if (!trackRect || !entries.length) {
+		return -1;
+	}
 
-  const ratio = Math.min(Math.max((clientX - trackRect.left) / Math.max(1, trackRect.width), 0), 1);
-  const denominator = Math.max(1, entries.length - 1);
-  return Math.min(entries.length - 1, Math.max(0, Math.round(ratio * denominator)));
+	const ratio = Math.min(Math.max((clientX - trackRect.left) / Math.max(1, trackRect.width), 0), 1);
+	const denominator = Math.max(1, entries.length - 1);
+	return Math.min(entries.length - 1, Math.max(0, Math.round(ratio * denominator)));
 }
 
 function updateMarkerSelection(
-  side: 'from' | 'to',
-  clientX: number,
-  entries: FileRevisionEntry[],
-  fromIndex: number,
-  toIndex: number,
-  setState: ReturnType<typeof createStore<UiState>>[1],
+	side: 'from' | 'to',
+	clientX: number,
+	entries: FileRevisionEntry[],
+	fromIndex: number,
+	toIndex: number,
+	setState: ReturnType<typeof createStore<UiState>>[1],
 ) {
-  const nextVisibleIndex = getVisibleIndexFromClientX(entries, clientX);
-  if (nextVisibleIndex < 0) {
-    return;
-  }
+	const nextVisibleIndex = getVisibleIndexFromClientX(entries, clientX);
+	if (nextVisibleIndex < 0) {
+		return;
+	}
 
-  const fromVisibleIndex = getVisibleIndexForAbsoluteIndex(entries, fromIndex);
-  const toVisibleIndex = getVisibleIndexForAbsoluteIndex(entries, toIndex);
-  if (fromVisibleIndex < 0 || toVisibleIndex < 0) {
-    return;
-  }
+	const fromVisibleIndex = getVisibleIndexForAbsoluteIndex(entries, fromIndex);
+	const toVisibleIndex = getVisibleIndexForAbsoluteIndex(entries, toIndex);
+	if (fromVisibleIndex < 0 || toVisibleIndex < 0) {
+		return;
+	}
 
-  if (side === 'from') {
-    const clampedVisibleIndex = Math.min(nextVisibleIndex, Math.max(0, toVisibleIndex - 1));
-    setState('fromIndex', entries[clampedVisibleIndex].index);
-    ensureMinimumRangeWidth(entries, 'from', setState, entries[clampedVisibleIndex].index, toIndex);
-    return;
-  }
+	if (side === 'from') {
+		const clampedVisibleIndex = Math.min(nextVisibleIndex, Math.max(0, toVisibleIndex - 1));
+		setState('fromIndex', entries[clampedVisibleIndex].index);
+		ensureMinimumRangeWidth(entries, 'from', setState, entries[clampedVisibleIndex].index, toIndex);
+		return;
+	}
 
-  const clampedVisibleIndex = Math.max(nextVisibleIndex, Math.min(entries.length - 1, fromVisibleIndex + 1));
-  setState('toIndex', entries[clampedVisibleIndex].index);
-  ensureMinimumRangeWidth(entries, 'to', setState, fromIndex, entries[clampedVisibleIndex].index);
+	const clampedVisibleIndex = Math.max(nextVisibleIndex, Math.min(entries.length - 1, fromVisibleIndex + 1));
+	setState('toIndex', entries[clampedVisibleIndex].index);
+	ensureMinimumRangeWidth(entries, 'to', setState, fromIndex, entries[clampedVisibleIndex].index);
 }
 
 function ensureMinimumRangeWidth(
-  entries: FileRevisionEntry[],
-  preferredSide: 'from' | 'to',
-  setState: ReturnType<typeof createStore<UiState>>[1],
-  fromIndex: number,
-  toIndex: number,
+	entries: FileRevisionEntry[],
+	preferredSide: 'from' | 'to',
+	setState: ReturnType<typeof createStore<UiState>>[1],
+	fromIndex: number,
+	toIndex: number,
 ) {
-  if (entries.length < 2) {
-    return;
-  }
+	if (entries.length < 2) {
+		return;
+	}
 
-  let fromVisibleIndex = getVisibleIndexForAbsoluteIndex(entries, fromIndex);
-  let toVisibleIndex = getVisibleIndexForAbsoluteIndex(entries, toIndex);
-  if (fromVisibleIndex < 0 || toVisibleIndex < 0 || fromVisibleIndex !== toVisibleIndex) {
-    return;
-  }
+	let fromVisibleIndex = getVisibleIndexForAbsoluteIndex(entries, fromIndex);
+	let toVisibleIndex = getVisibleIndexForAbsoluteIndex(entries, toIndex);
+	if (fromVisibleIndex < 0 || toVisibleIndex < 0 || fromVisibleIndex !== toVisibleIndex) {
+		return;
+	}
 
-  if (preferredSide === 'from') {
-    fromVisibleIndex = Math.max(0, toVisibleIndex - 1);
-    toVisibleIndex = Math.max(fromVisibleIndex + 1, toVisibleIndex);
-  } else {
-    toVisibleIndex = Math.min(entries.length - 1, fromVisibleIndex + 1);
-    fromVisibleIndex = Math.min(fromVisibleIndex, toVisibleIndex - 1);
-  }
+	if (preferredSide === 'from') {
+		fromVisibleIndex = Math.max(0, toVisibleIndex - 1);
+		toVisibleIndex = Math.max(fromVisibleIndex + 1, toVisibleIndex);
+	} else {
+		toVisibleIndex = Math.min(entries.length - 1, fromVisibleIndex + 1);
+		fromVisibleIndex = Math.min(fromVisibleIndex, toVisibleIndex - 1);
+	}
 
-  if (fromVisibleIndex === toVisibleIndex) {
-    fromVisibleIndex = Math.max(0, toVisibleIndex - 1);
-    toVisibleIndex = Math.min(entries.length - 1, fromVisibleIndex + 1);
-  }
+	if (fromVisibleIndex === toVisibleIndex) {
+		fromVisibleIndex = Math.max(0, toVisibleIndex - 1);
+		toVisibleIndex = Math.min(entries.length - 1, fromVisibleIndex + 1);
+	}
 
-  setState({
-    fromIndex: entries[fromVisibleIndex].index,
-    toIndex: entries[toVisibleIndex].index,
-  });
+	setState({
+		fromIndex: entries[fromVisibleIndex].index,
+		toIndex: entries[toVisibleIndex].index,
+	});
 }
 
 function buildRangeTooltipState(
-  entries: FileRevisionEntry[],
-  previewByRange: Record<string, DiffPreview>,
-  comparisonSource: ComparisonSource,
-  fromIndex: number,
-  toIndex: number,
-  clientX: number,
-  clientY: number,
-  pending: boolean,
+	entries: FileRevisionEntry[],
+	previewByRange: Record<string, DiffPreview>,
+	comparisonSource: ComparisonSource,
+	fromIndex: number,
+	toIndex: number,
+	clientX: number,
+	clientY: number,
+	pending: boolean,
 ): TooltipState | null {
-  const normalizedFromIndex = Math.min(fromIndex, toIndex);
-  const normalizedToIndex = Math.max(fromIndex, toIndex);
-  const fromEntry = entries.find((entry) => entry.index === normalizedFromIndex);
-  const toEntry = entries.find((entry) => entry.index === normalizedToIndex);
-  if (!fromEntry || !toEntry) {
-    return null;
-  }
+	const normalizedFromIndex = Math.min(fromIndex, toIndex);
+	const normalizedToIndex = Math.max(fromIndex, toIndex);
+	const fromEntry = entries.find((entry) => entry.index === normalizedFromIndex);
+	const toEntry = entries.find((entry) => entry.index === normalizedToIndex);
+	if (!fromEntry || !toEntry) {
+		return null;
+	}
 
-  return {
-    kind: 'range',
-    left: clientX,
-    top: clientY,
-    fromEntry,
-    toEntry,
-    preview: previewByRange[buildPreviewKey(normalizedFromIndex, normalizedToIndex, comparisonSource)] || null,
-    pending,
-    selectedCount: getSelectedEntryCount(entries, normalizedFromIndex, normalizedToIndex),
-  };
+	return {
+		kind: 'range',
+		left: clientX,
+		top: clientY,
+		fromEntry,
+		toEntry,
+		preview: previewByRange[buildPreviewKey(normalizedFromIndex, normalizedToIndex, comparisonSource)] || null,
+		pending,
+		selectedCount: getSelectedEntryCount(entries, normalizedFromIndex, normalizedToIndex),
+	};
 }
 
 function getSegmentTooltipState(
-  entries: FileRevisionEntry[],
-  previewByRange: Record<string, DiffPreview>,
-  comparisonSource: ComparisonSource,
-  clientX: number,
-  clientY: number,
+	entries: FileRevisionEntry[],
+	previewByRange: Record<string, DiffPreview>,
+	comparisonSource: ComparisonSource,
+	clientX: number,
+	clientY: number,
 ): TooltipState | null {
-  const visibleIndex = getVisibleIndexFromClientX(entries, clientX);
-  if (visibleIndex <= 0) {
-    return null;
-  }
+	const visibleIndex = getVisibleIndexFromClientX(entries, clientX);
+	if (visibleIndex <= 0) {
+		return null;
+	}
 
-  const fromEntry = entries[visibleIndex - 1];
-  const toEntry = entries[visibleIndex];
-  if (!fromEntry || !toEntry) {
-    return null;
-  }
+	const fromEntry = entries[visibleIndex - 1];
+	const toEntry = entries[visibleIndex];
+	if (!fromEntry || !toEntry) {
+		return null;
+	}
 
-  return buildRangeTooltipState(entries, previewByRange, comparisonSource, fromEntry.index, toEntry.index, clientX, clientY, false);
+	return buildRangeTooltipState(
+		entries,
+		previewByRange,
+		comparisonSource,
+		fromEntry.index,
+		toEntry.index,
+		clientX,
+		clientY,
+		false,
+	);
 }
 
 function formatExactTimestamp(authorDate: string) {
-  const date = new Date(authorDate);
-  if (Number.isNaN(date.getTime())) {
-    return 'Unknown time';
-  }
+	const date = new Date(authorDate);
+	if (Number.isNaN(date.getTime())) {
+		return 'Unknown time';
+	}
 
-  return date.toLocaleString();
+	return date.toLocaleString();
 }
 
 function clampTooltipX(left: number) {
-  if (typeof window === 'undefined') {
-    return left;
-  }
+	if (typeof window === 'undefined') {
+		return left;
+	}
 
-  return Math.min(window.innerWidth - 180, Math.max(180, left));
+	return Math.min(window.innerWidth - 180, Math.max(180, left));
 }
 
-function normalizeSelection(entries: FileRevisionEntry[], fromIndex: number, toIndex: number, comparisonMode: ComparisonMode): [number, number] {
-  if (entries.length < 2) {
-    return [entries[0]?.index || 0, entries[0]?.index || 0];
-  }
+function normalizeSelection(
+	entries: FileRevisionEntry[],
+	fromIndex: number,
+	toIndex: number,
+	comparisonMode: ComparisonMode,
+): [number, number] {
+	if (entries.length < 2) {
+		return [entries[0]?.index || 0, entries[0]?.index || 0];
+	}
 
-  const exactToVisibleIndex = entries.findIndex((entry) => entry.index === toIndex);
-  const nextGreaterVisibleIndex = entries.findIndex((entry) => entry.index > toIndex);
-  const nearestToVisibleIndex = exactToVisibleIndex >= 0
-    ? exactToVisibleIndex
-    : nextGreaterVisibleIndex >= 0
-      ? nextGreaterVisibleIndex
-      : entries.length - 1;
+	const exactToVisibleIndex = entries.findIndex((entry) => entry.index === toIndex);
+	const nextGreaterVisibleIndex = entries.findIndex((entry) => entry.index > toIndex);
+	const nearestToVisibleIndex =
+		exactToVisibleIndex >= 0
+			? exactToVisibleIndex
+			: nextGreaterVisibleIndex >= 0
+				? nextGreaterVisibleIndex
+				: entries.length - 1;
 
-  const safeToVisibleIndex = nearestToVisibleIndex >= 1 ? nearestToVisibleIndex : entries.length - 1;
-  if (comparisonMode === 'step') {
-    return [entries[safeToVisibleIndex - 1].index, entries[safeToVisibleIndex].index];
-  }
+	const safeToVisibleIndex = nearestToVisibleIndex >= 1 ? nearestToVisibleIndex : entries.length - 1;
+	if (comparisonMode === 'step') {
+		return [entries[safeToVisibleIndex - 1].index, entries[safeToVisibleIndex].index];
+	}
 
-  const exactFromVisibleIndex = entries.findIndex((entry) => entry.index === fromIndex);
+	const exactFromVisibleIndex = entries.findIndex((entry) => entry.index === fromIndex);
 
-  if (exactFromVisibleIndex >= 0 && exactFromVisibleIndex < safeToVisibleIndex) {
-    return [entries[exactFromVisibleIndex].index, entries[safeToVisibleIndex].index];
-  }
+	if (exactFromVisibleIndex >= 0 && exactFromVisibleIndex < safeToVisibleIndex) {
+		return [entries[exactFromVisibleIndex].index, entries[safeToVisibleIndex].index];
+	}
 
-  return [entries[safeToVisibleIndex - 1].index, entries[safeToVisibleIndex].index];
+	return [entries[safeToVisibleIndex - 1].index, entries[safeToVisibleIndex].index];
 }
 
 function alignStepSelection(entries: FileRevisionEntry[], toIndex: number): [number, number] {
-  if (entries.length < 2) {
-    return [entries[0]?.index || 0, entries[0]?.index || 0];
-  }
+	if (entries.length < 2) {
+		return [entries[0]?.index || 0, entries[0]?.index || 0];
+	}
 
-  const currentToVisibleIndex = entries.findIndex((entry) => entry.index === toIndex);
-  const safeToVisibleIndex = Math.min(entries.length - 1, Math.max(1, currentToVisibleIndex >= 0 ? currentToVisibleIndex : entries.length - 1));
-  return [entries[safeToVisibleIndex - 1].index, entries[safeToVisibleIndex].index];
+	const currentToVisibleIndex = entries.findIndex((entry) => entry.index === toIndex);
+	const safeToVisibleIndex = Math.min(
+		entries.length - 1,
+		Math.max(1, currentToVisibleIndex >= 0 ? currentToVisibleIndex : entries.length - 1),
+	);
+	return [entries[safeToVisibleIndex - 1].index, entries[safeToVisibleIndex].index];
 }
 
 function shiftStepSelection(entries: FileRevisionEntry[], toIndex: number, amount: number): [number, number] {
-  if (entries.length < 2) {
-    return [entries[0]?.index || 0, entries[0]?.index || 0];
-  }
+	if (entries.length < 2) {
+		return [entries[0]?.index || 0, entries[0]?.index || 0];
+	}
 
-  const currentToVisibleIndex = entries.findIndex((entry) => entry.index === toIndex);
-  const nextToVisibleIndex = Math.min(entries.length - 1, Math.max(1, (currentToVisibleIndex >= 0 ? currentToVisibleIndex : 1) + amount));
-  return [entries[nextToVisibleIndex - 1].index, entries[nextToVisibleIndex].index];
+	const currentToVisibleIndex = entries.findIndex((entry) => entry.index === toIndex);
+	const nextToVisibleIndex = Math.min(
+		entries.length - 1,
+		Math.max(1, (currentToVisibleIndex >= 0 ? currentToVisibleIndex : 1) + amount),
+	);
+	return [entries[nextToVisibleIndex - 1].index, entries[nextToVisibleIndex].index];
 }
 
-function shiftRangeSelection(entries: FileRevisionEntry[], fromIndex: number, toIndex: number, amount: number): [number, number] {
-  if (entries.length < 2) {
-    return [entries[0]?.index || 0, entries[0]?.index || 0];
-  }
+function shiftRangeSelection(
+	entries: FileRevisionEntry[],
+	fromIndex: number,
+	toIndex: number,
+	amount: number,
+): [number, number] {
+	if (entries.length < 2) {
+		return [entries[0]?.index || 0, entries[0]?.index || 0];
+	}
 
-  const fromVisibleIndex = entries.findIndex((entry) => entry.index === fromIndex);
-  const toVisibleIndex = entries.findIndex((entry) => entry.index === toIndex);
-  const safeFromVisibleIndex = Math.max(0, fromVisibleIndex);
-  const safeToVisibleIndex = Math.max(safeFromVisibleIndex + 1, toVisibleIndex >= 0 ? toVisibleIndex : safeFromVisibleIndex + 1);
-  const width = safeToVisibleIndex - safeFromVisibleIndex;
-  const nextFromVisibleIndex = Math.min(Math.max(0, safeFromVisibleIndex + amount), Math.max(0, entries.length - 1 - width));
-  const nextToVisibleIndex = Math.min(entries.length - 1, nextFromVisibleIndex + width);
-  return [entries[nextFromVisibleIndex].index, entries[nextToVisibleIndex].index];
+	const fromVisibleIndex = entries.findIndex((entry) => entry.index === fromIndex);
+	const toVisibleIndex = entries.findIndex((entry) => entry.index === toIndex);
+	const safeFromVisibleIndex = Math.max(0, fromVisibleIndex);
+	const safeToVisibleIndex = Math.max(
+		safeFromVisibleIndex + 1,
+		toVisibleIndex >= 0 ? toVisibleIndex : safeFromVisibleIndex + 1,
+	);
+	const width = safeToVisibleIndex - safeFromVisibleIndex;
+	const nextFromVisibleIndex = Math.min(
+		Math.max(0, safeFromVisibleIndex + amount),
+		Math.max(0, entries.length - 1 - width),
+	);
+	const nextToVisibleIndex = Math.min(entries.length - 1, nextFromVisibleIndex + width);
+	return [entries[nextFromVisibleIndex].index, entries[nextToVisibleIndex].index];
 }
 
-function adjustRangeBoundary(entries: FileRevisionEntry[], fromIndex: number, toIndex: number, side: 'from' | 'to', amount: number): [number, number] {
-  if (entries.length < 2) {
-    return [entries[0]?.index || 0, entries[0]?.index || 0];
-  }
+function adjustRangeBoundary(
+	entries: FileRevisionEntry[],
+	fromIndex: number,
+	toIndex: number,
+	side: 'from' | 'to',
+	amount: number,
+): [number, number] {
+	if (entries.length < 2) {
+		return [entries[0]?.index || 0, entries[0]?.index || 0];
+	}
 
-  let fromVisibleIndex = entries.findIndex((entry) => entry.index === fromIndex);
-  let toVisibleIndex = entries.findIndex((entry) => entry.index === toIndex);
-  fromVisibleIndex = Math.max(0, fromVisibleIndex);
-  toVisibleIndex = Math.max(fromVisibleIndex + 1, toVisibleIndex);
+	let fromVisibleIndex = entries.findIndex((entry) => entry.index === fromIndex);
+	let toVisibleIndex = entries.findIndex((entry) => entry.index === toIndex);
+	fromVisibleIndex = Math.max(0, fromVisibleIndex);
+	toVisibleIndex = Math.max(fromVisibleIndex + 1, toVisibleIndex);
 
-  if (side === 'from') {
-    fromVisibleIndex = Math.min(Math.max(0, fromVisibleIndex + amount), toVisibleIndex - 1);
-  } else {
-    toVisibleIndex = Math.max(fromVisibleIndex + 1, Math.min(entries.length - 1, toVisibleIndex + amount));
-  }
+	if (side === 'from') {
+		fromVisibleIndex = Math.min(Math.max(0, fromVisibleIndex + amount), toVisibleIndex - 1);
+	} else {
+		toVisibleIndex = Math.max(fromVisibleIndex + 1, Math.min(entries.length - 1, toVisibleIndex + amount));
+	}
 
-  return [entries[fromVisibleIndex].index, entries[toVisibleIndex].index];
+	return [entries[fromVisibleIndex].index, entries[toVisibleIndex].index];
 }
 
-function dockRangeSelection(entries: FileRevisionEntry[], fromIndex: number, toIndex: number, edge: 'start' | 'end'): [number, number] {
-  if (entries.length < 2) {
-    return [entries[0]?.index || 0, entries[0]?.index || 0];
-  }
+function dockRangeSelection(
+	entries: FileRevisionEntry[],
+	fromIndex: number,
+	toIndex: number,
+	edge: 'start' | 'end',
+): [number, number] {
+	if (entries.length < 2) {
+		return [entries[0]?.index || 0, entries[0]?.index || 0];
+	}
 
-  const fromVisibleIndex = Math.max(0, entries.findIndex((entry) => entry.index === fromIndex));
-  const toVisibleIndex = Math.max(fromVisibleIndex + 1, entries.findIndex((entry) => entry.index === toIndex));
-  const width = toVisibleIndex - fromVisibleIndex;
-  const nextFromVisibleIndex = edge === 'start'
-    ? 0
-    : Math.max(0, entries.length - 1 - width);
-  const nextToVisibleIndex = Math.min(entries.length - 1, nextFromVisibleIndex + width);
-  return [entries[nextFromVisibleIndex].index, entries[nextToVisibleIndex].index];
+	const fromVisibleIndex = Math.max(
+		0,
+		entries.findIndex((entry) => entry.index === fromIndex),
+	);
+	const toVisibleIndex = Math.max(
+		fromVisibleIndex + 1,
+		entries.findIndex((entry) => entry.index === toIndex),
+	);
+	const width = toVisibleIndex - fromVisibleIndex;
+	const nextFromVisibleIndex = edge === 'start' ? 0 : Math.max(0, entries.length - 1 - width);
+	const nextToVisibleIndex = Math.min(entries.length - 1, nextFromVisibleIndex + width);
+	return [entries[nextFromVisibleIndex].index, entries[nextToVisibleIndex].index];
 }
 
-function canNavigateSelection(entries: FileRevisionEntry[], fromIndex: number, toIndex: number, comparisonMode: ComparisonMode, direction: -1 | 1) {
-  if (entries.length < 2) {
-    return false;
-  }
+function canNavigateSelection(
+	entries: FileRevisionEntry[],
+	fromIndex: number,
+	toIndex: number,
+	comparisonMode: ComparisonMode,
+	direction: -1 | 1,
+) {
+	if (entries.length < 2) {
+		return false;
+	}
 
-  if (comparisonMode === 'step') {
-    const toVisibleIndex = entries.findIndex((entry) => entry.index === toIndex);
-    return direction < 0 ? toVisibleIndex > 1 : toVisibleIndex < entries.length - 1;
-  }
+	if (comparisonMode === 'step') {
+		const toVisibleIndex = entries.findIndex((entry) => entry.index === toIndex);
+		return direction < 0 ? toVisibleIndex > 1 : toVisibleIndex < entries.length - 1;
+	}
 
-  const fromVisibleIndex = entries.findIndex((entry) => entry.index === fromIndex);
-  const toVisibleIndex = entries.findIndex((entry) => entry.index === toIndex);
-  return direction < 0 ? fromVisibleIndex > 0 : toVisibleIndex < entries.length - 1;
+	const fromVisibleIndex = entries.findIndex((entry) => entry.index === fromIndex);
+	const toVisibleIndex = entries.findIndex((entry) => entry.index === toIndex);
+	return direction < 0 ? fromVisibleIndex > 0 : toVisibleIndex < entries.length - 1;
 }

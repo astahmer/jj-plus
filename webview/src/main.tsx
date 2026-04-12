@@ -5,5 +5,5 @@ import '../timeline.css';
 const root = document.getElementById('timelineApp');
 
 if (root) {
-  render(() => <App />, root);
+	render(() => <App />, root);
 }

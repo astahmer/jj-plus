@@ -31,6 +31,7 @@ Most interfaces use too many font sizes and not enough variation in weight and c
 - Don't rely on color alone to communicate state — pair it with an icon or label
 
 **Dark mode:**
+
 - Flip surface layers (not just `bg-white` → `bg-black`). Use `bg-neutral-900`, `bg-neutral-800`, etc.
 - Reduce shadow intensity; increase border visibility slightly
 - Slightly desaturate colors in dark mode — pure saturated colors look garish on dark backgrounds
@@ -137,12 +138,15 @@ Most interfaces use too many font sizes and not enough variation in weight and c
 ## Component Patterns
 
 ### Cards
+
 ```
 bg-white rounded-xl shadow-sm border border-neutral-100 p-6
 ```
+
 Dark: `bg-neutral-900 border-white/10`
 
 ### Badges / Tags
+
 ```
 inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium
 bg-blue-50 text-blue-700   (info)
@@ -152,11 +156,13 @@ bg-neutral-100 text-neutral-600 (neutral)
 ```
 
 ### Code blocks
+
 ```
 bg-neutral-950 text-neutral-100 rounded-lg p-4 text-sm font-mono
 ```
 
 ### Toasts / Alerts
+
 - Left border accent (`border-l-4 border-blue-500`) on a `bg-blue-50` background reads cleaner than a fully colored bg
 - Include an icon, title, description, and optional dismiss button
 - Never auto-dismiss error messages
@@ -171,7 +177,11 @@ bg-neutral-950 text-neutral-100 rounded-lg p-4 text-sm font-mono
 - No bounce or spring on utility UI. Reserve personality animations for marketing/onboarding
 - Always respect `prefers-reduced-motion`:
   ```css
-  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+  @media (prefers-reduced-motion: reduce) {
+  	* {
+  		transition: none !important;
+  	}
+  }
   ```
 
 ---

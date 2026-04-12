@@ -3,6 +3,7 @@ make a custom vscode panel based on these UIs; ideally i should have some kind o
 ---
 
 not bad for a first draft! few things to change:
+
 - the UI takes way too much space
 - it feels so vibecoded; make it pretter but without the LLM styling; it needs look like a designer created that
 - im not sure what you meant by " richer revision cards" but if that makes sense go ahead
@@ -10,7 +11,9 @@ not bad for a first draft! few things to change:
 - also currently i cant use F5 cause there's no vscode configuration to try the ext i currently need to increase the version then build it then drag/drop and do that again each time
 
 ---
+
 ok thats MUCH better.
+
 - tho the UI still takes too much space near the header; can be merge the header info+actions inside the timeline? or compact it a lot? whatever renders best
 - yes i want a switch that i can toggle to see either unified OR side-by-side diffs. defaults to split (side-by-side).
 - yes i need ways to either see the whole file or just the diffs (with + expandable/collapsable sections so i can see a bit more of the file without seeing the whole thing)
@@ -25,6 +28,7 @@ ok thats MUCH better.
 almost perfect! current state is shown in screen2
 
 few things to change:
+
 - when clicking the hide sidebar im getting this weird styles; tho when resizing the sidebar it correctly styles itself and keeps a minsize (nice!)
 - yes add a small persistent state for the things you said
 - we should have a new action "open file" which would open the current file, without diffs (vs the current "open in editor" which is more like "open diff in editor")
@@ -87,7 +91,7 @@ few things to change:
 ---
 
 - im still getting "No textual changes in this selection.", example with 9680be84 -> 4e61b4d1; how can I even end up in this state? it shouldnt be possible to have a selected range WITHOUT changes impacting the currently seen file AS LONG as im in the "hide in between" mode. cause that mode's whole purpose is to see only revisions that actually IMPACTS that file. fix the bug
-- since allowing to resize/collapse the timeline section the styles are a bit weird: the timeline itself seems cropped (due to an overflow issue?) / when resizing to the minsize i end up seeing the exact opposite of what i asked: i see everything BUT the timeline. tho when clicking the "collapse" button i *almost* have the expected styles -> only (mostly) the timeline bar itself is shown and the rest of the timeline section is properly hidden
+- since allowing to resize/collapse the timeline section the styles are a bit weird: the timeline itself seems cropped (due to an overflow issue?) / when resizing to the minsize i end up seeing the exact opposite of what i asked: i see everything BUT the timeline. tho when clicking the "collapse" button i _almost_ have the expected styles -> only (mostly) the timeline bar itself is shown and the rest of the timeline section is properly hidden
 - when the timeline section is collapsed (through the button) we should be able to "un-collapse" (as if clicking the button) by resizing (clicking/dragging the horizontal bar)
 - we should have a fullscreen icon button in the diff section to make it (mostly) fullscreen (so i can focus the diffs)
 - if using the "shift" modifier we should be able to jump by 5 or 10 rather than 1, both with up/down and left/right directions
@@ -105,18 +109,18 @@ few things to change:
 - when there are "no textual changes" then it would be nice to show WHAT changed? filename? line ending? something else?
 - IF the filename was changed (e.g the file was moved) AND our version engine (git/jj) know about it then we should also display diffs based on those earlier file names (and not just on the current filename/path)
 - seems like i got an issue when trying to see the timeline of a file (screen1), here's the log:
-Command failed: jj log --no-graph --limit 200 -T commit_id.short() ++ "\t" ++ change_id.shortest() ++ "\t" ++ author.timestamp().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ description.first_line() ++ "\n" apps/frontend/src/routes/_auth/$organization/purchase-requests/$purchaseRequest/edit.tsx
-Error: Failed to parse fileset: Syntax error
-Caused by:  --> 1:32
-|
-1 | apps/frontend/src/routes/_auth/$organization/purchase-requests/$purchaseRequest/edit.tsx
-|                                ^---
-Command failed: jj log --no-graph --limit 200 -T commit_id.short() ++ "\t" ++ change_id.shortest() ++ "\t" ++ author.timestamp().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ description.first_line() ++ "\n" apps/frontend/src/routes/_auth/$organization/purchase-requests/$purchaseRequest/edit.tsx
-Error: Failed to parse fileset: Syntax error
-Caused by:  --> 1:32
-|
-1 | apps/frontend/src/routes/_auth/$organization/purchase-requests/$purchaseRequest/edit.tsx
-|                                ^---
+  Command failed: jj log --no-graph --limit 200 -T commit_id.short() ++ "\t" ++ change_id.shortest() ++ "\t" ++ author.timestamp().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ description.first_line() ++ "\n" apps/frontend/src/routes/\_auth/$organization/purchase-requests/$purchaseRequest/edit.tsx
+  Error: Failed to parse fileset: Syntax error
+  Caused by: --> 1:32
+  |
+  1 | apps/frontend/src/routes/\_auth/$organization/purchase-requests/$purchaseRequest/edit.tsx
+  | ^---
+  Command failed: jj log --no-graph --limit 200 -T commit_id.short() ++ "\t" ++ change_id.shortest() ++ "\t" ++ author.timestamp().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ description.first_line() ++ "\n" apps/frontend/src/routes/\_auth/$organization/purchase-requests/$purchaseRequest/edit.tsx
+  Error: Failed to parse fileset: Syntax error
+  Caused by: --> 1:32
+  |
+  1 | apps/frontend/src/routes/\_auth/$organization/purchase-requests/$purchaseRequest/edit.tsx
+  | ^---
 
 ---
 
@@ -133,7 +137,7 @@ Caused by:  --> 1:32
 ---
 
 - clicking on the revision range sidebar items should start a selection; e.g it should style the items slightly differently and wait for another click on another item so that a range can be created with start/end markers based on the 1st/2nd click however it makes sense direction-wise (1st click might be either from or to depending on if the revision is older/newer than the 2nd click)
--  reverted the left/right arrow keys behaviour with alt + i removed the buggy "// state.preview = knownPreview;" and fixed the focus diff styling myself using display flex; leave it as it is now
+- reverted the left/right arrow keys behaviour with alt + i removed the buggy "// state.preview = knownPreview;" and fixed the focus diff styling myself using display flex; leave it as it is now
 - now go ahead work on the JJ-only comparison-source toggle for Revision vs Snapshot and wire snapshot stepping to jj diff -r / jj evolog -p.
 
 ---
@@ -165,68 +169,67 @@ Caused by:  --> 1:32
 - swapping revision & snapshot mode still dont properly show the active styles and both still reports either: "Range view · 38 single diffs available" or "Range view · 38 snapshots available"; but again having the same count of snapshot & revision seems weird no? for example these are my evlog (at least 9 snapshot in a single revision!!) vs revision log:
 
 jj evolog -r @
-@  uxvzlutk alexandre.stahmer@gmail.com 2026-04-10 14:56:41 b9f67456
-│  (no description set)
-│  -- operation 0dfe793ffb5b snapshot working copy
-○  uxvzlutk/1 alexandre.stahmer@gmail.com 2026-04-10 14:56:40 62a05a9c (hidden)
-│  (no description set)
-│  -- operation 518012dcda68 snapshot working copy
-○  uxvzlutk/2 alexandre.stahmer@gmail.com 2026-04-10 14:55:42 83132bba (hidden)
-│  (no description set)
-│  -- operation 3d45e30770a7 snapshot working copy
-○  uxvzlutk/3 alexandre.stahmer@gmail.com 2026-04-10 14:55:24 21963341 (hidden)
-│  (no description set)
-│  -- operation 53a78fa978f5 snapshot working copy
-○  uxvzlutk/4 alexandre.stahmer@gmail.com 2026-04-10 14:54:46 9d225163 (hidden)
-│  (no description set)
-│  -- operation 685da49ed6f3 snapshot working copy
-○  uxvzlutk/5 alexandre.stahmer@gmail.com 2026-04-10 14:54:08 7e6f3c9d (hidden)
-│  (no description set)
-│  -- operation d8f6e5006e91 snapshot working copy
-○  uxvzlutk/6 alexandre.stahmer@gmail.com 2026-04-10 14:54:07 66d0652f (hidden)
-│  (no description set)
-│  -- operation fb19d0869ff6 snapshot working copy
-○  uxvzlutk/7 alexandre.stahmer@gmail.com 2026-04-10 14:54:06 c236fe87 (hidden)
-│  (no description set)
-│  -- operation 03460198834d snapshot working copy
-○  uxvzlutk/8 alexandre.stahmer@gmail.com 2026-04-10 14:54:02 a0fe54d4 (hidden)
-│  (no description set)
-│  -- operation 89dee678ef8f snapshot working copy
-○  uxvzlutk/9 alexandre.stahmer@gmail.com 2026-04-10 14:53:54 0e4494b0 (hidden)
-│  (no description set)
+@ uxvzlutk alexandre.stahmer@gmail.com 2026-04-10 14:56:41 b9f67456
+│ (no description set)
+│ -- operation 0dfe793ffb5b snapshot working copy
+○ uxvzlutk/1 alexandre.stahmer@gmail.com 2026-04-10 14:56:40 62a05a9c (hidden)
+│ (no description set)
+│ -- operation 518012dcda68 snapshot working copy
+○ uxvzlutk/2 alexandre.stahmer@gmail.com 2026-04-10 14:55:42 83132bba (hidden)
+│ (no description set)
+│ -- operation 3d45e30770a7 snapshot working copy
+○ uxvzlutk/3 alexandre.stahmer@gmail.com 2026-04-10 14:55:24 21963341 (hidden)
+│ (no description set)
+│ -- operation 53a78fa978f5 snapshot working copy
+○ uxvzlutk/4 alexandre.stahmer@gmail.com 2026-04-10 14:54:46 9d225163 (hidden)
+│ (no description set)
+│ -- operation 685da49ed6f3 snapshot working copy
+○ uxvzlutk/5 alexandre.stahmer@gmail.com 2026-04-10 14:54:08 7e6f3c9d (hidden)
+│ (no description set)
+│ -- operation d8f6e5006e91 snapshot working copy
+○ uxvzlutk/6 alexandre.stahmer@gmail.com 2026-04-10 14:54:07 66d0652f (hidden)
+│ (no description set)
+│ -- operation fb19d0869ff6 snapshot working copy
+○ uxvzlutk/7 alexandre.stahmer@gmail.com 2026-04-10 14:54:06 c236fe87 (hidden)
+│ (no description set)
+│ -- operation 03460198834d snapshot working copy
+○ uxvzlutk/8 alexandre.stahmer@gmail.com 2026-04-10 14:54:02 a0fe54d4 (hidden)
+│ (no description set)
+│ -- operation 89dee678ef8f snapshot working copy
+○ uxvzlutk/9 alexandre.stahmer@gmail.com 2026-04-10 14:53:54 0e4494b0 (hidden)
+│ (no description set)
 
-welii/apps/backend *​ ≡
+welii/apps/backend \*​ ≡
 ❯ jj log
-@  uxvzlutk alexandre.stahmer@gmail.com 2026-04-10 14:56:41 b9f67456
-│  (no description set)
-○  tqvkowpm alexandre.stahmer@gmail.com 2026-04-10 14:50:14 99186447
-│  wip comment domain
-○  uryxwlwq alexandre.stahmer@gmail.com 2026-04-10 14:45:20 9bce36a2
-│  mutate lazyInjector rather than creating a new one each time
-○  koykkznr alexandre.stahmer@gmail.com 2026-04-10 14:07:45 9327aaf3
-│  provideLazyValue + provideLazyFactory
-○  ynlmtlop alexandre.stahmer@gmail.com 2026-04-10 11:57:59 bb4c7cf8
-│  lazy register DI
-○  nmrspkpz alexandre.stahmer@gmail.com 2026-04-10 11:40:49 db97541d
-│  codegen use case loaders
-○  tpuovkms alexandre.stahmer@gmail.com 2026-04-10 11:04:46 0fae08e1
-│  steering in a better direction
-○  vkvynmkm alexandre.stahmer@gmail.com 2026-04-09 18:12:21 e92faa5e
-│  (no description set)
-○  qulorrqt alexandre.stahmer@gmail.com 2026-04-09 18:08:29 3fc68a17
-│  llm crap
-○  pxxmosyn alexandre.stahmer@gmail.com 2026-04-09 17:57:33 620852e2
-│  poc lazy load use cases
-○  suowztkk alexandre.stahmer@gmail.com 2026-04-09 16:37:07 765491b7
-│  llm doing stuff
-○  vorusskr alexandre.stahmer@gmail.com 2026-04-09 16:13:25 9b5ec2ad
-│  (no description set)
-○  vrxsssnp alexandre.stahmer@gmail.com 2026-04-09 15:12:15 19f9df0a
-│  with oxc?
-○  sonlprop alexandre.stahmer@gmail.com 2026-04-09 14:52:02 847f98ce
-│  (no description set)
-○  xxutprmu alexandre.stahmer@gmail.com 2026-04-09 14:43:12 6a1a427c
-
+@ uxvzlutk alexandre.stahmer@gmail.com 2026-04-10 14:56:41 b9f67456
+│ (no description set)
+○ tqvkowpm alexandre.stahmer@gmail.com 2026-04-10 14:50:14 99186447
+│ wip comment domain
+○ uryxwlwq alexandre.stahmer@gmail.com 2026-04-10 14:45:20 9bce36a2
+│ mutate lazyInjector rather than creating a new one each time
+○ koykkznr alexandre.stahmer@gmail.com 2026-04-10 14:07:45 9327aaf3
+│ provideLazyValue + provideLazyFactory
+○ ynlmtlop alexandre.stahmer@gmail.com 2026-04-10 11:57:59 bb4c7cf8
+│ lazy register DI
+○ nmrspkpz alexandre.stahmer@gmail.com 2026-04-10 11:40:49 db97541d
+│ codegen use case loaders
+○ tpuovkms alexandre.stahmer@gmail.com 2026-04-10 11:04:46 0fae08e1
+│ steering in a better direction
+○ vkvynmkm alexandre.stahmer@gmail.com 2026-04-09 18:12:21 e92faa5e
+│ (no description set)
+○ qulorrqt alexandre.stahmer@gmail.com 2026-04-09 18:08:29 3fc68a17
+│ llm crap
+○ pxxmosyn alexandre.stahmer@gmail.com 2026-04-09 17:57:33 620852e2
+│ poc lazy load use cases
+○ suowztkk alexandre.stahmer@gmail.com 2026-04-09 16:37:07 765491b7
+│ llm doing stuff
+○ vorusskr alexandre.stahmer@gmail.com 2026-04-09 16:13:25 9b5ec2ad
+│ (no description set)
+○ vrxsssnp alexandre.stahmer@gmail.com 2026-04-09 15:12:15 19f9df0a
+│ with oxc?
+○ sonlprop alexandre.stahmer@gmail.com 2026-04-09 14:52:02 847f98ce
+│ (no description set)
+○ xxutprmu alexandre.stahmer@gmail.com 2026-04-09 14:43:12 6a1a427c
 
 ---
 
@@ -235,9 +238,8 @@ welii/apps/backend *​ ≡
 - the snapshot logs still dont change anything in the UI (not even the toggle styles!) except the "Range view · 38 snapshots available" and smaller diffs in the (same) sidebar items.. write tests
 - " It is not yet a full per-change evolog expansion for every historical revision in the entire timeline." but thats exactly what we want tho? seeing EACH granular change
 
-
 - can confirm the toggle styles are finally working correctly!
-- the track-anchor are still wrongly positioned  (everything is on the left)
+- the track-anchor are still wrongly positioned (everything is on the left)
 - still seeing the duplicate commits on the sidebar items; somth seems wrong? and i can confirm switching from revision mode to snapshot mode still doesnt change the sidebar items (outside of smaller diff per items..)
 - if you need to try stuff you can do so at `/Users/astahmer/dev/work-related/welii`, for example this file `/Users/astahmer/dev/work-related/welii/knip.jsonc` has multiple snapshots i think? find others otherwise
 - after playing a bit with the diffs on the actual jj repo i sent you; add more tests to ensure everything works for us
@@ -247,36 +249,36 @@ welii/apps/backend *​ ≡
 - you can see the full log in /Users/astahmer/dev/alex/visualjj-range-diff-helper/extension-host.log
 - we will need to make that way more performant: we should batch stuff whenever possible and also maybe run those commands more lazily (only on visible revisions then when you scroll/move the range to a revision that wasnt part of the selection before we request at that time?)
 - when parsing the operation we probably want to store the operation index ({revisionId}/{index}) and the operation id; see
- jj evolog --no-graph
-yvsquxpl alexandre.stahmer@gmail.com 2026-04-10 15:58:20 d4d1f6a7
-(no description set)
--- operation b6b8b6a884a0 snapshot working copy
-yvsquxpl/1 alexandre.stahmer@gmail.com 2026-04-10 15:58:19 e5defe5a (hidden)
-(no description set)
--- operation 2800954053ef snapshot working copy
-yvsquxpl/2 alexandre.stahmer@gmail.com 2026-04-10 15:58:18 e657fca4 (hidden)
-(no description set)
--- operation 1613a3c264ea snapshot working copy
-yvsquxpl/3 alexandre.stahmer@gmail.com 2026-04-10 15:58:17 7a095da5 (hidden)
-(no description set)
--- operation fdfead9e0bd0 snapshot working copy
-yvsquxpl/4 alexandre.stahmer@gmail.com 2026-04-10 15:58:16 7bd61ff4 (hidden)
-(no description set)
--- operation 3819e850085b snapshot working copy
-yvsquxpl/5 alexandre.stahmer@gmail.com 2026-04-10 15:58:01 8c6e32bd (hidden)
-(no description set)
--- operation 5b07d8bbe3d0 snapshot working copy
-yvsquxpl/6 alexandre.stahmer@gmail.com 2026-04-10 15:58:01 be0a14a1 (hidden)
-(no description set)
--- operation 3a9d425dad87 snapshot working copy
-yvsquxpl/7 alexandre.stahmer@gmail.com 2026-04-10 15:58:00 b98827dd (hidden)
-(no description set)
--- operation 351e5b274d9c snapshot working copy
-yvsquxpl/8 alexandre.stahmer@gmail.com 2026-04-10 15:57:55 2cb0063b (hidden)
-(no description set)
--- operation c2043fa06b6a snapshot working copy
-yvsquxpl/9 alexandre.stahmer@gmail.com 2026-04-10 15:57:53 96da9b94 (hidden)
-(no description set)
+  jj evolog --no-graph
+  yvsquxpl alexandre.stahmer@gmail.com 2026-04-10 15:58:20 d4d1f6a7
+  (no description set)
+  -- operation b6b8b6a884a0 snapshot working copy
+  yvsquxpl/1 alexandre.stahmer@gmail.com 2026-04-10 15:58:19 e5defe5a (hidden)
+  (no description set)
+  -- operation 2800954053ef snapshot working copy
+  yvsquxpl/2 alexandre.stahmer@gmail.com 2026-04-10 15:58:18 e657fca4 (hidden)
+  (no description set)
+  -- operation 1613a3c264ea snapshot working copy
+  yvsquxpl/3 alexandre.stahmer@gmail.com 2026-04-10 15:58:17 7a095da5 (hidden)
+  (no description set)
+  -- operation fdfead9e0bd0 snapshot working copy
+  yvsquxpl/4 alexandre.stahmer@gmail.com 2026-04-10 15:58:16 7bd61ff4 (hidden)
+  (no description set)
+  -- operation 3819e850085b snapshot working copy
+  yvsquxpl/5 alexandre.stahmer@gmail.com 2026-04-10 15:58:01 8c6e32bd (hidden)
+  (no description set)
+  -- operation 5b07d8bbe3d0 snapshot working copy
+  yvsquxpl/6 alexandre.stahmer@gmail.com 2026-04-10 15:58:01 be0a14a1 (hidden)
+  (no description set)
+  -- operation 3a9d425dad87 snapshot working copy
+  yvsquxpl/7 alexandre.stahmer@gmail.com 2026-04-10 15:58:00 b98827dd (hidden)
+  (no description set)
+  -- operation 351e5b274d9c snapshot working copy
+  yvsquxpl/8 alexandre.stahmer@gmail.com 2026-04-10 15:57:55 2cb0063b (hidden)
+  (no description set)
+  -- operation c2043fa06b6a snapshot working copy
+  yvsquxpl/9 alexandre.stahmer@gmail.com 2026-04-10 15:57:53 96da9b94 (hidden)
+  (no description set)
 
 - its performant again and back to a working state but still snapshots arent treated/shown differently than from revisions
 - its currently possible to reduce the range size to 0; we shouldnt be able to do that cause that means trying to compare revision A with revision A; it makes no sense
@@ -298,19 +300,19 @@ yvsquxpl/9 alexandre.stahmer@gmail.com 2026-04-10 15:57:53 96da9b94 (hidden)
 
 i still dont see individual/granular/distinct snapshot changes, the 5 snapshots that sequentially added "another" "change" "to" "the" "plan" words are still collapsed in a single "snapshot"; wording in the UI that do NOT reflect the actual evolog:
 
-welii *​ ≡
+welii \*​ ≡
 ❯ jj log --no-graph --limit 200 -T 'commit_id.short() ++ "\t" ++ change_id.shortest() ++ "\t" ++ author.timestamp().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ author.name() ++ "\t" ++ description.first_line() ++ "\n"' 'root-file:"apps/backend/instructions/lazy-di-rollout-plan.md"'
-76653bbe5d47    wywrv   2026-04-10T19:27:29+02:00       Alexandre Stahmer
-b81c91c2ac8c    zrx     2026-04-10T17:06:58+02:00       Alexandre Stahmer       workflow + organization + backoffice ff + user identity
-4e841158ae85    qkyt    2026-04-10T16:40:09+02:00       Alexandre Stahmer       ff + corporate group + calcom + backoffice expenses+vendor
-69ceeb779513    nppo    2026-04-10T16:07:51+02:00       Alexandre Stahmer
-160460119a63    vmuy    2026-04-10T15:22:28+02:00       Alexandre Stahmer       wip i18n + ai + dpt
-1f598c19ae79    lovsqt  2026-04-10T15:10:48+02:00       Alexandre Stahmer       resolveAsync
-50422e4c1466    uxv     2026-04-10T14:52:27+02:00       Alexandre Stahmer       wip comment/exchange rate+currency
-99186447512d    tqvk    2026-04-10T14:42:09+02:00       Alexandre Stahmer       wip comment domain
-9327aaf3b6cb    koyk    2026-04-10T12:12:26+02:00       Alexandre Stahmer       provideLazyValue + provideLazyFactory
+76653bbe5d47 wywrv 2026-04-10T19:27:29+02:00 Alexandre Stahmer
+b81c91c2ac8c zrx 2026-04-10T17:06:58+02:00 Alexandre Stahmer workflow + organization + backoffice ff + user identity
+4e841158ae85 qkyt 2026-04-10T16:40:09+02:00 Alexandre Stahmer ff + corporate group + calcom + backoffice expenses+vendor
+69ceeb779513 nppo 2026-04-10T16:07:51+02:00 Alexandre Stahmer
+160460119a63 vmuy 2026-04-10T15:22:28+02:00 Alexandre Stahmer wip i18n + ai + dpt
+1f598c19ae79 lovsqt 2026-04-10T15:10:48+02:00 Alexandre Stahmer resolveAsync
+50422e4c1466 uxv 2026-04-10T14:52:27+02:00 Alexandre Stahmer wip comment/exchange rate+currency
+99186447512d tqvk 2026-04-10T14:42:09+02:00 Alexandre Stahmer wip comment domain
+9327aaf3b6cb koyk 2026-04-10T12:12:26+02:00 Alexandre Stahmer provideLazyValue + provideLazyFactory
 
-welii *​ ≡
+welii \*​ ≡
 ❯ jj evolog --no-graph --summary --limit 200 -r 76653bbe5d47
 wywrvxml alexandre.stahmer@gmail.com 2026-04-10 19:27:39 76653bbe
 (no description set)
@@ -335,13 +337,14 @@ M apps/backend/instructions/lazy-di-rollout-plan.md
 wywrvxml/5 alexandre.stahmer@gmail.com 2026-04-10 19:27:09 9246b5a7 (hidden)
 (empty) (no description set)
 -- operation c92ad6c400cd new empty commit
+
 - logs of the jj request done are available at /Users/astahmer/dev/alex/visualjj-range-diff-helper/extension-host3-revision-mode.log (this one works fine) and /Users/astahmer/dev/alex/visualjj-range-diff-helper/extension-host3-snapshot-mode.log (this one doesnt properly shows granular snapshot operation changes)
 - with the snapshot mode we should have sidebar items for those operations: ee269b417d50
-cdf4786256d5
-61b575a8a17f
-2069a299d6c5
-fad22fad0d20
-c92ad6c400cd
+  cdf4786256d5
+  61b575a8a17f
+  2069a299d6c5
+  fad22fad0d20
+  c92ad6c400cd
 
 and it would be nice to show where they came from with their matching {revision}/{index} like wywrvxml/1 wywrvxml/2 etc
 
@@ -402,7 +405,6 @@ jj file show -r b4bcbb72- apps/backend/instructions/lazy-di-rollout-plan.md
 [2026-04-10T18:10:23.816Z] cwd=/Users/astahmer/dev/work-related/welii
 jj file show -r b4bcbb72 apps/backend/instructions/lazy-di-rollout-plan.md
 
-
 ---
 
 - the "loading snapshot" position is overlapping
@@ -418,8 +420,8 @@ jj file show -r b4bcbb72 apps/backend/instructions/lazy-di-rollout-plan.md
 
 - when the sidebar is collapsed the style is broken + the sidebar expand button seems missing (and now im stuck there cause the persistent state makes it so whenever i open the timeline the sidebar collapses almost instantly (which looks weird btw!))
 - "Split · Diffs · Range · Snapshot" should be AFTER the
-"wywrvxml/0
-10/04/2026, 19:27:39 · patch introduced by wywrvxml/0"
+  "wywrvxml/0
+  10/04/2026, 19:27:39 · patch introduced by wywrvxml/0"
 - there's a weird squircle on the top left
 - try to improve the overall UI/UX however that makes sens as a pro designer; see the design interface skill, feel free to ask me questions (see the grill me skill) if needed
 
@@ -436,10 +438,11 @@ jj file show -r b4bcbb72 apps/backend/instructions/lazy-di-rollout-plan.md
 ---
 
 <!-- TODO -->
+
 - "Open a file in the editor to browse its revision timeline" when no file is currently open we should probably show an input field with the list of files to select from the workspace no?
 - we should be able to see how the file evolved over time with automatically with a play button that animate this evolution
 - we should be able to select a branch/bookmark (or at least display where commits it points to) in the datalist for the from/to
 
 - we probably want to be able to configure these diff flags:
-    --ignore-all-space     Ignore whitespace when comparing lines
---ignore-space-change  Ignore changes in amount of whitespace when comparing lines
+  --ignore-all-space Ignore whitespace when comparing lines
+  --ignore-space-change Ignore changes in amount of whitespace when comparing lines
