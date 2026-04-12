@@ -1,5 +1,4 @@
-- look at the latest prompt and manually fix styling issues
 - use a design skill with claude & iterate on it
-- make the webview usable externally (e.g through the CLI)
-- move to vite + solid2/lithtml
-- add e2e
+- make the webview usable externally through the CLI
+- rename ext
+- oxc + typecheck

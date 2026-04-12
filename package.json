@@ -12,7 +12,8 @@
 		"fixtures:e2e": "node ./scripts/generate-e2e-fixtures.mjs",
 		"test": "node --test",
 		"test:e2e": "pnpm fixtures:e2e && pnpm bddgen && playwright test",
-		"test:all": "pnpm test && pnpm test:e2e",
+		"test:integration": "pnpm build:webview && pnpm fixtures:e2e && node ./integration/vscode/run.js",
+		"test:all": "pnpm test && pnpm test:e2e && pnpm test:integration",
 		"typecheck": "tsc --noEmit"
 	},
 	"main": "./extension.js",
@@ -37,7 +38,9 @@
 	"devDependencies": {
 		"@playwright/test": "^1.58.2",
 		"@types/node": "^24.5.2",
+		"@vscode/test-electron": "^2.5.2",
 		"@vscode/vsce": "3.7.1",
+		"mocha": "^11.7.5",
 		"playwright-bdd": "^8.4.1",
 		"typescript": "^5.9.3",
 		"vite": "^7.3.1",

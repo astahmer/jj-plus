@@ -13,6 +13,7 @@ const { renderTimelineDocumentHtml } = require('./webview/timeline.template.js')
 const EXTENSION_ID = 'astahmer.jj-range-diff';
 const HELPER_COMMAND = 'jj-range-diff.openRangeMultiDiff';
 const OPEN_FILE_TIMELINE_COMMAND = 'jj-range-diff.openFileRevisionTimeline';
+const GET_TIMELINE_DEBUG_STATE_COMMAND = 'jj-range-diff._debug.getTimelineState';
 const OPEN_RANGE_DIFF_URI_PATH = '/open-range-multi-diff';
 const OPEN_MULTI_DIFF_COMMAND = '_workbench.openMultiDiffEditor';
 const SNAPSHOT_SCHEME = 'jj-range-diff';
@@ -43,6 +44,8 @@ let currentTimelineSession;
 
 /** @type {vscode.ExtensionContext | undefined} */
 let extensionContext;
+
+let timelineDebugState = createEmptyTimelineDebugState();
 
 /**
  * @typedef {object} RangeDiffArgs
@@ -221,6 +224,7 @@ function activate(context) {
     vscode.workspace.registerTextDocumentContentProvider(SNAPSHOT_SCHEME, provider),
     vscode.commands.registerCommand(HELPER_COMMAND, openRangeMultiDiff),
     vscode.commands.registerCommand(OPEN_FILE_TIMELINE_COMMAND, () => openFileRevisionTimeline(context)),
+    vscode.commands.registerCommand(GET_TIMELINE_DEBUG_STATE_COMMAND, () => ({ ...timelineDebugState })),
     vscode.window.registerUriHandler({
       async handleUri(uri) {
         if (uri.authority !== EXTENSION_ID || uri.path !== OPEN_RANGE_DIFF_URI_PATH) {
@@ -294,9 +298,25 @@ async function openFileRevisionTimeline(context, absolutePath) {
   const hadExistingPanel = Boolean(timelinePanel);
   const shouldMaximize = shouldMaximizeTimelinePanel();
   const panel = getOrCreateTimelinePanel(context, session.fileName);
+  const usesBundledWebview = hasBundledTimelineWebviewAssets();
   currentTimelineSession = session;
   panel.webview.html = getTimelineWebviewHtml(panel.webview);
   panel.title = `Revision Timeline: ${session.fileName}`;
+  timelineDebugState = {
+    panelOpen: true,
+    panelTitle: panel.title,
+    backend: session.backend,
+    workspacePath: session.workspacePath,
+    relativePath: session.relativePath,
+    fileName: session.fileName,
+    entryCount: session.entries.length,
+    snapshotEntryCount: session.snapshotEntries.length,
+    usesBundledWebview,
+    viewReady: false,
+    readyCount: 0,
+    lastMessageCommand: '',
+    lastReadyAt: 0,
+  };
 
   if (!hadExistingPanel && shouldMaximize) {
     await maximizeTimelinePanel();
@@ -323,7 +343,10 @@ function getOrCreateTimelinePanel(context, fileName) {
       retainContextWhenHidden: true,
       enableFindWidget: true,
       localResourceRoots: extensionContext
-        ? [vscode.Uri.joinPath(extensionContext.extensionUri, 'webview')]
+        ? [
+            vscode.Uri.joinPath(extensionContext.extensionUri, 'webview'),
+            vscode.Uri.joinPath(extensionContext.extensionUri, 'webview-dist'),
+          ]
         : undefined,
     }
   );
@@ -333,6 +356,7 @@ function getOrCreateTimelinePanel(context, fileName) {
       currentTimelineSession?.activeActionAbortController?.abort();
       timelinePanel = undefined;
       currentTimelineSession = undefined;
+      timelineDebugState = createEmptyTimelineDebugState();
     },
     undefined,
     context.subscriptions
@@ -436,6 +460,14 @@ async function handleTimelineMessage(panel, session, message) {
 
   const command = Reflect.get(message, 'command');
   if (command === 'ready') {
+    timelineDebugState = {
+      ...timelineDebugState,
+      viewReady: true,
+      readyCount: timelineDebugState.readyCount + 1,
+      lastMessageCommand: 'ready',
+      lastReadyAt: Date.now(),
+    };
+
     const comparisonSource = getTimelinePreferences(extensionContext).comparisonSource;
     if (comparisonSource === 'snapshot' && session.backend === 'jj' && session.snapshotLoadedChangeIds.size === 0) {
       await hydrateJjSnapshotEntries(session, [
@@ -3006,20 +3038,58 @@ function getTimelineWebviewHtml(webview) {
     return '<!DOCTYPE html><html><body>Extension context unavailable.</body></html>';
   }
 
+  if (!hasBundledTimelineWebviewAssets()) {
+    return `<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none';" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Revision Timeline</title>
+  </head>
+  <body>
+    <p>Webview bundle is missing. Run pnpm build:webview and reopen the timeline.</p>
+  </body>
+</html>`;
+  }
+
   const appStylePath = vscode.Uri.joinPath(extensionContext.extensionUri, 'webview-dist', 'timeline-app.css');
   const appScriptPath = vscode.Uri.joinPath(extensionContext.extensionUri, 'webview-dist', 'timeline-app.js');
-  const hasBundledWebview = fsSync.existsSync(appStylePath.fsPath) && fsSync.existsSync(appScriptPath.fsPath);
 
   return renderTimelineDocumentHtml({
     title: 'Revision Timeline',
     cspSource: webview.cspSource,
-    styleHref: hasBundledWebview
-      ? String(webview.asWebviewUri(appStylePath))
-      : String(webview.asWebviewUri(vscode.Uri.joinPath(extensionContext.extensionUri, 'webview', 'timeline.css'))),
-    appSrc: hasBundledWebview
-      ? String(webview.asWebviewUri(appScriptPath))
-      : '',
+    styleHref: String(webview.asWebviewUri(appStylePath)),
+    appSrc: String(webview.asWebviewUri(appScriptPath)),
   });
+}
+
+function hasBundledTimelineWebviewAssets() {
+  if (!extensionContext) {
+    return false;
+  }
+
+  const appStylePath = vscode.Uri.joinPath(extensionContext.extensionUri, 'webview-dist', 'timeline-app.css');
+  const appScriptPath = vscode.Uri.joinPath(extensionContext.extensionUri, 'webview-dist', 'timeline-app.js');
+  return fsSync.existsSync(appStylePath.fsPath) && fsSync.existsSync(appScriptPath.fsPath);
+}
+
+function createEmptyTimelineDebugState() {
+  return {
+    panelOpen: false,
+    panelTitle: '',
+    backend: '',
+    workspacePath: '',
+    relativePath: '',
+    fileName: '',
+    entryCount: 0,
+    snapshotEntryCount: 0,
+    usesBundledWebview: false,
+    viewReady: false,
+    readyCount: 0,
+    lastMessageCommand: '',
+    lastReadyAt: 0,
+  };
 }
 
 /**

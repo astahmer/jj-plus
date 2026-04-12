@@ -20,14 +20,18 @@ For the Vite-powered webview shell during UI work:
 
 ```sh
 pnpm install
-pnpm dev:webview
+pnpm fixtures:e2e
+pnpm dev
 ```
 
-For typechecking and browser-level end-to-end coverage of the standalone timeline app:
+The browser fixtures in `webview/public/e2e/` are generated artifacts now, so they should stay ignored and be regenerated with `pnpm fixtures:e2e` instead of being committed.
+
+For typechecking and end-to-end coverage:
 
 ```sh
 pnpm typecheck
 pnpm fixtures:e2e
+pnpm test:integration
 pnpm test:e2e
 pnpm test:all
 ```

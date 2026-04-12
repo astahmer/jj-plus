@@ -173,6 +173,8 @@
     const title = escapeHtml((options && options.title) || 'Revision Timeline');
     const styleHref = escapeAttribute((options && options.styleHref) || './timeline.css');
     const appSrc = escapeAttribute((options && options.appSrc) || '');
+    const modelSrc = escapeAttribute((options && options.modelSrc) || '');
+    const scriptSrc = escapeAttribute((options && options.scriptSrc) || '');
     const cspSource = options && options.cspSource;
 
     if (appSrc) {
@@ -203,8 +205,8 @@
   </head>
   <body>
     ${renderTimelineBodyHtml()}
-    <script src="${modelSrc}"></script>
-    <script src="${scriptSrc}"></script>
+    ${modelSrc ? `<script src="${modelSrc}"></script>` : ''}
+    ${scriptSrc ? `<script src="${scriptSrc}"></script>` : ''}
   </body>
 </html>`;
   }

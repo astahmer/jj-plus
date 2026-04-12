@@ -1,5 +1,9 @@
 *.vsix
 .features-gen/
+.e2e-runtime/
+memories/
+.vscode-test/
 playwright-report/
 test-results/
+webview/public/e2e/
 webview-dist
