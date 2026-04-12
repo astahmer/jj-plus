@@ -1,4 +1,4 @@
-import type { ComparisonSource, DiffRow, FileRevisionEntry, TimelineData } from './types';
+import type { ComparisonSource, DiffPreview, DiffRow, FileRevisionEntry, TimelineData } from './types';
 
 export function getEntriesForSource(data: TimelineData | null, comparisonSource: ComparisonSource): FileRevisionEntry[] {
   if (!data) {
@@ -78,6 +78,47 @@ export function getPendingSnapshotRevisionIndexes(
     indexes.push(entry.index);
     return indexes.length >= limit ? indexes : indexes;
   }, []).slice(0, limit);
+}
+
+export function getUnitPreviewRange(visibleEntries: FileRevisionEntry[], toIndex: number): { fromIndex: number; toIndex: number } | null {
+  const currentIndex = visibleEntries.findIndex((entry) => entry.index === toIndex);
+  if (currentIndex <= 0) {
+    return null;
+  }
+
+  return {
+    fromIndex: visibleEntries[currentIndex - 1].index,
+    toIndex: visibleEntries[currentIndex].index,
+  };
+}
+
+export function getSidebarPreviewRequests(
+  visibleEntries: FileRevisionEntry[],
+  comparisonSource: ComparisonSource,
+  previewByRange: Record<string, DiffPreview>,
+  selectedPreviewKey: string,
+  buildPreviewKey: (fromIndex: number, toIndex: number, source: ComparisonSource) => string
+): Array<{ key: string; fromIndex: number; toIndex: number; comparisonSource: ComparisonSource }> {
+  const requests: Array<{ key: string; fromIndex: number; toIndex: number; comparisonSource: ComparisonSource }> = [];
+
+  for (let index = 1; index < visibleEntries.length; index += 1) {
+    const fromIndex = visibleEntries[index - 1].index;
+    const toIndex = visibleEntries[index].index;
+    const key = buildPreviewKey(fromIndex, toIndex, comparisonSource);
+
+    if (key === selectedPreviewKey || previewByRange[key]) {
+      continue;
+    }
+
+    requests.push({
+      key,
+      fromIndex,
+      toIndex,
+      comparisonSource,
+    });
+  }
+
+  return requests;
 }
 
 export function collapseDiffRows(rows: DiffRow[], contextSize: number): DiffRow[] {

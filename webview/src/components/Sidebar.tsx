@@ -1,6 +1,6 @@
 import { For, Show } from 'solid-js';
 import type { Accessor } from 'solid-js';
-import type { FileRevisionEntry } from '../types';
+import type { DiffPreview, FileRevisionEntry } from '../types';
 import { RevisionIdentifier } from './RevisionIdentifier';
 
 type SidebarProps = {
@@ -15,6 +15,7 @@ type SidebarProps = {
   onOpenRangeDiff: () => void;
   onOpenRevisionFilesDiff: (entryIndex: number) => void;
   onOpenRevisionRemote: (entryIndex: number) => void;
+  previewForEntry: (entryIndex: number) => DiffPreview | null;
 };
 
 export function Sidebar(props: SidebarProps) {
@@ -39,12 +40,16 @@ export function Sidebar(props: SidebarProps) {
         />
       </div>
       <div class="history-list" id="historyList">
-        <For each={props.entries()}>
-          {(entry) => {
+        <Show when={props.entries().length} fallback={<div class="empty">{props.searchValue().trim() ? 'No revisions match the current search.' : 'No revisions in the current filter.'}</div>}>
+          <For each={props.entries()}>
+            {(entry) => {
             const active = () => entry.index === props.activeFromIndex() || entry.index === props.activeToIndex();
+            const isFrom = () => entry.index === props.activeFromIndex();
+            const isTo = () => entry.index === props.activeToIndex();
             const inRange = () => entry.index >= Math.min(props.activeFromIndex(), props.activeToIndex()) && entry.index <= Math.max(props.activeFromIndex(), props.activeToIndex());
             const pending = () => props.pendingAnchorIndex() === entry.index;
             const descriptionMeta = () => [entry.relativeDate, entry.authorName].filter(Boolean).join(' · ');
+            const preview = () => props.previewForEntry(entry.index);
             return (
               <article
                 class={`history-item${!entry.touchesFile ? ' is-intermediate' : ''}${active() ? ' active' : ''}${inRange() ? ' in-range' : ''}${pending() ? ' pending-anchor' : ''}`}
@@ -60,7 +65,30 @@ export function Sidebar(props: SidebarProps) {
               >
                 <div class="history-top">
                   <div class="history-primary">
-                    <RevisionIdentifier value={entry.shortRevision} highlightPrefix={entry.changeId} plain={entry.isWorkingTree} />
+                    <span class="history-id-button">
+                      <Show
+                        when={entry.operationId}
+                        fallback={<RevisionIdentifier value={entry.shortRevision} highlightPrefix={entry.changeId} plain={entry.isWorkingTree} />}
+                      >
+                        <span class="identifier">
+                          <span class="identifier-plain">{entry.operationId}</span>
+                        </span>
+                      </Show>
+                    </span>
+                    <Show when={entry.operationKey}>
+                      <span class="mini-badge other mini-badge-copy">
+                        <RevisionIdentifier value={entry.operationKey || ''} highlightPrefix={entry.changeId} />
+                      </span>
+                    </Show>
+                    <Show when={!entry.touchesFile}>
+                      <span class="mini-badge other">OTHER</span>
+                    </Show>
+                    <Show when={isFrom()}>
+                      <span class="mini-badge from">FROM</span>
+                    </Show>
+                    <Show when={isTo()}>
+                      <span class="mini-badge to">TO</span>
+                    </Show>
                   </div>
                   <div class="history-actions">
                     <span>{entry.shortDate}</span>
@@ -93,17 +121,20 @@ export function Sidebar(props: SidebarProps) {
                 <div class="history-description">{entry.description}</div>
                 <div class="history-bottom">
                   <span class="history-meta">{descriptionMeta()}</span>
-                  <Show when={entry.changeId}>
-                    <span class="identifier">
-                      <span class="identifier-prefix">{entry.changeId}</span>
-                      <span class="identifier-suffix">/{entry.index}</span>
-                    </span>
-                  </Show>
+                  <span class="history-stats">
+                    <Show when={preview()}>
+                      <Show when={preview()!.hasChanges} fallback={<span class="stat">No text</span>}>
+                        <span class="stat stat--plus">+{preview()!.additions}</span>
+                        <span class="stat stat--minus">-{preview()!.deletions}</span>
+                      </Show>
+                    </Show>
+                  </span>
                 </div>
               </article>
             );
-          }}
-        </For>
+            }}
+          </For>
+        </Show>
       </div>
     </aside>
   );

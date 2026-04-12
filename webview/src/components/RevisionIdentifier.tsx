@@ -5,10 +5,18 @@ type RevisionIdentifierProps = {
 };
 
 export function RevisionIdentifier(props: RevisionIdentifierProps) {
-  if (props.plain || !props.highlightPrefix || !props.value.startsWith(props.highlightPrefix)) {
+  if (props.plain) {
     return (
       <span class="identifier">
-        <span class={props.plain ? 'identifier-plain' : 'identifier-suffix'}>{props.value}</span>
+        <span class="identifier-plain">{props.value}</span>
+      </span>
+    );
+  }
+
+  if (!props.highlightPrefix || !props.value.startsWith(props.highlightPrefix)) {
+    return (
+      <span class="identifier">
+        <span class="identifier-prefix">{props.value}</span>
       </span>
     );
   }

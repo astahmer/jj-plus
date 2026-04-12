@@ -4,12 +4,11 @@ import { Sidebar } from './components/Sidebar';
 import { TimelinePane } from './components/TimelinePane';
 import { DiffPanel } from './components/DiffPanel';
 import { createTimelineHost } from './host';
-import { getEntriesForSource, getPendingSnapshotRevisionIndexes, getSelectedEntryCount } from './timeline-model';
+import { getEntriesForSource, getPendingSnapshotRevisionIndexes, getSelectedEntryCount, getSidebarPreviewRequests, getUnitPreviewRange } from './timeline-model';
 import type { ComparisonMode, ComparisonSource, ContentMode, DiffPreview, FileRevisionEntry, HistoryBackend, LayoutMode, TimelineCommand, TimelineData, TimelineInboundMessage, TimelinePreset } from './types';
 
 type UiState = {
   data: TimelineData | null;
-  preview: DiffPreview | null;
   fromIndex: number;
   toIndex: number;
   comparisonMode: ComparisonMode;
@@ -28,11 +27,13 @@ type UiState = {
   hotkeysOpen: boolean;
   pendingSelectionIndex: number | null;
   fileInputValue: string;
+  previewByRange: Record<string, DiffPreview>;
+  sidebarPreviewInFlightKey: string;
+  pendingRangeResolutionKey: string;
 };
 
 const initialState: UiState = {
   data: null,
-  preview: null,
   fromIndex: 0,
   toIndex: 0,
   comparisonMode: 'range',
@@ -51,6 +52,9 @@ const initialState: UiState = {
   hotkeysOpen: false,
   pendingSelectionIndex: null,
   fileInputValue: '',
+  previewByRange: {},
+  sidebarPreviewInFlightKey: '',
+  pendingRangeResolutionKey: '',
 };
 
 export function App() {
@@ -67,15 +71,15 @@ export function App() {
 
   const filteredSidebarEntries = createMemo(() => {
     const query = state.sidebarSearchQuery.trim().toLowerCase();
-    if (!query) {
-      return visibleEntries();
-    }
+    const filteredEntries = !query
+      ? visibleEntries()
+      : visibleEntries().filter((entry) => {
+        return [entry.shortRevision, entry.description, entry.changeId, entry.shortDate, entry.authorName, entry.operationId, entry.operationKey, entry.monthLabel]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(query));
+      });
 
-    return visibleEntries().filter((entry) => {
-      return [entry.shortRevision, entry.description, entry.changeId, entry.shortDate, entry.authorName, entry.operationId, entry.monthLabel]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(query));
-    });
+    return filteredEntries.slice().reverse();
   });
 
   const rangeLabel = createMemo(() => {
@@ -118,6 +122,17 @@ export function App() {
   });
   const showSnapshotStatus = createMemo(() => state.data?.backend === 'jj' && effectiveComparisonSource() === 'snapshot');
   const snapshotStatusLabel = createMemo(() => pendingSnapshotRevisionIndexes().length ? 'Loading snapshots…' : 'Snapshots loaded');
+  const activePreviewKey = createMemo(() => buildPreviewKey(state.fromIndex, state.toIndex, effectiveComparisonSource()));
+  const preview = createMemo<DiffPreview | null>(() => state.previewByRange[activePreviewKey()] || null);
+
+  const previewForEntry = (entryIndex: number) => {
+    const range = getUnitPreviewRange(visibleEntries(), entryIndex);
+    if (!range) {
+      return null;
+    }
+
+    return state.previewByRange[buildPreviewKey(range.fromIndex, range.toIndex, effectiveComparisonSource())] || null;
+  };
 
   onMount(() => {
     const unsubscribe = host.subscribe(handleMessage);
@@ -176,6 +191,10 @@ export function App() {
       return;
     }
 
+    if (state.previewByRange[activePreviewKey()]) {
+      return;
+    }
+
     host.send({
       command: 'select-entry',
       fromIndex,
@@ -194,12 +213,41 @@ export function App() {
     }
   });
 
+  createEffect(() => {
+    if (!ready() || !state.data || visibleEntries().length < 2 || state.sidebarPreviewInFlightKey) {
+      return;
+    }
+
+    if (state.data.backend === 'jj' && effectiveComparisonSource() === 'snapshot' && pendingSnapshotRevisionIndexes().length) {
+      return;
+    }
+
+    const [nextRequest] = getSidebarPreviewRequests(
+      visibleEntries(),
+      effectiveComparisonSource(),
+      state.previewByRange,
+      activePreviewKey(),
+      buildPreviewKey,
+    ).sort((left, right) => Math.abs(left.toIndex - state.toIndex) - Math.abs(right.toIndex - state.toIndex));
+
+    if (!nextRequest) {
+      return;
+    }
+
+    setState('sidebarPreviewInFlightKey', nextRequest.key);
+    host.send({
+      command: 'select-entry',
+      fromIndex: nextRequest.fromIndex,
+      toIndex: nextRequest.toIndex,
+      comparisonSource: nextRequest.comparisonSource,
+    });
+  });
+
   function handleMessage(message: TimelineInboundMessage) {
     if (message.type === 'timeline-data') {
       const preferences = message.payload.preferences || {};
       setState({
         data: message.payload,
-        preview: null,
         sidebarWidth: preferences.sidebarWidth || 280,
         timelinePaneHeight: preferences.timelinePaneHeight || 278,
         timelinePaneCollapsed: preferences.timelinePaneCollapsed === true,
@@ -216,22 +264,103 @@ export function App() {
         hotkeysOpen: false,
         pendingSelectionIndex: null,
         fileInputValue: message.payload.relativePath,
+        previewByRange: {},
+        sidebarPreviewInFlightKey: '',
+        pendingRangeResolutionKey: '',
+        sidebarSearchQuery: '',
       });
       return;
     }
 
     if (message.type === 'diff-preview') {
-      setState('preview', message.payload);
+      const comparisonSource = message.payload.comparisonSource || effectiveComparisonSource();
+      const previewKey = buildPreviewKey(message.payload.fromIndex, message.payload.toIndex, comparisonSource);
+
+      setState('previewByRange', previewKey, message.payload);
+      if (state.sidebarPreviewInFlightKey === previewKey) {
+        setState('sidebarPreviewInFlightKey', '');
+      }
+
+      if (previewKey !== activePreviewKey()) {
+        return;
+      }
+
+      if (!state.showIntermediateRevisions && state.comparisonMode === 'range' && !message.payload.hasChanges && message.payload.fromIndex !== message.payload.toIndex) {
+        maybeResolveHiddenRangeToNonEmpty(message.payload);
+        return;
+      }
+
+      setState('pendingRangeResolutionKey', '');
       return;
     }
 
     if (message.type === 'snapshot-entries' && state.data) {
-      setState('data', {
+      const selectedSourceEntries = sourceEntries();
+      const selectedFromEntryId = selectedSourceEntries.find((entry) => entry.index === state.fromIndex)?.id || null;
+      const selectedToEntryId = selectedSourceEntries.find((entry) => entry.index === state.toIndex)?.id || null;
+      const nextData = {
         ...state.data,
         snapshotEntries: message.payload.snapshotEntries,
         snapshotState: message.payload.snapshotState,
+      };
+
+      if (state.data.backend === 'jj' && state.comparisonSource === 'snapshot') {
+        const nextSourceEntries = getEntriesForSource(nextData, 'snapshot');
+        const nextFromIndex = selectedFromEntryId
+          ? nextSourceEntries.find((entry) => entry.id === selectedFromEntryId)?.index
+          : undefined;
+        const nextToIndex = selectedToEntryId
+          ? nextSourceEntries.find((entry) => entry.id === selectedToEntryId)?.index
+          : undefined;
+
+        setState({
+          data: nextData,
+          fromIndex: nextFromIndex ?? state.fromIndex,
+          toIndex: nextToIndex ?? state.toIndex,
+          previewByRange: {},
+          sidebarPreviewInFlightKey: '',
+          pendingRangeResolutionKey: '',
+        });
+        return;
+      }
+
+      setState('data', nextData);
+      return;
+    }
+
+    if (message.type === 'resolved-range') {
+      setState('pendingRangeResolutionKey', '');
+      if (!message.payload) {
+        return;
+      }
+
+      setState({
+        fromIndex: message.payload.fromIndex,
+        toIndex: message.payload.toIndex,
+        pendingSelectionIndex: null,
       });
     }
+  }
+
+  function maybeResolveHiddenRangeToNonEmpty(nextPreview: DiffPreview) {
+    const candidateIndexes = visibleEntries()
+      .filter((entry) => entry.index >= Math.min(nextPreview.fromIndex, nextPreview.toIndex) && entry.index <= Math.max(nextPreview.fromIndex, nextPreview.toIndex))
+      .map((entry) => entry.index);
+
+    if (candidateIndexes.length < 2) {
+      return;
+    }
+
+    const resolutionKey = candidateIndexes.join(':');
+    if (state.pendingRangeResolutionKey === resolutionKey) {
+      return;
+    }
+
+    setState('pendingRangeResolutionKey', resolutionKey);
+    host.send({
+      command: 'resolve-nonempty-range',
+      candidateIndexes,
+    });
   }
 
   function onDocumentClick(event: MouseEvent) {
@@ -406,11 +535,11 @@ export function App() {
 
     if (value === 'step') {
       const [fromIndex, toIndex] = alignStepSelection(visibleEntries(), state.toIndex);
-      setState({ comparisonMode: value, fromIndex, toIndex, pendingSelectionIndex: null });
+      setState({ comparisonMode: value, fromIndex, toIndex, pendingSelectionIndex: null, pendingRangeResolutionKey: '' });
       return;
     }
 
-    setState({ comparisonMode: value, pendingSelectionIndex: null });
+    setState({ comparisonMode: value, pendingSelectionIndex: null, pendingRangeResolutionKey: '' });
   }
 
   function setComparisonSource(value: ComparisonSource) {
@@ -418,15 +547,37 @@ export function App() {
       return;
     }
 
-    setState({ comparisonSource: value, pendingSelectionIndex: null });
+    const nextVisibleEntries = filterEntries(getEntriesForSource(state.data, value), state.data, state.preset, state.showIntermediateRevisions);
+    const { fromIndex, toIndex } = getDefaultSelection(nextVisibleEntries);
+
+    setState({
+      comparisonSource: value,
+      fromIndex,
+      toIndex,
+      pendingSelectionIndex: null,
+      previewByRange: {},
+      sidebarPreviewInFlightKey: '',
+      pendingRangeResolutionKey: '',
+    });
   }
 
   function setPreset(value: TimelinePreset) {
-    setState({ preset: value, pendingSelectionIndex: null });
+    if (!state.data || value === state.preset) {
+      setState({ preset: value, pendingSelectionIndex: null, pendingRangeResolutionKey: '' });
+      return;
+    }
+
+    const nextVisibleEntries = filterEntries(getEntriesForSource(state.data, effectiveComparisonSource()), state.data, value, state.showIntermediateRevisions);
+    const { fromIndex, toIndex } = getDefaultSelection(nextVisibleEntries);
+    setState({ preset: value, fromIndex, toIndex, pendingSelectionIndex: null, pendingRangeResolutionKey: '' });
   }
 
   function toggleIntermediateRevisions() {
-    setState({ showIntermediateRevisions: !state.showIntermediateRevisions, pendingSelectionIndex: null });
+    if (!state.data?.hasIntermediateRevisions) {
+      return;
+    }
+
+    setState({ showIntermediateRevisions: !state.showIntermediateRevisions, pendingSelectionIndex: null, pendingRangeResolutionKey: '' });
   }
 
   function dockRange(edge: 'start' | 'end') {
@@ -500,48 +651,39 @@ export function App() {
       return;
     }
 
-    if (event.altKey && event.key === 'ArrowLeft') {
-      event.preventDefault();
-      adjustBoundary('to', -jumpAmount);
-      return;
-    }
-
-    if (event.altKey && event.key === 'ArrowRight') {
-      event.preventDefault();
-      adjustBoundary('to', jumpAmount);
-      return;
-    }
-
-    if (event.ctrlKey && event.key === 'ArrowLeft') {
-      event.preventDefault();
-      adjustBoundary('from', -jumpAmount);
-      return;
-    }
-
-    if (event.ctrlKey && event.key === 'ArrowRight') {
-      event.preventDefault();
-      adjustBoundary('from', jumpAmount);
-      return;
-    }
-
     if (event.key === 'ArrowLeft') {
       event.preventDefault();
-      stepSelection(-jumpAmount);
+      if (event.altKey) {
+        adjustBoundary('to', -jumpAmount);
+      } else if (event.ctrlKey) {
+        adjustBoundary('from', -jumpAmount);
+      } else {
+        stepSelection(-jumpAmount);
+      }
       return;
     }
+
     if (event.key === 'ArrowRight') {
       event.preventDefault();
-      stepSelection(jumpAmount);
+      if (event.altKey) {
+        adjustBoundary('to', jumpAmount);
+      } else if (event.ctrlKey) {
+        adjustBoundary('from', jumpAmount);
+      } else {
+        stepSelection(jumpAmount);
+      }
       return;
     }
+
     if (event.key === 'ArrowUp') {
       event.preventDefault();
-      stepSelection(-jumpAmount);
+      stepSelection(jumpAmount);
       return;
     }
+
     if (event.key === 'ArrowDown') {
       event.preventDefault();
-      stepSelection(jumpAmount);
+      stepSelection(-jumpAmount);
     }
   }
 
@@ -560,6 +702,7 @@ export function App() {
           onOpenRangeDiff={() => sendRangeCommand('open-editor-diff')}
           onOpenRevisionFilesDiff={openRevisionFilesDiff}
           onOpenRevisionRemote={openRevisionRemote}
+          previewForEntry={previewForEntry}
         />
         <div class="resize-handle" id="resizeHandle" />
         <section class="panel diff-panel">
@@ -581,6 +724,7 @@ export function App() {
             contentMode={() => state.contentMode}
             preset={() => state.preset}
             showIntermediateRevisions={() => state.showIntermediateRevisions}
+            hasIntermediateRevisions={() => state.data?.hasIntermediateRevisions === true}
             sidebarCollapsed={() => state.sidebarCollapsed}
             timelinePaneCollapsed={() => state.timelinePaneCollapsed}
             actionsMenuOpen={() => state.actionsMenuOpen}
@@ -613,7 +757,7 @@ export function App() {
             onSubmitRevision={submitRevision}
           />
           <DiffPanel
-            preview={() => state.preview}
+            preview={preview}
             fromEntry={currentFromEntry}
             toEntry={currentToEntry}
             layoutMode={() => state.layoutMode}
@@ -644,9 +788,30 @@ function filterEntries(entries: FileRevisionEntry[], data: TimelineData | null, 
     ? lastEntry.timestamp - windowDays * 24 * 60 * 60 * 1000
     : Number.NEGATIVE_INFINITY;
 
-  return entries
+  const fallbackEntries = entries.filter((entry) => showIntermediateRevisions || entry.touchesFile);
+  const filteredEntries = entries
     .filter((entry) => entry.timestamp >= cutoff)
     .filter((entry) => showIntermediateRevisions || entry.touchesFile);
+
+  return filteredEntries.length >= 2 ? filteredEntries : fallbackEntries;
+}
+
+function getDefaultSelection(entries: FileRevisionEntry[]) {
+  if (entries.length < 2) {
+    const index = entries[0]?.index || 0;
+    return { fromIndex: index, toIndex: index };
+  }
+
+  return {
+    fromIndex: entries[entries.length - 2].index,
+    toIndex: entries[entries.length - 1].index,
+  };
+}
+
+function buildPreviewKey(fromIndex: number, toIndex: number, comparisonSource: ComparisonSource) {
+  const normalizedFromIndex = Math.min(fromIndex, toIndex);
+  const normalizedToIndex = Math.max(fromIndex, toIndex);
+  return `${comparisonSource}:${normalizedFromIndex}:${normalizedToIndex}`;
 }
 
 function normalizeSelection(entries: FileRevisionEntry[], fromIndex: number, toIndex: number, comparisonMode: ComparisonMode): [number, number] {

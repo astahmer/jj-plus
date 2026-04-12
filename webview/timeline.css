@@ -261,6 +261,7 @@ input {
   align-items: center;
   gap: 6px;
   min-width: 0;
+  flex-wrap: wrap;
 }
 
 .history-id-button {
@@ -271,7 +272,7 @@ input {
   border: 0;
   background: transparent;
   color: var(--text);
-  cursor: pointer;
+  cursor: inherit;
   font: inherit;
   font-weight: 700;
 }
@@ -322,6 +323,12 @@ input {
   grid-auto-flow: column;
   gap: 5px;
   align-items: center;
+  justify-content: end;
+  min-height: 14px;
+}
+
+.history-stats:empty {
+  display: none;
 }
 
 .mini-badge {
@@ -355,6 +362,8 @@ input {
   background: rgba(255, 255, 255, 0.04);
   color: var(--text);
   cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
 }
 
 .history-action {
@@ -397,7 +406,7 @@ input {
 
 .timeline-pane {
   min-height: 0;
-  overflow: hidden;
+  overflow: visible;
   border-bottom: 1px solid var(--border);
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
@@ -507,6 +516,8 @@ input {
   border-radius: 999px;
   padding: 4px 10px;
   cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
 }
 
 .collapse-button:hover {
@@ -543,10 +554,12 @@ input {
   position: absolute;
   inset: 58px 18px auto auto;
   z-index: 30;
+  max-width: calc(100vw - 24px);
 }
 
 .hotkeys-card {
   width: min(560px, calc(100vw - 60px));
+  max-height: min(70vh, 520px);
   padding: 14px;
   border-radius: 14px;
   border: 1px solid var(--border);
@@ -554,6 +567,7 @@ input {
   box-shadow: var(--shadow);
   display: grid;
   gap: 12px;
+  overflow: auto;
 }
 
 .hotkeys-head {
@@ -727,6 +741,7 @@ kbd {
 
 .menu-wrap {
   position: relative;
+  z-index: 25;
 }
 
 .menu-button,
@@ -737,6 +752,8 @@ kbd {
   background: rgba(255, 255, 255, 0.04);
   color: var(--text);
   cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
 }
 
 .menu-button {
@@ -752,6 +769,7 @@ kbd {
   top: calc(100% + 6px);
   right: 0;
   width: 220px;
+  max-width: min(220px, calc(100vw - 24px));
   display: none;
   padding: 6px;
   border-radius: 10px;
@@ -759,6 +777,7 @@ kbd {
   border: 1px solid var(--border);
   box-shadow: var(--shadow);
   z-index: 20;
+  overflow: hidden;
 }
 
 .menu.open {
@@ -784,14 +803,15 @@ kbd {
 }
 
 .step-button {
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   border-radius: 999px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
+  font-size: 12px;
   line-height: 1;
+  padding: 0;
 }
 
 .step-button:disabled {
@@ -810,9 +830,9 @@ kbd {
 
 .timeline-row {
   display: flex;
-  align-items: flex-start;
-  gap: 6px;
-  padding: 0 4px;
+  align-items: center;
+  gap: 4px;
+  padding: 0 2px;
 }
 
 .timeline-row .timeline {
@@ -821,7 +841,7 @@ kbd {
 }
 
 .timeline-row .step-button {
-  margin-top: 28px;
+  margin-top: 16px;
 }
 
 .step-status-row {
@@ -893,6 +913,8 @@ kbd {
   color: var(--muted);
   font-size: 11px;
   cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
 }
 
 .handle-pill.from {
@@ -922,10 +944,12 @@ kbd {
   height: 5px;
   transform: translate(-50%, -50%);
   border-radius: 999px;
+  border: 0;
+  padding: 0;
   background: rgba(255, 255, 255, 0.22);
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.24);
   will-change: left, transform;
-  cursor: default;
+  cursor: pointer;
 }
 
 .track-anchor::after {
@@ -952,6 +976,11 @@ kbd {
 
 .track-anchor.is-from {
   background: var(--accent-alt);
+}
+
+.track-anchor:focus-visible {
+  outline: 1px solid rgba(113, 183, 255, 0.9);
+  outline-offset: 3px;
 }
 
 .range-fill {
@@ -998,6 +1027,11 @@ kbd {
   color: var(--muted);
   font-size: 11px;
   padding-top: 38px;
+}
+
+.month-row > div {
+  flex: 1 1 0;
+  min-width: max-content;
 }
 
 .month-row strong {
@@ -1101,10 +1135,10 @@ kbd {
   min-width: 0;
   width: 100%;
   overflow: auto;
-  padding-top: 8px;
+  padding-top: 6px;
   font-family: var(--code-font);
-  font-size: 12px;
-  line-height: 1.55;
+  font-size: 11px;
+  line-height: 1.35;
 }
 
 .diff-summary,
@@ -1158,7 +1192,7 @@ kbd {
 .cell,
 .split-cell {
   min-width: 0;
-  padding: 3px 8px;
+  padding: 1px 8px;
 }
 
 .marker,
@@ -1182,6 +1216,11 @@ kbd {
 .split-code {
   white-space: pre;
   overflow-x: auto;
+}
+
+.diff-head {
+  position: relative;
+  overflow: visible;
 }
 
 .skip-button {

@@ -33,11 +33,28 @@ const contentModeLabels: Record<ContentMode, string> = {
 };
 
 export function DiffPanel(props: DiffPanelProps) {
+  const activePreview = () => props.preview();
+  const activeComparisonSource = () => activePreview()?.comparisonSource || props.comparisonSource();
+
   const title = () => {
+    const preview = activePreview();
     const fromEntry = props.fromEntry();
     const toEntry = props.toEntry();
     if (!fromEntry || !toEntry) {
       return null;
+    }
+
+    if (activeComparisonSource() === 'snapshot') {
+      return (
+        <>
+          <span>Snapshot </span>
+          <RevisionIdentifier value={toEntry.shortRevision} highlightPrefix={toEntry.changeId} plain={toEntry.isWorkingTree} />
+        </>
+      );
+    }
+
+    if (!preview) {
+      return 'Loading diff…';
     }
 
     return (
@@ -50,7 +67,7 @@ export function DiffPanel(props: DiffPanelProps) {
   };
 
   const displayRows = () => {
-    const preview = props.preview();
+    const preview = activePreview();
     if (!preview) {
       return [];
     }
@@ -67,11 +84,11 @@ export function DiffPanel(props: DiffPanelProps) {
   };
 
   const eyebrowLabel = () => {
-    return `${props.layoutMode()} · ${contentModeLabels[props.contentMode()]} · ${comparisonModeLabels[props.comparisonMode()]} · ${comparisonSourceLabels[props.comparisonSource()]} preview`;
+    return `${props.layoutMode()} · ${contentModeLabels[props.contentMode()]} · ${comparisonModeLabels[props.comparisonMode()]} · ${comparisonSourceLabels[activeComparisonSource()]}`;
   };
 
   const emptyState = () => {
-    const preview = props.preview();
+    const preview = activePreview();
     if (!preview) {
       return <div class="empty-diff">Loading diff…</div>;
     }
@@ -101,17 +118,17 @@ export function DiffPanel(props: DiffPanelProps) {
             <div class="diff-summary-left">
               <div class="diff-title-block">
                 <h3 class="diff-title" id="diffTitle"><Show when={title()} fallback={'No diff available'}>{title()}</Show></h3>
-                <div class="diff-title-meta">{props.preview()?.subtitle || ''}</div>
+                <div class="diff-title-meta">{activePreview()?.subtitle || ''}</div>
               </div>
               <div class="diff-subtitle">{props.toEntry()?.description || ''}</div>
             </div>
             <div class="diff-actions">
               <div class="eyebrow diff-mode-eyebrow" id="diffModeEyebrow">{eyebrowLabel()}</div>
               <div class="history-stats">
-                <Show when={props.preview()}>
-                  <span class="stat stat--plus">+{props.preview()?.additions}</span>
-                  <span class="stat stat--minus">−{props.preview()?.deletions}</span>
-                  <span class="stat">{props.preview()?.hunkCount} hunks</span>
+                <Show when={activePreview()}>
+                  <span class="stat stat--plus">+{activePreview()?.additions}</span>
+                  <span class="stat stat--minus">−{activePreview()?.deletions}</span>
+                  <span class="stat">{activePreview()?.hunkCount} hunks</span>
                 </Show>
               </div>
               <button class="collapse-button" id="toggleDiffFocusButton" type="button" onClick={props.onToggleDiffFocus}>{props.diffFocusMode() ? 'Exit focus' : 'Focus diff'}</button>
@@ -120,11 +137,12 @@ export function DiffPanel(props: DiffPanelProps) {
         </div>
         <div class="diff-rows" id="diffRows" data-layout-mode={props.layoutMode()} data-content-mode={props.contentMode()}>
           <Show when={displayRows().length} fallback={emptyState()}>
-            <For each={displayRows()}>
-              {(row) => props.layoutMode() === 'split'
-                ? <SplitRow row={row} />
-                : <UnifiedRow row={row} />}
-            </For>
+            <Show
+              when={props.layoutMode() === 'split'}
+              fallback={<For each={displayRows()}>{(row) => <UnifiedRow row={row} />}</For>}
+            >
+              <For each={buildSplitRows(displayRows())}>{(row) => <SplitRow row={row} />}</For>
+            </Show>
           </Show>
         </div>
       </div>
@@ -137,29 +155,88 @@ function UnifiedRow(props: { row: DiffPreview['rows'][number] }) {
     return <div class="diff-row diff-row--skip">{props.row.text}</div>;
   }
 
+  const marker = props.row.type === 'add' ? '+' : props.row.type === 'remove' ? '-' : ' ';
+
   return (
     <div class={`diff-row diff-row--${props.row.type}`}>
-      <div class="cell" />
-      <div class="cell">{props.row.leftNumber ?? ''}</div>
-      <div class="cell">{props.row.rightNumber ?? ''}</div>
-      <div class="cell"><pre>{props.row.text}</pre></div>
+      <div class="cell marker">{marker}</div>
+      <div class="cell line-number">{props.row.leftNumber ?? ''}</div>
+      <div class="cell line-number">{props.row.rightNumber ?? ''}</div>
+      <div class="cell code">{props.row.text || ' '}</div>
     </div>
   );
 }
 
-function SplitRow(props: { row: DiffPreview['rows'][number] }) {
+type SplitDisplayRow =
+  | { type: 'skip'; skip: DiffPreview['rows'][number] }
+  | { type: 'context'; left: DiffPreview['rows'][number]; right: DiffPreview['rows'][number] }
+  | { type: 'change'; left: DiffPreview['rows'][number] | null; right: DiffPreview['rows'][number] | null };
+
+function SplitRow(props: { row: SplitDisplayRow }) {
   if (props.row.type === 'skip') {
-    return <div class="split-row split-row--skip">{props.row.text}</div>;
+    return <div class="split-row split-row--skip">{props.row.skip.text}</div>;
   }
 
-  const isRemove = props.row.type === 'remove';
-  const isAdd = props.row.type === 'add';
+  if (props.row.type === 'context') {
+    return (
+      <div class="split-row">
+        <div class="split-cell split-number">{props.row.left.leftNumber ?? ''}</div>
+        <div class="split-cell split-code">{props.row.left.text || ' '}</div>
+        <div class="split-cell split-number">{props.row.right.rightNumber ?? ''}</div>
+        <div class="split-cell split-code">{props.row.right.text || ' '}</div>
+      </div>
+    );
+  }
+
   return (
-    <div class={`split-row${isAdd || isRemove ? ' split-row--change' : ''}`}>
-      <div class="split-cell split-number">{props.row.leftNumber ?? ''}</div>
-      <div class={`split-cell split-code${isRemove ? ' split-code--left' : ''}`}><pre>{isAdd ? '' : props.row.text}</pre></div>
-      <div class="split-cell split-number">{props.row.rightNumber ?? ''}</div>
-      <div class={`split-cell split-code${isAdd ? ' split-code--right' : ''}`}><pre>{isRemove ? '' : props.row.text}</pre></div>
+    <div class="split-row split-row--change">
+      <div class="split-cell split-number">{props.row.left?.leftNumber ?? ''}</div>
+      <div class="split-cell split-code split-code--left">{props.row.left?.text || ' '}</div>
+      <div class="split-cell split-number">{props.row.right?.rightNumber ?? ''}</div>
+      <div class="split-cell split-code split-code--right">{props.row.right?.text || ' '}</div>
     </div>
   );
+}
+
+function buildSplitRows(rows: DiffPreview['rows']): SplitDisplayRow[] {
+  const splitRows: SplitDisplayRow[] = [];
+
+  for (let index = 0; index < rows.length; index += 1) {
+    const row = rows[index];
+    if (row.type === 'skip') {
+      splitRows.push({ type: 'skip', skip: row });
+      continue;
+    }
+
+    if (row.type === 'context') {
+      splitRows.push({ type: 'context', left: row, right: row });
+      continue;
+    }
+
+    const leftRows: DiffPreview['rows'] = [];
+    const rightRows: DiffPreview['rows'] = [];
+
+    while (index < rows.length && rows[index].type === 'remove') {
+      leftRows.push(rows[index]);
+      index += 1;
+    }
+
+    while (index < rows.length && rows[index].type === 'add') {
+      rightRows.push(rows[index]);
+      index += 1;
+    }
+
+    index -= 1;
+
+    const pairCount = Math.max(leftRows.length, rightRows.length);
+    for (let pairIndex = 0; pairIndex < pairCount; pairIndex += 1) {
+      splitRows.push({
+        type: 'change',
+        left: leftRows[pairIndex] || null,
+        right: rightRows[pairIndex] || null,
+      });
+    }
+  }
+
+  return splitRows;
 }

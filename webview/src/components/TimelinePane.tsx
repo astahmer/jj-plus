@@ -2,6 +2,7 @@ import { For, Show } from 'solid-js';
 import type { Accessor } from 'solid-js';
 import { getTimelineAnchorPercent } from '../timeline-model';
 import type { ComparisonMode, ComparisonSource, ContentMode, FileRevisionEntry, HistoryBackend, LayoutMode, TimelinePreset } from '../types';
+import { RevisionIdentifier } from './RevisionIdentifier';
 
 type TimelinePaneProps = {
   backend: Accessor<HistoryBackend | null>;
@@ -21,6 +22,7 @@ type TimelinePaneProps = {
   contentMode: Accessor<ContentMode>;
   preset: Accessor<TimelinePreset>;
   showIntermediateRevisions: Accessor<boolean>;
+  hasIntermediateRevisions: Accessor<boolean>;
   sidebarCollapsed: Accessor<boolean>;
   timelinePaneCollapsed: Accessor<boolean>;
   actionsMenuOpen: Accessor<boolean>;
@@ -67,6 +69,7 @@ export function TimelinePane(props: TimelinePaneProps) {
   const fromPercent = () => getTimelineAnchorPercent(props.visibleEntries(), props.visibleEntries().findIndex((entry) => entry.index === props.fromIndex()));
   const toPercent = () => getTimelineAnchorPercent(props.visibleEntries(), props.visibleEntries().findIndex((entry) => entry.index === props.toIndex()));
   const collapseLabel = () => props.timelinePaneCollapsed() ? 'Expand' : 'Timeline only';
+  const intermediateLabel = () => props.showIntermediateRevisions() ? 'Hide In-Between' : 'Show In-Between';
 
   return (
     <div class={`timeline-pane${props.timelinePaneCollapsed() ? ' is-collapsed' : ''}`} id="timelinePane">
@@ -145,7 +148,12 @@ export function TimelinePane(props: TimelinePaneProps) {
                 }}
               />
               <div class="revision-picker-meta">
-                <button class="handle-pill from" id="fromHandleLabel" type="button" onClick={() => currentFromEntry() && props.onSelectEntry(currentFromEntry()!.index)}>From {currentFromEntry()?.shortRevision}</button>
+                <button class="handle-pill from" id="fromHandleLabel" type="button" onClick={() => currentFromEntry() && props.onSelectEntry(currentFromEntry()!.index)}>
+                  <span>From </span>
+                  <Show when={currentFromEntry()}>
+                    <RevisionIdentifier value={currentFromEntry()!.shortRevision} highlightPrefix={currentFromEntry()!.changeId} plain={currentFromEntry()!.isWorkingTree} />
+                  </Show>
+                </button>
                 <span class="revision-picker-relative" id="fromRelativeLabel">{currentFromEntry()?.relativeDate}</span>
               </div>
             </div>
@@ -164,7 +172,12 @@ export function TimelinePane(props: TimelinePaneProps) {
                 }}
               />
               <div class="revision-picker-meta">
-                <button class="handle-pill to" id="toHandleLabel" type="button" onClick={() => currentToEntry() && props.onSelectEntry(currentToEntry()!.index)}>To {currentToEntry()?.shortRevision}</button>
+                <button class="handle-pill to" id="toHandleLabel" type="button" onClick={() => currentToEntry() && props.onSelectEntry(currentToEntry()!.index)}>
+                  <span>To </span>
+                  <Show when={currentToEntry()}>
+                    <RevisionIdentifier value={currentToEntry()!.shortRevision} highlightPrefix={currentToEntry()!.changeId} plain={currentToEntry()!.isWorkingTree} />
+                  </Show>
+                </button>
                 <span class="revision-picker-relative" id="toRelativeLabel">{currentToEntry()?.relativeDate}</span>
               </div>
             </div>
@@ -192,7 +205,7 @@ export function TimelinePane(props: TimelinePaneProps) {
               <Segment active={props.contentMode() === 'diffs'} onClick={() => props.onSetContentMode('diffs')}>Diffs</Segment>
               <Segment active={props.contentMode() === 'full'} onClick={() => props.onSetContentMode('full')}>Whole file</Segment>
             </div>
-            <button class={`toggle-chip${props.showIntermediateRevisions() ? ' active' : ''}`} id="intermediateToggle" type="button" onClick={props.onToggleIntermediate}>Show In-Between</button>
+            <button class={`toggle-chip${props.showIntermediateRevisions() ? ' active' : ''}`} id="intermediateToggle" type="button" disabled={!props.hasIntermediateRevisions()} onClick={props.onToggleIntermediate}>{intermediateLabel()}</button>
             <div class="segmented" id="presets">
               <For each={(['year', '7d', '30d', '90d', 'all'] as TimelinePreset[])}>
                 {(value) => <Segment active={props.preset() === value} onClick={() => props.onSetPreset(value)}>{presetLabels[value]}</Segment>}
@@ -229,7 +242,7 @@ export function TimelinePane(props: TimelinePaneProps) {
               <div class="handle-marker to" style={{ left: `${toPercent()}%` }} />
             </div>
             <div class="month-row">
-              <For each={groupMonthLabels(props.visibleEntries())}>{(label) => <strong>{label}</strong>}</For>
+              <For each={groupMonthLabels(props.visibleEntries())}>{(label) => <div>{label}</div>}</For>
             </div>
           </div>
           <button class="step-button" id="stepForwardButton" type="button" aria-label="Next range" disabled={!props.canStepForward()} onClick={() => props.onStep(1)}>›</button>
@@ -290,9 +303,17 @@ function Segment(props: { active: boolean; onClick: () => void; children: string
 function groupMonthLabels(entries: FileRevisionEntry[]): string[] {
   const labels = new Set<string>();
   entries.forEach((entry) => {
-    if (entry.monthLabel) {
-      labels.add(entry.monthLabel);
-    }
+    labels.add(formatMonthLabel(entry.authorDate, entry.monthLabel));
   });
-  return [...labels];
+
+  return [...labels].slice(-4);
+}
+
+function formatMonthLabel(authorDate: string, fallbackLabel?: string) {
+  const date = new Date(authorDate);
+  if (Number.isNaN(date.getTime())) {
+    return fallbackLabel || 'Unknown month';
+  }
+
+  return new Intl.DateTimeFormat('en', { month: 'long', year: 'numeric' }).format(date);
 }
