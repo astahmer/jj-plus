@@ -7,6 +7,18 @@ const OPEN_TIMELINE_COMMAND = 'jj-range-diff.openFileRevisionTimeline';
 const TARGET_RELATIVE_PATH = 'apps/backend/instructions/lazy-di-rollout-plan.md';
 const SECONDARY_RELATIVE_PATH = 'apps/backend/src/service.ts';
 
+/**
+ * @typedef {object} TimelineDebugState
+ * @property {boolean=} panelOpen
+ * @property {boolean=} viewReady
+ * @property {'git' | 'jj'=} backend
+ * @property {string=} relativePath
+ * @property {string=} fileName
+ * @property {string=} panelTitle
+ * @property {boolean=} usesBundledWebview
+ * @property {number=} entryCount
+ */
+
 suite('Revision Timeline integration', () => {
   teardown(async () => {
     await vscode.commands.executeCommand('workbench.action.closeAllEditors');
@@ -62,12 +74,17 @@ async function waitForTimelineReady() {
   return waitForTimelineState((state) => state?.viewReady === true);
 }
 
+/**
+ * @param {(state: TimelineDebugState | undefined) => boolean} predicate
+ * @returns {Promise<TimelineDebugState>}
+ */
 async function waitForTimelineState(predicate) {
   const deadline = Date.now() + 15000;
+	/** @type {TimelineDebugState | undefined} */
   let lastState;
 
   while (Date.now() < deadline) {
-    lastState = await vscode.commands.executeCommand(DEBUG_COMMAND);
+		lastState = /** @type {TimelineDebugState | undefined} */ (await vscode.commands.executeCommand(DEBUG_COMMAND));
     if (predicate(lastState)) {
       return lastState;
     }

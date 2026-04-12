@@ -2,28 +2,40 @@
 
 'use strict';
 
+const fs = require('node:fs');
 const { spawnSync } = require('node:child_process');
 const path = require('node:path');
+const {
+	EXTENSION_ID,
+	formatCommand,
+	getLaunchers,
+	logVerbose,
+	parseRangeDiffArgs,
+	parseTimelineArgs,
+	resolveIde,
+	usage,
+} = require('./lib/cli.js');
 
-const EXTENSION_ID = 'astahmer.jj-range-diff';
-const URI_PATH = '/open-range-multi-diff';
-const DEFAULT_IDE = 'code';
-const IDE_PRESETS = {
-	code: { command: process.env.VSCODE_BIN || 'code', schemes: ['vscode', 'vscode-insiders'] },
-	vscode: { command: process.env.VSCODE_BIN || 'code', schemes: ['vscode', 'vscode-insiders'] },
-	'code-insiders': { command: 'code-insiders', schemes: ['vscode-insiders'] },
-	'vscode-insiders': { command: 'code-insiders', schemes: ['vscode-insiders'] },
-	cursor: { command: 'cursor', schemes: ['cursor'] },
-	'cursor-insiders': { command: 'cursor-insiders', schemes: ['cursor-insiders', 'cursor'] },
-	zed: { command: 'zed', schemes: ['zed'] },
-	windsurf: { command: 'windsurf', schemes: ['windsurf'] },
-	codium: { command: 'codium', schemes: ['vscodium', 'vscode'] },
-};
+main().catch((error) => {
+	const message = error instanceof Error ? error.message : String(error);
+	process.stderr.write(`${message}\n`);
+	process.exitCode = 1;
+});
 
-main();
+async function main() {
+	const argv = process.argv.slice(2);
+	if (argv[0] === 'timeline' || argv[0] === 'webview') {
+		const options = parseTimelineArgs(argv.slice(1));
+		if (options.help) {
+			process.stdout.write(`${usage()}\n`);
+			return;
+		}
 
-function main() {
-	const options = parseArgs(process.argv.slice(2));
+		await launchStandaloneTimeline(options);
+		return;
+	}
+
+	const options = parseRangeDiffArgs(argv);
 
 	if (options.help) {
 		process.stdout.write(`${usage()}\n`);
@@ -66,13 +78,14 @@ function main() {
 	for (const launcher of launchers) {
 		logVerbose(options.verbose, `Launching deep link: ${formatCommand(launcher.command, launcher.args)}`);
 		const result = spawnSync(launcher.command, launcher.args, { stdio: 'inherit' });
+		const launchError = /** @type {NodeJS.ErrnoException | undefined} */ (result.error);
 
-		if (result.error) {
-			if (result.error.code === 'ENOENT') {
+		if (launchError) {
+			if (launchError.code === 'ENOENT') {
 				continue;
 			}
 
-			lastFailure = `${launcher.command}: ${result.error.message}`;
+			lastFailure = `${launcher.command}: ${launchError.message}`;
 			continue;
 		}
 
@@ -89,6 +102,46 @@ function main() {
 	process.exitCode = 1;
 }
 
+async function launchStandaloneTimeline(options) {
+	if (!options.filePath) {
+		throw new Error(`Missing file path for standalone timeline\n\n${usage()}`);
+	}
+
+	const workspacePath = path.resolve(options.workspacePath || process.cwd());
+	const absoluteFilePath = path.isAbsolute(options.filePath)
+		? path.resolve(options.filePath)
+		: path.resolve(workspacePath, options.filePath);
+
+	if (!fs.existsSync(absoluteFilePath)) {
+		throw new Error(`File not found: ${absoluteFilePath}`);
+	}
+
+	const relativePath = path.relative(workspacePath, absoluteFilePath);
+	if (!relativePath || relativePath.startsWith('..')) {
+		throw new Error(`The file must be inside the workspace: ${workspacePath}`);
+	}
+
+	const { startStandaloneTimelineServer } = require('./lib/standalone-webview.js');
+	const server = await startStandaloneTimelineServer({
+		workspacePath,
+		filePath: absoluteFilePath,
+		openBrowser: options.open,
+		port: options.port,
+		verbose: options.verbose,
+	});
+
+	process.stderr.write(`Standalone timeline available at ${server.url}\n`);
+
+	const shutdown = () => {
+		void server.close().finally(() => {
+			process.exit(0);
+		});
+	};
+
+	process.once('SIGINT', shutdown);
+	process.once('SIGTERM', shutdown);
+}
+
 /**
  * @param {string} workspacePath
  * @param {{ command: string, schemes: string[] }} ide
@@ -98,235 +151,9 @@ function openWorkspace(workspacePath, ide, verbose) {
 	const args = ['-r', workspacePath];
 	logVerbose(verbose, `Opening workspace: ${formatCommand(ide.command, args)}`);
 	const result = spawnSync(ide.command, args, { stdio: 'ignore' });
+	const launchError = /** @type {NodeJS.ErrnoException | undefined} */ (result.error);
 
-	if (result.error && result.error.code !== 'ENOENT') {
-		process.stderr.write(`Warning: failed to focus workspace via ${ide.command}: ${result.error.message}\n`);
+	if (launchError && launchError.code !== 'ENOENT') {
+		process.stderr.write(`Warning: failed to focus workspace via ${ide.command}: ${launchError.message}\n`);
 	}
-}
-
-/**
- * @param {string[]} argv
- */
-function parseArgs(argv) {
-	const options = {
-		help: false,
-		confirm: false,
-		from: undefined,
-		ide: process.env.JJ_RANGE_DIFF_IDE || undefined,
-		to: undefined,
-		title: undefined,
-		verbose: false,
-		workspacePath: undefined,
-	};
-
-	for (let index = 0; index < argv.length; index += 1) {
-		const arg = argv[index];
-
-		if (arg === '-h' || arg === '--help') {
-			options.help = true;
-			continue;
-		}
-
-		if (arg === '--confirm') {
-			options.confirm = true;
-			continue;
-		}
-
-		if (arg === '-v' || arg === '--verbose') {
-			options.verbose = true;
-			continue;
-		}
-
-		if (arg === '-f' || arg === '--from' || arg === '-b' || arg === '--base') {
-			options.from = requireValue(arg, argv[index + 1]);
-			index += 1;
-			continue;
-		}
-
-		if (arg.startsWith('--from=')) {
-			options.from = requireValue('--from', arg.slice('--from='.length));
-			continue;
-		}
-
-		if (arg.startsWith('--base=')) {
-			options.from = requireValue('--base', arg.slice('--base='.length));
-			continue;
-		}
-
-		if (arg === '-t' || arg === '--to' || arg === '--target') {
-			options.to = requireValue(arg, argv[index + 1]);
-			index += 1;
-			continue;
-		}
-
-		if (arg.startsWith('--to=')) {
-			options.to = requireValue('--to', arg.slice('--to='.length));
-			continue;
-		}
-
-		if (arg.startsWith('--target=')) {
-			options.to = requireValue('--target', arg.slice('--target='.length));
-			continue;
-		}
-
-		if (arg === '--title') {
-			options.title = requireValue(arg, argv[index + 1]);
-			index += 1;
-			continue;
-		}
-
-		if (arg.startsWith('--title=')) {
-			options.title = requireValue('--title', arg.slice('--title='.length));
-			continue;
-		}
-
-		if (arg === '--ide') {
-			options.ide = requireValue(arg, argv[index + 1]);
-			index += 1;
-			continue;
-		}
-
-		if (arg.startsWith('--ide=')) {
-			options.ide = requireValue('--ide', arg.slice('--ide='.length));
-			continue;
-		}
-
-		if (arg === '-w' || arg === '--workspace' || arg === '--workspace-path') {
-			options.workspacePath = requireValue(arg, argv[index + 1]);
-			index += 1;
-			continue;
-		}
-
-		if (arg.startsWith('--workspace=')) {
-			options.workspacePath = requireValue('--workspace', arg.slice('--workspace='.length));
-			continue;
-		}
-
-		if (arg.startsWith('--workspace-path=')) {
-			options.workspacePath = requireValue(
-				'--workspace-path',
-				arg.slice('--workspace-path='.length)
-			);
-			continue;
-		}
-
-		throw new Error(`Unknown argument: ${arg}\n\n${usage()}`);
-	}
-
-	return options;
-}
-
-/**
- * @param {string | undefined} rawIde
- */
-function resolveIde(rawIde) {
-	const trimmed = rawIde?.trim() || DEFAULT_IDE;
-	const preset = IDE_PRESETS[trimmed.toLowerCase()];
-	if (preset) {
-		return preset;
-	}
-
-	return {
-		command: trimmed,
-		schemes: [trimmed],
-	};
-}
-
-/**
- * @param {string} flag
- * @param {string | undefined} value
- */
-function requireValue(flag, value) {
-	const trimmed = value?.trim();
-	if (trimmed) {
-		return trimmed;
-	}
-
-	throw new Error(`Missing value for ${flag}\n\n${usage()}`);
-}
-
-/**
- * @param {string} query
- * @param {{ command: string, schemes: string[] }} ide
- */
-function getLaunchers(query, ide) {
-	const uris = ide.schemes.map((scheme) => buildUri(scheme, query));
-	const launchers = [];
-
-	if (process.platform === 'darwin') {
-		for (const uri of uris) {
-			launchers.push({ command: 'open', args: [uri] });
-		}
-	} else if (process.platform === 'win32') {
-		for (const uri of uris) {
-			launchers.push({ command: 'cmd', args: ['/c', 'start', '', uri] });
-		}
-	} else {
-		for (const uri of uris) {
-			launchers.push({ command: 'xdg-open', args: [uri] });
-		}
-	}
-
-	return launchers;
-}
-
-/**
- * @param {string} scheme
- * @param {string} query
- */
-function buildUri(scheme, query) {
-	return `${scheme}://${EXTENSION_ID}${URI_PATH}?${query}`;
-}
-
-/**
- * @param {boolean} enabled
- * @param {string} message
- */
-function logVerbose(enabled, message) {
-	if (!enabled) {
-		return;
-	}
-
-	process.stderr.write(`${message}\n`);
-}
-
-/**
- * @param {string} command
- * @param {string[]} args
- */
-function formatCommand(command, args) {
-	return [command, ...args].map(quoteShellArg).join(' ');
-}
-
-/**
- * @param {string} value
- */
-function quoteShellArg(value) {
-	if (/^[a-zA-Z0-9_@./:=+-]+$/u.test(value)) {
-		return value;
-	}
-
-	return `'${value.replace(/'/g, `'\\''`)}'`;
-}
-
-function usage() {
-	return [
-		'Usage: jj-range-diff [options]',
-		'',
-		'Options:',
-		'      --confirm                    Prompt before opening when launched from the CLI',
-		'  -f, --from <revset>              From change id or revset',
-		'      --ide <name>                 IDE preset or command (default: code)',
-		'  -t, --to <revset>                To change id or revset',
-		'      --base <revset>              Alias for --from',
-		'      --target <revset>            Alias for --to',
-		'      --title <title>              Override the tab title',
-		'  -v, --verbose                    Log IDE launches and show the extension output channel',
-		'  -w, --workspace <path>           Workspace path to resolve in VS Code',
-		'      --workspace-path <path>      Alias for --workspace',
-		'  -h, --help                       Show this help message',
-		'',
-		'Environment:',
-		'      JJ_RANGE_DIFF_IDE  Default IDE preset or command',
-	].join('\n');
 }

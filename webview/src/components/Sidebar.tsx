@@ -1,30 +1,9 @@
 import { For, Show, createSignal, onCleanup } from 'solid-js';
-import type { Accessor } from 'solid-js';
-import type { DiffPreview, FileRevisionEntry } from '../types';
-import { RevisionIdentifier, getRevisionIdentifierValue } from './RevisionIdentifier';
+import { useTimelineContext } from '../timeline-context';
+import { RevisionIdentifier, getRevisionIdentifierValue } from './revision-identifier';
 
-type SidebarProps = {
-  entries: Accessor<FileRevisionEntry[]>;
-  activeFromIndex: Accessor<number>;
-  activeToIndex: Accessor<number>;
-  pendingAnchorIndex: Accessor<number | null>;
-  hoveredSelectionIndex: Accessor<number | null>;
-  onSelectEntry: (entryIndex: number) => void;
-  onHoverEntry: (entryIndex: number | null) => void;
-  onSearchInput: (value: string) => void;
-  searchValue: Accessor<string>;
-  fileCount: Accessor<number>;
-  oldestFirst: Accessor<boolean>;
-  onToggleSortOrder: () => void;
-  onOpenSelectionDiffs: () => void;
-  onOpenRevisionFilesDiff: (entryIndex: number) => void;
-  onOpenRevisionRemote: (entryIndex: number) => void;
-  previewForEntry: (entryIndex: number) => DiffPreview | null;
-  onShowInfoTooltip: (event: MouseEvent, label: string | null, value: string) => void;
-  onHideTooltip: () => void;
-};
-
-export function Sidebar(props: SidebarProps) {
+export function Sidebar() {
+  const { state, actions } = useTimelineContext();
   const [copiedIdentifierKey, setCopiedIdentifierKey] = createSignal('');
   let copiedIdentifierTimer: number | undefined;
 
@@ -60,11 +39,11 @@ export function Sidebar(props: SidebarProps) {
       <div class="sidebar-head">
         <div class="sidebar-head-main">
           <div class="eyebrow">Revisions</div>
-          <div class="sidebar-hint" id="sidebarHint">{props.fileCount()} visible</div>
+          <div class="sidebar-hint" id="sidebarHint">{state.visibleEntryCount()} visible</div>
         </div>
         <div class="sidebar-head-actions">
-          <button class="sidebar-icon-button" id="toggleSidebarOrderButton" type="button" aria-label={props.oldestFirst() ? 'Show newest revisions first' : 'Show oldest revisions first'} onClick={props.onToggleSortOrder}>{props.oldestFirst() ? '↓' : '↑'}</button>
-          <button class="sidebar-head-action" id="openSidebarRangeDiffButton" type="button" onClick={props.onOpenSelectionDiffs}>Open selection diffs</button>
+          <button class="sidebar-icon-button" id="toggleSidebarOrderButton" type="button" aria-label={state.oldestFirst() ? 'Show newest revisions first' : 'Show oldest revisions first'} onClick={actions.toggleSortOrder}>{state.oldestFirst() ? '↓' : '↑'}</button>
+          <button class="sidebar-head-action" id="openSidebarRangeDiffButton" type="button" onClick={actions.openSelectionDiffs}>Open selection diffs</button>
         </div>
       </div>
       <div class="sidebar-search-wrap">
@@ -74,23 +53,23 @@ export function Sidebar(props: SidebarProps) {
           type="search"
           placeholder="Search revisions"
           autocomplete="off"
-          value={props.searchValue()}
-          onInput={(event) => props.onSearchInput(event.currentTarget.value)}
+          value={state.sidebarSearchQuery()}
+          onInput={(event) => actions.setSidebarSearchQuery(event.currentTarget.value)}
         />
       </div>
       <div class="history-list" id="historyList">
-        <Show when={props.entries().length} fallback={<div class="empty">{props.searchValue().trim() ? 'No revisions match the current search.' : 'No revisions in the current filter.'}</div>}>
-          <For each={props.entries()}>
+        <Show when={state.sidebarEntries().length} fallback={<div class="empty">{state.sidebarSearchQuery().trim() ? 'No revisions match the current search.' : 'No revisions in the current filter.'}</div>}>
+          <For each={state.sidebarEntries()}>
             {(entry) => {
-              const showCommittedSelection = () => props.pendingAnchorIndex() === null;
-              const isFrom = () => showCommittedSelection() && entry.index === props.activeFromIndex();
-              const isTo = () => showCommittedSelection() && entry.index === props.activeToIndex();
-              const inRange = () => showCommittedSelection() && entry.index >= Math.min(props.activeFromIndex(), props.activeToIndex()) && entry.index <= Math.max(props.activeFromIndex(), props.activeToIndex());
-              const pending = () => props.pendingAnchorIndex() === entry.index;
-              const preview = () => props.previewForEntry(entry.index);
+              const showCommittedSelection = () => state.pendingSelectionIndex() === null;
+              const isFrom = () => showCommittedSelection() && entry.index === state.fromIndex();
+              const isTo = () => showCommittedSelection() && entry.index === state.toIndex();
+              const inRange = () => showCommittedSelection() && entry.index >= Math.min(state.fromIndex(), state.toIndex()) && entry.index <= Math.max(state.fromIndex(), state.toIndex());
+              const pending = () => state.pendingSelectionIndex() === entry.index;
+              const preview = () => state.previewForEntry(entry.index);
               const inPendingRange = () => {
-                const pendingIndex = props.pendingAnchorIndex();
-                const hoveredIndex = props.hoveredSelectionIndex();
+                const pendingIndex = state.pendingSelectionIndex();
+                const hoveredIndex = state.hoveredSelectionIndex();
                 if (pendingIndex === null || hoveredIndex === null) {
                   return false;
                 }
@@ -109,15 +88,15 @@ export function Sidebar(props: SidebarProps) {
                   class={`history-item${!entry.touchesFile ? ' is-intermediate' : ''}${inRange() ? ' in-range' : ''}${pending() ? ' pending-anchor' : ''}${inPendingRange() ? ' pending-range' : ''}${isFrom() ? ' is-from' : ''}${isTo() ? ' is-to' : ''}`}
                   data-entry-index={entry.index}
                   tabindex="0"
-                  onClick={() => props.onSelectEntry(entry.index)}
-                  onMouseEnter={() => props.onHoverEntry(entry.index)}
-                  onMouseLeave={() => props.onHoverEntry(null)}
-                  onFocus={() => props.onHoverEntry(entry.index)}
-                  onBlur={() => props.onHoverEntry(null)}
+                  onClick={() => actions.selectEntry(entry.index)}
+                  onMouseEnter={() => actions.hoverEntry(entry.index)}
+                  onMouseLeave={() => actions.hoverEntry(null)}
+                  onFocus={() => actions.hoverEntry(entry.index)}
+                  onBlur={() => actions.hoverEntry(null)}
                   onKeyDown={(event) => {
                     if (event.key === 'Enter' || event.key === ' ') {
                       event.preventDefault();
-                      props.onSelectEntry(entry.index);
+                      actions.selectEntry(entry.index);
                     }
                   }}
                 >
@@ -128,10 +107,10 @@ export function Sidebar(props: SidebarProps) {
                         type="button"
                         onMouseEnter={(event) => {
                           if (entry.operationId) {
-                            props.onShowInfoTooltip(event, 'Operation', entry.operationId);
+                            actions.showInfoTooltip(event, 'Operation', entry.operationId);
                           }
                         }}
-                        onMouseLeave={props.onHideTooltip}
+                        onMouseLeave={actions.hideInfoTooltip}
                         onClick={(event) => {
                           event.stopPropagation();
                           void copyIdentifier(copyKey, primaryCopyValue);
@@ -166,44 +145,44 @@ export function Sidebar(props: SidebarProps) {
                     <div class="history-actions">
                       <span
                         class="history-date-trigger"
-                        onMouseEnter={(event) => props.onShowInfoTooltip(event, 'Timestamp', entry.authorDate)}
-                        onMouseLeave={props.onHideTooltip}
+                        onMouseEnter={(event) => actions.showInfoTooltip(event, 'Timestamp', entry.authorDate)}
+                        onMouseLeave={actions.hideInfoTooltip}
                       >
                         {entry.shortDate}
                       </span>
-                    <Show when={entry.remoteUrl}>
-                      <button
-                        class="history-action history-action-remote"
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          props.onOpenRevisionRemote(entry.index);
-                        }}
-                      >
-                        Remote
-                      </button>
-                    </Show>
-                    <Show when={entry.hasPreviousEntry}>
-                      <button
-                        class="history-action history-action-diff"
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          props.onOpenRevisionFilesDiff(entry.index);
-                        }}
-                      >
-                        Open diffs
-                      </button>
-                    </Show>
+                      <Show when={entry.remoteUrl}>
+                        <button
+                          class="history-action history-action-remote"
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            actions.openRevisionRemote(entry.index);
+                          }}
+                        >
+                          Remote
+                        </button>
+                      </Show>
+                      <Show when={entry.hasPreviousEntry}>
+                        <button
+                          class="history-action history-action-diff"
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            actions.openRevisionFilesDiff(entry.index);
+                          }}
+                        >
+                          Open diffs
+                        </button>
+                      </Show>
+                    </div>
                   </div>
-                </div>
-                <div class="history-description">{entry.description}</div>
-                <div class="history-bottom">
+                  <div class="history-description">{entry.description}</div>
+                  <div class="history-bottom">
                     <span class="history-meta">
                       <span
                         class="history-meta-timestamp"
-                        onMouseEnter={(event) => props.onShowInfoTooltip(event, 'Timestamp', entry.authorDate)}
-                        onMouseLeave={props.onHideTooltip}
+                        onMouseEnter={(event) => actions.showInfoTooltip(event, 'Timestamp', entry.authorDate)}
+                        onMouseLeave={actions.hideInfoTooltip}
                       >
                         {entry.relativeDate}
                       </span>

@@ -1,0 +1,19 @@
+{
+    "$schema": "./node_modules/oxlint/configuration_schema.json",
+    "ignorePatterns": [
+        ".e2e-runtime/**",
+        ".features-gen/**",
+        ".vscode-test/**",
+        "node_modules/**",
+        "test-results/**",
+        "webview-dist/**",
+        "webview/public/e2e/**"
+    ],
+    "categories": {
+        "correctness": "error",
+        "suspicious": "error"
+    },
+    "rules": {
+        "eslint/no-console": "off"
+    }
+}

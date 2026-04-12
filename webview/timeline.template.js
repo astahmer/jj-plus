@@ -1,3 +1,5 @@
+/* oxlint-disable unicorn/consistent-function-scoping */
+
 (function (root, factory) {
   const api = factory();
 
@@ -5,7 +7,7 @@
     module.exports = api;
   }
 
-  root.TimelineTemplate = api;
+  /** @type {typeof globalThis & { TimelineTemplate?: unknown }} */ (root).TimelineTemplate = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this, function () {
   function renderTimelineBodyHtml() {
     return `<div class="app">

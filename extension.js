@@ -6,7 +6,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const vscode = require('vscode');
 const { textsMatchIgnoringLineEndings } = require('./lib/diff-helpers.js');
-const { dedupeAdjacentEntriesByChangeId, getGitHubRemoteBaseUrl, normalizeSnapshotOperationKey, parseJjEvolutionLine, parseJjEvolutionSummaryEntries, parseJjSummaryChangedPaths, parseJjSummaryRenameLines } = require('./lib/history-helpers.js');
+const { dedupeAdjacentEntriesByChangeId, getGitHubRemoteBaseUrl, normalizeSnapshotOperationKey, parseJjEvolutionSummaryEntries, parseJjSummaryChangedPaths, parseJjSummaryRenameLines } = require('./lib/history-helpers.js');
 const packageJson = require('./package.json');
 const { renderTimelineDocumentHtml } = require('./webview/timeline.template.js');
 
@@ -385,7 +385,7 @@ function getOrCreateTimelinePanel(context, fileName) {
 /**
  * @param {TimelineSession} session
  * @param {TimelinePreferences} preferences
- * @returns {{ backend: HistoryBackend, workspacePath: string, relativePath: string, fileName: string, version: string, presets: typeof TIMELINE_PRESET_DAYS, defaultIndex: number, latestIndex: number, preferences: TimelinePreferences, workspaceFiles: string[], hasIntermediateRevisions: boolean, entries: Array<Record<string, unknown>>, snapshotEntries: Array<Record<string, unknown>> }}
+ * @returns {{ backend: HistoryBackend, workspacePath: string, relativePath: string, fileName: string, version: string, presets: typeof TIMELINE_PRESET_DAYS, defaultIndex: number, latestIndex: number, preferences: TimelinePreferences, workspaceFiles: string[], hasIntermediateRevisions: boolean, entries: Array<Record<string, unknown>>, snapshotEntries: Array<Record<string, unknown>>, snapshotState: { loadedChangeIds: string[] } }}
  */
 function buildTimelinePayload(session, preferences) {
   const mapPayloadEntries = (entries) => entries.map((entry, index) => ({
@@ -476,7 +476,7 @@ async function handleTimelineMessage(panel, session, message) {
       ]);
     }
 
-    await panel.webview.postMessage({
+    await postTimelineMessage(panel, {
       type: 'timeline-data',
       payload: buildTimelinePayload(session, getTimelinePreferences(extensionContext)),
     });
@@ -512,7 +512,7 @@ async function handleTimelineMessage(panel, session, message) {
       return;
     }
 
-    await panel.webview.postMessage({
+    await postTimelineMessage(panel, {
       type: 'snapshot-entries',
       payload: {
         snapshotEntries: buildTimelinePayload(session, getTimelinePreferences(extensionContext)).snapshotEntries,
@@ -537,7 +537,7 @@ async function handleTimelineMessage(panel, session, message) {
         .filter((value) => Number.isInteger(value))
     );
 
-    await panel.webview.postMessage({
+    await postTimelineMessage(panel, {
       type: 'resolved-range',
       payload: resolvedRange,
     });
@@ -640,7 +640,7 @@ async function handleTimelineMessage(panel, session, message) {
     const nextSession = await buildTimelineSession(session.workspacePath, session.absolutePath);
     syncTimelineSession(session, nextSession);
     currentTimelineSession = session;
-    await panel.webview.postMessage({
+    await postTimelineMessage(panel, {
       type: 'timeline-data',
       payload: buildTimelinePayload(session, getTimelinePreferences(extensionContext)),
     });
@@ -655,10 +655,20 @@ async function handleTimelineMessage(panel, session, message) {
  * @param {'revision' | 'snapshot'} comparisonSource
  */
 async function sendTimelinePreview(panel, session, fromIndex, toIndex, comparisonSource = 'revision') {
-  await panel.webview.postMessage({
+  await postTimelineMessage(panel, {
     type: 'diff-preview',
     payload: await getDiffPreview(session, fromIndex, toIndex, comparisonSource),
   });
+}
+
+/**
+ * @param {vscode.WebviewPanel} panel
+ * @param {{ type: string, payload: unknown }} message
+ * @returns {Promise<boolean>}
+ */
+async function postTimelineMessage(panel, message) {
+  // oxlint-disable-next-line unicorn/require-post-message-target-origin
+  return panel.webview.postMessage(message);
 }
 
 /**
@@ -777,32 +787,7 @@ async function openRangeDiffInEditor(session, fromIndex, toIndex) {
 }
 
 /**
- * @param {TimelineSession} session
- * @param {number} entryIndex
- */
-async function openJjSnapshotDiffInEditor(session, entryIndex) {
-  const sourceEntries = getEntriesForSource(session, 'snapshot');
-  const entry = sourceEntries[entryIndex];
-  if (!entry) {
-    return;
-  }
-
-  if (entry.isWorkingTree) {
-    await openRangeDiffInEditor(session, Math.max(0, entryIndex - 1), entryIndex, 'revision');
-    return;
-  }
-
-  const afterPath = await resolveEntryFilePath(session, entry, entryIndex);
-  const beforePath = await resolvePreviousPathAcrossRevision(session, entry, afterPath);
-  const originalUri = createSnapshotUri(session.workspacePath, `${entry.revision}-`, beforePath, session.backend);
-  const modifiedUri = createSnapshotUri(session.workspacePath, entry.revision, afterPath, session.backend);
-  await vscode.commands.executeCommand('vscode.diff', originalUri, modifiedUri, `${session.fileName}: snapshot ${entry.shortRevision}`, {
-    preview: true,
-  });
-}
-
-/**
- * @param {TimelineSession} session
+ * @param {FileRevisionEntry[]} entries
  * @param {number} fromIndex
  * @param {number} toIndex
  * @returns {{ fromEntry: FileRevisionEntry, toEntry: FileRevisionEntry } | undefined}
@@ -914,7 +899,7 @@ async function listWorkspaceFiles(workspacePath) {
   return matches
     .filter((uri) => uri.scheme === 'file')
     .map((uri) => path.relative(workspacePath, uri.fsPath).replace(/\\/g, '/'))
-    .sort((left, right) => left.localeCompare(right));
+    .toSorted((left, right) => left.localeCompare(right));
 }
 
 /**
@@ -935,7 +920,7 @@ async function listGitVisibleFiles(workspacePath) {
       .split('\u0000')
       .map((value) => value.trim())
       .filter(Boolean)
-      .sort((left, right) => left.localeCompare(right));
+      .toSorted((left, right) => left.localeCompare(right));
   } catch {
     return undefined;
   }
@@ -987,7 +972,7 @@ async function getJjFileRevisionHistory(workspacePath, relativePath) {
     .map((line) => line.trim())
     .filter(Boolean)
     .map(parseJjHistoryLine)
-    .reverse());
+    .toReversed());
 }
 
 /**
@@ -1032,7 +1017,7 @@ async function getGitFileRevisionHistory(workspacePath, relativePath) {
     .map((line) => line.trim())
     .filter(Boolean)
     .map(parseGitHistoryLine)
-    .reverse();
+    .toReversed();
 }
 
 /**
@@ -1093,7 +1078,7 @@ async function getRepositoryRevisionHistory(backend, workspacePath) {
         ...entry,
         touchesFile: false,
       }))
-      .reverse());
+      .toReversed());
   }
 
   const { stdout } = await runGit(workspacePath, [
@@ -1112,7 +1097,7 @@ async function getRepositoryRevisionHistory(backend, workspacePath) {
       ...entry,
       touchesFile: false,
     }))
-    .reverse();
+    .toReversed();
 }
 
 /**
@@ -1227,64 +1212,13 @@ async function hydrateJjSnapshotEntries(session, revisionIndexes) {
     return true;
   }
 
-  session.snapshotEntries.sort((left, right) => left.timestamp - right.timestamp || left.revision.localeCompare(right.revision));
-  for (const cacheKey of [...session.previewCache.keys()]) {
+  session.snapshotEntries = session.snapshotEntries.toSorted((left, right) => left.timestamp - right.timestamp || left.revision.localeCompare(right.revision));
+  for (const cacheKey of session.previewCache.keys()) {
     if (cacheKey.startsWith('snapshot:')) {
       session.previewCache.delete(cacheKey);
     }
   }
   return true;
-}
-
-/**
- * @param {string} workspacePath
- * @param {string} revision
- * @returns {Promise<FileRevisionEntry[]>}
- */
-async function getJjEvolutionHistory(workspacePath, revision) {
-  const template = [
-    'commit.commit_id().short()',
-    '"\\t"',
-    'commit.change_id().shortest()',
-    '"\\t"',
-    'operation.time().end().format("%Y-%m-%dT%H:%M:%S%:z")',
-    '"\\t"',
-    'commit.author().name()',
-    '"\\t"',
-    'operation.description()',
-    '"\\t"',
-    'commit.description().first_line()',
-    '"\\n"',
-  ].join(' ++ ');
-  const { stdout } = await runJj(workspacePath, [
-    'evolog',
-    '--no-graph',
-    '--limit',
-    String(MAX_TIMELINE_ENTRIES),
-    '-T',
-    template,
-    '-r',
-    revision,
-  ]);
-
-  return stdout
-    .split(/\r?\n/u)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map(parseJjEvolutionLine)
-    .map((entry) => ({
-      id: `snapshot:${entry.revision}`,
-      revision: entry.revision,
-      shortRevision: entry.revision.slice(0, 8),
-      changeId: entry.changeId,
-      authorDate: entry.authorDate,
-      authorName: entry.authorName,
-      description: entry.description,
-      isWorkingTree: false,
-      touchesFile: true,
-      timestamp: Date.parse(entry.authorDate) || 0,
-    }))
-    .reverse();
 }
 
 /**
@@ -1324,7 +1258,7 @@ async function getJjEvolutionHistoryForFile(workspacePath, relativePath, entry) 
         operationIndex: evolutionEntry.operationIndex,
         operationKey: evolutionEntry.changeKey,
       }))
-      .reverse();
+      .toReversed();
   } catch {
     return [];
   }
@@ -1395,8 +1329,7 @@ function mergeTimelineEntries(repositoryEntries, fileEntries) {
     }
   }
 
-  merged.sort((left, right) => left.timestamp - right.timestamp || left.revision.localeCompare(right.revision));
-  return merged;
+  return merged.toSorted((left, right) => left.timestamp - right.timestamp || left.revision.localeCompare(right.revision));
 }
 
 /**
@@ -2432,52 +2365,6 @@ function materializeDiffRows(operations) {
   }
 
   return rows;
-}
-
-/**
- * @param {DiffRow[]} rows
- * @param {number} contextSize
- * @returns {DiffRow[]}
- */
-function collapseDiffRows(rows, contextSize) {
-  const changeIndexes = rows
-    .map((row, index) => (row.type === 'add' || row.type === 'remove' ? index : -1))
-    .filter((index) => index >= 0);
-
-  if (!changeIndexes.length) {
-    return rows.slice(0, 80);
-  }
-
-  /** @type {Array<[number, number]>} */
-  const ranges = [];
-  for (const changeIndex of changeIndexes) {
-    const start = Math.max(0, changeIndex - contextSize);
-    const end = Math.min(rows.length - 1, changeIndex + contextSize);
-    const previousRange = ranges[ranges.length - 1];
-    if (!previousRange || start > previousRange[1] + 1) {
-      ranges.push([start, end]);
-    } else {
-      previousRange[1] = Math.max(previousRange[1], end);
-    }
-  }
-
-  /** @type {DiffRow[]} */
-  const collapsed = [];
-  for (const [rangeIndex, range] of ranges.entries()) {
-    const [start, end] = range;
-    if (rangeIndex > 0) {
-      collapsed.push({
-        type: 'skip',
-        leftNumber: null,
-        rightNumber: null,
-        text: `… ${start - ranges[rangeIndex - 1][1] - 1} unchanged lines`,
-      });
-    }
-
-    collapsed.push(...rows.slice(start, end + 1));
-  }
-
-  return collapsed;
 }
 
 /**

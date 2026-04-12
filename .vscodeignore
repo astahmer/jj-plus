@@ -10,7 +10,10 @@ test/**
 tests/**
 test-results/**
 TODO.md
+.oxlintrc.json
+knip.jsonc
 tsconfig.json
+tsconfig.js.json
 vscode-timeline-prompt-history.md
 webview/index.html
 webview/public/e2e/**

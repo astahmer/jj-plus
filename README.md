@@ -29,12 +29,16 @@ The browser fixtures in `webview/public/e2e/` are generated artifacts now, so th
 For typechecking and end-to-end coverage:
 
 ```sh
+pnpm lint
 pnpm typecheck
 pnpm fixtures:e2e
+pnpm test
 pnpm test:integration
 pnpm test:e2e
 pnpm test:all
 ```
+
+`pnpm lint` now runs both `oxlint` and `knip`, and `pnpm typecheck` now covers the Solid webview plus the repository JavaScript files through a separate `checkJs` pass.
 
 For production packaging/builds, the extension now bundles the webview first:
 
@@ -67,6 +71,13 @@ await vscode.commands.executeCommand('jj-range-diff.openRangeMultiDiff', {
 
 ## CLI
 
+`bin.js` supports two entry points now:
+
+- the original deep-link flow into VS Code
+- a standalone browser timeline for a single file
+
+### Range Diff Deep Link
+
 `bin.js` opens the same flow from your shell by forwarding a deep link into VS Code.
 
 CLI launches now skip the extension input prompts and open the diff directly. Add `--confirm` if you want the prompt flow before opening.
@@ -83,6 +94,21 @@ CLI launches now skip the extension input prompts and open the diff directly. Ad
 If you install the package with `npm link`, the `jj-range-diff` command is also available on your `PATH`.
 
 `--ide` accepts known presets like `code`, `code-insiders`, `cursor`, `cursor-insiders`, `zed`, `windsurf`, and `codium`. You can also set `JJ_RANGE_DIFF_IDE` to change the default launcher.
+
+### Standalone Timeline
+
+The standalone timeline reuses the same webview UI in your default browser and serves it from a small local HTTP server. The command keeps running until you stop it.
+
+```sh
+pnpm build:webview
+./bin.js timeline README.md
+./bin.js timeline --no-open --port 4173 README.md
+./bin.js timeline -w /path/to/repo apps/backend/src/service.ts
+```
+
+With `npm link`, the same commands work through `jj-range-diff timeline ...`.
+
+Use `--no-open` when you want to keep the server running without launching a browser automatically, and `--port` when you want a predictable local URL.
 
 ## Logs
 

@@ -1,4 +1,4 @@
-import type { ComparisonSource, DiffPreview, DiffRow, FileRevisionEntry, TimelineData } from './types';
+import type { ComparisonSource, DiffPreview, FileRevisionEntry, TimelineData } from './types';
 
 export function getEntriesForSource(data: TimelineData | null, comparisonSource: ComparisonSource): FileRevisionEntry[] {
   if (!data) {
@@ -154,44 +154,4 @@ export function getIntermediateToggleLabel(visibleCount: number, totalCount: num
 
   const safeVisibleCount = Math.min(Math.max(0, visibleCount), safeTotal);
   return `${action} In-Between ${safeVisibleCount}/${safeTotal}`;
-}
-
-export function collapseDiffRows(rows: DiffRow[], contextSize: number): DiffRow[] {
-  const changeIndexes = rows
-    .map((row, index) => (row.type === 'add' || row.type === 'remove' ? index : -1))
-    .filter((index) => index >= 0);
-
-  if (!changeIndexes.length) {
-    return rows.slice(0, 80);
-  }
-
-  const ranges: Array<[number, number]> = [];
-  for (const changeIndex of changeIndexes) {
-    const start = Math.max(0, changeIndex - contextSize);
-    const end = Math.min(rows.length - 1, changeIndex + contextSize);
-    const previousRange = ranges[ranges.length - 1];
-    if (!previousRange || start > previousRange[1] + 1) {
-      ranges.push([start, end]);
-      continue;
-    }
-
-    previousRange[1] = Math.max(previousRange[1], end);
-  }
-
-  const collapsed: DiffRow[] = [];
-  for (const [rangeIndex, range] of ranges.entries()) {
-    const [start, end] = range;
-    if (rangeIndex > 0) {
-      collapsed.push({
-        type: 'skip',
-        leftNumber: null,
-        rightNumber: null,
-        text: `... ${start - ranges[rangeIndex - 1][1] - 1} unchanged lines`,
-      });
-    }
-
-    collapsed.push(...rows.slice(start, end + 1));
-  }
-
-  return collapsed;
 }

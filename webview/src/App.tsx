@@ -1,12 +1,13 @@
 import { Show, createEffect, createMemo, createSignal, onCleanup, onMount } from 'solid-js';
 import { createStore, reconcile } from 'solid-js/store';
-import { Sidebar } from './components/Sidebar';
-import { TimelinePane } from './components/TimelinePane';
-import { DiffPanel } from './components/DiffPanel';
+import { Sidebar } from './components/sidebar';
+import { TimelinePane } from './components/timeline-pane';
+import { DiffPanel } from './components/diff-panel';
 import { createTimelineHost } from './host';
 import { getEntriesForSource, getIntermediateToggleLabel, getPendingSelectionRange, getPendingSnapshotRevisionIndexes, getSelectedEntryCount, getSidebarPreviewRequests, getUnitPreviewRange } from './timeline-model';
-import type { ComparisonMode, ComparisonSource, ContentMode, DiffPreview, FileRevisionEntry, HistoryBackend, LayoutMode, TimelineCommand, TimelineData, TimelineInboundMessage, TimelinePreset } from './types';
-import { RevisionIdentifier, getRevisionIdentifierValue } from './components/RevisionIdentifier';
+import type { ComparisonMode, ComparisonSource, ContentMode, DiffPreview, FileRevisionEntry, LayoutMode, TimelineCommand, TimelineData, TimelineInboundMessage, TimelinePreset } from './types';
+import { TimelineProvider, type TimelineContextValue } from './timeline-context';
+import { RevisionIdentifier, getRevisionIdentifierValue } from './components/revision-identifier';
 
 type TooltipState =
   | {
@@ -115,7 +116,7 @@ export function App() {
           .some((value) => String(value).toLowerCase().includes(query));
       });
 
-    return state.oldestFirst ? filteredEntries : filteredEntries.slice().reverse();
+    return state.oldestFirst ? filteredEntries : filteredEntries.toReversed();
   });
 
   const rangeLabel = createMemo(() => {
@@ -510,7 +511,7 @@ export function App() {
       state.previewByRange,
       activePreviewKey(),
       buildPreviewKey,
-    ).sort((left, right) => Math.abs(left.toIndex - state.toIndex) - Math.abs(right.toIndex - state.toIndex));
+    ).toSorted((left, right) => Math.abs(left.toIndex - state.toIndex) - Math.abs(right.toIndex - state.toIndex));
 
     if (!nextRequest) {
       return;
@@ -1132,129 +1133,123 @@ export function App() {
     setTooltip((current) => current?.kind === 'info' ? null : current);
   }
 
+  const timelineContextValue: TimelineContextValue = {
+    state: {
+      backend: () => state.data?.backend || null,
+      visibleEntries,
+      sidebarEntries: filteredSidebarEntries,
+      workspaceFiles: () => state.data?.workspaceFiles || [],
+      fileInputValue: () => state.fileInputValue,
+      fromIndex: () => state.fromIndex,
+      toIndex: () => state.toIndex,
+      pendingSelectionIndex: () => state.pendingSelectionIndex,
+      hoveredSelectionIndex: () => state.hoveredSelectionIndex,
+      rangeLabel,
+      rangeSubtitle,
+      selectionMeta,
+      stepStatus,
+      version,
+      comparisonMode: () => state.comparisonMode,
+      comparisonSource: effectiveComparisonSource,
+      layoutMode: () => state.layoutMode,
+      contentMode: () => state.contentMode,
+      intermediateLabel,
+      preset: () => state.preset,
+      showIntermediateRevisions: () => state.showIntermediateRevisions,
+      hasIntermediateRevisions: () => state.data?.hasIntermediateRevisions === true,
+      sidebarCollapsed: () => state.sidebarCollapsed,
+      timelinePaneCollapsed: () => state.timelinePaneCollapsed,
+      actionsMenuOpen: () => state.actionsMenuOpen,
+      hotkeysOpen: () => state.hotkeysOpen,
+      showSnapshotStatus,
+      snapshotStatusLabel,
+      diffFocusMode: () => state.diffFocusMode,
+      canStepBackward,
+      canStepForward,
+      currentFromEntry,
+      currentToEntry,
+      preview,
+      previewForEntry,
+      sidebarSearchQuery: () => state.sidebarSearchQuery,
+      visibleEntryCount: () => visibleEntries().length,
+      oldestFirst: () => state.oldestFirst,
+    },
+    actions: {
+      selectEntry: handleEntrySelection,
+      hoverEntry: setHoveredEntry,
+      setSidebarSearchQuery: (value) => setState('sidebarSearchQuery', value),
+      toggleSortOrder,
+      openSelectionDiffs: () => sendRangeCommand('open-range-files-diff'),
+      openRevisionFilesDiff,
+      openRevisionRemote,
+      showInfoTooltip,
+      hideInfoTooltip: hideTooltip,
+      submitFile,
+      toggleSidebar,
+      toggleSidebarFromMenu,
+      toggleTimelinePane,
+      toggleHotkeys,
+      toggleActionsMenu,
+      openCurrentFile,
+      openEditorDiff: () => sendRangeCommand('open-editor-diff'),
+      cancelActiveRequest,
+      refreshTimeline,
+      resetPreferences,
+      setComparisonMode,
+      setComparisonSource,
+      setLayoutMode: (value) => setState('layoutMode', value),
+      setContentMode: (value) => setState('contentMode', value),
+      setPreset,
+      toggleIntermediateRevisions,
+      stepSelection,
+      showAnchorTooltip,
+      hideRangeTooltip,
+      submitRevision,
+      toggleDiffFocus,
+    },
+  };
+
   return (
-    <div class="app">
-      <section class={`workspace${state.sidebarCollapsed ? ' is-collapsed' : ''}${state.diffFocusMode ? ' is-diff-focus' : ''}`}>
-        <Sidebar
-          entries={filteredSidebarEntries}
-          activeFromIndex={() => state.fromIndex}
-          activeToIndex={() => state.toIndex}
-          pendingAnchorIndex={() => state.pendingSelectionIndex}
-          hoveredSelectionIndex={() => state.hoveredSelectionIndex}
-          onSelectEntry={handleEntrySelection}
-          onHoverEntry={setHoveredEntry}
-          onSearchInput={(value) => setState('sidebarSearchQuery', value)}
-          searchValue={() => state.sidebarSearchQuery}
-          fileCount={() => visibleEntries().length}
-          oldestFirst={() => state.oldestFirst}
-          onToggleSortOrder={toggleSortOrder}
-          onOpenSelectionDiffs={() => sendRangeCommand('open-range-files-diff')}
-          onOpenRevisionFilesDiff={openRevisionFilesDiff}
-          onOpenRevisionRemote={openRevisionRemote}
-          previewForEntry={previewForEntry}
-          onShowInfoTooltip={showInfoTooltip}
-          onHideTooltip={hideTooltip}
-        />
-        <div class="resize-handle" id="resizeHandle" />
-        <section class={`panel diff-panel${state.timelinePaneCollapsed ? ' is-timeline-only' : ''}`}>
-          <TimelinePane
-            backend={() => (state.data?.backend || null) as HistoryBackend | null}
-            visibleEntries={visibleEntries}
-            workspaceFiles={() => state.data?.workspaceFiles || []}
-            fileInputValue={() => state.fileInputValue}
-            fromIndex={() => state.fromIndex}
-            toIndex={() => state.toIndex}
-            pendingSelectionIndex={() => state.pendingSelectionIndex}
-            hoveredSelectionIndex={() => state.hoveredSelectionIndex}
-            rangeLabel={rangeLabel}
-            rangeSubtitle={rangeSubtitle}
-            selectionMeta={selectionMeta}
-            stepStatus={stepStatus}
-            version={version}
-            comparisonMode={() => state.comparisonMode}
-            layoutMode={() => state.layoutMode}
-            contentMode={() => state.contentMode}
-            intermediateLabel={intermediateLabel}
-            preset={() => state.preset}
-            showIntermediateRevisions={() => state.showIntermediateRevisions}
-            hasIntermediateRevisions={() => state.data?.hasIntermediateRevisions === true}
-            sidebarCollapsed={() => state.sidebarCollapsed}
-            timelinePaneCollapsed={() => state.timelinePaneCollapsed}
-            actionsMenuOpen={() => state.actionsMenuOpen}
-            hotkeysOpen={() => state.hotkeysOpen}
-            showSnapshotStatus={showSnapshotStatus}
-            snapshotStatusLabel={snapshotStatusLabel}
-            diffFocusMode={() => state.diffFocusMode}
-            canStepBackward={canStepBackward}
-            canStepForward={canStepForward}
-            onFileInput={() => undefined}
-            onSubmitFile={submitFile}
-            onToggleSidebar={toggleSidebar}
-            onToggleSidebarMenu={toggleSidebarFromMenu}
-            onToggleTimelinePane={toggleTimelinePane}
-            onToggleHotkeys={toggleHotkeys}
-            onToggleActionsMenu={toggleActionsMenu}
-            onOpenCurrentFile={openCurrentFile}
-            onOpenEditorDiff={() => sendRangeCommand('open-editor-diff')}
-            onOpenRangeFilesDiff={() => sendRangeCommand('open-range-files-diff')}
-            onCancelActiveRequest={cancelActiveRequest}
-            onRefresh={refreshTimeline}
-            onResetPreferences={resetPreferences}
-            onSetComparisonMode={setComparisonMode}
-            onSetComparisonSource={setComparisonSource}
-            onSetLayoutMode={(value) => setState('layoutMode', value)}
-            onSetContentMode={(value) => setState('contentMode', value)}
-            onSetPreset={setPreset}
-            onToggleIntermediate={toggleIntermediateRevisions}
-            onStep={stepSelection}
-            onSelectEntry={handleEntrySelection}
-            onHoverEntry={setHoveredEntry}
-            onShowAnchorTooltip={showAnchorTooltip}
-            onHideRangeTooltip={hideRangeTooltip}
-            onSubmitRevision={submitRevision}
-          />
-          <DiffPanel
-            preview={preview()}
-            fromEntry={currentFromEntry()}
-            toEntry={currentToEntry()}
-            layoutMode={state.layoutMode}
-            contentMode={state.contentMode}
-            comparisonMode={state.comparisonMode}
-            comparisonSource={effectiveComparisonSource()}
-            diffFocusMode={state.diffFocusMode}
-            onToggleDiffFocus={toggleDiffFocus}
-          />
+    <TimelineProvider value={timelineContextValue}>
+      <div class="app">
+        <section class={`workspace${state.sidebarCollapsed ? ' is-collapsed' : ''}${state.diffFocusMode ? ' is-diff-focus' : ''}`}>
+          <Sidebar />
+          <div class="resize-handle" id="resizeHandle" />
+          <section class={`panel diff-panel${state.timelinePaneCollapsed ? ' is-timeline-only' : ''}`}>
+            <TimelinePane />
+            <DiffPanel />
+          </section>
         </section>
-      </section>
-      <Show when={tooltip()}>
-        {(activeTooltip) => {
-          const current = activeTooltip();
-          const tooltipLeft = clampTooltipX(current.left);
-          return (
-            <div class={`anchor-tooltip${current.kind === 'range' ? ' anchor-tooltip--segment' : ''}${current.kind === 'range' && current.pending ? ' anchor-tooltip--pending' : ''}`} style={{ left: `${tooltipLeft}px`, top: `${Math.max(48, current.top)}px`, transform: 'translate(-50%, calc(-100% - 8px))' }}>
-              {current.kind === 'info'
-                ? <>
-                    <Show when={current.label}>
-                      <div class="anchor-tooltip-label">{current.label}</div>
-                    </Show>
-                    <div class="anchor-tooltip-meta">{current.value}</div>
-                  </>
-                : <>
-                    <div class="anchor-tooltip-id anchor-tooltip-range">
-                      <RevisionIdentifier value={getRevisionIdentifierValue(current.fromEntry)} highlightPrefix={current.fromEntry.changeId} plain={current.fromEntry.isWorkingTree} />
-                      <span class="diff-title-arrow">→</span>
-                      <RevisionIdentifier value={getRevisionIdentifierValue(current.toEntry)} highlightPrefix={current.toEntry.changeId} plain={current.toEntry.isWorkingTree} />
-                    </div>
-                    <div class="anchor-tooltip-label">{current.pending ? `Pending selection · ${current.selectedCount} revisions` : `Segment preview · ${current.selectedCount} revisions`}</div>
-                    <div class="anchor-tooltip-meta">From {current.fromEntry.relativeDate || 'unknown'} · {formatExactTimestamp(current.fromEntry.authorDate)}</div>
-                    <div class="anchor-tooltip-meta">To {current.toEntry.relativeDate || 'unknown'} · {formatExactTimestamp(current.toEntry.authorDate)}</div>
-                    <div class="anchor-tooltip-desc">{current.preview?.subtitle || current.toEntry.description}</div>
-                  </>}
-            </div>
-          );
-        }}
-      </Show>
-    </div>
+        <Show when={tooltip()}>
+          {(activeTooltip) => {
+            const current = activeTooltip();
+            const tooltipLeft = clampTooltipX(current.left);
+            return (
+              <div class={`anchor-tooltip${current.kind === 'range' ? ' anchor-tooltip--segment' : ''}${current.kind === 'range' && current.pending ? ' anchor-tooltip--pending' : ''}`} style={{ left: `${tooltipLeft}px`, top: `${Math.max(48, current.top)}px`, transform: 'translate(-50%, calc(-100% - 8px))' }}>
+                {current.kind === 'info'
+                  ? <>
+                      <Show when={current.label}>
+                        <div class="anchor-tooltip-label">{current.label}</div>
+                      </Show>
+                      <div class="anchor-tooltip-meta">{current.value}</div>
+                    </>
+                  : <>
+                      <div class="anchor-tooltip-id anchor-tooltip-range">
+                        <RevisionIdentifier value={getRevisionIdentifierValue(current.fromEntry)} highlightPrefix={current.fromEntry.changeId} plain={current.fromEntry.isWorkingTree} />
+                        <span class="diff-title-arrow">→</span>
+                        <RevisionIdentifier value={getRevisionIdentifierValue(current.toEntry)} highlightPrefix={current.toEntry.changeId} plain={current.toEntry.isWorkingTree} />
+                      </div>
+                      <div class="anchor-tooltip-label">{current.pending ? `Pending selection · ${current.selectedCount} revisions` : `Segment preview · ${current.selectedCount} revisions`}</div>
+                      <div class="anchor-tooltip-meta">From {current.fromEntry.relativeDate || 'unknown'} · {formatExactTimestamp(current.fromEntry.authorDate)}</div>
+                      <div class="anchor-tooltip-meta">To {current.toEntry.relativeDate || 'unknown'} · {formatExactTimestamp(current.toEntry.authorDate)}</div>
+                      <div class="anchor-tooltip-desc">{current.preview?.subtitle || current.toEntry.description}</div>
+                    </>}
+              </div>
+            );
+          }}
+        </Show>
+      </div>
+    </TimelineProvider>
   );
 }
 

@@ -17,11 +17,34 @@ declare global {
   }
 }
 
+function resolveFileFixture(fixture: TimelineFixture, relativePath: string) {
+  return fixture.files?.[relativePath] || (fixture.timelineData.relativePath === relativePath ? fixture : null);
+}
+
+function resolveNonEmptyRange(fileFixture: TimelineFixtureFile, candidateIndexes: number[]) {
+  const previewMap = fileFixture.previews.revision || {};
+  for (let index = candidateIndexes.length - 1; index > 0; index -= 1) {
+    const fromIndex = candidateIndexes[index - 1];
+    const toIndex = candidateIndexes[index];
+    const key = `${Math.min(fromIndex, toIndex)}:${Math.max(fromIndex, toIndex)}`;
+    if (previewMap[key]?.hasChanges) {
+      return { fromIndex, toIndex };
+    }
+  }
+
+  return null;
+}
+
+function clone<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
 export function createTimelineHost(): TimelineHost {
   if (typeof window.acquireVsCodeApi === 'function') {
     const vscode = window.acquireVsCodeApi();
     return {
       send(command) {
+        // oxlint-disable-next-line unicorn/require-post-message-target-origin
         vscode.postMessage(command);
       },
       subscribe(listener) {
@@ -34,6 +57,43 @@ export function createTimelineHost(): TimelineHost {
         return () => window.removeEventListener('message', handler);
       },
     };
+  }
+
+  if (new URLSearchParams(window.location.search).get('standalone') === '1') {
+    const listeners = new Set<(message: TimelineInboundMessage) => void>();
+
+    return {
+      send(command) {
+        void dispatch(command).catch((error) => {
+          console.error(error);
+        });
+      },
+      subscribe(listener) {
+        listeners.add(listener);
+        return () => listeners.delete(listener);
+      },
+    };
+
+    function emitStandalone(message: TimelineInboundMessage) {
+      listeners.forEach((listener) => listener(message));
+    }
+
+    async function dispatch(command: TimelineCommand) {
+      const response = await fetch('/api/command', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify(command),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Standalone timeline request failed: ${response.status}`);
+      }
+
+      const payload = await response.json() as { messages?: TimelineInboundMessage[] };
+      payload.messages?.forEach((message) => emitStandalone(message));
+    }
   }
 
   const listeners = new Set<(message: TimelineInboundMessage) => void>();
@@ -162,10 +222,6 @@ export function createTimelineHost(): TimelineHost {
     };
   }
 
-  function resolveFileFixture(fixture: TimelineFixture, relativePath: string) {
-    return fixture.files?.[relativePath] || (fixture.timelineData.relativePath === relativePath ? fixture : null);
-  }
-
   function withPersistedPreferences(timelineData: TimelineFixtureFile['timelineData']) {
     const persisted = getPersistedPreferences(timelineData.relativePath);
     return {
@@ -265,23 +321,5 @@ export function createTimelineHost(): TimelineHost {
     testState.lastAction = action;
     testState.actions.push(action);
     window.__TIMELINE_TEST_STATE__ = testState;
-  }
-
-  function resolveNonEmptyRange(fileFixture: TimelineFixtureFile, candidateIndexes: number[]) {
-    const previewMap = fileFixture.previews.revision || {};
-    for (let index = candidateIndexes.length - 1; index > 0; index -= 1) {
-      const fromIndex = candidateIndexes[index - 1];
-      const toIndex = candidateIndexes[index];
-      const key = `${Math.min(fromIndex, toIndex)}:${Math.max(fromIndex, toIndex)}`;
-      if (previewMap[key]?.hasChanges) {
-        return { fromIndex, toIndex };
-      }
-    }
-
-    return null;
-  }
-
-  function clone<T>(value: T): T {
-    return JSON.parse(JSON.stringify(value)) as T;
   }
 }

@@ -13,7 +13,7 @@ type ComboboxProps = {
   value: string;
   options: ComboboxOption[];
   placeholder?: string;
-  onInput: (value: string) => void;
+  onInput?: (value: string) => void;
   onCommit: (value: string) => void;
 };
 
@@ -82,7 +82,7 @@ export function Combobox(props: ComboboxProps) {
 
   function commit(value: string) {
     setDraftValue(value);
-    props.onInput(value);
+    props.onInput?.(value);
     props.onCommit(value);
     setOpen(false);
   }
@@ -103,7 +103,7 @@ export function Combobox(props: ComboboxProps) {
         onInput={(event) => {
           clearCloseTimer();
           setDraftValue(event.currentTarget.value);
-          props.onInput(event.currentTarget.value);
+          props.onInput?.(event.currentTarget.value);
           setOpen(true);
           setActiveIndex(0);
         }}
@@ -152,7 +152,7 @@ export function Combobox(props: ComboboxProps) {
                 const isActive = () => index() === activeIndex();
                 const isSelected = () => option.value === props.value;
                 return (
-                    <button
+                  <button
                     ref={(element) => {
                       optionRefs[index()] = element;
                     }}

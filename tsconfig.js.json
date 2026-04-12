@@ -1,0 +1,40 @@
+{
+    "compilerOptions": {
+        "target": "ES2023",
+        "module": "NodeNext",
+        "moduleResolution": "NodeNext",
+        "lib": [
+            "ES2023",
+            "DOM"
+        ],
+        "strict": false,
+        "noImplicitAny": false,
+        "noEmit": true,
+        "allowJs": true,
+        "checkJs": true,
+        "skipLibCheck": true,
+        "resolveJsonModule": true,
+        "types": [
+            "node",
+            "mocha",
+            "vscode"
+        ]
+    },
+    "include": [
+        "bin.js",
+        "extension.js",
+        "lib/**/*.js",
+        "scripts/**/*.mjs",
+        "test/**/*.js",
+        "integration/**/*.js",
+        "webview/timeline.template.js"
+    ],
+    "exclude": [
+        "node_modules",
+        ".e2e-runtime",
+        ".features-gen",
+        ".vscode-test",
+        "test-results",
+        "webview-dist"
+    ]
+}

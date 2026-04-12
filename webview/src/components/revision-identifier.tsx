@@ -1,4 +1,3 @@
-import { createMemo } from 'solid-js';
 import type { FileRevisionEntry } from '../types';
 
 type RevisionIdentifierProps = {
@@ -20,9 +19,9 @@ export function getRevisionIdentifierValue(entry: Pick<FileRevisionEntry, 'short
 }
 
 export function RevisionIdentifier(props: RevisionIdentifierProps) {
-  const value = createMemo(() => props.value || '');
-  const highlightPrefix = createMemo(() => props.highlightPrefix || '');
-  const plain = createMemo(() => props.plain === true);
+  const value = () => props.value || '';
+  const highlightPrefix = () => props.highlightPrefix || '';
+  const plain = () => props.plain === true;
 
   if (plain()) {
     return (

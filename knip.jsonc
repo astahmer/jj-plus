@@ -1,0 +1,17 @@
+{
+    "$schema": "https://unpkg.com/knip@6/schema.json",
+    "entry": [
+        "features/steps/**/*.ts",
+        "integration/vscode/suite/**/*.js"
+    ],
+    "project": [
+        "*.{js,mjs,ts}",
+        "lib/**/*.js",
+        "integration/**/*.js",
+        "scripts/**/*.mjs",
+        "test/**/*.js",
+        "tests/**/*.ts",
+        "features/**/*.ts",
+        "webview/**/*.{js,ts,tsx}"
+    ]
+}

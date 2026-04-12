@@ -1,11 +1,10 @@
-
-- rename PascalCase component to dash-case
-- refactor components with less prop drilling / use less props in favor of store/context WHEN/IF IT MAKES SENSE
-- split components into smaller components WHEN/IF IT MAKES SENSE
-
 - use a design skill with claude & iterate on it
-- make the webview usable externally through the CLI
-- update package.json latest (vite 8 etc)
-- oxc + typecheck
-- add knip + configure it properly + remove anything not necessary/deadcode
 - lets find a better name for this extension & rename it everywhere
+
+## Future Ideas
+
+- Persist standalone timeline state across server restarts, not just browser refreshes.
+- Add a repo-level overview mode so file switching can jump between the most-changed files for a revision range.
+- Add rename-aware diff previews so long-lived files survive path moves more gracefully.
+- Expose a machine-readable CLI output mode for scripts that want timeline metadata without opening a UI.
+- Add timeline markers for bookmarks, branches, and JJ operations to make large histories easier to scan.

@@ -4,17 +4,24 @@
 	"version": "0.0.2",
 	"private": true,
 	"description": "Open JJ multi-diff views for revision ranges.",
+	"packageManager": "pnpm@10.33.0+sha512.10568bb4a6afb58c9eb3630da90cc9516417abebd3fabbe6739f0ae795728da1491e9db5a544c76ad8eb7570f5c4bb3d6c637b2cb41bfdcdb47fa823c8649319",
 	"scripts": {
 		"build": "pnpm build:webview && pnpm vsce package --skip-license --no-dependencies",
 		"build:webview": "vite build",
 		"dev": "vite --host 127.0.0.1 --open /",
 		"bddgen": "bddgen",
 		"fixtures:e2e": "node ./scripts/generate-e2e-fixtures.mjs",
+		"fmt": "oxfmt --write",
+		"lint": "pnpm lint:ox && pnpm lint:knip",
+		"lint:knip": "knip",
+		"lint:ox": "oxlint .",
 		"test": "node --test",
 		"test:e2e": "pnpm fixtures:e2e && pnpm bddgen && playwright test",
 		"test:integration": "pnpm build:webview && pnpm fixtures:e2e && node ./integration/vscode/run.js",
 		"test:all": "pnpm test && pnpm test:e2e && pnpm test:integration",
-		"typecheck": "tsc --noEmit"
+		"typecheck": "pnpm typecheck:web && pnpm typecheck:js",
+		"typecheck:js": "tsc --noEmit -p tsconfig.js.json",
+		"typecheck:web": "tsc --noEmit -p tsconfig.json"
 	},
 	"main": "./extension.js",
 	"bin": {
@@ -33,18 +40,23 @@
 		]
 	},
 	"dependencies": {
-		"solid-js": "^1.9.9"
+		"solid-js": "^1.9.12"
 	},
 	"devDependencies": {
-		"@playwright/test": "^1.58.2",
-		"@types/node": "^24.5.2",
+		"@playwright/test": "^1.59.1",
+		"@types/mocha": "^10.0.10",
+		"@types/node": "^25.6.0",
+		"@types/vscode": "^1.115.0",
 		"@vscode/test-electron": "^2.5.2",
 		"@vscode/vsce": "3.7.1",
+		"knip": "^6.4.1",
 		"mocha": "^11.7.5",
-		"playwright-bdd": "^8.4.1",
-		"typescript": "^5.9.3",
-		"vite": "^7.3.1",
-		"vite-plugin-solid": "^2.11.8"
+		"oxfmt": "^0.44.0",
+		"oxlint": "^1.59.0",
+		"playwright-bdd": "^8.5.0",
+		"typescript": "^6.0.2",
+		"vite": "^8.0.8",
+		"vite-plugin-solid": "^2.11.12"
 	},
 	"engines": {
 		"vscode": "^1.86.0"

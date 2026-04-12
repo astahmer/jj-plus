@@ -497,7 +497,7 @@ async function jjTouchesFile(repoDir, revision, relativePath) {
 
 async function getWorkspaceFiles(repoDir) {
   const { stdout } = await run('git', ['ls-files', '--cached', '--others', '--exclude-standard'], repoDir);
-  return stdout.split(/\r?\n/).filter(Boolean).sort((a, b) => a.localeCompare(b));
+  return stdout.split(/\r?\n/).filter(Boolean).toSorted((a, b) => a.localeCompare(b));
 }
 
 async function makeWorkingTreeEntry(repoDir, previousEntry, relativePath, backend) {
