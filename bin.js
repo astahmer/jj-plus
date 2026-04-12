@@ -107,18 +107,15 @@ async function launchStandaloneTimeline(options) {
 		throw new Error(`Missing file path for standalone timeline\n\n${usage()}`);
 	}
 
-	const workspacePath = path.resolve(options.workspacePath || process.cwd());
+	const workspacePath = path.resolve(
+		options.workspacePath || (path.isAbsolute(options.filePath) ? path.dirname(options.filePath) : process.cwd()),
+	);
 	const absoluteFilePath = path.isAbsolute(options.filePath)
 		? path.resolve(options.filePath)
 		: path.resolve(workspacePath, options.filePath);
 
 	if (!fs.existsSync(absoluteFilePath)) {
 		throw new Error(`File not found: ${absoluteFilePath}`);
-	}
-
-	const relativePath = path.relative(workspacePath, absoluteFilePath);
-	if (!relativePath || relativePath.startsWith('..')) {
-		throw new Error(`The file must be inside the workspace: ${workspacePath}`);
 	}
 
 	const { startStandaloneTimelineServer } = require('./lib/standalone-webview.js');

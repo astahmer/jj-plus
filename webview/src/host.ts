@@ -48,6 +48,24 @@ function clone<T>(value: T): T {
 	return JSON.parse(JSON.stringify(value)) as T;
 }
 
+function getFixtureRangeOverview(fileFixture: TimelineFixtureFile) {
+	const workspaceFiles = fileFixture.timelineData.workspaceFiles || [];
+	return workspaceFiles
+		.slice(0, 150)
+		.map((relativePath) => ({
+			relativePath,
+			changeCount: relativePath === fileFixture.timelineData.relativePath ? 1 : 0,
+			isCurrentFile: relativePath === fileFixture.timelineData.relativePath,
+		}))
+		.toSorted((left, right) => {
+			if (left.isCurrentFile !== right.isCurrentFile) {
+				return Number(right.isCurrentFile) - Number(left.isCurrentFile);
+			}
+
+			return left.relativePath.localeCompare(right.relativePath);
+		});
+}
+
 export function createTimelineHost(): TimelineHost {
 	if (typeof window.acquireVsCodeApi === 'function') {
 		const vscode = window.acquireVsCodeApi();
@@ -154,6 +172,22 @@ export function createTimelineHost(): TimelineHost {
 					const fileFixture = getActiveFileFixture(fixture);
 					const resolved = resolveNonEmptyRange(fileFixture, command.candidateIndexes);
 					emit({ type: 'resolved-range', payload: resolved });
+				});
+				return;
+			}
+
+			if (command.command === 'load-range-overview') {
+				void getFixture().then((fixture) => {
+					const fileFixture = getActiveFileFixture(fixture);
+					emit({
+						type: 'range-overview',
+						payload: {
+							fromIndex: Math.min(command.fromIndex, command.toIndex),
+							toIndex: Math.max(command.fromIndex, command.toIndex),
+							comparisonSource: command.comparisonSource,
+							items: getFixtureRangeOverview(fileFixture),
+						},
+					});
 				});
 				return;
 			}

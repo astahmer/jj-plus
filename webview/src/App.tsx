@@ -18,8 +18,10 @@ import type {
 	ComparisonSource,
 	ContentMode,
 	DiffPreview,
+	FileSwitcherMode,
 	FileRevisionEntry,
 	LayoutMode,
+	RangeOverviewItem,
 	TimelineCommand,
 	TimelineData,
 	TimelineInboundMessage,
@@ -69,6 +71,9 @@ type UiState = {
 	hoveredSelectionIndex: number | null;
 	oldestFirst: boolean;
 	fileInputValue: string;
+	fileSwitcherMode: FileSwitcherMode;
+	rangeOverviewByRange: Record<string, RangeOverviewItem[]>;
+	rangeOverviewLoadingKey: string;
 	previewByRange: Record<string, DiffPreview>;
 	sidebarPreviewInFlightKey: string;
 	pendingRangeResolutionKey: string;
@@ -96,6 +101,9 @@ const initialState: UiState = {
 	hoveredSelectionIndex: null,
 	oldestFirst: false,
 	fileInputValue: '',
+	fileSwitcherMode: 'workspace',
+	rangeOverviewByRange: {},
+	rangeOverviewLoadingKey: '',
 	previewByRange: {},
 	sidebarPreviewInFlightKey: '',
 	pendingRangeResolutionKey: '',
@@ -220,6 +228,15 @@ export function App() {
 	const activePreviewKey = createMemo(() =>
 		buildPreviewKey(state.fromIndex, state.toIndex, effectiveComparisonSource()),
 	);
+	const activeRangeOverviewKey = createMemo(() =>
+		buildRangeOverviewKey(state.fromIndex, state.toIndex, effectiveComparisonSource()),
+	);
+	const activeRangeOverviewItems = createMemo<RangeOverviewItem[]>(
+		() => state.rangeOverviewByRange[activeRangeOverviewKey()] || [],
+	);
+	const rangeOverviewLoading = createMemo(
+		() => state.fileSwitcherMode === 'overview' && state.rangeOverviewLoadingKey === activeRangeOverviewKey(),
+	);
 	const preview = createMemo<DiffPreview | null>(() => state.previewByRange[activePreviewKey()] || null);
 
 	const previewForEntry = (entryIndex: number) => {
@@ -234,6 +251,11 @@ export function App() {
 	function clearPreviewState() {
 		setState('previewByRange', reconcile({}));
 		setState({ sidebarPreviewInFlightKey: '', pendingRangeResolutionKey: '' });
+	}
+
+	function clearRangeOverviewState() {
+		setState('rangeOverviewByRange', reconcile({}));
+		setState('rangeOverviewLoadingKey', '');
 	}
 
 	onMount(() => {
@@ -339,21 +361,23 @@ export function App() {
 			const anchor = (event.target as HTMLElement | null)?.closest(
 				'.track-anchor[data-entry-index]',
 			) as HTMLElement | null;
-			if (state.pendingSelectionIndex !== null && anchor) {
-				const hoveredSelectionIndex = Number(anchor.dataset.entryIndex || '');
-				const pendingTooltip = Number.isInteger(hoveredSelectionIndex)
-					? buildRangeTooltipState(
-							visibleEntries(),
-							state.previewByRange,
-							effectiveComparisonSource(),
-							state.pendingSelectionIndex,
-							hoveredSelectionIndex,
-							event.clientX,
-							event.clientY,
-							true,
-						)
-					: null;
-				setTooltip(pendingTooltip);
+			if (state.pendingSelectionIndex !== null) {
+				const hoveredSelectionIndex = getHoveredTrackEntryIndex(visibleEntries(), event.clientX, anchor);
+				if (state.hoveredSelectionIndex !== hoveredSelectionIndex) {
+					setState('hoveredSelectionIndex', hoveredSelectionIndex);
+				}
+
+				setTooltip(
+					buildPendingRangeTooltipState(
+						visibleEntries(),
+						state.previewByRange,
+						effectiveComparisonSource(),
+						state.pendingSelectionIndex,
+						hoveredSelectionIndex,
+						event.clientX,
+						event.clientY,
+					),
+				);
 				return;
 			}
 
@@ -369,6 +393,9 @@ export function App() {
 
 		const onTrackMouseLeave = () => {
 			if (!draggingTimeline) {
+				if (state.hoveredSelectionIndex !== null) {
+					setState('hoveredSelectionIndex', null);
+				}
 				setTooltip((current) => (current?.kind === 'range' ? null : current));
 			}
 		};
@@ -555,6 +582,27 @@ export function App() {
 		});
 	});
 
+	createEffect(() => {
+		if (
+			!ready() ||
+			!state.data ||
+			state.fileSwitcherMode !== 'overview' ||
+			visibleEntries().length < 2 ||
+			state.rangeOverviewLoadingKey === activeRangeOverviewKey() ||
+			state.rangeOverviewByRange[activeRangeOverviewKey()]
+		) {
+			return;
+		}
+
+		setState('rangeOverviewLoadingKey', activeRangeOverviewKey());
+		host.send({
+			command: 'load-range-overview',
+			fromIndex: state.fromIndex,
+			toIndex: state.toIndex,
+			comparisonSource: effectiveComparisonSource(),
+		});
+	});
+
 	createEffect((previousSource: ComparisonSource | null) => {
 		if (!ready() || !state.data || state.data.backend !== 'jj') {
 			return state.data?.backend === 'jj' ? state.comparisonSource : null;
@@ -643,6 +691,7 @@ export function App() {
 				sidebarSearchQuery: '',
 			});
 			clearPreviewState();
+			clearRangeOverviewState();
 			return;
 		}
 
@@ -698,10 +747,24 @@ export function App() {
 					toIndex: nextToIndex ?? state.toIndex,
 				});
 				clearPreviewState();
+				clearRangeOverviewState();
 				return;
 			}
 
 			setState('data', nextData);
+			return;
+		}
+
+		if (message.type === 'range-overview') {
+			const rangeKey = buildRangeOverviewKey(
+				message.payload.fromIndex,
+				message.payload.toIndex,
+				message.payload.comparisonSource,
+			);
+			setState('rangeOverviewByRange', rangeKey, message.payload.items);
+			if (state.rangeOverviewLoadingKey === rangeKey) {
+				setState('rangeOverviewLoadingKey', '');
+			}
 			return;
 		}
 
@@ -1099,19 +1162,17 @@ export function App() {
 
 	function onKeyDown(event: KeyboardEvent) {
 		const target = event.target as HTMLElement | null;
-		const tagName = target?.tagName?.toLowerCase();
 		const lowerKey = event.key.toLowerCase();
-		const isModifierless = !event.metaKey && !event.ctrlKey && !event.altKey;
-		const allowWhileEditing =
-			isModifierless &&
-			(lowerKey === 'b' ||
-				lowerKey === 'd' ||
-				lowerKey === 'f' ||
-				lowerKey === 's' ||
-				lowerKey === 't' ||
-				event.key === '/' ||
-				event.key === 'Escape');
-		if ((tagName === 'input' || tagName === 'textarea') && !allowWhileEditing) {
+		if (isEditableTarget(target)) {
+			if (event.key === 'Escape' && (state.hotkeysOpen || state.actionsMenuOpen)) {
+				event.preventDefault();
+				setState({
+					hotkeysOpen: false,
+					actionsMenuOpen: false,
+					pendingSelectionIndex: null,
+					hoveredSelectionIndex: null,
+				});
+			}
 			return;
 		}
 
@@ -1241,7 +1302,7 @@ export function App() {
 
 		if (state.pendingSelectionIndex !== null) {
 			setTooltip(
-				buildRangeTooltipState(
+				buildPendingRangeTooltipState(
 					visibleEntries(),
 					state.previewByRange,
 					effectiveComparisonSource(),
@@ -1249,7 +1310,6 @@ export function App() {
 					entryIndex,
 					centerX,
 					anchorTop,
-					true,
 				),
 			);
 			return;
@@ -1306,6 +1366,9 @@ export function App() {
 			sidebarEntries: filteredSidebarEntries,
 			workspaceFiles: () => state.data?.workspaceFiles || [],
 			fileInputValue: () => state.fileInputValue,
+			fileSwitcherMode: () => state.fileSwitcherMode,
+			rangeOverviewItems: activeRangeOverviewItems,
+			rangeOverviewLoading,
 			fromIndex: () => state.fromIndex,
 			toIndex: () => state.toIndex,
 			pendingSelectionIndex: () => state.pendingSelectionIndex,
@@ -1372,6 +1435,7 @@ export function App() {
 			hideRangeTooltip,
 			submitRevision,
 			toggleDiffFocus,
+			setFileSwitcherMode: (value) => setState('fileSwitcherMode', value),
 		},
 	};
 
@@ -1425,8 +1489,8 @@ export function App() {
 										</div>
 										<div class="anchor-tooltip-label">
 											{current.pending
-												? `Pending selection · ${current.selectedCount} revisions`
-												: `Segment preview · ${current.selectedCount} revisions`}
+												? `Pending selection · ${formatRevisionCount(current.selectedCount)}`
+												: formatRevisionCount(current.selectedCount)}
 										</div>
 										<div class="anchor-tooltip-meta">
 											From {current.fromEntry.relativeDate || 'unknown'} ·{' '}
@@ -1494,6 +1558,10 @@ function buildPreviewKey(fromIndex: number, toIndex: number, comparisonSource: C
 	return `${comparisonSource}:${normalizedFromIndex}:${normalizedToIndex}`;
 }
 
+function buildRangeOverviewKey(fromIndex: number, toIndex: number, comparisonSource: ComparisonSource) {
+	return buildPreviewKey(fromIndex, toIndex, comparisonSource);
+}
+
 function getVisibleIndexForAbsoluteIndex(entries: FileRevisionEntry[], entryIndex: number) {
 	return entries.findIndex((entry) => entry.index === entryIndex);
 }
@@ -1508,6 +1576,24 @@ function getVisibleIndexFromClientX(entries: FileRevisionEntry[], clientX: numbe
 	const ratio = Math.min(Math.max((clientX - trackRect.left) / Math.max(1, trackRect.width), 0), 1);
 	const denominator = Math.max(1, entries.length - 1);
 	return Math.min(entries.length - 1, Math.max(0, Math.round(ratio * denominator)));
+}
+
+function getHoveredTrackEntryIndex(
+	entries: FileRevisionEntry[],
+	clientX: number,
+	anchor: HTMLElement | null,
+): number | null {
+	const anchorIndex = Number(anchor?.dataset.entryIndex || '');
+	if (Number.isInteger(anchorIndex)) {
+		return anchorIndex;
+	}
+
+	const visibleIndex = getVisibleIndexFromClientX(entries, clientX);
+	if (visibleIndex < 0) {
+		return null;
+	}
+
+	return entries[visibleIndex]?.index ?? null;
 }
 
 function updateMarkerSelection(
@@ -1607,6 +1693,31 @@ function buildRangeTooltipState(
 	};
 }
 
+function buildPendingRangeTooltipState(
+	entries: FileRevisionEntry[],
+	previewByRange: Record<string, DiffPreview>,
+	comparisonSource: ComparisonSource,
+	pendingSelectionIndex: number,
+	hoveredSelectionIndex: number | null,
+	clientX: number,
+	clientY: number,
+): TooltipState | null {
+	if (hoveredSelectionIndex === null || hoveredSelectionIndex === pendingSelectionIndex) {
+		return null;
+	}
+
+	return buildRangeTooltipState(
+		entries,
+		previewByRange,
+		comparisonSource,
+		pendingSelectionIndex,
+		hoveredSelectionIndex,
+		clientX,
+		clientY,
+		true,
+	);
+}
+
 function getSegmentTooltipState(
 	entries: FileRevisionEntry[],
 	previewByRange: Record<string, DiffPreview>,
@@ -1644,6 +1755,15 @@ function formatExactTimestamp(authorDate: string) {
 	}
 
 	return date.toLocaleString();
+}
+
+function formatRevisionCount(count: number) {
+	return `${count} ${count === 1 ? 'revision' : 'revisions'}`;
+}
+
+function isEditableTarget(target: HTMLElement | null) {
+	const tagName = target?.tagName?.toLowerCase();
+	return tagName === 'input' || tagName === 'textarea' || tagName === 'select' || target?.isContentEditable === true;
 }
 
 function clampTooltipX(left: number) {

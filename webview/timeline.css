@@ -1,5 +1,6 @@
 :root {
 	color-scheme: dark;
+	--ui-size: var(--vscode-font-size, 13px);
 	--sidebar-width: 280px;
 	--timeline-pane-height: 278px;
 	--bg: var(--vscode-editor-background, #11151c);
@@ -33,6 +34,8 @@ body {
 	background: var(--bg);
 	color: var(--text);
 	font-family: var(--ui-font);
+	font-size: var(--ui-size);
+	line-height: 1.4;
 }
 
 button,
@@ -739,7 +742,36 @@ kbd {
 .file-switcher-row {
 	display: grid;
 	grid-template-columns: minmax(0, 1fr);
+	gap: 8px;
 	min-width: 0;
+}
+
+.file-switcher-toolbar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	min-width: 0;
+	flex-wrap: wrap;
+}
+
+.file-switcher-modes {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	flex-wrap: wrap;
+}
+
+.file-switcher-summary {
+	color: var(--muted);
+	font-size: 11px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.file-switcher-summary.is-loading {
+	color: var(--accent-alt);
 }
 
 .combobox {
@@ -1448,6 +1480,13 @@ kbd {
 }
 
 @media (max-width: 980px) {
+	.file-switcher-toolbar {
+		align-items: flex-start;
+	}
+
+	.file-switcher-summary {
+		white-space: normal;
+	}
 	.workspace,
 	.workspace.is-collapsed {
 		grid-template-columns: 1fr;

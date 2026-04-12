@@ -4,9 +4,11 @@ import type {
 	ComparisonSource,
 	ContentMode,
 	DiffPreview,
+	FileSwitcherMode,
 	FileRevisionEntry,
 	HistoryBackend,
 	LayoutMode,
+	RangeOverviewItem,
 	TimelinePreset,
 } from './types';
 
@@ -16,6 +18,9 @@ export type TimelineStateContext = {
 	sidebarEntries: Accessor<FileRevisionEntry[]>;
 	workspaceFiles: Accessor<string[]>;
 	fileInputValue: Accessor<string>;
+	fileSwitcherMode: Accessor<FileSwitcherMode>;
+	rangeOverviewItems: Accessor<RangeOverviewItem[]>;
+	rangeOverviewLoading: Accessor<boolean>;
 	fromIndex: Accessor<number>;
 	toIndex: Accessor<number>;
 	pendingSelectionIndex: Accessor<number | null>;
@@ -83,6 +88,7 @@ export type TimelineActionsContext = {
 	hideRangeTooltip: () => void;
 	submitRevision: (side: 'from' | 'to', value: string) => void;
 	toggleDiffFocus: () => void;
+	setFileSwitcherMode: (value: FileSwitcherMode) => void;
 };
 
 export type TimelineContextValue = {

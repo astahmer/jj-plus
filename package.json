@@ -33,10 +33,11 @@
 		"test:e2e": "pnpm fixtures:e2e && pnpm bddgen && playwright test",
 		"test:integration": "pnpm build:webview && pnpm fixtures:e2e && node ./integration/vscode/run.js",
 		"typecheck": "pnpm typecheck:web && pnpm typecheck:js",
-		"typecheck:js": "tsc --noEmit -p tsconfig.js.json",
-		"typecheck:web": "tsc --noEmit -p tsconfig.json"
+		"typecheck:js": "tsgo --noEmit -p tsconfig.js.json",
+		"typecheck:web": "tsgo --noEmit -p tsconfig.json"
 	},
 	"dependencies": {
+		"@typescript/native-preview": "7.0.0-dev.20260412.1",
 		"solid-js": "^1.9.12"
 	},
 	"devDependencies": {

@@ -1,6 +1,9 @@
 {
 	"$schema": "https://unpkg.com/knip@6/schema.json",
-	"entry": ["features/steps/**/*.ts", "integration/vscode/suite/**/*.js"],
+	"entry": [
+		"features/steps/**/*.ts",
+		"integration/vscode/suite/**/*.js"
+	],
 	"project": [
 		"*.{js,mjs,ts}",
 		"lib/**/*.js",
@@ -11,4 +14,7 @@
 		"features/**/*.ts",
 		"webview/**/*.{js,ts,tsx}",
 	],
+	"ignore": [
+		"features/support/fixtures.ts"
+	]
 }

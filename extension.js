@@ -113,6 +113,7 @@ let timelineDebugState = createEmptyTimelineDebugState();
  * @property {string[]} workspaceFiles
  * @property {Map<string, string>} contentCache
  * @property {Map<string, DiffPreview>} previewCache
+ * @property {Map<string, RangeOverviewItem[]>} rangeOverviewCache
  * @property {Map<string, string>} pathCache
  * @property {AbortController | undefined} activeActionAbortController
  */
@@ -156,6 +157,13 @@ let timelineDebugState = createEmptyTimelineDebugState();
  */
 
 /**
+ * @typedef {object} RangeOverviewItem
+ * @property {string} relativePath
+ * @property {number} changeCount
+ * @property {boolean=} isCurrentFile
+ */
+
+/**
  * @param {vscode.ExtensionContext} context
  */
 function activate(context) {
@@ -182,10 +190,10 @@ function activate(context) {
 
 			const base = shouldPromptForInputs(args)
 				? await resolveInput({
-						value: getFromValue(args),
-						prompt: 'From change id or revset',
-						placeHolder: DEFAULT_FROM_REVSET,
-					})
+					value: getFromValue(args),
+					prompt: 'From change id or revset',
+					placeHolder: DEFAULT_FROM_REVSET,
+				})
 				: getFromValue(args);
 			if (!base) {
 				return;
@@ -193,10 +201,10 @@ function activate(context) {
 
 			const target = shouldPromptForInputs(args)
 				? await resolveInput({
-						value: getToValue(args),
-						prompt: 'To change id or revset',
-						placeHolder: DEFAULT_TO_REVSET,
-					})
+					value: getToValue(args),
+					prompt: 'To change id or revset',
+					placeHolder: DEFAULT_TO_REVSET,
+				})
 				: getToValue(args);
 			if (!target) {
 				return;
@@ -241,7 +249,7 @@ function activate(context) {
 	void resumePendingRangeDiff(context, openRangeMultiDiff);
 }
 
-function deactivate() {}
+function deactivate() { }
 
 class SnapshotContentProvider {
 	/**
@@ -341,9 +349,9 @@ function getOrCreateTimelinePanel(context, fileName) {
 			enableFindWidget: true,
 			localResourceRoots: extensionContext
 				? [
-						vscode.Uri.joinPath(extensionContext.extensionUri, 'webview'),
-						vscode.Uri.joinPath(extensionContext.extensionUri, 'webview-dist'),
-					]
+					vscode.Uri.joinPath(extensionContext.extensionUri, 'webview'),
+					vscode.Uri.joinPath(extensionContext.extensionUri, 'webview-dist'),
+				]
 				: undefined,
 		},
 	);
@@ -493,6 +501,18 @@ async function handleTimelineMessage(panel, session, message) {
 		return;
 	}
 
+	if (command === 'load-range-overview') {
+		const fromIndex = Number(Reflect.get(message, 'fromIndex'));
+		const toIndex = Number(Reflect.get(message, 'toIndex'));
+		const comparisonSource = getComparisonSource(Reflect.get(message, 'comparisonSource'));
+		if (!Number.isInteger(fromIndex) || !Number.isInteger(toIndex)) {
+			return;
+		}
+
+		await sendRangeOverview(panel, session, fromIndex, toIndex, comparisonSource);
+		return;
+	}
+
 	if (command === 'hydrate-snapshot-entries') {
 		const revisionIndexes = Reflect.get(message, 'revisionIndexes');
 		if (!Array.isArray(revisionIndexes)) {
@@ -606,7 +626,32 @@ async function handleTimelineMessage(panel, session, message) {
 			return;
 		}
 
-		await openFileRevisionTimeline(extensionContext, path.join(session.workspacePath, relativePath));
+		const nextSession = await buildTimelineSession(session.workspacePath, path.join(session.workspacePath, relativePath));
+		if (!nextSession.entries.length) {
+			void vscode.window.showInformationMessage('No file revisions were found for the selected file');
+			return;
+		}
+
+		syncTimelineSession(session, nextSession);
+		currentTimelineSession = session;
+		panel.title = `Revision Timeline: ${session.fileName}`;
+		timelineDebugState = {
+			...timelineDebugState,
+			panelOpen: true,
+			panelTitle: panel.title,
+			backend: session.backend,
+			workspacePath: session.workspacePath,
+			relativePath: session.relativePath,
+			fileName: session.fileName,
+			entryCount: session.entries.length,
+			snapshotEntryCount: session.snapshotEntries.length,
+			usesBundledWebview: hasBundledTimelineWebviewAssets(),
+			lastMessageCommand: 'switch-file',
+		};
+		await postTimelineMessage(panel, {
+			type: 'timeline-data',
+			payload: buildTimelinePayload(session, getTimelinePreferences(extensionContext)),
+		});
 		return;
 	}
 
@@ -634,6 +679,16 @@ async function handleTimelineMessage(panel, session, message) {
 		const nextSession = await buildTimelineSession(session.workspacePath, session.absolutePath);
 		syncTimelineSession(session, nextSession);
 		currentTimelineSession = session;
+		timelineDebugState = {
+			...timelineDebugState,
+			backend: session.backend,
+			workspacePath: session.workspacePath,
+			relativePath: session.relativePath,
+			fileName: session.fileName,
+			entryCount: session.entries.length,
+			snapshotEntryCount: session.snapshotEntries.length,
+			lastMessageCommand: 'refresh',
+		};
 		await postTimelineMessage(panel, {
 			type: 'timeline-data',
 			payload: buildTimelinePayload(session, getTimelinePreferences(extensionContext)),
@@ -652,6 +707,27 @@ async function sendTimelinePreview(panel, session, fromIndex, toIndex, compariso
 	await postTimelineMessage(panel, {
 		type: 'diff-preview',
 		payload: await getDiffPreview(session, fromIndex, toIndex, comparisonSource),
+	});
+}
+
+/**
+ * @param {vscode.WebviewPanel} panel
+ * @param {TimelineSession} session
+ * @param {number} fromIndex
+ * @param {number} toIndex
+ * @param {'revision' | 'snapshot'} comparisonSource
+ */
+async function sendRangeOverview(panel, session, fromIndex, toIndex, comparisonSource = 'revision') {
+	const normalizedFromIndex = Math.max(0, Math.min(fromIndex, toIndex));
+	const normalizedToIndex = Math.max(normalizedFromIndex, Math.max(fromIndex, toIndex));
+	await postTimelineMessage(panel, {
+		type: 'range-overview',
+		payload: {
+			fromIndex: normalizedFromIndex,
+			toIndex: normalizedToIndex,
+			comparisonSource,
+			items: await getRangeOverview(session, normalizedFromIndex, normalizedToIndex, comparisonSource),
+		},
 	});
 }
 
@@ -745,6 +821,7 @@ function syncTimelineSession(target, source) {
 	target.workspaceFiles = source.workspaceFiles;
 	target.contentCache = source.contentCache;
 	target.previewCache = source.previewCache;
+	target.rangeOverviewCache = source.rangeOverviewCache;
 	target.pathCache = source.pathCache;
 	target.activeActionAbortController = source.activeActionAbortController;
 }
@@ -880,6 +957,7 @@ async function buildTimelineSession(workspacePath, absolutePath) {
 		workspaceFiles,
 		contentCache: new Map(),
 		previewCache: new Map(),
+		rangeOverviewCache: new Map(),
 		pathCache: new Map(),
 		activeActionAbortController: undefined,
 	};
@@ -1155,7 +1233,7 @@ function composeSnapshotEntries(revisionEntries, snapshotEntries, loadedChangeId
 		existing.push(entry);
 		groups.set(entry.changeId, existing);
 		return groups;
-	}, /** @type {Map<string, FileRevisionEntry[]>} */ (new Map()));
+	}, /** @type {Map<string, FileRevisionEntry[]>} */(new Map()));
 
 	return revisionEntries.flatMap((entry) => {
 		if (entry.isWorkingTree || !entry.touchesFile || !entry.changeId || !loadedChangeIds.has(entry.changeId)) {
@@ -1196,7 +1274,7 @@ async function hydrateJjSnapshotEntries(session, revisionIndexes) {
 
 			entries.push(entry);
 			return entries;
-		}, /** @type {FileRevisionEntry[]} */ ([]))
+		}, /** @type {FileRevisionEntry[]} */([]))
 		.slice(-MAX_SNAPSHOT_HYDRATION_CHANGES);
 
 	if (!uniqueTargets.length) {
@@ -2178,6 +2256,113 @@ async function listGitRevisionFiles(workspacePath, revision) {
 		.split(/\r?\n/u)
 		.map((line) => line.trim())
 		.filter(Boolean);
+}
+
+/**
+ * @param {string} workspacePath
+ * @returns {Promise<string[]>}
+ */
+async function listGitWorkingTreeFiles(workspacePath) {
+	const signal = arguments.length > 1 ? arguments[1] : undefined;
+	const files = new Set();
+
+	try {
+		const { stdout } = await runGit(workspacePath, ['diff', '--name-only', 'HEAD', '--'], { signal });
+		for (const relativePath of stdout
+			.split(/\r?\n/u)
+			.map((line) => line.trim())
+			.filter(Boolean)) {
+			files.add(relativePath);
+		}
+	} catch { }
+
+	try {
+		const { stdout } = await runGit(workspacePath, ['ls-files', '--others', '--exclude-standard'], { signal });
+		for (const relativePath of stdout
+			.split(/\r?\n/u)
+			.map((line) => line.trim())
+			.filter(Boolean)) {
+			files.add(relativePath);
+		}
+	} catch { }
+
+	return [...files].toSorted((left, right) => left.localeCompare(right));
+}
+
+/**
+ * @param {TimelineSession} session
+ * @param {number} fromIndex
+ * @param {number} toIndex
+ * @param {'revision' | 'snapshot'} comparisonSource
+ * @returns {Promise<RangeOverviewItem[]>}
+ */
+async function getRangeOverview(session, fromIndex, toIndex, comparisonSource = 'revision') {
+	const normalizedFromIndex = Math.max(0, Math.min(fromIndex, toIndex));
+	const normalizedToIndex = Math.max(normalizedFromIndex, Math.max(fromIndex, toIndex));
+	const cacheKey = `${comparisonSource}:${normalizedFromIndex}:${normalizedToIndex}`;
+	const cached = session.rangeOverviewCache.get(cacheKey);
+	if (cached) {
+		return cached;
+	}
+
+	const sourceEntries = getEntriesForSource(session, comparisonSource);
+	const countedPaths = new Map();
+	const workspaceFileSet = new Set(session.workspaceFiles);
+
+	for (let index = normalizedFromIndex + 1; index <= normalizedToIndex; index += 1) {
+		const entry = sourceEntries[index];
+		if (!entry) {
+			continue;
+		}
+
+		const changedFiles = await listRangeOverviewFilesForEntry(session, entry);
+		for (const relativePath of changedFiles) {
+			if (!relativePath || (!workspaceFileSet.has(relativePath) && relativePath !== session.relativePath)) {
+				continue;
+			}
+
+			countedPaths.set(relativePath, (countedPaths.get(relativePath) || 0) + 1);
+		}
+	}
+
+	const items = [...countedPaths.entries()]
+		.map(([relativePath, changeCount]) => ({
+			relativePath,
+			changeCount,
+			isCurrentFile: relativePath === session.relativePath,
+		}))
+		.toSorted((left, right) => {
+			if (left.changeCount !== right.changeCount) {
+				return right.changeCount - left.changeCount;
+			}
+
+			if (left.isCurrentFile !== right.isCurrentFile) {
+				return Number(right.isCurrentFile) - Number(left.isCurrentFile);
+			}
+
+			return left.relativePath.localeCompare(right.relativePath);
+		})
+		.slice(0, 150);
+
+	session.rangeOverviewCache.set(cacheKey, items);
+	return items;
+}
+
+/**
+ * @param {TimelineSession} session
+ * @param {FileRevisionEntry} entry
+ * @returns {Promise<string[]>}
+ */
+async function listRangeOverviewFilesForEntry(session, entry) {
+	if (session.backend === 'git') {
+		return entry.isWorkingTree
+			? listGitWorkingTreeFiles(session.workspacePath)
+			: listGitRevisionFiles(session.workspacePath, entry.revision);
+	}
+
+	return entry.isWorkingTree
+		? listRevisionFiles(session.workspacePath, '@')
+		: listRevisionFiles(session.workspacePath, entry.revision);
 }
 
 /**

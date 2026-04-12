@@ -8,9 +8,40 @@ import { TimelineTrack } from './timeline-track';
 
 export function TimelinePane() {
 	const { state, actions } = useTimelineContext();
-	const fileOptions = createMemo(() => state.workspaceFiles().map((value) => ({ value }) satisfies ComboboxOption));
+	const fileOptions = createMemo(() => {
+		if (state.fileSwitcherMode() === 'overview') {
+			return state.rangeOverviewItems().map(
+				(item) =>
+					({
+						value: item.relativePath,
+						description: `${item.changeCount} touched ${item.changeCount === 1 ? 'revision' : 'revisions'}${item.isCurrentFile ? ' · current file' : ''}`,
+					}) satisfies ComboboxOption,
+			);
+		}
+
+		return state.workspaceFiles().map((value) => ({ value }) satisfies ComboboxOption);
+	});
 	const collapseLabel = createMemo(() => (state.timelinePaneCollapsed() ? 'Expand' : 'Timeline only'));
 	const showStepStatusRow = createMemo(() => Boolean(state.stepStatus()) || state.showSnapshotStatus());
+	const fileSwitcherPlaceholder = createMemo(() =>
+		state.fileSwitcherMode() === 'overview' ? 'Jump to a top-changed file...' : 'Switch file...',
+	);
+	const overviewSummary = createMemo(() => {
+		if (state.fileSwitcherMode() !== 'overview') {
+			return '';
+		}
+
+		if (state.rangeOverviewLoading()) {
+			return 'Scanning selected revisions...';
+		}
+
+		const itemCount = state.rangeOverviewItems().length;
+		if (!itemCount) {
+			return 'No changed files in the current range';
+		}
+
+		return `${itemCount} ${itemCount === 1 ? 'file' : 'files'} in the current range`;
+	});
 
 	return (
 		<div class={`timeline-pane${state.timelinePaneCollapsed() ? ' is-collapsed' : ''}`} id="timelinePane">
@@ -45,11 +76,34 @@ export function TimelinePane() {
 			<div class="diff-head" id="timelineChrome">
 				<div class="diff-head-top">
 					<div class="file-switcher-row">
+						<div class="file-switcher-toolbar">
+							<div class="file-switcher-modes" role="tablist" aria-label="File switcher mode">
+								<button
+									class={`toggle-chip${state.fileSwitcherMode() === 'workspace' ? ' active' : ''}`}
+									type="button"
+									onClick={() => actions.setFileSwitcherMode('workspace')}
+								>
+									All files
+								</button>
+								<button
+									class={`toggle-chip${state.fileSwitcherMode() === 'overview' ? ' active' : ''}`}
+									type="button"
+									onClick={() => actions.setFileSwitcherMode('overview')}
+								>
+									Top changed
+								</button>
+							</div>
+							<Show when={state.fileSwitcherMode() === 'overview'}>
+								<div class={`file-switcher-summary${state.rangeOverviewLoading() ? ' is-loading' : ''}`}>
+									{overviewSummary()}
+								</div>
+							</Show>
+						</div>
 						<Combobox
 							id="fileSwitcher"
 							inputClass="file-input"
 							value={state.fileInputValue()}
-							placeholder="Switch file..."
+							placeholder={fileSwitcherPlaceholder()}
 							options={fileOptions()}
 							onCommit={actions.submitFile}
 						/>

@@ -4,6 +4,7 @@ export type ComparisonSource = 'revision' | 'snapshot';
 export type LayoutMode = 'split' | 'unified';
 export type ContentMode = 'diffs' | 'full';
 export type TimelinePreset = 'year' | '7d' | '30d' | '90d' | 'all';
+export type FileSwitcherMode = 'workspace' | 'overview';
 
 export type FileRevisionEntry = {
 	id: string;
@@ -39,6 +40,12 @@ export type TimelinePreferences = {
 	comparisonSource?: ComparisonSource;
 	showIntermediateRevisions?: boolean;
 	preset?: TimelinePreset;
+};
+
+export type RangeOverviewItem = {
+	relativePath: string;
+	changeCount: number;
+	isCurrentFile?: boolean;
 };
 
 export type TimelineData = {
@@ -88,6 +95,15 @@ export type TimelineInboundMessage =
 	| { type: 'timeline-data'; payload: TimelineData }
 	| { type: 'diff-preview'; payload: DiffPreview }
 	| { type: 'snapshot-entries'; payload: Pick<TimelineData, 'snapshotEntries' | 'snapshotState'> }
+	| {
+			type: 'range-overview';
+			payload: {
+				fromIndex: number;
+				toIndex: number;
+				comparisonSource: ComparisonSource;
+				items: RangeOverviewItem[];
+			};
+	  }
 	| { type: 'resolved-range'; payload: { fromIndex: number; toIndex: number } | null };
 
 export type TimelineCommand =
@@ -101,6 +117,7 @@ export type TimelineCommand =
 	| { command: 'open-revision-files-diff'; entryIndex: number; comparisonSource: ComparisonSource }
 	| { command: 'open-revision-remote'; entryIndex: number; comparisonSource: ComparisonSource }
 	| { command: 'hydrate-snapshot-entries'; revisionIndexes: number[] }
+	| { command: 'load-range-overview'; fromIndex: number; toIndex: number; comparisonSource: ComparisonSource }
 	| { command: 'resolve-nonempty-range'; candidateIndexes: number[] }
 	| { command: 'switch-file'; relativePath: string }
 	| {
