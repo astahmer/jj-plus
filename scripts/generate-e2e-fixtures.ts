@@ -43,6 +43,12 @@ const subtitleDateFormatter = new Intl.DateTimeFormat(displayLocale, {
 	hour12: true,
 	timeZone: displayTimeZone,
 });
+const revisionTouchedPathsCache = {
+	git: new Map<string, Promise<Set<string>>>(),
+	jj: new Map<string, Promise<Set<string>>>(),
+};
+const entryContentCache = new Map<string, Promise<string>>();
+const jjEvolutionSummaryCache = new Map<string, Promise<ReturnType<typeof parseJjEvolutionSummaryEntries>>>();
 
 await fs.rm(runtimeDir, { recursive: true, force: true });
 await fs.mkdir(reposDir, { recursive: true });
@@ -151,10 +157,16 @@ async function buildRepositoryFixture(repoDir, backend) {
 }
 
 async function stabilizeJjFixture(fixture, repoDir) {
-	const fileFixtures = [fixture, ...Object.values(fixture.files || {})];
+	const fileFixtures = Object.values(fixture.files || {});
 
 	for (const fileFixture of fileFixtures) {
 		await stabilizeJjFileFixture(fileFixture, repoDir);
+	}
+
+	const primaryFileFixture = fixture.files?.[defaultRelativeFilePath];
+	if (primaryFileFixture) {
+		fixture.timelineData = primaryFileFixture.timelineData;
+		fixture.previews = primaryFileFixture.previews;
 	}
 
 	return fixture;
@@ -208,7 +220,6 @@ async function stabilizeJjFileFixture(fileFixture, repoDir) {
 		fileFixture.timelineData.snapshotEntries,
 		new Set(fileFixture.timelineData.snapshotState?.loadedChangeIds || []),
 	);
-	const contentCache = new Map();
 
 	fileFixture.previews = {
 		revision: await buildPreviewMap(
@@ -217,7 +228,6 @@ async function stabilizeJjFileFixture(fileFixture, repoDir) {
 			'jj',
 			fileFixture.timelineData.relativePath,
 			'revision',
-			contentCache,
 		),
 		snapshot: await buildPreviewMap(
 			repoDir,
@@ -225,7 +235,6 @@ async function stabilizeJjFileFixture(fileFixture, repoDir) {
 			'jj',
 			fileFixture.timelineData.relativePath,
 			'snapshot',
-			contentCache,
 		),
 	};
 }
@@ -249,7 +258,6 @@ async function buildFileFixture(repoDir, backend, relativePath, workspaceFiles) 
 	const loadedChangeIds = backend === 'jj' ? [...new Set(entries.map((entry) => entry.changeId).filter(Boolean))] : [];
 	const snapshotSourceEntries =
 		backend === 'jj' ? composeSnapshotEntries(entries, snapshotEntries, new Set(loadedChangeIds)) : entries;
-	const contentCache = new Map();
 
 	return {
 		timelineData: {
@@ -279,11 +287,11 @@ async function buildFileFixture(repoDir, backend, relativePath, workspaceFiles) 
 			},
 		},
 		previews: {
-			revision: await buildPreviewMap(repoDir, entries, backend, relativePath, 'revision', contentCache),
+			revision: await buildPreviewMap(repoDir, entries, backend, relativePath, 'revision'),
 			snapshot:
 				backend === 'jj'
-					? await buildPreviewMap(repoDir, snapshotSourceEntries, backend, relativePath, 'snapshot', contentCache)
-					: await buildPreviewMap(repoDir, entries, backend, relativePath, 'revision', contentCache),
+					? await buildPreviewMap(repoDir, snapshotSourceEntries, backend, relativePath, 'snapshot')
+					: await buildPreviewMap(repoDir, entries, backend, relativePath, 'revision'),
 		},
 	};
 }
@@ -388,18 +396,9 @@ async function getJjSnapshotEntries(repoDir, relativePath, revisionEntries) {
 				return [];
 			}
 
-			let stdout = '';
-			try {
-				({ stdout } = await run(
-					'jj',
-					['evolog', '--no-graph', '--summary', '--limit', '100', '-r', entry.revision],
-					repoDir,
-				));
-			} catch {
-				return [];
-			}
+			const evolutionEntries = await getJjEvolutionEntries(repoDir, entry.revision);
 
-			return parseJjEvolutionSummaryEntries(stdout)
+			return evolutionEntries
 				.filter((evolutionEntry) => parseJjSummaryChangedPaths(evolutionEntry.summaryLines).includes(relativePath))
 				.map((evolutionEntry) =>
 					makeEntry({
@@ -454,7 +453,14 @@ function composeSnapshotEntries(revisionEntries, snapshotEntries, loadedChangeId
 	);
 }
 
-async function buildPreviewMap(repoDir, entries, backend, relativePath, comparisonSource, contentCache = new Map()) {
+async function buildPreviewMap(
+	repoDir,
+	entries,
+	backend,
+	relativePath,
+	comparisonSource,
+	contentCache = entryContentCache,
+) {
 	const previews = {};
 	const entryContents = await Promise.all(
 		entries.map((entry) => getEntryContent(repoDir, backend, entry, relativePath, contentCache)),
@@ -497,7 +503,7 @@ function buildPreview(entries, entryContents, comparisonSource, fromIndex, toInd
 	};
 }
 
-async function getEntryContent(repoDir, backend, entry, relativePath, contentCache = new Map()) {
+async function getEntryContent(repoDir, backend, entry, relativePath, contentCache = entryContentCache) {
 	const cacheKey = `${backend}:${entry.revision}:${relativePath}`;
 	const cached = contentCache.get(cacheKey);
 	if (cached) {
@@ -616,21 +622,11 @@ function splitLines(value) {
 }
 
 async function gitTouchesFile(repoDir, revision, relativePath) {
-	const { stdout } = await run(
-		'git',
-		['diff-tree', '--root', '--no-commit-id', '--name-only', '-r', revision, '--', relativePath],
-		repoDir,
-	);
-	return stdout.trim().length > 0;
+	return (await getGitTouchedPaths(repoDir, revision)).has(relativePath);
 }
 
 async function jjTouchesFile(repoDir, revision, relativePath) {
-	const { stdout } = await run('jj', ['diff', '--name-only', '-r', revision], repoDir);
-	return stdout
-		.split(/\r?\n/)
-		.map((line) => line.trim())
-		.filter(Boolean)
-		.includes(relativePath);
+	return (await getJjTouchedPaths(repoDir, revision)).has(relativePath);
 }
 
 async function getWorkspaceFiles(repoDir) {
@@ -643,10 +639,7 @@ async function getWorkspaceFiles(repoDir) {
 
 async function makeWorkingTreeEntry(repoDir, previousEntry, relativePath, backend) {
 	const content = await fs.readFile(path.join(repoDir, relativePath), 'utf8');
-	const contentCache = new Map();
-	const previousContent = previousEntry
-		? await getEntryContent(repoDir, backend, previousEntry, relativePath, contentCache)
-		: '';
+	const previousContent = previousEntry ? await getEntryContent(repoDir, backend, previousEntry, relativePath) : '';
 	if (content === previousContent) {
 		return null;
 	}
@@ -749,11 +742,13 @@ async function commit(repoDir: string, date: string, message: string, files: Rec
 }
 
 async function writeFiles(repoDir: string, files: Record<string, string>) {
-	for (const [relativePath, content] of Object.entries(files)) {
-		const targetPath = path.join(repoDir, relativePath);
-		await fs.mkdir(path.dirname(targetPath), { recursive: true });
-		await fs.writeFile(targetPath, content);
-	}
+	await Promise.all(
+		Object.entries(files).map(async ([relativePath, content]) => {
+			const targetPath = path.join(repoDir, relativePath);
+			await fs.mkdir(path.dirname(targetPath), { recursive: true });
+			await fs.writeFile(targetPath, content);
+		}),
+	);
 }
 
 function buildPlanContent(title, line, note) {
@@ -790,4 +785,52 @@ async function run(command, args, cwd, env = {}) {
 			...env,
 		},
 	});
+}
+
+async function getJjEvolutionEntries(repoDir: string, revision: string) {
+	const cacheKey = `${repoDir}:${revision}`;
+	let cached = jjEvolutionSummaryCache.get(cacheKey);
+	if (!cached) {
+		cached = run('jj', ['evolog', '--no-graph', '--summary', '--limit', '100', '-r', revision], repoDir)
+			.then(({ stdout }) => parseJjEvolutionSummaryEntries(stdout))
+			.catch(() => []);
+		jjEvolutionSummaryCache.set(cacheKey, cached);
+	}
+
+	return cached;
+}
+
+async function getGitTouchedPaths(repoDir: string, revision: string) {
+	const cacheKey = `${repoDir}:${revision}`;
+	let cached = revisionTouchedPathsCache.git.get(cacheKey);
+	if (!cached) {
+		cached = run('git', ['diff-tree', '--root', '--no-commit-id', '--name-only', '-r', revision], repoDir).then(
+			({ stdout }) => parseTouchedPaths(stdout),
+		);
+		revisionTouchedPathsCache.git.set(cacheKey, cached);
+	}
+
+	return cached;
+}
+
+async function getJjTouchedPaths(repoDir: string, revision: string) {
+	const cacheKey = `${repoDir}:${revision}`;
+	let cached = revisionTouchedPathsCache.jj.get(cacheKey);
+	if (!cached) {
+		cached = run('jj', ['diff', '--name-only', '-r', revision], repoDir).then(({ stdout }) =>
+			parseTouchedPaths(stdout),
+		);
+		revisionTouchedPathsCache.jj.set(cacheKey, cached);
+	}
+
+	return cached;
+}
+
+function parseTouchedPaths(stdout: string) {
+	return new Set(
+		stdout
+			.split(/\r?\n/)
+			.map((line) => line.trim())
+			.filter(Boolean),
+	);
 }
