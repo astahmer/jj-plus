@@ -11,6 +11,7 @@ import {
 	parseJjSummaryRenameLines,
 } from '../src/shared/history-helpers.ts';
 import {
+	findRevisionEntryMatch,
 	getEntriesForSource,
 	getIntermediateToggleLabel,
 	getPendingSelectionRange,
@@ -253,6 +254,17 @@ test('timeline model computes unit preview ranges and selected counts', () => {
 	assert.equal(getSelectedEntryCount(visibleEntries, 8, 14), 3);
 	assert.deepEqual(getSelectedDiffEntryIndexes(visibleEntries, 4, 14, 'range'), [8, 10, 14]);
 	assert.deepEqual(getSelectedDiffEntryIndexes(visibleEntries, 8, 10, 'step'), [10]);
+});
+
+test('timeline model finds revision matches by short revision or full revision prefix', () => {
+	const visibleEntries = [
+		makeEntry({ index: 1, shortRevision: 'abc123', revision: 'abc123456789' }),
+		makeEntry({ index: 2, shortRevision: 'def456', revision: 'def456987654' }),
+	];
+
+	assert.equal(findRevisionEntryMatch(visibleEntries, 'abc123')?.index, 1);
+	assert.equal(findRevisionEntryMatch(visibleEntries, 'def45698')?.index, 2);
+	assert.equal(findRevisionEntryMatch(visibleEntries, 'missing'), undefined);
 });
 
 test('timeline model totals selection diff counts from range overview items', () => {

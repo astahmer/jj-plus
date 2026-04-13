@@ -39,6 +39,7 @@ export function Combobox(props: ComboboxProps) {
 		});
 	});
 
+	// Keep the draft aligned with committed state unless the user is actively editing the field.
 	createEffect(() => {
 		if (editing() && draftValue() !== props.value) {
 			return;
@@ -47,6 +48,7 @@ export function Combobox(props: ComboboxProps) {
 		setDraftValue(props.value);
 	});
 
+	// Clamp the highlighted option whenever filtering changes the size of the option list.
 	createEffect(() => {
 		const options = filteredOptions();
 		if (!options.length) {
@@ -57,6 +59,7 @@ export function Combobox(props: ComboboxProps) {
 		setActiveIndex((index) => Math.min(Math.max(index, 0), options.length - 1));
 	});
 
+	// Keep the active option visible while keyboard navigation moves through an open menu.
 	createEffect(() => {
 		if (!open()) {
 			return;

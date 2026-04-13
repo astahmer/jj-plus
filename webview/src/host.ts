@@ -66,6 +66,23 @@ function getFixtureRangeOverview(fileFixture: TimelineFixtureFile) {
 		});
 }
 
+function getFixtureEntryDiffCount(
+	fileFixture: TimelineFixtureFile,
+	entryIndex: number,
+	comparisonSource: ComparisonSource,
+) {
+	const sourceEntries = getEntriesForSource(fileFixture.timelineData, comparisonSource);
+	const entry = sourceEntries[entryIndex];
+	const previousEntry = sourceEntries[Math.max(0, entryIndex - 1)];
+	if (!entry || !previousEntry || entryIndex <= 0) {
+		return 0;
+	}
+
+	const previewMap = fileFixture.previews[comparisonSource] || fileFixture.previews.revision || {};
+	const key = `${Math.min(previousEntry.index, entry.index)}:${Math.max(previousEntry.index, entry.index)}`;
+	return previewMap[key]?.hasChanges ? 1 : 0;
+}
+
 async function maybeAttachStandaloneEditorCommand(command: TimelineCommand): Promise<TimelineCommand | null> {
 	if (command.command !== 'open-range-files-diff' && command.command !== 'open-revision-files-diff') {
 		return command;
@@ -221,6 +238,23 @@ export function createTimelineHost(): TimelineHost {
 							comparisonSource: command.comparisonSource,
 							selectedEntryIndexes: command.selectedEntryIndexes,
 							items: getFixtureRangeOverview(fileFixture),
+						},
+					});
+				});
+				return;
+			}
+
+			if (command.command === 'load-entry-diff-counts') {
+				void getFixture().then((fixture) => {
+					const fileFixture = getActiveFileFixture(fixture);
+					emit({
+						type: 'entry-diff-counts',
+						payload: {
+							comparisonSource: command.comparisonSource,
+							counts: command.entryIndexes.map((entryIndex) => ({
+								entryIndex,
+								diffCount: getFixtureEntryDiffCount(fileFixture, entryIndex, command.comparisonSource),
+							})),
 						},
 					});
 				});

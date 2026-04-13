@@ -55,6 +55,18 @@ export function getSelectedEntryCount(visibleEntries: FileRevisionEntry[], fromI
 	return visibleEntries.filter((entry) => entry.index >= minIndex && entry.index <= maxIndex).length;
 }
 
+export function findRevisionEntryMatch(entries: FileRevisionEntry[], value: string): FileRevisionEntry | undefined {
+	const query = value.trim().toLowerCase();
+	if (!query) {
+		return undefined;
+	}
+
+	return (
+		entries.find((entry) => entry.shortRevision.toLowerCase() === query) ||
+		entries.find((entry) => entry.revision.toLowerCase().startsWith(query))
+	);
+}
+
 export function getSelectedDiffEntryIndexes(
 	visibleEntries: FileRevisionEntry[],
 	fromIndex: number,

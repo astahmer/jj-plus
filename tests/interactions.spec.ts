@@ -3,6 +3,18 @@ import { expect, test, type Page } from '@playwright/test';
 test.describe('timeline interactions', () => {
 	test.use({ viewport: { width: 1500, height: 1100 } });
 
+	test('selection diff actions show known diff counts', async ({ page }) => {
+		await openFixture(page, 'jj-basic');
+
+		await expect(page.locator('#openSidebarRangeDiffButton')).toContainText('Open selection diffs (1)');
+		await expect(page.locator('#actionsButton')).toBeVisible();
+		await page.locator('#actionsButton').click();
+		await expect(page.locator('#openRangeFilesButton')).toContainText('Open diffs (1)');
+		await expect(
+			sidebarRevision(page, 'plan refinement').getByRole('button', { name: /Open diffs \(1\)/ }),
+		).toBeVisible();
+	});
+
 	test('modifier-free letter hotkeys stay inert while an input is focused', async ({ page }) => {
 		await openFixture(page, 'git-basic');
 
@@ -19,6 +31,47 @@ test.describe('timeline interactions', () => {
 		await page.keyboard.press('b');
 		await expect(fileSwitcher).toBeFocused();
 		await expect(workspace).not.toHaveClass(/is-collapsed/);
+	});
+
+	test('shortcut-focused inputs stop chaining once the user starts typing', async ({ page }) => {
+		await openFixture(page, 'git-basic');
+
+		const fileSwitcher = page.locator('#fileSwitcher');
+		await page.keyboard.press('/');
+		await expect(fileSwitcher).toBeFocused();
+
+		await page.keyboard.press('x');
+		await page.keyboard.press('f');
+
+		await expect(fileSwitcher).toBeFocused();
+		await expect(page.locator('#fromRevisionInput')).not.toBeFocused();
+	});
+
+	test('revision handle pills focus the matching sidebar entries', async ({ page }) => {
+		await openFixture(page, 'git-basic');
+
+		await page.locator('#fromHandleLabel').click();
+		await expect.poll(async () => activeEntryIndex(page)).toBe('4');
+
+		await page.locator('#toHandleLabel').click();
+		await expect.poll(async () => activeEntryIndex(page)).toBe('5');
+	});
+
+	test('selection diff payload follows the visible entries when in-between revisions are toggled', async ({ page }) => {
+		await openFixture(page, 'git-basic');
+
+		await sidebarRevision(page, '235489e2').click();
+		await sidebarRevision(page, 'Current').click();
+		await page.locator('#openSidebarRangeDiffButton').click();
+		await expect
+			.poll(async () => String((await getLastAction(page))?.payload.selectedEntryIndexes || ''))
+			.toBe('1,2,3,4,5');
+
+		await page.locator('#intermediateToggle').click();
+		await page.locator('#openSidebarRangeDiffButton').click();
+		await expect
+			.poll(async () => String((await getLastAction(page))?.payload.selectedEntryIndexes || ''))
+			.toBe('2,4,5');
 	});
 
 	test('range tooltips switch into pending-selection mode while hovering the track', async ({ page }) => {
@@ -75,4 +128,16 @@ async function openFixture(page: Page, fixture: string) {
 	await page.goto(`/?fixture=${fixture}`);
 	await expect(page.getByText('Revision Timeline')).toBeVisible();
 	await expect(page.locator('#diffTitle')).not.toHaveText('No diff available');
+}
+
+function sidebarRevision(page: Page, value: string) {
+	return page.locator('.history-list .history-item').filter({ hasText: value }).first();
+}
+
+async function activeEntryIndex(page: Page) {
+	return page.evaluate(() => document.activeElement?.getAttribute('data-entry-index') || null);
+}
+
+async function getLastAction(page: Page) {
+	return page.evaluate(() => window.__TIMELINE_TEST_STATE__?.lastAction || null);
 }

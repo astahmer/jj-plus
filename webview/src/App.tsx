@@ -16,11 +16,11 @@ import {
 	filterEntries,
 	getDefaultSelection,
 	getVisibleIndexForAbsoluteIndex,
-	normalizeSelection,
 	shiftRangeSelection,
 	shiftStepSelection,
 } from './timeline-selection.ts';
 import {
+	findRevisionEntryMatch,
 	getEntriesForSource,
 	getIntermediateToggleLabel,
 	getPendingSelectionRange,
@@ -28,9 +28,10 @@ import {
 	getRangeOverviewDiffCount,
 	getSelectedDiffEntryIndexes,
 	getSelectedEntryCount,
-	getSidebarPreviewRequests,
 	getUnitPreviewRange,
 } from './timeline-model.ts';
+import { getEditableShortcutBehavior, resolveTimelineShortcut } from './timeline-shortcuts.ts';
+import { buildTimelineSyncPlan } from './timeline-sync.ts';
 import type {
 	ComparisonMode,
 	ComparisonSource,
@@ -156,7 +157,6 @@ export function App() {
 	const [ready, setReady] = createSignal(false);
 	const [tooltip, setTooltip] = createSignal<TooltipState | null>(null);
 	let shortcutFocusedInputId: string | null = null;
-	let shortcutFocusedInputArmed = false;
 	const effectiveComparisonSource = createMemo<ComparisonSource>(() => {
 		if (state.data?.backend !== 'jj') {
 			return 'revision';
@@ -316,6 +316,7 @@ export function App() {
 		setReady(true);
 		window.addEventListener('keydown', onKeyDown);
 		document.addEventListener('click', onDocumentClick);
+		document.addEventListener('input', onDocumentInput);
 		const resizeHandle = document.getElementById('resizeHandle');
 		const timelineResizeHandle = document.getElementById('timelineResizeHandle');
 		const track = document.getElementById('track');
@@ -573,6 +574,7 @@ export function App() {
 			window.removeEventListener('keydown', onKeyDown);
 			window.removeEventListener('resize', onWindowResize);
 			document.removeEventListener('click', onDocumentClick);
+			document.removeEventListener('input', onDocumentInput);
 			resizeHandle?.removeEventListener('pointerdown', onSidebarResizePointerDown);
 			timelineResizeHandle?.removeEventListener('pointerdown', onTimelineResizePointerDown);
 			track?.removeEventListener('mousemove', onTrackMouseMove);
@@ -580,6 +582,7 @@ export function App() {
 		});
 	});
 
+	// Keep the resize CSS variables in sync because the layout rules consume them outside inline JSX styles.
 	createEffect(() => {
 		document.documentElement.style.setProperty('--sidebar-width', `${state.sidebarWidth}px`);
 		document.documentElement.style.setProperty(
@@ -588,13 +591,7 @@ export function App() {
 		);
 	});
 
-	createEffect(() => {
-		const relativePath = state.data?.relativePath;
-		if (relativePath) {
-			setState('fileInputValue', relativePath);
-		}
-	});
-
+	// Persist the user-facing timeline preferences whenever one of the persisted controls changes.
 	createEffect(() => {
 		if (!ready() || !state.data) {
 			return;
@@ -616,149 +613,82 @@ export function App() {
 		host.send(command);
 	});
 
+	// Reconcile selection-driven host data in one place: normalize the range, then request any missing host-backed data.
 	createEffect(() => {
-		if (!ready() || !state.data || visibleEntries().length < 2) {
-			return;
-		}
-
-		const [fromIndex, toIndex] = normalizeSelection(
-			visibleEntries(),
-			state.fromIndex,
-			state.toIndex,
-			state.comparisonMode,
-		);
-		if (fromIndex !== state.fromIndex || toIndex !== state.toIndex) {
-			setState({ fromIndex, toIndex });
-			return;
-		}
-
-		if (state.previewByRange[activePreviewKey()]) {
-			return;
-		}
-
-		host.send({
-			command: 'select-entry',
-			fromIndex,
-			toIndex,
-			comparisonSource: effectiveComparisonSource(),
-		});
-	});
-
-	createEffect(() => {
-		if (
-			!ready() ||
-			!state.data ||
-			visibleEntries().length < 2 ||
-			state.rangeOverviewLoadingKey === activeRangeOverviewKey() ||
-			state.rangeOverviewByRange[activeRangeOverviewKey()]
-		) {
-			return;
-		}
-
-		setState('rangeOverviewLoadingKey', activeRangeOverviewKey());
-		host.send({
-			command: 'load-range-overview',
+		const syncPlan = buildTimelineSyncPlan({
+			ready: ready(),
+			data: state.data,
+			visibleEntries: visibleEntries(),
+			filteredSidebarEntries: filteredSidebarEntries(),
 			fromIndex: state.fromIndex,
 			toIndex: state.toIndex,
+			comparisonMode: state.comparisonMode,
 			comparisonSource: effectiveComparisonSource(),
+			activePreviewKey: activePreviewKey(),
+			previewByRange: state.previewByRange,
+			activeRangeOverviewKey: activeRangeOverviewKey(),
+			rangeOverviewByRange: state.rangeOverviewByRange,
+			rangeOverviewLoadingKey: state.rangeOverviewLoadingKey,
 			selectedEntryIndexes: selectedDiffEntryIndexes(),
+			entryDiffCountByKey: state.entryDiffCountByKey,
+			entryDiffCountLoadingKey: state.entryDiffCountLoadingKey,
+			pendingSnapshotRevisionIndexes: pendingSnapshotRevisionIndexes(),
+			sidebarPreviewInFlightKey: state.sidebarPreviewInFlightKey,
 		});
-	});
 
-	createEffect(() => {
-		if (!ready() || !state.data || !filteredSidebarEntries().length || state.entryDiffCountLoadingKey) {
+		if (syncPlan.normalizedSelection) {
+			setState(syncPlan.normalizedSelection);
 			return;
 		}
 
-		if (
-			state.data.backend === 'jj' &&
-			effectiveComparisonSource() === 'snapshot' &&
-			pendingSnapshotRevisionIndexes().length
-		) {
-			return;
-		}
-
-		const nextEntryIndexes = filteredSidebarEntries()
-			.filter((entry) => entry.hasPreviousEntry)
-			.map((entry) => entry.index)
-			.filter(
-				(entryIndex) =>
-					state.entryDiffCountByKey[buildEntryDiffCountKey(entryIndex, effectiveComparisonSource())] === undefined,
-			)
-			.slice(0, 24);
-
-		if (!nextEntryIndexes.length) {
-			return;
-		}
-
-		setState('entryDiffCountLoadingKey', `${effectiveComparisonSource()}:${nextEntryIndexes.join(',')}`);
-		host.send({
-			command: 'load-entry-diff-counts',
-			entryIndexes: nextEntryIndexes,
-			comparisonSource: effectiveComparisonSource(),
-		});
-	});
-
-	createEffect((previousSource: ComparisonSource | null) => {
-		if (!ready() || !state.data || state.data.backend !== 'jj') {
-			return state.data?.backend === 'jj' ? state.comparisonSource : null;
-		}
-
-		const currentSource = state.comparisonSource;
-		if (previousSource !== null && previousSource !== currentSource) {
+		if (syncPlan.previewRequest) {
 			host.send({
 				command: 'select-entry',
-				fromIndex: state.fromIndex,
-				toIndex: state.toIndex,
-				comparisonSource: currentSource,
+				fromIndex: syncPlan.previewRequest.fromIndex,
+				toIndex: syncPlan.previewRequest.toIndex,
+				comparisonSource: syncPlan.previewRequest.comparisonSource,
 			});
 		}
 
-		return currentSource;
-	}, null);
-
-	createEffect(() => {
-		if (!state.data || state.data.backend !== 'jj' || effectiveComparisonSource() !== 'snapshot') {
-			return;
-		}
-		const pending = pendingSnapshotRevisionIndexes();
-		if (pending.length) {
-			host.send({ command: 'hydrate-snapshot-entries', revisionIndexes: pending });
-		}
-	});
-
-	createEffect(() => {
-		if (!ready() || !state.data || visibleEntries().length < 2 || state.sidebarPreviewInFlightKey) {
-			return;
+		if (syncPlan.rangeOverviewRequest) {
+			setState('rangeOverviewLoadingKey', activeRangeOverviewKey());
+			host.send({
+				command: 'load-range-overview',
+				fromIndex: syncPlan.rangeOverviewRequest.fromIndex,
+				toIndex: syncPlan.rangeOverviewRequest.toIndex,
+				comparisonSource: syncPlan.rangeOverviewRequest.comparisonSource,
+				selectedEntryIndexes: syncPlan.rangeOverviewRequest.selectedEntryIndexes,
+			});
 		}
 
-		if (
-			state.data.backend === 'jj' &&
-			effectiveComparisonSource() === 'snapshot' &&
-			pendingSnapshotRevisionIndexes().length
-		) {
-			return;
+		if (syncPlan.entryDiffCountsRequest) {
+			setState(
+				'entryDiffCountLoadingKey',
+				`${syncPlan.entryDiffCountsRequest.comparisonSource}:${syncPlan.entryDiffCountsRequest.entryIndexes.join(',')}`,
+			);
+			host.send({
+				command: 'load-entry-diff-counts',
+				entryIndexes: syncPlan.entryDiffCountsRequest.entryIndexes,
+				comparisonSource: syncPlan.entryDiffCountsRequest.comparisonSource,
+			});
 		}
 
-		const [nextRequest] = getSidebarPreviewRequests(
-			visibleEntries(),
-			effectiveComparisonSource(),
-			state.previewByRange,
-			activePreviewKey(),
-			buildPreviewKey,
-		).toSorted((left, right) => Math.abs(left.toIndex - state.toIndex) - Math.abs(right.toIndex - state.toIndex));
-
-		if (!nextRequest) {
-			return;
+		if (syncPlan.snapshotHydrationRequest) {
+			host.send({
+				command: 'hydrate-snapshot-entries',
+				revisionIndexes: syncPlan.snapshotHydrationRequest.revisionIndexes,
+			});
 		}
 
-		setState('sidebarPreviewInFlightKey', nextRequest.key);
-		host.send({
-			command: 'select-entry',
-			fromIndex: nextRequest.fromIndex,
-			toIndex: nextRequest.toIndex,
-			comparisonSource: nextRequest.comparisonSource,
-		});
+		if (syncPlan.sidebarPreviewRequest) {
+			setState('sidebarPreviewInFlightKey', syncPlan.sidebarPreviewRequest.key);
+			host.send({
+				command: 'select-entry',
+				fromIndex: syncPlan.sidebarPreviewRequest.fromIndex,
+				toIndex: syncPlan.sidebarPreviewRequest.toIndex,
+				comparisonSource: syncPlan.sidebarPreviewRequest.comparisonSource,
+			});
+		}
 	});
 
 	function handleMessage(message: TimelineInboundMessage) {
@@ -923,13 +853,19 @@ export function App() {
 	function onDocumentClick(event: MouseEvent) {
 		const target = event.target as HTMLElement | null;
 		shortcutFocusedInputId = null;
-		shortcutFocusedInputArmed = false;
 		if (state.actionsMenuOpen && !target?.closest('.menu-wrap')) {
 			setState('actionsMenuOpen', false);
 		}
 
 		if (state.hotkeysOpen && !target?.closest('.hotkeys-card') && !target?.closest('#toggleHotkeysButton')) {
 			setState('hotkeysOpen', false);
+		}
+	}
+
+	function onDocumentInput(event: Event) {
+		const target = event.target as HTMLElement | null;
+		if (isEditableTarget(target) && target?.id === shortcutFocusedInputId) {
+			shortcutFocusedInputId = null;
 		}
 	}
 
@@ -991,10 +927,7 @@ export function App() {
 	}
 
 	function submitRevision(side: 'from' | 'to', value: string) {
-		const query = value.trim().toLowerCase();
-		const match =
-			visibleEntries().find((entry) => entry.shortRevision.toLowerCase() === query) ||
-			visibleEntries().find((entry) => entry.revision.toLowerCase().startsWith(query));
+		const match = findRevisionEntryMatch(visibleEntries(), value);
 		if (!match) {
 			return;
 		}
@@ -1290,7 +1223,6 @@ export function App() {
 		}
 
 		shortcutFocusedInputId = elementId;
-		shortcutFocusedInputArmed = true;
 
 		window.requestAnimationFrame(() => {
 			const element = document.getElementById(elementId) as HTMLInputElement | null;
@@ -1305,139 +1237,73 @@ export function App() {
 
 	function onKeyDown(event: KeyboardEvent) {
 		const target = event.target as HTMLElement | null;
-		const lowerKey = event.key.toLowerCase();
-		const editableTargetAllowsShortcut = target?.id === shortcutFocusedInputId && shortcutFocusedInputArmed;
-		if (isEditableTarget(target) && !editableTargetAllowsShortcut) {
-			if (event.key === 'Escape' && (state.hotkeysOpen || state.actionsMenuOpen)) {
-				event.preventDefault();
+		const shortcut = resolveTimelineShortcut({
+			key: event.key,
+			shiftKey: event.shiftKey,
+			metaKey: event.metaKey,
+			ctrlKey: event.ctrlKey,
+			altKey: event.altKey,
+			hotkeysOpen: state.hotkeysOpen,
+			actionsMenuOpen: state.actionsMenuOpen,
+			diffFocusMode: state.diffFocusMode,
+		});
+		const editableShortcutBehavior = getEditableShortcutBehavior({
+			isEditableTarget: isEditableTarget(target),
+			targetId: target?.id || null,
+			shortcutFocusedInputId,
+			shortcut,
+		});
+
+		if (editableShortcutBehavior === 'block') {
+			return;
+		}
+
+		if (editableShortcutBehavior === 'clear') {
+			shortcutFocusedInputId = null;
+			return;
+		}
+
+		if (!shortcut) {
+			return;
+		}
+
+		event.preventDefault();
+		switch (shortcut.type) {
+			case 'toggleHotkeys':
+				toggleHotkeys();
+				return;
+			case 'toggleSidebar':
+				toggleSidebar();
+				return;
+			case 'toggleDiffFocus':
+				toggleDiffFocus();
+				return;
+			case 'focusInput':
+				focusInputField(shortcut.elementId, shortcut.openSidebar === true);
+				return;
+			case 'closeOverlays':
 				setState({
 					hotkeysOpen: false,
 					actionsMenuOpen: false,
 					pendingSelectionIndex: null,
 					hoveredSelectionIndex: null,
 				});
-			}
-
-			return;
-		}
-
-		if (editableTargetAllowsShortcut && !isEditableShortcutKey(event)) {
-			shortcutFocusedInputArmed = false;
-			return;
-		}
-
-		const jumpAmount = event.shiftKey ? 5 : 1;
-
-		if (event.key === '?' || (event.shiftKey && event.key === '/')) {
-			event.preventDefault();
-			toggleHotkeys();
-			return;
-		}
-
-		if (!event.metaKey && !event.ctrlKey && !event.altKey && lowerKey === 'b') {
-			event.preventDefault();
-			toggleSidebar();
-			return;
-		}
-
-		if (!event.metaKey && !event.ctrlKey && !event.altKey && lowerKey === 'd') {
-			event.preventDefault();
-			toggleDiffFocus();
-			return;
-		}
-
-		if (!event.metaKey && !event.ctrlKey && !event.altKey && lowerKey === 'f') {
-			event.preventDefault();
-			focusInputField('fromRevisionInput');
-			return;
-		}
-
-		if (!event.metaKey && !event.ctrlKey && !event.altKey && lowerKey === 't') {
-			event.preventDefault();
-			focusInputField('toRevisionInput');
-			return;
-		}
-
-		if (!event.metaKey && !event.ctrlKey && !event.altKey && event.key === '/') {
-			event.preventDefault();
-			focusInputField('fileSwitcher');
-			return;
-		}
-
-		if (!event.metaKey && !event.ctrlKey && !event.altKey && lowerKey === 's') {
-			event.preventDefault();
-			focusInputField('sidebarSearchInput', true);
-			return;
-		}
-
-		if (event.key === 'Escape' && (state.hotkeysOpen || state.actionsMenuOpen)) {
-			event.preventDefault();
-			setState({
-				hotkeysOpen: false,
-				actionsMenuOpen: false,
-				pendingSelectionIndex: null,
-				hoveredSelectionIndex: null,
-			});
-			return;
-		}
-
-		if (event.key === 'Escape' && state.diffFocusMode) {
-			event.preventDefault();
-			setState('diffFocusMode', false);
-			return;
-		}
-
-		if (event.key === ' ') {
-			event.preventDefault();
-			sendRangeCommand('open-range-files-diff');
-			return;
-		}
-
-		if (event.metaKey && event.key === 'ArrowLeft') {
-			event.preventDefault();
-			dockRange('start');
-			return;
-		}
-
-		if (event.metaKey && event.key === 'ArrowRight') {
-			event.preventDefault();
-			dockRange('end');
-			return;
-		}
-
-		if (event.key === 'ArrowLeft') {
-			event.preventDefault();
-			if (event.altKey) {
-				adjustBoundary('to', -jumpAmount);
-			} else if (event.ctrlKey) {
-				adjustBoundary('from', -jumpAmount);
-			} else {
-				stepSelection(-jumpAmount);
-			}
-			return;
-		}
-
-		if (event.key === 'ArrowRight') {
-			event.preventDefault();
-			if (event.altKey) {
-				adjustBoundary('to', jumpAmount);
-			} else if (event.ctrlKey) {
-				adjustBoundary('from', jumpAmount);
-			} else {
-				stepSelection(jumpAmount);
-			}
-			return;
-		}
-
-		if (event.key === 'ArrowUp') {
-			event.preventDefault();
-			stepSelection(jumpAmount);
-			return;
-		}
-
-		if (event.key === 'ArrowDown') {
-			event.preventDefault();
-			stepSelection(-jumpAmount);
+				return;
+			case 'exitDiffFocus':
+				setState('diffFocusMode', false);
+				return;
+			case 'openSelectionDiffs':
+				sendRangeCommand('open-range-files-diff');
+				return;
+			case 'dockRange':
+				dockRange(shortcut.edge);
+				return;
+			case 'adjustBoundary':
+				adjustBoundary(shortcut.side, shortcut.amount);
+				return;
+			case 'stepSelection':
+				stepSelection(shortcut.amount);
+				return;
 		}
 	}
 
@@ -1864,25 +1730,6 @@ function formatRevisionCount(count: number) {
 function isEditableTarget(target: HTMLElement | null) {
 	const tagName = target?.tagName?.toLowerCase();
 	return tagName === 'input' || tagName === 'textarea' || tagName === 'select' || target?.isContentEditable === true;
-}
-
-function isEditableShortcutKey(event: KeyboardEvent) {
-	if (event.metaKey || event.ctrlKey || event.altKey) {
-		return false;
-	}
-
-	const lowerKey = event.key.toLowerCase();
-	return (
-		event.key === '?' ||
-		(event.shiftKey && event.key === '/') ||
-		event.key === '/' ||
-		event.key === ' ' ||
-		lowerKey === 'b' ||
-		lowerKey === 'd' ||
-		lowerKey === 'f' ||
-		lowerKey === 's' ||
-		lowerKey === 't'
-	);
 }
 
 function clampTooltipX(left: number) {

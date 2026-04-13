@@ -84,7 +84,8 @@ When('I switch the content mode to {string}', async ({ page }, value: string) =>
 
 When('I submit {string} into the {string} picker', async ({ page }, value: string, picker: string) => {
 	const input = page.locator(picker === 'From revision' ? '#fromRevisionInput' : '#toRevisionInput');
-	await input.fill(value);
+	await input.fill('');
+	await input.type(value);
 	await input.press('Enter');
 });
 
@@ -94,6 +95,7 @@ When('I open the actions menu', async ({ page }) => {
 });
 
 When('I choose the action menu item {string}', async ({ page }, value: string) => {
+	await ensureActionsMenuVisible(page);
 	await page
 		.locator('#actionsMenu')
 		.getByRole('button', { name: buttonNamePattern(value) })
@@ -268,6 +270,16 @@ function buttonByName(page: Page, value: string) {
 	}
 
 	return page.getByRole('button', { name: value, exact: true });
+}
+
+async function ensureActionsMenuVisible(page: Page) {
+	const menu = page.locator('#actionsMenu');
+	if (await menu.isVisible()) {
+		return;
+	}
+
+	await page.locator('#actionsButton').click();
+	await expect(menu).toBeVisible();
 }
 
 function buttonNamePattern(value: string) {
