@@ -3,6 +3,8 @@
 - the sidebar items should have a "More" button to show the full revision description if its too long (we used to have this before the vite/solid migration)
 
 - lets find a better name for this extension & rename it everywhere
+- use ark-ui for the webview combobox/tooltip..
+- use @pierre/diffs for the diff rendering (see reviewer repo)
 
 ## Future Ideas
 

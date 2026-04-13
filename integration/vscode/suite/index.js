@@ -17,7 +17,7 @@ function run() {
 				return;
 			}
 
-			resolve();
+			resolve(void 0);
 		});
 	});
 }

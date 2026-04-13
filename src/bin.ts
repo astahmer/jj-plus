@@ -1,11 +1,9 @@
 #!/usr/bin/env node
 
-'use strict';
-
-const fs = require('node:fs');
-const { spawnSync } = require('node:child_process');
-const path = require('node:path');
-const {
+import fsSync from 'node:fs';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+import {
 	EXTENSION_ID,
 	formatCommand,
 	getLaunchers,
@@ -14,15 +12,15 @@ const {
 	parseTimelineArgs,
 	resolveIde,
 	usage,
-} = require('./lib/cli.js');
+} from './cli/options';
 
-main().catch((error) => {
+void main().catch((error: unknown) => {
 	const message = error instanceof Error ? error.message : String(error);
 	process.stderr.write(`${message}\n`);
 	process.exitCode = 1;
 });
 
-async function main() {
+async function main(): Promise<void> {
 	const argv = process.argv.slice(2);
 	if (argv[0] === 'timeline' || argv[0] === 'webview') {
 		const options = parseTimelineArgs(argv.slice(1));
@@ -36,7 +34,6 @@ async function main() {
 	}
 
 	const options = parseRangeDiffArgs(argv);
-
 	if (options.help) {
 		process.stdout.write(`${usage()}\n`);
 		return;
@@ -53,32 +50,26 @@ async function main() {
 	if (options.from) {
 		params.set('from', options.from);
 	}
-
 	if (options.to) {
 		params.set('to', options.to);
 	}
-
 	if (options.title) {
 		params.set('title', options.title);
 	}
-
 	if (options.confirm) {
 		params.set('confirm', '1');
 	}
-
 	if (options.verbose) {
 		params.set('verbose', '1');
 	}
 
-	openWorkspace(resolvedWorkspacePath, ide, options.verbose);
+	openWorkspace({ workspacePath: resolvedWorkspacePath, ide, verbose: options.verbose });
 
-	const launchers = getLaunchers(params.toString(), ide);
-	let lastFailure;
-
-	for (const launcher of launchers) {
+	let lastFailure = '';
+	for (const launcher of getLaunchers(params.toString(), ide)) {
 		logVerbose(options.verbose, `Launching deep link: ${formatCommand(launcher.command, launcher.args)}`);
 		const result = spawnSync(launcher.command, launcher.args, { stdio: 'inherit' });
-		const launchError = /** @type {NodeJS.ErrnoException | undefined} */ (result.error);
+		const launchError = result.error as NodeJS.ErrnoException | undefined;
 
 		if (launchError) {
 			if (launchError.code === 'ENOENT') {
@@ -102,7 +93,7 @@ async function main() {
 	process.exitCode = 1;
 }
 
-async function launchStandaloneTimeline(options) {
+async function launchStandaloneTimeline(options: ReturnType<typeof parseTimelineArgs>): Promise<void> {
 	if (!options.filePath) {
 		throw new Error(`Missing file path for standalone timeline\n\n${usage()}`);
 	}
@@ -114,11 +105,11 @@ async function launchStandaloneTimeline(options) {
 		? path.resolve(options.filePath)
 		: path.resolve(workspacePath, options.filePath);
 
-	if (!fs.existsSync(absoluteFilePath)) {
+	if (!fsSync.existsSync(absoluteFilePath)) {
 		throw new Error(`File not found: ${absoluteFilePath}`);
 	}
 
-	const { startStandaloneTimelineServer } = require('./lib/standalone-webview.js');
+	const { startStandaloneTimelineServer } = await import('./standalone/server.js');
 	const server = await startStandaloneTimelineServer({
 		workspacePath,
 		filePath: absoluteFilePath,
@@ -139,18 +130,13 @@ async function launchStandaloneTimeline(options) {
 	process.once('SIGTERM', shutdown);
 }
 
-/**
- * @param {string} workspacePath
- * @param {{ command: string, schemes: string[] }} ide
- * @param {boolean} verbose
- */
-function openWorkspace(workspacePath, ide, verbose) {
-	const args = ['-r', workspacePath];
-	logVerbose(verbose, `Opening workspace: ${formatCommand(ide.command, args)}`);
-	const result = spawnSync(ide.command, args, { stdio: 'ignore' });
-	const launchError = /** @type {NodeJS.ErrnoException | undefined} */ (result.error);
+function openWorkspace(args: { workspacePath: string; ide: ReturnType<typeof resolveIde>; verbose: boolean }): void {
+	const commandArgs = ['-r', args.workspacePath];
+	logVerbose(args.verbose, `Opening workspace: ${formatCommand(args.ide.command, commandArgs)}`);
+	const result = spawnSync(args.ide.command, commandArgs, { stdio: 'ignore' });
+	const launchError = result.error as NodeJS.ErrnoException | undefined;
 
 	if (launchError && launchError.code !== 'ENOENT') {
-		process.stderr.write(`Warning: failed to focus workspace via ${ide.command}: ${launchError.message}\n`);
+		process.stderr.write(`Warning: failed to focus workspace via ${args.ide.command}: ${launchError.message}\n`);
 	}
 }

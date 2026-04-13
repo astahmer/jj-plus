@@ -1,4 +1,9 @@
-function getEntriesForSource(data, comparisonSource) {
+import type { ComparisonSource, DiffPreview, FileRevisionEntry, TimelineData } from './timeline-types';
+
+export function getEntriesForSource(
+	data: TimelineData | null,
+	comparisonSource: ComparisonSource,
+): FileRevisionEntry[] {
 	if (!data) {
 		return [];
 	}
@@ -22,7 +27,7 @@ function getEntriesForSource(data, comparisonSource) {
 			existing.push(entry);
 			groups.set(entry.changeId, existing);
 			return groups;
-		}, new Map());
+		}, new Map<string, FileRevisionEntry[]>());
 
 		return revisionEntries
 			.flatMap((entry) => {
@@ -37,13 +42,15 @@ function getEntriesForSource(data, comparisonSource) {
 	return Array.isArray(data.entries) ? data.entries : [];
 }
 
-function getSelectedEntryCount(visibleEntries, fromIndex, toIndex) {
+export function getSelectedEntryCount(visibleEntries: FileRevisionEntry[], fromIndex: number, toIndex: number): number {
 	const minIndex = Math.min(fromIndex, toIndex);
 	const maxIndex = Math.max(fromIndex, toIndex);
-	return visibleEntries.filter((entry) => entry.index >= minIndex && entry.index <= maxIndex).length;
+	return visibleEntries.filter(
+		(entry) => entry.index !== undefined && entry.index >= minIndex && entry.index <= maxIndex,
+	).length;
 }
 
-function getTimelineAnchorPercent(visibleEntries, visibleIndex) {
+export function getTimelineAnchorPercent(visibleEntries: FileRevisionEntry[], visibleIndex: number): number {
 	if (!visibleEntries.length) {
 		return 0;
 	}
@@ -52,75 +59,89 @@ function getTimelineAnchorPercent(visibleEntries, visibleIndex) {
 	return (Math.min(Math.max(visibleIndex, 0), visibleEntries.length - 1) / denominator) * 100;
 }
 
-function getPendingSnapshotRevisionIndexes(revisionEntries, loadedChangeIds, limit, preferredIndexes = []) {
+export function getPendingSnapshotRevisionIndexes(
+	revisionEntries: FileRevisionEntry[],
+	loadedChangeIds: Set<string>,
+	limit: number,
+	preferredIndexes: number[] = [],
+): number[] {
 	const preferredIndexSet = new Set(preferredIndexes);
-	const seenChangeIds = new Set();
-	const orderedEntries = [...revisionEntries.filter((entry) => preferredIndexSet.has(entry.index)), ...revisionEntries];
+	const seenChangeIds = new Set<string>();
+	const orderedEntries = [
+		...revisionEntries.filter((entry) => preferredIndexSet.has(entry.index ?? -1)),
+		...revisionEntries,
+	];
 
 	return orderedEntries
-		.reduce((indexes, entry) => {
+		.reduce<number[]>((indexes, entry) => {
 			if (
 				!entry.touchesFile ||
 				entry.isWorkingTree ||
 				!entry.changeId ||
 				loadedChangeIds.has(entry.changeId) ||
-				seenChangeIds.has(entry.changeId)
+				seenChangeIds.has(entry.changeId) ||
+				entry.index === undefined
 			) {
 				return indexes;
 			}
 
 			seenChangeIds.add(entry.changeId);
 			indexes.push(entry.index);
-			return indexes.length >= limit ? indexes : indexes;
+			return indexes;
 		}, [])
 		.slice(0, limit);
 }
 
-function getUnitPreviewRange(visibleEntries, toIndex) {
+export function getUnitPreviewRange(
+	visibleEntries: FileRevisionEntry[],
+	toIndex: number,
+): { fromIndex: number; toIndex: number } | null {
 	const currentIndex = visibleEntries.findIndex((entry) => entry.index === toIndex);
 	if (currentIndex <= 0) {
 		return null;
 	}
 
 	return {
-		fromIndex: visibleEntries[currentIndex - 1].index,
-		toIndex: visibleEntries[currentIndex].index,
+		fromIndex: visibleEntries[currentIndex - 1]?.index ?? toIndex,
+		toIndex: visibleEntries[currentIndex]?.index ?? toIndex,
 	};
 }
 
-function getSidebarPreviewRequests(
-	visibleEntries,
-	comparisonSource,
-	previewByRange,
-	selectedPreviewKey,
-	buildPreviewKey,
-) {
-	const requests = [];
+export function getSidebarPreviewRequests(
+	visibleEntries: FileRevisionEntry[],
+	comparisonSource: ComparisonSource,
+	previewByRange: Record<string, DiffPreview>,
+	selectedPreviewKey: string,
+	buildPreviewKey: (fromIndex: number, toIndex: number, source: ComparisonSource) => string,
+): Array<{ key: string; fromIndex: number; toIndex: number; comparisonSource: ComparisonSource }> {
+	const requests: Array<{ key: string; fromIndex: number; toIndex: number; comparisonSource: ComparisonSource }> = [];
 
 	for (let index = 1; index < visibleEntries.length; index += 1) {
-		const fromIndex = visibleEntries[index - 1].index;
-		const toIndex = visibleEntries[index].index;
-		const key = buildPreviewKey(fromIndex, toIndex, comparisonSource);
+		const fromIndex = visibleEntries[index - 1]?.index;
+		const toIndex = visibleEntries[index]?.index;
+		if (fromIndex === undefined || toIndex === undefined) {
+			continue;
+		}
 
+		const key = buildPreviewKey(fromIndex, toIndex, comparisonSource);
 		if (key === selectedPreviewKey || previewByRange[key]) {
 			continue;
 		}
 
-		requests.push({
-			key,
-			fromIndex,
-			toIndex,
-			comparisonSource,
-		});
+		requests.push({ key, fromIndex, toIndex, comparisonSource });
 	}
 
 	return requests;
 }
 
-function getPendingSelectionRange(visibleEntries, pendingSelectionIndex, hoveredSelectionIndex) {
+export function getPendingSelectionRange(
+	visibleEntries: FileRevisionEntry[],
+	pendingSelectionIndex: number | null,
+	hoveredSelectionIndex: number | null,
+): { fromEntry: FileRevisionEntry; toEntry: FileRevisionEntry; selectedCount: number } | null {
 	if (
-		pendingSelectionIndex == null ||
-		hoveredSelectionIndex == null ||
+		pendingSelectionIndex === null ||
+		hoveredSelectionIndex === null ||
 		pendingSelectionIndex === hoveredSelectionIndex
 	) {
 		return null;
@@ -141,7 +162,11 @@ function getPendingSelectionRange(visibleEntries, pendingSelectionIndex, hovered
 	};
 }
 
-function getIntermediateToggleLabel(visibleCount, totalCount, showIntermediateRevisions) {
+export function getIntermediateToggleLabel(
+	visibleCount: number,
+	totalCount: number,
+	showIntermediateRevisions: boolean,
+): string {
 	const action = showIntermediateRevisions ? 'Hide' : 'Show';
 	const safeTotal = Math.max(0, totalCount);
 	if (!safeTotal) {
@@ -151,14 +176,3 @@ function getIntermediateToggleLabel(visibleCount, totalCount, showIntermediateRe
 	const safeVisibleCount = Math.min(Math.max(0, visibleCount), safeTotal);
 	return `${action} In-Between ${safeVisibleCount}/${safeTotal}`;
 }
-
-module.exports = {
-	getEntriesForSource,
-	getIntermediateToggleLabel,
-	getPendingSnapshotRevisionIndexes,
-	getPendingSelectionRange,
-	getSelectedEntryCount,
-	getSidebarPreviewRequests,
-	getTimelineAnchorPercent,
-	getUnitPreviewRange,
-};

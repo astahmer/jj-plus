@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 test.describe('timeline interactions', () => {
 	test.use({ viewport: { width: 1500, height: 1100 } });
@@ -71,7 +71,7 @@ test.describe('timeline interactions', () => {
 	});
 });
 
-async function openFixture(page: Parameters<typeof test>[0]['page'], fixture: string) {
+async function openFixture(page: Page, fixture: string) {
 	await page.goto(`/?fixture=${fixture}`);
 	await expect(page.getByText('Revision Timeline')).toBeVisible();
 	await expect(page.locator('#diffTitle')).not.toHaveText('No diff available');

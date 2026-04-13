@@ -1,8 +1,7 @@
-const test = require('node:test');
-const assert = require('node:assert/strict');
-
-const { parseRangeDiffArgs, parseTimelineArgs } = require('../lib/cli.js');
-const { renderPreviewText } = require('../lib/standalone-webview.js');
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { parseRangeDiffArgs, parseTimelineArgs } from '../src/cli/options';
+import { renderPreviewText } from '../src/standalone/server';
 
 test('parseRangeDiffArgs accepts aliases and preserves the existing deep-link flags', () => {
 	assert.deepEqual(
@@ -38,11 +37,16 @@ test('parseTimelineArgs rejects invalid ports', () => {
 test('renderPreviewText prints the preview header and line rows in a readable export format', () => {
 	const rendered = renderPreviewText(
 		{
+			index: 1,
 			title: 'abc123 -> def456',
 			subtitle: 'Working tree',
 			additions: 1,
 			deletions: 1,
 			hunkCount: 1,
+			hasChanges: true,
+			fromIndex: 0,
+			toIndex: 1,
+			comparisonSource: 'revision',
 			nonTextualDetails: ['Binary file changed'],
 			rows: [
 				{ type: 'context', leftNumber: 1, rightNumber: 1, text: 'const value = 1;' },

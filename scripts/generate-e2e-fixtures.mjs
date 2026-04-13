@@ -1,15 +1,13 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
-import { createRequire } from 'node:module';
 import { promisify } from 'node:util';
 
-const require = createRequire(import.meta.url);
 const {
 	normalizeSnapshotOperationKey,
 	parseJjEvolutionSummaryEntries,
 	parseJjSummaryChangedPaths,
-} = require('../lib/history-helpers.js');
+} = await import('../src/shared/history-helpers.ts');
 
 const execFileAsync = promisify(execFile);
 const rootDir = process.cwd();
@@ -20,6 +18,12 @@ const defaultRelativeFilePath = 'apps/backend/instructions/lazy-di-rollout-plan.
 const secondaryRelativeFilePath = 'apps/backend/src/service.ts';
 const trackedFilePaths = [defaultRelativeFilePath, secondaryRelativeFilePath];
 const remoteBaseUrl = 'https://github.com/astahmer/visualjj-range-diff-helper';
+const stableJjMutableChangeId = 'xooxvqzo';
+const stableJjMutableShortRevisions = ['xooxvqzo/1', 'xooxvqzo/3'];
+const stableJjMutableAuthorDates = ['2026-04-12T19:19:09+02:00', '2026-04-12T19:20:09+02:00'];
+const stableJjMutableAuthorName = 'alexandre.stahmer@gmail.com';
+const stableJjWorkingTreeAuthorDate = '2026-04-12T19:20:09+02:00';
+const stableJjWorkingTreeAuthorName = 'Alexandre Stahmer';
 const displayLocale = 'en-US';
 const displayTimeZone = 'Europe/Paris';
 const monthFormatter = new Intl.DateTimeFormat(displayLocale, { month: 'long', timeZone: displayTimeZone });
@@ -126,7 +130,7 @@ async function generateJjFixture() {
 		[secondaryRelativeFilePath]: buildServiceContent('zeta', 'Uncommitted JJ working tree service changes.'),
 	});
 
-	return buildRepositoryFixture(repoDir, 'jj');
+	return stabilizeJjFixture(await buildRepositoryFixture(repoDir, 'jj'), repoDir);
 }
 
 async function buildRepositoryFixture(repoDir, backend) {
@@ -143,6 +147,95 @@ async function buildRepositoryFixture(repoDir, backend) {
 		...files[defaultRelativeFilePath],
 		files,
 	};
+}
+
+async function stabilizeJjFixture(fixture, repoDir) {
+	const fileFixtures = [fixture, ...Object.values(fixture.files || {})];
+
+	for (const fileFixture of fileFixtures) {
+		await stabilizeJjFileFixture(fileFixture, repoDir);
+	}
+
+	return fixture;
+}
+
+async function stabilizeJjFileFixture(fileFixture, repoDir) {
+	const workingTreeEntry = fileFixture.timelineData.entries.find((entry) => entry.isWorkingTree);
+	const mutableRevisionEntry = fileFixture.timelineData.entries.find(
+		(entry) => !entry.isWorkingTree && entry.description === 'snapshot working copy' && entry.changeId,
+	);
+	const mutableChangeId = mutableRevisionEntry?.changeId;
+
+	if (mutableRevisionEntry) {
+		applyStableEntryMetadata(mutableRevisionEntry, {
+			changeId: stableJjMutableChangeId,
+			shortRevision: stableJjMutableChangeId,
+			authorDate: stableJjWorkingTreeAuthorDate,
+			authorName: stableJjWorkingTreeAuthorName,
+		});
+	}
+
+	if (workingTreeEntry) {
+		applyStableEntryMetadata(workingTreeEntry, {
+			authorDate: stableJjWorkingTreeAuthorDate,
+			authorName: stableJjWorkingTreeAuthorName,
+		});
+	}
+
+	const mutableSnapshotEntries = fileFixture.timelineData.snapshotEntries.filter(
+		(entry) => !mutableChangeId || entry.changeId === mutableChangeId,
+	);
+	mutableSnapshotEntries
+		.toSorted((left, right) => left.index - right.index)
+		.forEach((entry, index) => {
+			applyStableEntryMetadata(entry, {
+				changeId: stableJjMutableChangeId,
+				shortRevision: stableJjMutableShortRevisions[index] || `${stableJjMutableChangeId}/${index + 1}`,
+				authorDate: stableJjMutableAuthorDates[index] || stableJjMutableAuthorDates.at(-1),
+				authorName: stableJjMutableAuthorName,
+			});
+		});
+
+	if (fileFixture.timelineData.snapshotState?.loadedChangeIds) {
+		fileFixture.timelineData.snapshotState.loadedChangeIds = fileFixture.timelineData.snapshotState.loadedChangeIds.map(
+			(changeId) => (changeId === mutableChangeId ? stableJjMutableChangeId : changeId),
+		);
+	}
+
+	const snapshotSourceEntries = composeSnapshotEntries(
+		fileFixture.timelineData.entries,
+		fileFixture.timelineData.snapshotEntries,
+		new Set(fileFixture.timelineData.snapshotState?.loadedChangeIds || []),
+	);
+
+	fileFixture.previews = {
+		revision: await buildPreviewMap(
+			repoDir,
+			fileFixture.timelineData.entries,
+			'jj',
+			fileFixture.timelineData.relativePath,
+			'revision',
+		),
+		snapshot: await buildPreviewMap(
+			repoDir,
+			snapshotSourceEntries,
+			'jj',
+			fileFixture.timelineData.relativePath,
+			'snapshot',
+		),
+	};
+}
+
+function applyStableEntryMetadata(entry, overrides) {
+	const authorDate = overrides.authorDate || entry.authorDate;
+	const timestamp = Date.parse(authorDate);
+	Object.assign(entry, overrides, {
+		authorDate,
+		timestamp,
+		monthLabel: monthFormatter.format(timestamp),
+		shortDate: shortDateFormatter.format(timestamp),
+		relativeDate: relativeTime(timestamp),
+	});
 }
 
 async function buildFileFixture(repoDir, backend, relativePath, workspaceFiles) {

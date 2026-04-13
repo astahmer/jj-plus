@@ -5,11 +5,11 @@
 		"integration/vscode/suite/**/*.js"
 	],
 	"project": [
-		"*.{js,mjs,ts}",
-		"lib/**/*.js",
+		"*.{mjs,ts}",
+		"src/**/*.ts",
 		"integration/**/*.js",
 		"scripts/**/*.mjs",
-		"test/**/*.js",
+		"test/**/*.ts",
 		"tests/**/*.ts",
 		"features/**/*.ts",
 		"webview/**/*.{js,ts,tsx}",

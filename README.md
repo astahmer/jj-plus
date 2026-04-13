@@ -6,8 +6,11 @@ It also includes a custom revision timeline panel for the active file. The panel
 
 ## Files
 
-- `package.json`: VS Code extension manifest
-- `extension.js`: runtime command implementation with `// @ts-check`
+- `package.json`: VS Code extension manifest and workspace scripts
+- `src/extension/`: VS Code entrypoint, timeline controller, and history adapters
+- `src/bin.ts`: CLI entrypoint for deep links and the standalone timeline
+- `src/shared/`: diff helpers, history parsing, and shared timeline contracts
+- `webview/src/`: SolidJS webview source
 
 ## Run Locally
 
@@ -38,14 +41,16 @@ pnpm test:e2e
 pnpm test:all
 ```
 
-`pnpm lint` now runs both `oxlint` and `knip`, and `pnpm typecheck` now covers the Solid webview plus the repository JavaScript files through a separate `checkJs` pass.
+`pnpm lint` now runs both `oxlint` and `knip`, and `pnpm typecheck` validates the Solid webview plus the TypeScript extension, CLI, and standalone server.
 
-For production packaging/builds, the extension now bundles the webview first:
+For production builds, compile the extension runtime and webview bundle:
 
 ```sh
+pnpm build:extension
 pnpm build:webview
-pnpm build
 ```
+
+`pnpm build` runs both builds and then packages the extension with `vsce`.
 
 ## Revision Timeline
 
@@ -71,24 +76,32 @@ await vscode.commands.executeCommand('jj-range-diff.openRangeMultiDiff', {
 
 ## CLI
 
-`bin.js` supports two entry points now:
+The CLI supports two entry points now:
 
 - the original deep-link flow into VS Code
 - a standalone browser timeline for a single file
 
+When running from this repository directly, build the extension runtime first:
+
+```sh
+pnpm build:extension
+```
+
+Then invoke the local binary with `pnpm exec jj-range-diff ...`. If you prefer, `node ./dist/bin.js ...` is equivalent against the built output.
+
 ### Range Diff Deep Link
 
-`bin.js` opens the same flow from your shell by forwarding a deep link into VS Code.
+`jj-range-diff` opens the same flow from your shell by forwarding a deep link into VS Code.
 
 CLI launches now skip the extension input prompts and open the diff directly. Add `--confirm` if you want the prompt flow before opening.
 
 ```sh
-./bin.js -f closest_bookmark(@) -t @
-./bin.js --from yvspkqrx --to mvvosnsv --title 'range diff'
-./bin.js --confirm -f closest_bookmark(@) -t @
-./bin.js --ide cursor -f closest_bookmark(@) -t @
-./bin.js --verbose --ide zed -f closest_bookmark(@) -t @
-./bin.js -f closest_bookmark(@) -t @ -w /path/to/workspace
+pnpm exec jj-range-diff -f closest_bookmark(@) -t @
+pnpm exec jj-range-diff --from yvspkqrx --to mvvosnsv --title 'range diff'
+pnpm exec jj-range-diff --confirm -f closest_bookmark(@) -t @
+pnpm exec jj-range-diff --ide cursor -f closest_bookmark(@) -t @
+pnpm exec jj-range-diff --verbose --ide zed -f closest_bookmark(@) -t @
+pnpm exec jj-range-diff -f closest_bookmark(@) -t @ -w /path/to/workspace
 ```
 
 If you install the package with `npm link`, the `jj-range-diff` command is also available on your `PATH`.
@@ -100,10 +113,11 @@ If you install the package with `npm link`, the `jj-range-diff` command is also 
 The standalone timeline reuses the same webview UI in your default browser and serves it from a small local HTTP server. The command keeps running until you stop it.
 
 ```sh
+pnpm build:extension
 pnpm build:webview
-./bin.js timeline README.md
-./bin.js timeline --no-open --port 4173 README.md
-./bin.js timeline -w /path/to/repo apps/backend/src/service.ts
+pnpm exec jj-range-diff timeline README.md
+pnpm exec jj-range-diff timeline --no-open --port 4173 README.md
+pnpm exec jj-range-diff timeline -w /path/to/repo apps/backend/src/service.ts
 ```
 
 With `npm link`, the same commands work through `jj-range-diff timeline ...`.

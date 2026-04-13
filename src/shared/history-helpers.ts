@@ -1,15 +1,45 @@
-// @ts-check
+export type RenameEntry = {
+	fromPath: string;
+	toPath: string;
+};
 
-/**
- * @param {string} output
- * @returns {Array<{ fromPath: string, toPath: string }>}
- */
-function parseJjSummaryRenameLines(output) {
+export type ParsedEvolutionLine = {
+	revision: string;
+	changeId?: string;
+	authorDate: string;
+	authorName: string;
+	description: string;
+	operationDescription: string;
+};
+
+export type ParsedEvolutionSummaryEntry = {
+	changeKey: string;
+	changeId?: string;
+	operationIndex?: number;
+	authorDate: string;
+	authorName: string;
+	revision: string;
+	description: string;
+	operationId?: string;
+	operationDescription: string;
+	summaryLines: string[];
+};
+
+type ParsedEvolutionSummaryHeader = {
+	changeKey: string;
+	changeId?: string;
+	operationIndex?: number;
+	authorDate: string;
+	authorName: string;
+	revision: string;
+};
+
+export function parseJjSummaryRenameLines(output: string): RenameEntry[] {
 	return output
 		.split(/\r?\n/u)
 		.map((line) => line.trim())
 		.filter(Boolean)
-		.reduce((entries, line) => {
+		.reduce<RenameEntry[]>((entries, line) => {
 			const match = /^R\s+(.+?)\s+=>\s+(.+)$/u.exec(line);
 			if (!match) {
 				return entries;
@@ -20,14 +50,10 @@ function parseJjSummaryRenameLines(output) {
 				toPath: match[2].trim(),
 			});
 			return entries;
-		}, /** @type {Array<{ fromPath: string, toPath: string }>} */ ([]));
+		}, []);
 }
 
-/**
- * @param {string} line
- * @returns {{ revision: string, changeId: string | undefined, authorDate: string, authorName: string, description: string, operationDescription: string }}
- */
-function parseJjEvolutionLine(line) {
+export function parseJjEvolutionLine(line: string): ParsedEvolutionLine {
 	const [
 		revision = '',
 		changeId = '',
@@ -47,11 +73,7 @@ function parseJjEvolutionLine(line) {
 	};
 }
 
-/**
- * @param {string} line
- * @returns {{ changeKey: string, changeId: string | undefined, operationIndex: number | undefined, authorDate: string, authorName: string, revision: string } | null}
- */
-function parseJjEvolutionSummaryHeader(line) {
+function parseJjEvolutionSummaryHeader(line: string): ParsedEvolutionSummaryHeader | null {
 	const tokens = line.trim().split(/\s+/u);
 	if (tokens.length < 5) {
 		return null;
@@ -86,11 +108,7 @@ function parseJjEvolutionSummaryHeader(line) {
 	};
 }
 
-/**
- * @param {string | undefined} changeKey
- * @returns {string | undefined}
- */
-function normalizeSnapshotOperationKey(changeKey) {
+export function normalizeSnapshotOperationKey(changeKey?: string): string | undefined {
 	const trimmed = String(changeKey || '').trim();
 	if (!trimmed) {
 		return undefined;
@@ -99,17 +117,10 @@ function normalizeSnapshotOperationKey(changeKey) {
 	return trimmed.includes('/') ? trimmed : `${trimmed}/0`;
 }
 
-/**
- * @param {string} output
- * @returns {Array<{ changeKey: string, changeId: string | undefined, operationIndex: number | undefined, authorDate: string, authorName: string, revision: string, description: string, operationId: string | undefined, operationDescription: string, summaryLines: string[] }>}
- */
-function parseJjEvolutionSummaryEntries(output) {
+export function parseJjEvolutionSummaryEntries(output: string): ParsedEvolutionSummaryEntry[] {
 	const lines = output.split(/\r?\n/u);
-	/** @type {Array<{ changeKey: string, changeId: string | undefined, operationIndex: number | undefined, authorDate: string, authorName: string, revision: string, description: string, operationId: string | undefined, operationDescription: string, summaryLines: string[] }>}
-	 */
-	const entries = [];
-	/** @type {{ changeKey: string, changeId: string | undefined, operationIndex: number | undefined, authorDate: string, authorName: string, revision: string, description: string, operationId: string | undefined, operationDescription: string, summaryLines: string[] } | null} */
-	let current = null;
+	const entries: ParsedEvolutionSummaryEntry[] = [];
+	let current: ParsedEvolutionSummaryEntry | null = null;
 	let descriptionCaptured = false;
 
 	const pushCurrent = () => {
@@ -165,15 +176,11 @@ function parseJjEvolutionSummaryEntries(output) {
 	return entries;
 }
 
-/**
- * @param {string[] | string} summaryLines
- * @returns {string[]}
- */
-function parseJjSummaryChangedPaths(summaryLines) {
+export function parseJjSummaryChangedPaths(summaryLines: string[] | string): string[] {
 	const lines = Array.isArray(summaryLines) ? summaryLines : String(summaryLines || '').split(/\r?\n/u);
 	const renameLines = parseJjSummaryRenameLines(lines.join('\n'));
 	const renamePaths = renameLines.flatMap((entry) => [entry.fromPath, entry.toPath]);
-	const directPaths = lines.reduce((paths, rawLine) => {
+	const directPaths = lines.reduce<string[]>((paths, rawLine) => {
 		const line = rawLine.trim();
 		if (!line || /^R\s+/u.test(line)) {
 			return paths;
@@ -185,16 +192,12 @@ function parseJjSummaryChangedPaths(summaryLines) {
 		}
 
 		return paths;
-	}, /** @type {string[]} */ ([]));
+	}, []);
 
 	return [...new Set([...directPaths, ...renamePaths])];
 }
 
-/**
- * @param {string} remote
- * @returns {string | undefined}
- */
-function getGitHubRemoteBaseUrl(remote) {
+export function getGitHubRemoteBaseUrl(remote: string): string | undefined {
 	const trimmed = remote.trim();
 	if (!trimmed) {
 		return undefined;
@@ -213,29 +216,12 @@ function getGitHubRemoteBaseUrl(remote) {
 	return undefined;
 }
 
-/**
- * @template T extends { changeId?: string }
- * @param {T[]} entries
- * @returns {T[]}
- */
-function dedupeAdjacentEntriesByChangeId(entries) {
-	const typedEntries = /** @type {Array<T & { changeId?: string }>} */ (entries);
-
-	return typedEntries.filter((entry, index) => {
+export function dedupeAdjacentEntriesByChangeId<T extends { changeId?: string }>(entries: T[]): T[] {
+	return entries.filter((entry, index) => {
 		if (!entry.changeId || index === 0) {
 			return true;
 		}
 
-		return typedEntries[index - 1].changeId !== entry.changeId;
+		return entries[index - 1]?.changeId !== entry.changeId;
 	});
 }
-
-module.exports = {
-	dedupeAdjacentEntriesByChangeId,
-	getGitHubRemoteBaseUrl,
-	normalizeSnapshotOperationKey,
-	parseJjEvolutionLine,
-	parseJjEvolutionSummaryEntries,
-	parseJjSummaryChangedPaths,
-	parseJjSummaryRenameLines,
-};

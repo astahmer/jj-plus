@@ -15,46 +15,50 @@
 	},
 	"publisher": "astahmer",
 	"bin": {
-		"jj-range-diff": "./bin.js"
+		"jj-range-diff": "./dist/bin.js"
 	},
-	"main": "./extension.js",
+	"main": "./dist/extension/index.js",
 	"scripts": {
 		"bddgen": "bddgen",
-		"build": "pnpm build:webview && pnpm vsce package --skip-license --no-dependencies",
+		"build": "pnpm build:extension && pnpm build:webview && pnpm vsce package --skip-license --no-dependencies",
+		"build:extension": "tsdown",
 		"build:webview": "vite build",
 		"dev": "vite --host 127.0.0.1 --open /",
-		"fixtures:e2e": "node ./scripts/generate-e2e-fixtures.mjs",
+		"fixtures:e2e": "tsx ./scripts/generate-e2e-fixtures.mjs",
 		"fmt": "oxfmt --write",
 		"lint": "pnpm lint:ox && pnpm lint:knip",
 		"lint:knip": "knip",
 		"lint:ox": "oxlint .",
-		"test": "node --test",
+		"lint:fix": "pnpm lint:ox --fix && pnpm lint:knip --fix",
+		"test": "tsx --test test/**/*.test.ts",
 		"test:all": "pnpm test && pnpm test:e2e && pnpm test:integration",
-		"test:e2e": "pnpm fixtures:e2e && pnpm bddgen && playwright test",
-		"test:integration": "pnpm build:webview && pnpm fixtures:e2e && node ./integration/vscode/run.js",
-		"typecheck": "pnpm typecheck:web && pnpm typecheck:js",
-		"typecheck:js": "tsgo --noEmit -p tsconfig.js.json",
+		"test:e2e": "pnpm build:extension && pnpm fixtures:e2e && pnpm bddgen && playwright test",
+		"test:integration": "pnpm build:extension && pnpm build:webview && pnpm fixtures:e2e && node ./integration/vscode/run.js",
+		"typecheck": "pnpm typecheck:web && pnpm typecheck:extension",
+		"typecheck:extension": "tsgo --noEmit -p tsconfig.js.json",
 		"typecheck:web": "tsgo --noEmit -p tsconfig.json"
 	},
 	"dependencies": {
-		"@typescript/native-preview": "7.0.0-dev.20260412.1",
-		"solid-js": "^1.9.12"
+		"solid-js": "1.9.12"
 	},
 	"devDependencies": {
-		"@playwright/test": "^1.59.1",
-		"@types/mocha": "^10.0.10",
-		"@types/node": "^25.6.0",
-		"@types/vscode": "^1.115.0",
-		"@vscode/test-electron": "^2.5.2",
+		"@playwright/test": "1.59.1",
+		"@types/mocha": "10.0.10",
+		"@types/node": "25.6.0",
+		"@types/vscode": "1.115.0",
+		"@typescript/native-preview": "7.0.0-dev.20260412.1",
+		"@vscode/test-electron": "2.5.2",
 		"@vscode/vsce": "3.7.1",
-		"knip": "^6.4.1",
-		"mocha": "^11.7.5",
-		"oxfmt": "^0.44.0",
-		"oxlint": "^1.59.0",
-		"playwright-bdd": "^8.5.0",
-		"typescript": "^6.0.2",
-		"vite": "^8.0.8",
-		"vite-plugin-solid": "^2.11.12"
+		"knip": "6.4.1",
+		"mocha": "11.7.5",
+		"oxfmt": "0.44.0",
+		"oxlint": "1.59.0",
+		"playwright-bdd": "8.5.0",
+		"tsdown": "0.15.4",
+		"tsx": "4.20.6",
+		"typescript": "6.0.2",
+		"vite": "8.0.8",
+		"vite-plugin-solid": "2.11.12"
 	},
 	"contributes": {
 		"commands": [
@@ -73,7 +77,7 @@
 		"onUri"
 	],
 	"engines": {
-		"vscode": "^1.86.0"
+		"vscode": "1.115.0"
 	},
 	"packageManager": "pnpm@10.33.0+sha512.10568bb4a6afb58c9eb3630da90cc9516417abebd3fabbe6739f0ae795728da1491e9db5a544c76ad8eb7570f5c4bb3d6c637b2cb41bfdcdb47fa823c8649319"
 }

@@ -7,3 +7,4 @@ playwright-report/
 test-results/
 webview/public/e2e/
 webview-dist
+dist

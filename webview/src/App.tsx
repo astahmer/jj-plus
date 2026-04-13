@@ -118,6 +118,7 @@ export function App() {
 	const [state, setState] = createStore<UiState>(initialState);
 	const [ready, setReady] = createSignal(false);
 	const [tooltip, setTooltip] = createSignal<TooltipState | null>(null);
+	let shortcutFocusedInputId: string | null = null;
 	const effectiveComparisonSource = createMemo<ComparisonSource>(() => {
 		if (state.data?.backend !== 'jj') {
 			return 'revision';
@@ -810,6 +811,7 @@ export function App() {
 
 	function onDocumentClick(event: MouseEvent) {
 		const target = event.target as HTMLElement | null;
+		shortcutFocusedInputId = null;
 		if (state.actionsMenuOpen && !target?.closest('.menu-wrap')) {
 			setState('actionsMenuOpen', false);
 		}
@@ -1149,6 +1151,8 @@ export function App() {
 			setState('sidebarCollapsed', false);
 		}
 
+		shortcutFocusedInputId = elementId;
+
 		window.requestAnimationFrame(() => {
 			const element = document.getElementById(elementId) as HTMLInputElement | null;
 			if (!element) {
@@ -1163,7 +1167,9 @@ export function App() {
 	function onKeyDown(event: KeyboardEvent) {
 		const target = event.target as HTMLElement | null;
 		const lowerKey = event.key.toLowerCase();
-		if (isEditableTarget(target)) {
+		const editableTargetRetainsInput =
+			isEditableTarget(target) && target?.id !== shortcutFocusedInputId && !hasFullInputSelection(target);
+		if (editableTargetRetainsInput) {
 			if (event.key === 'Escape' && (state.hotkeysOpen || state.actionsMenuOpen)) {
 				event.preventDefault();
 				setState({
@@ -1173,6 +1179,7 @@ export function App() {
 					hoveredSelectionIndex: null,
 				});
 			}
+
 			return;
 		}
 
@@ -1764,6 +1771,19 @@ function formatRevisionCount(count: number) {
 function isEditableTarget(target: HTMLElement | null) {
 	const tagName = target?.tagName?.toLowerCase();
 	return tagName === 'input' || tagName === 'textarea' || tagName === 'select' || target?.isContentEditable === true;
+}
+
+function hasFullInputSelection(target: HTMLElement | null) {
+	if (!(target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement)) {
+		return false;
+	}
+
+	const valueLength = target.value.length;
+	if (!valueLength) {
+		return false;
+	}
+
+	return target.selectionStart === 0 && target.selectionEnd === valueLength;
 }
 
 function clampTooltipX(left: number) {

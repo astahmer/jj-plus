@@ -1,9 +1,33 @@
-'use strict';
-
-const EXTENSION_ID = 'astahmer.jj-range-diff';
+export const EXTENSION_ID = 'astahmer.jj-range-diff';
 const URI_PATH = '/open-range-multi-diff';
 const DEFAULT_IDE = 'code';
-const IDE_PRESETS = {
+
+export type RangeDiffCliOptions = {
+	help: boolean;
+	confirm: boolean;
+	from?: string;
+	ide?: string;
+	to?: string;
+	title?: string;
+	verbose: boolean;
+	workspacePath?: string;
+};
+
+export type TimelineCliOptions = {
+	help: boolean;
+	filePath?: string;
+	open: boolean;
+	port: number;
+	verbose: boolean;
+	workspacePath?: string;
+};
+
+export type IdePreset = {
+	command: string;
+	schemes: string[];
+};
+
+const idePresets: Record<string, IdePreset> = {
 	code: { command: process.env.VSCODE_BIN || 'code', schemes: ['vscode', 'vscode-insiders'] },
 	vscode: { command: process.env.VSCODE_BIN || 'code', schemes: ['vscode', 'vscode-insiders'] },
 	'code-insiders': { command: 'code-insiders', schemes: ['vscode-insiders'] },
@@ -15,8 +39,8 @@ const IDE_PRESETS = {
 	codium: { command: 'codium', schemes: ['vscodium', 'vscode'] },
 };
 
-function parseRangeDiffArgs(argv) {
-	const options = {
+export function parseRangeDiffArgs(argv: string[]): RangeDiffCliOptions {
+	const options: RangeDiffCliOptions = {
 		help: false,
 		confirm: false,
 		from: undefined,
@@ -46,72 +70,72 @@ function parseRangeDiffArgs(argv) {
 		}
 
 		if (arg === '-f' || arg === '--from' || arg === '-b' || arg === '--base') {
-			options.from = requireValue(arg, argv[index + 1]);
+			options.from = requireValue({ flag: arg, value: argv[index + 1] });
 			index += 1;
 			continue;
 		}
 
 		if (arg.startsWith('--from=')) {
-			options.from = requireValue('--from', arg.slice('--from='.length));
+			options.from = requireValue({ flag: '--from', value: arg.slice('--from='.length) });
 			continue;
 		}
 
 		if (arg.startsWith('--base=')) {
-			options.from = requireValue('--base', arg.slice('--base='.length));
+			options.from = requireValue({ flag: '--base', value: arg.slice('--base='.length) });
 			continue;
 		}
 
 		if (arg === '-t' || arg === '--to' || arg === '--target') {
-			options.to = requireValue(arg, argv[index + 1]);
+			options.to = requireValue({ flag: arg, value: argv[index + 1] });
 			index += 1;
 			continue;
 		}
 
 		if (arg.startsWith('--to=')) {
-			options.to = requireValue('--to', arg.slice('--to='.length));
+			options.to = requireValue({ flag: '--to', value: arg.slice('--to='.length) });
 			continue;
 		}
 
 		if (arg.startsWith('--target=')) {
-			options.to = requireValue('--target', arg.slice('--target='.length));
+			options.to = requireValue({ flag: '--target', value: arg.slice('--target='.length) });
 			continue;
 		}
 
 		if (arg === '--title') {
-			options.title = requireValue(arg, argv[index + 1]);
+			options.title = requireValue({ flag: arg, value: argv[index + 1] });
 			index += 1;
 			continue;
 		}
 
 		if (arg.startsWith('--title=')) {
-			options.title = requireValue('--title', arg.slice('--title='.length));
+			options.title = requireValue({ flag: '--title', value: arg.slice('--title='.length) });
 			continue;
 		}
 
 		if (arg === '--ide') {
-			options.ide = requireValue(arg, argv[index + 1]);
+			options.ide = requireValue({ flag: arg, value: argv[index + 1] });
 			index += 1;
 			continue;
 		}
 
 		if (arg.startsWith('--ide=')) {
-			options.ide = requireValue('--ide', arg.slice('--ide='.length));
+			options.ide = requireValue({ flag: '--ide', value: arg.slice('--ide='.length) });
 			continue;
 		}
 
 		if (arg === '-w' || arg === '--workspace' || arg === '--workspace-path') {
-			options.workspacePath = requireValue(arg, argv[index + 1]);
+			options.workspacePath = requireValue({ flag: arg, value: argv[index + 1] });
 			index += 1;
 			continue;
 		}
 
 		if (arg.startsWith('--workspace=')) {
-			options.workspacePath = requireValue('--workspace', arg.slice('--workspace='.length));
+			options.workspacePath = requireValue({ flag: '--workspace', value: arg.slice('--workspace='.length) });
 			continue;
 		}
 
 		if (arg.startsWith('--workspace-path=')) {
-			options.workspacePath = requireValue('--workspace-path', arg.slice('--workspace-path='.length));
+			options.workspacePath = requireValue({ flag: '--workspace-path', value: arg.slice('--workspace-path='.length) });
 			continue;
 		}
 
@@ -121,8 +145,8 @@ function parseRangeDiffArgs(argv) {
 	return options;
 }
 
-function parseTimelineArgs(argv) {
-	const options = {
+export function parseTimelineArgs(argv: string[]): TimelineCliOptions {
+	const options: TimelineCliOptions = {
 		help: false,
 		filePath: undefined,
 		open: true,
@@ -150,40 +174,40 @@ function parseTimelineArgs(argv) {
 		}
 
 		if (arg === '-f' || arg === '--file') {
-			options.filePath = requireValue(arg, argv[index + 1]);
+			options.filePath = requireValue({ flag: arg, value: argv[index + 1] });
 			index += 1;
 			continue;
 		}
 
 		if (arg.startsWith('--file=')) {
-			options.filePath = requireValue('--file', arg.slice('--file='.length));
+			options.filePath = requireValue({ flag: '--file', value: arg.slice('--file='.length) });
 			continue;
 		}
 
 		if (arg === '--port') {
-			options.port = parsePort(requireValue(arg, argv[index + 1]));
+			options.port = parsePort(requireValue({ flag: arg, value: argv[index + 1] }));
 			index += 1;
 			continue;
 		}
 
 		if (arg.startsWith('--port=')) {
-			options.port = parsePort(requireValue('--port', arg.slice('--port='.length)));
+			options.port = parsePort(requireValue({ flag: '--port', value: arg.slice('--port='.length) }));
 			continue;
 		}
 
 		if (arg === '-w' || arg === '--workspace' || arg === '--workspace-path') {
-			options.workspacePath = requireValue(arg, argv[index + 1]);
+			options.workspacePath = requireValue({ flag: arg, value: argv[index + 1] });
 			index += 1;
 			continue;
 		}
 
 		if (arg.startsWith('--workspace=')) {
-			options.workspacePath = requireValue('--workspace', arg.slice('--workspace='.length));
+			options.workspacePath = requireValue({ flag: '--workspace', value: arg.slice('--workspace='.length) });
 			continue;
 		}
 
 		if (arg.startsWith('--workspace-path=')) {
-			options.workspacePath = requireValue('--workspace-path', arg.slice('--workspace-path='.length));
+			options.workspacePath = requireValue({ flag: '--workspace-path', value: arg.slice('--workspace-path='.length) });
 			continue;
 		}
 
@@ -202,18 +226,9 @@ function parseTimelineArgs(argv) {
 	return options;
 }
 
-function parsePort(value) {
-	const port = Number.parseInt(value, 10);
-	if (!Number.isInteger(port) || port < 0 || port > 65535) {
-		throw new Error(`Invalid port: ${value}\n\n${usage()}`);
-	}
-
-	return port;
-}
-
-function resolveIde(rawIde) {
+export function resolveIde(rawIde?: string): IdePreset {
 	const trimmed = rawIde?.trim() || DEFAULT_IDE;
-	const preset = IDE_PRESETS[trimmed.toLowerCase()];
+	const preset = idePresets[trimmed.toLowerCase()];
 	if (preset) {
 		return preset;
 	}
@@ -224,41 +239,21 @@ function resolveIde(rawIde) {
 	};
 }
 
-function requireValue(flag, value) {
-	const trimmed = value?.trim();
-	if (trimmed) {
-		return trimmed;
-	}
-
-	throw new Error(`Missing value for ${flag}\n\n${usage()}`);
-}
-
-function getLaunchers(query, ide) {
-	const uris = ide.schemes.map((scheme) => buildUri(scheme, query));
-	const launchers = [];
+export function getLaunchers(query: string, ide: IdePreset): Array<{ command: string; args: string[] }> {
+	const uris = ide.schemes.map((scheme) => buildUri({ scheme, query }));
 
 	if (process.platform === 'darwin') {
-		for (const uri of uris) {
-			launchers.push({ command: 'open', args: [uri] });
-		}
-	} else if (process.platform === 'win32') {
-		for (const uri of uris) {
-			launchers.push({ command: 'cmd', args: ['/c', 'start', '', uri] });
-		}
-	} else {
-		for (const uri of uris) {
-			launchers.push({ command: 'xdg-open', args: [uri] });
-		}
+		return uris.map((uri) => ({ command: 'open', args: [uri] }));
 	}
 
-	return launchers;
+	if (process.platform === 'win32') {
+		return uris.map((uri) => ({ command: 'cmd', args: ['/c', 'start', '', uri] }));
+	}
+
+	return uris.map((uri) => ({ command: 'xdg-open', args: [uri] }));
 }
 
-function buildUri(scheme, query) {
-	return `${scheme}://${EXTENSION_ID}${URI_PATH}?${query}`;
-}
-
-function logVerbose(enabled, message) {
+export function logVerbose(enabled: boolean, message: string): void {
 	if (!enabled) {
 		return;
 	}
@@ -266,19 +261,11 @@ function logVerbose(enabled, message) {
 	process.stderr.write(`${message}\n`);
 }
 
-function formatCommand(command, args) {
+export function formatCommand(command: string, args: string[]): string {
 	return [command, ...args].map(quoteShellArg).join(' ');
 }
 
-function quoteShellArg(value) {
-	if (/^[a-zA-Z0-9_@./:=+-]+$/u.test(value)) {
-		return value;
-	}
-
-	return `'${value.replace(/'/g, `'\\''`)}'`;
-}
-
-function usage() {
+export function usage(): string {
 	return [
 		'Usage:',
 		'  jj-range-diff [options]',
@@ -310,13 +297,32 @@ function usage() {
 	].join('\n');
 }
 
-module.exports = {
-	EXTENSION_ID,
-	formatCommand,
-	getLaunchers,
-	logVerbose,
-	parseRangeDiffArgs,
-	parseTimelineArgs,
-	resolveIde,
-	usage,
-};
+function parsePort(value: string): number {
+	const port = Number.parseInt(value, 10);
+	if (!Number.isInteger(port) || port < 0 || port > 65535) {
+		throw new Error(`Invalid port: ${value}\n\n${usage()}`);
+	}
+
+	return port;
+}
+
+function requireValue({ flag, value }: { flag: string; value?: string }): string {
+	const trimmed = value?.trim();
+	if (trimmed) {
+		return trimmed;
+	}
+
+	throw new Error(`Missing value for ${flag}\n\n${usage()}`);
+}
+
+function buildUri({ scheme, query }: { scheme: string; query: string }): string {
+	return `${scheme}://${EXTENSION_ID}${URI_PATH}?${query}`;
+}
+
+function quoteShellArg(value: string): string {
+	if (/^[a-zA-Z0-9_@./:=+-]+$/u.test(value)) {
+		return value;
+	}
+
+	return `'${value.replace(/'/g, `'\\''`)}'`;
+}

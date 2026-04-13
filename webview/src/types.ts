@@ -1,94 +1,51 @@
-export type HistoryBackend = 'jj' | 'git';
-export type ComparisonMode = 'range' | 'step';
-export type ComparisonSource = 'revision' | 'snapshot';
-export type LayoutMode = 'split' | 'unified';
-export type ContentMode = 'diffs' | 'full';
-export type TimelinePreset = 'year' | '7d' | '30d' | '90d' | 'all';
-export type FileSwitcherMode = 'workspace' | 'overview';
+import type {
+	ComparisonMode,
+	ComparisonSource,
+	ContentMode,
+	DiffPreview as SharedDiffPreview,
+	DiffRow as SharedDiffRow,
+	FileRevisionEntry as SharedFileRevisionEntry,
+	FileSwitcherMode,
+	HistoryBackend,
+	LayoutMode,
+	RangeOverviewItem,
+	TimelineCommand,
+	TimelineData as SharedTimelineData,
+	TimelineFixture as SharedTimelineFixture,
+	TimelineFixtureFile as SharedTimelineFixtureFile,
+	TimelinePreferences,
+	TimelinePreset,
+} from '../../src/shared/timeline-types';
 
-export type FileRevisionEntry = {
-	id: string;
-	index: number;
-	revision: string;
-	shortRevision: string;
-	changeId?: string;
-	authorDate: string;
-	authorName?: string;
-	description: string;
-	isWorkingTree: boolean;
-	touchesFile: boolean;
-	timestamp: number;
-	filePath?: string;
-	operationId?: string;
-	operationIndex?: number;
-	operationKey?: string;
-	remoteUrl?: string;
-	hasPreviousEntry?: boolean;
-	monthLabel?: string;
-	shortDate?: string;
-	relativeDate?: string;
+export type {
+	ComparisonMode,
+	ComparisonSource,
+	ContentMode,
+	FileSwitcherMode,
+	HistoryBackend,
+	LayoutMode,
+	RangeOverviewItem,
+	TimelineCommand,
+	TimelinePreferences,
+	TimelinePreset,
 };
 
-export type TimelinePreferences = {
-	sidebarWidth?: number;
-	sidebarCollapsed?: boolean;
-	timelinePaneHeight?: number;
-	timelinePaneCollapsed?: boolean;
-	layoutMode?: LayoutMode;
-	contentMode?: ContentMode;
-	comparisonMode?: ComparisonMode;
-	comparisonSource?: ComparisonSource;
-	showIntermediateRevisions?: boolean;
-	preset?: TimelinePreset;
-};
-
-export type RangeOverviewItem = {
-	relativePath: string;
-	changeCount: number;
-	isCurrentFile?: boolean;
-};
-
-export type TimelineData = {
-	backend: HistoryBackend;
-	workspacePath: string;
-	relativePath: string;
-	fileName: string;
-	version?: string;
-	presets: Record<string, number>;
-	defaultIndex: number;
-	latestIndex: number;
-	preferences: TimelinePreferences;
-	workspaceFiles: string[];
-	hasIntermediateRevisions: boolean;
-	entries: FileRevisionEntry[];
-	snapshotEntries: FileRevisionEntry[];
-	snapshotState?: {
-		loadedChangeIds: string[];
-	};
-};
-
-export type DiffRow = {
-	type: 'context' | 'add' | 'remove' | 'skip';
-	leftNumber: number | null;
-	rightNumber: number | null;
-	text: string;
+export type DiffRow = SharedDiffRow & {
 	previewKey?: string;
 	rangeKey?: string;
 };
 
-export type DiffPreview = {
-	index: number;
-	title: string;
-	subtitle: string;
-	additions: number;
-	deletions: number;
-	hunkCount: number;
-	hasChanges: boolean;
-	fromIndex: number;
-	toIndex: number;
-	comparisonSource?: ComparisonSource;
+export type DiffPreview = Omit<SharedDiffPreview, 'rows'> & {
 	rows: DiffRow[];
-	nonTextualDetails?: string[];
+};
+
+export type FileRevisionEntry = Omit<SharedFileRevisionEntry, 'index'> & {
+	index: number;
+};
+
+export type TimelineData = Omit<SharedTimelineData, 'entries' | 'snapshotEntries'> & {
+	entries: FileRevisionEntry[];
+	snapshotEntries: FileRevisionEntry[];
 };
 
 export type TimelineInboundMessage =
@@ -106,44 +63,18 @@ export type TimelineInboundMessage =
 	  }
 	| { type: 'resolved-range'; payload: { fromIndex: number; toIndex: number } | null };
 
-export type TimelineCommand =
-	| { command: 'ready' }
-	| { command: 'refresh' }
-	| { command: 'cancel-active-request' }
-	| { command: 'open-current-file' }
-	| { command: 'select-entry'; fromIndex: number; toIndex: number; comparisonSource: ComparisonSource }
-	| { command: 'open-editor-diff'; fromIndex: number; toIndex: number; comparisonSource: ComparisonSource }
-	| { command: 'open-range-files-diff'; fromIndex: number; toIndex: number; comparisonSource: ComparisonSource }
-	| { command: 'open-revision-files-diff'; entryIndex: number; comparisonSource: ComparisonSource }
-	| { command: 'open-revision-remote'; entryIndex: number; comparisonSource: ComparisonSource }
-	| { command: 'hydrate-snapshot-entries'; revisionIndexes: number[] }
-	| { command: 'load-range-overview'; fromIndex: number; toIndex: number; comparisonSource: ComparisonSource }
-	| { command: 'resolve-nonempty-range'; candidateIndexes: number[] }
-	| { command: 'switch-file'; relativePath: string }
-	| {
-			command: 'persist-state';
-			sidebarWidth: number;
-			sidebarCollapsed: boolean;
-			timelinePaneHeight: number;
-			timelinePaneCollapsed: boolean;
-			layoutMode: LayoutMode;
-			contentMode: ContentMode;
-			comparisonMode: ComparisonMode;
-			comparisonSource: ComparisonSource;
-			showIntermediateRevisions: boolean;
-			preset: TimelinePreset;
-	  };
-
-export type TimelineHost = {
-	send: (command: TimelineCommand) => void;
-	subscribe: (listener: (message: TimelineInboundMessage) => void) => () => void;
-};
-
-export type TimelineFixtureFile = {
+export type TimelineFixtureFile = Omit<SharedTimelineFixtureFile, 'timelineData' | 'previews'> & {
 	timelineData: TimelineData;
 	previews: Partial<Record<ComparisonSource, Record<string, DiffPreview>>>;
 };
 
-export type TimelineFixture = TimelineFixtureFile & {
+export type TimelineFixture = Omit<SharedTimelineFixture, 'timelineData' | 'previews' | 'files'> & {
+	timelineData: TimelineData;
+	previews: Partial<Record<ComparisonSource, Record<string, DiffPreview>>>;
 	files?: Record<string, TimelineFixtureFile>;
+};
+
+export type TimelineHost = {
+	send: (command: TimelineCommand) => void;
+	subscribe: (listener: (message: TimelineInboundMessage) => void) => () => void;
 };

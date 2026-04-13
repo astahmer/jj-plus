@@ -1,8 +1,7 @@
-const test = require('node:test');
-const assert = require('node:assert/strict');
-
-const { textsMatchIgnoringLineEndings, normalizeTextForComparison } = require('../lib/diff-helpers.js');
-const {
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { normalizeTextForComparison, textsMatchIgnoringLineEndings } from '../src/shared/diff-helpers';
+import {
 	dedupeAdjacentEntriesByChangeId,
 	getGitHubRemoteBaseUrl,
 	normalizeSnapshotOperationKey,
@@ -10,8 +9,8 @@ const {
 	parseJjEvolutionSummaryEntries,
 	parseJjSummaryChangedPaths,
 	parseJjSummaryRenameLines,
-} = require('../lib/history-helpers.js');
-const {
+} from '../src/shared/history-helpers';
+import {
 	getEntriesForSource,
 	getIntermediateToggleLabel,
 	getPendingSelectionRange,
@@ -20,7 +19,59 @@ const {
 	getSidebarPreviewRequests,
 	getTimelineAnchorPercent,
 	getUnitPreviewRange,
-} = require('../lib/timeline-model.js');
+} from '../src/shared/timeline-model';
+import type { FileRevisionEntry, TimelineData } from '../src/shared/timeline-types';
+import { normalizeTimelinePreferences } from '../src/extension/timeline-service';
+
+function makeEntry(overrides: Partial<FileRevisionEntry> & Pick<FileRevisionEntry, 'index'>): FileRevisionEntry {
+	const index = overrides.index;
+	return {
+		id: overrides.id || `entry-${index}`,
+		revision: overrides.revision || `rev-${index}`,
+		shortRevision: overrides.shortRevision || `r${index}`,
+		changeId: overrides.changeId,
+		authorDate: overrides.authorDate || '2026-04-10T16:07:57+02:00',
+		authorName: overrides.authorName || 'Alex',
+		description: overrides.description || `entry ${index}`,
+		isWorkingTree: overrides.isWorkingTree === true,
+		touchesFile: overrides.touchesFile !== false,
+		timestamp: overrides.timestamp ?? index,
+		filePath: overrides.filePath,
+		operationId: overrides.operationId,
+		operationIndex: overrides.operationIndex,
+		operationKey: overrides.operationKey,
+		remoteUrl: overrides.remoteUrl,
+		hasPreviousEntry: overrides.hasPreviousEntry,
+		monthLabel: overrides.monthLabel,
+		shortDate: overrides.shortDate,
+		relativeDate: overrides.relativeDate,
+		index,
+	};
+}
+
+function makeTimelineData(overrides: {
+	backend: TimelineData['backend'];
+	entries: FileRevisionEntry[];
+	snapshotEntries: FileRevisionEntry[];
+	snapshotState?: TimelineData['snapshotState'];
+}): TimelineData {
+	return {
+		backend: overrides.backend,
+		workspacePath: '/tmp/repo',
+		relativePath: 'src/example.ts',
+		fileName: 'example.ts',
+		version: '0.0.0-test',
+		presets: { year: 365, '7d': 7, '30d': 30, '90d': 90, all: Number.POSITIVE_INFINITY },
+		defaultIndex: overrides.entries.at(-1)?.index || 0,
+		latestIndex: overrides.entries.at(-1)?.index || 0,
+		preferences: {},
+		workspaceFiles: ['src/example.ts'],
+		hasIntermediateRevisions: false,
+		entries: overrides.entries,
+		snapshotEntries: overrides.snapshotEntries,
+		snapshotState: overrides.snapshotState,
+	};
+}
 
 test('normalizeTextForComparison normalizes CRLF to LF', () => {
 	assert.equal(normalizeTextForComparison('a\r\nb\r\n'), 'a\nb\n');
@@ -170,31 +221,31 @@ test('dedupeAdjacentEntriesByChangeId only collapses consecutive JJ evolutions',
 });
 
 test('getEntriesForSource progressively expands hydrated JJ snapshot entries', () => {
-	const data = {
-		backend: 'jj',
+	const data = makeTimelineData({
+		backend: 'jj' as const,
 		entries: [
-			{ index: 0, revision: 'rev-1', changeId: 'aaa', touchesFile: true },
-			{ index: 1, revision: 'rev-2', changeId: 'bbb', touchesFile: true },
+			makeEntry({ index: 0, revision: 'rev-1', changeId: 'aaa', touchesFile: true }),
+			makeEntry({ index: 1, revision: 'rev-2', changeId: 'bbb', touchesFile: true }),
 		],
 		snapshotEntries: [
-			{ index: 0, revision: 'snap-1', changeId: 'aaa', touchesFile: true },
-			{ index: 1, revision: 'snap-2', changeId: 'aaa', touchesFile: true },
+			makeEntry({ index: 0, revision: 'snap-1', changeId: 'aaa', touchesFile: true }),
+			makeEntry({ index: 1, revision: 'snap-2', changeId: 'aaa', touchesFile: true }),
 		],
 		snapshotState: {
 			loadedChangeIds: ['aaa'],
 		},
-	};
+	});
 	assert.deepEqual(getEntriesForSource(data, 'revision'), data.entries);
 	assert.deepEqual(getEntriesForSource(data, 'snapshot'), [
-		{ index: 0, revision: 'snap-1', changeId: 'aaa', touchesFile: true },
-		{ index: 1, revision: 'snap-2', changeId: 'aaa', touchesFile: true },
-		{ index: 2, revision: 'rev-2', changeId: 'bbb', touchesFile: true },
+		makeEntry({ index: 0, revision: 'snap-1', changeId: 'aaa', touchesFile: true }),
+		makeEntry({ index: 1, revision: 'snap-2', changeId: 'aaa', touchesFile: true }),
+		{ ...data.entries[1], index: 2 },
 	]);
-	assert.deepEqual(getEntriesForSource({ ...data, backend: 'git' }, 'snapshot'), data.entries);
+	assert.deepEqual(getEntriesForSource({ ...data, backend: 'git' as const }, 'snapshot'), data.entries);
 });
 
 test('timeline model computes unit preview ranges and selected counts', () => {
-	const visibleEntries = [{ index: 4 }, { index: 8 }, { index: 10 }, { index: 14 }];
+	const visibleEntries = [4, 8, 10, 14].map((index) => makeEntry({ index }));
 	assert.deepEqual(getUnitPreviewRange(visibleEntries, 10), { fromIndex: 8, toIndex: 10 });
 	assert.equal(getUnitPreviewRange(visibleEntries, 4), null);
 	assert.equal(getSelectedEntryCount(visibleEntries, 8, 14), 3);
@@ -202,9 +253,9 @@ test('timeline model computes unit preview ranges and selected counts', () => {
 
 test('timeline model derives the pending selection range from the anchored start and hovered end', () => {
 	const visibleEntries = [
-		{ index: 1, revision: 'a' },
-		{ index: 4, revision: 'b' },
-		{ index: 9, revision: 'c' },
+		makeEntry({ index: 1, revision: 'a' }),
+		makeEntry({ index: 4, revision: 'b' }),
+		makeEntry({ index: 9, revision: 'c' }),
 	];
 
 	assert.deepEqual(getPendingSelectionRange(visibleEntries, 9, 4), {
@@ -224,9 +275,9 @@ test('timeline model formats the in-between toggle label with visible and total 
 
 test('timeline model positions anchors with equal spacing across visible entries', () => {
 	const visibleEntries = [
-		{ index: 0, timestamp: 100 },
-		{ index: 1, timestamp: 190 },
-		{ index: 2, timestamp: 200 },
+		makeEntry({ index: 0, timestamp: 100 }),
+		makeEntry({ index: 1, timestamp: 190 }),
+		makeEntry({ index: 2, timestamp: 200 }),
 	];
 
 	assert.equal(getTimelineAnchorPercent(visibleEntries, 0), 0);
@@ -236,26 +287,41 @@ test('timeline model positions anchors with equal spacing across visible entries
 
 test('timeline model prioritizes selected changes when choosing pending snapshot hydration batches', () => {
 	const revisionEntries = [
-		{ index: 0, changeId: 'aaa', touchesFile: true },
-		{ index: 1, changeId: 'bbb', touchesFile: true },
-		{ index: 2, changeId: 'ccc', touchesFile: true },
-		{ index: 3, changeId: 'ddd', touchesFile: true, isWorkingTree: true },
+		makeEntry({ index: 0, changeId: 'aaa', touchesFile: true }),
+		makeEntry({ index: 1, changeId: 'bbb', touchesFile: true }),
+		makeEntry({ index: 2, changeId: 'ccc', touchesFile: true }),
+		makeEntry({ index: 3, changeId: 'ddd', touchesFile: true, isWorkingTree: true }),
 	];
 
 	assert.deepEqual(getPendingSnapshotRevisionIndexes(revisionEntries, new Set(['aaa']), 2, [2]), [2, 1]);
 });
 
 test('timeline model builds sidebar preview requests for uncached unit ranges', () => {
-	const visibleEntries = [{ index: 1 }, { index: 2 }, { index: 3 }, { index: 4 }];
-	const previewByRange = { 'revision:1:2': { additions: 1 } };
+	const visibleEntries = [1, 2, 3, 4].map((index) => makeEntry({ index }));
+	const previewByRange = { 'revision:1:2': { additions: 1 } } as Record<string, unknown>;
 	assert.deepEqual(
 		getSidebarPreviewRequests(
 			visibleEntries,
 			'revision',
-			previewByRange,
+			previewByRange as never,
 			'revision:2:3',
 			(fromIndex, toIndex, source) => `${source}:${fromIndex}:${toIndex}`,
 		),
 		[{ key: 'revision:3:4', fromIndex: 3, toIndex: 4, comparisonSource: 'revision' }],
 	);
+});
+
+test('normalizeTimelinePreferences restores missing values to the persisted defaults', () => {
+	assert.deepEqual(normalizeTimelinePreferences({ sidebarCollapsed: true, comparisonSource: 'snapshot' }), {
+		sidebarWidth: 276,
+		sidebarCollapsed: true,
+		timelinePaneHeight: 278,
+		timelinePaneCollapsed: false,
+		layoutMode: 'split',
+		contentMode: 'diffs',
+		comparisonMode: 'range',
+		comparisonSource: 'snapshot',
+		showIntermediateRevisions: false,
+		preset: 'year',
+	});
 });

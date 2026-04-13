@@ -467,11 +467,12 @@ input {
 	padding: 10px 12px;
 	display: grid;
 	gap: 5px;
+	min-height: 0;
 }
 
 .timeline-pane {
 	min-height: 0;
-	overflow: visible;
+	overflow: hidden;
 	border-bottom: 1px solid var(--border);
 	display: grid;
 	grid-template-rows: auto minmax(0, 1fr);
@@ -1026,7 +1027,7 @@ kbd {
 }
 
 .timeline-row .step-button {
-	margin-top: 10px;
+	margin-top: 0;
 }
 
 .step-status-row {
