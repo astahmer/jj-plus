@@ -1,13 +1,13 @@
+import { execFile } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
-const {
+import {
 	normalizeSnapshotOperationKey,
 	parseJjEvolutionSummaryEntries,
 	parseJjSummaryChangedPaths,
-} = await import('../src/shared/history-helpers.ts');
+} from '../src/shared/history-helpers.ts';
 
 const execFileAsync = promisify(execFile);
 const rootDir = process.cwd();
@@ -208,6 +208,7 @@ async function stabilizeJjFileFixture(fileFixture, repoDir) {
 		fileFixture.timelineData.snapshotEntries,
 		new Set(fileFixture.timelineData.snapshotState?.loadedChangeIds || []),
 	);
+	const contentCache = new Map();
 
 	fileFixture.previews = {
 		revision: await buildPreviewMap(
@@ -216,6 +217,7 @@ async function stabilizeJjFileFixture(fileFixture, repoDir) {
 			'jj',
 			fileFixture.timelineData.relativePath,
 			'revision',
+			contentCache,
 		),
 		snapshot: await buildPreviewMap(
 			repoDir,
@@ -223,6 +225,7 @@ async function stabilizeJjFileFixture(fileFixture, repoDir) {
 			'jj',
 			fileFixture.timelineData.relativePath,
 			'snapshot',
+			contentCache,
 		),
 	};
 }
@@ -246,6 +249,7 @@ async function buildFileFixture(repoDir, backend, relativePath, workspaceFiles) 
 	const loadedChangeIds = backend === 'jj' ? [...new Set(entries.map((entry) => entry.changeId).filter(Boolean))] : [];
 	const snapshotSourceEntries =
 		backend === 'jj' ? composeSnapshotEntries(entries, snapshotEntries, new Set(loadedChangeIds)) : entries;
+	const contentCache = new Map();
 
 	return {
 		timelineData: {
@@ -275,11 +279,11 @@ async function buildFileFixture(repoDir, backend, relativePath, workspaceFiles) 
 			},
 		},
 		previews: {
-			revision: await buildPreviewMap(repoDir, entries, backend, relativePath, 'revision'),
+			revision: await buildPreviewMap(repoDir, entries, backend, relativePath, 'revision', contentCache),
 			snapshot:
 				backend === 'jj'
-					? await buildPreviewMap(repoDir, snapshotSourceEntries, backend, relativePath, 'snapshot')
-					: await buildPreviewMap(repoDir, entries, backend, relativePath, 'revision'),
+					? await buildPreviewMap(repoDir, snapshotSourceEntries, backend, relativePath, 'snapshot', contentCache)
+					: await buildPreviewMap(repoDir, entries, backend, relativePath, 'revision', contentCache),
 		},
 	};
 }
@@ -297,12 +301,12 @@ async function getGitEntries(repoDir, relativePath) {
 async function getGitHistoryEntries(repoDir, relativePath) {
 	const { stdout } = await run('git', ['log', '--reverse', '--format=%H%x09%cI%x09%an%x09%s'], repoDir);
 	const revisions = stdout.trim().split(/\r?\n/).filter(Boolean);
-	const entries = [];
-	for (const [index, line] of revisions.entries()) {
-		const [revision, authorDate, authorName, description] = line.split('\t');
-		const touchesFile = await gitTouchesFile(repoDir, revision, relativePath);
-		entries.push(
-			makeEntry({
+
+	return Promise.all(
+		revisions.map(async (line, index) => {
+			const [revision, authorDate, authorName, description] = line.split('\t');
+			const touchesFile = await gitTouchesFile(repoDir, revision, relativePath);
+			return makeEntry({
 				id: revision,
 				index,
 				revision,
@@ -314,11 +318,9 @@ async function getGitHistoryEntries(repoDir, relativePath) {
 				touchesFile,
 				isWorkingTree: false,
 				filePath: relativePath,
-			}),
-		);
-	}
-
-	return entries;
+			});
+		}),
+	);
 }
 
 async function getJjEntries(repoDir, relativePath) {
@@ -336,16 +338,15 @@ async function getJjEntries(repoDir, relativePath) {
 	].join(' ++ ');
 	const { stdout } = await run('jj', ['log', '--no-graph', '--reversed', '--limit', '100', '-T', template], repoDir);
 	const revisions = stdout.trim().split(/\r?\n/).filter(Boolean);
-	const entries = [];
-	for (const [index, line] of revisions.entries()) {
-		const [revision, changeId, authorDate, authorName, description] = line.split('\t');
-		if (/^0+$/u.test(revision)) {
-			continue;
-		}
+	const entries = await Promise.all(
+		revisions.map(async (line, index) => {
+			const [revision, changeId, authorDate, authorName, description] = line.split('\t');
+			if (/^0+$/u.test(revision)) {
+				return null;
+			}
 
-		const touchesFile = await jjTouchesFile(repoDir, revision, relativePath);
-		entries.push(
-			makeEntry({
+			const touchesFile = await jjTouchesFile(repoDir, revision, relativePath);
+			return makeEntry({
 				id: revision,
 				index,
 				revision,
@@ -357,11 +358,12 @@ async function getJjEntries(repoDir, relativePath) {
 				touchesFile,
 				isWorkingTree: false,
 				filePath: relativePath,
-			}),
-		);
-	}
+			});
+		}),
+	);
+	const filteredEntries = entries.filter(Boolean);
 
-	const lastEntry = entries.at(-1);
+	const lastEntry = filteredEntries.at(-1);
 	if (lastEntry && (!lastEntry.description || lastEntry.description === '')) {
 		lastEntry.revision = 'WORKTREE';
 		lastEntry.shortRevision = 'Current';
@@ -371,53 +373,53 @@ async function getJjEntries(repoDir, relativePath) {
 		lastEntry.remoteUrl = undefined;
 	}
 
-	const workingTreeEntry = await makeWorkingTreeEntry(repoDir, entries.at(-1), relativePath, 'jj');
+	const workingTreeEntry = await makeWorkingTreeEntry(repoDir, filteredEntries.at(-1), relativePath, 'jj');
 	if (workingTreeEntry) {
-		entries.push(workingTreeEntry);
+		filteredEntries.push(workingTreeEntry);
 	}
 
-	return reindexEntries(entries);
+	return reindexEntries(filteredEntries);
 }
 
 async function getJjSnapshotEntries(repoDir, relativePath, revisionEntries) {
-	const snapshotEntries = [];
+	const snapshotEntryGroups = await Promise.all(
+		revisionEntries.map(async (entry) => {
+			if (!entry.changeId || entry.isWorkingTree || !entry.touchesFile) {
+				return [];
+			}
 
-	for (const entry of revisionEntries) {
-		if (!entry.changeId || entry.isWorkingTree || !entry.touchesFile) {
-			continue;
-		}
+			let stdout = '';
+			try {
+				({ stdout } = await run(
+					'jj',
+					['evolog', '--no-graph', '--summary', '--limit', '100', '-r', entry.revision],
+					repoDir,
+				));
+			} catch {
+				return [];
+			}
 
-		let stdout = '';
-		try {
-			({ stdout } = await run(
-				'jj',
-				['evolog', '--no-graph', '--summary', '--limit', '100', '-r', entry.revision],
-				repoDir,
-			));
-		} catch {
-			continue;
-		}
-
-		const evolutionEntries = parseJjEvolutionSummaryEntries(stdout)
-			.filter((evolutionEntry) => parseJjSummaryChangedPaths(evolutionEntry.summaryLines).includes(relativePath))
-			.map((evolutionEntry) =>
-				makeEntry({
-					id: `snapshot:${evolutionEntry.operationId || evolutionEntry.changeKey || evolutionEntry.revision}`,
-					index: 0,
-					revision: evolutionEntry.revision,
-					shortRevision: normalizeSnapshotOperationKey(evolutionEntry.changeKey) || evolutionEntry.revision.slice(0, 8),
-					changeId: entry.changeId,
-					authorDate: normalizeSnapshotAuthorDate(evolutionEntry.authorDate, entry.authorDate),
-					authorName: evolutionEntry.authorName || entry.authorName,
-					description: normalizeSnapshotDescription(evolutionEntry.description, evolutionEntry.operationDescription),
-					touchesFile: true,
-					isWorkingTree: false,
-					filePath: relativePath,
-				}),
-			);
-
-		snapshotEntries.push(...evolutionEntries);
-	}
+			return parseJjEvolutionSummaryEntries(stdout)
+				.filter((evolutionEntry) => parseJjSummaryChangedPaths(evolutionEntry.summaryLines).includes(relativePath))
+				.map((evolutionEntry) =>
+					makeEntry({
+						id: `snapshot:${evolutionEntry.operationId || evolutionEntry.changeKey || evolutionEntry.revision}`,
+						index: 0,
+						revision: evolutionEntry.revision,
+						shortRevision:
+							normalizeSnapshotOperationKey(evolutionEntry.changeKey) || evolutionEntry.revision.slice(0, 8),
+						changeId: entry.changeId,
+						authorDate: normalizeSnapshotAuthorDate(evolutionEntry.authorDate, entry.authorDate),
+						authorName: evolutionEntry.authorName || entry.authorName,
+						description: normalizeSnapshotDescription(evolutionEntry.description, evolutionEntry.operationDescription),
+						touchesFile: true,
+						isWorkingTree: false,
+						filePath: relativePath,
+					}),
+				);
+		}),
+	);
+	const snapshotEntries = snapshotEntryGroups.flat();
 
 	snapshotEntries.sort(
 		(left, right) => left.timestamp - right.timestamp || left.revision.localeCompare(right.revision),
@@ -452,30 +454,26 @@ function composeSnapshotEntries(revisionEntries, snapshotEntries, loadedChangeId
 	);
 }
 
-async function buildPreviewMap(repoDir, entries, backend, relativePath, comparisonSource) {
+async function buildPreviewMap(repoDir, entries, backend, relativePath, comparisonSource, contentCache = new Map()) {
 	const previews = {};
+	const entryContents = await Promise.all(
+		entries.map((entry) => getEntryContent(repoDir, backend, entry, relativePath, contentCache)),
+	);
+
 	for (let toIndex = 1; toIndex < entries.length; toIndex += 1) {
 		for (let fromIndex = 0; fromIndex < toIndex; fromIndex += 1) {
-			previews[`${fromIndex}:${toIndex}`] = await buildPreview(
-				repoDir,
-				entries,
-				backend,
-				relativePath,
-				comparisonSource,
-				fromIndex,
-				toIndex,
-			);
+			previews[`${fromIndex}:${toIndex}`] = buildPreview(entries, entryContents, comparisonSource, fromIndex, toIndex);
 		}
 	}
 
 	return previews;
 }
 
-async function buildPreview(repoDir, entries, backend, relativePath, comparisonSource, fromIndex, toIndex) {
+function buildPreview(entries, entryContents, comparisonSource, fromIndex, toIndex) {
 	const fromEntry = entries[fromIndex];
 	const toEntry = entries[toIndex];
-	const beforeText = await getEntryContent(repoDir, backend, fromEntry, relativePath);
-	const afterText = await getEntryContent(repoDir, backend, toEntry, relativePath);
+	const beforeText = entryContents[fromIndex] || '';
+	const afterText = entryContents[toIndex] || '';
 	const rows = buildRows(beforeText, afterText);
 	const additions = rows.filter((row) => row.type === 'add').length;
 	const deletions = rows.filter((row) => row.type === 'remove').length;
@@ -499,14 +497,26 @@ async function buildPreview(repoDir, entries, backend, relativePath, comparisonS
 	};
 }
 
-async function getEntryContent(repoDir, backend, entry, relativePath) {
-	if (entry.isWorkingTree) {
-		return fs.readFile(path.join(repoDir, relativePath), 'utf8');
+async function getEntryContent(repoDir, backend, entry, relativePath, contentCache = new Map()) {
+	const cacheKey = `${backend}:${entry.revision}:${relativePath}`;
+	const cached = contentCache.get(cacheKey);
+	if (cached) {
+		return cached;
 	}
 
-	return backend === 'jj'
-		? showJjFileAtRevision(repoDir, entry.revision, relativePath)
-		: showGitFileAtRevision(repoDir, entry.revision, relativePath);
+	const contentPromise = entry.isWorkingTree
+		? fs.readFile(path.join(repoDir, relativePath), 'utf8')
+		: backend === 'jj'
+			? showJjFileAtRevision(repoDir, entry.revision, relativePath)
+			: showGitFileAtRevision(repoDir, entry.revision, relativePath);
+	contentCache.set(cacheKey, contentPromise);
+
+	try {
+		return await contentPromise;
+	} catch (error) {
+		contentCache.delete(cacheKey);
+		throw error;
+	}
 }
 
 async function showGitFileAtRevision(repoDir, revision, relativePath) {
@@ -633,7 +643,10 @@ async function getWorkspaceFiles(repoDir) {
 
 async function makeWorkingTreeEntry(repoDir, previousEntry, relativePath, backend) {
 	const content = await fs.readFile(path.join(repoDir, relativePath), 'utf8');
-	const previousContent = previousEntry ? await getEntryContent(repoDir, backend, previousEntry, relativePath) : '';
+	const contentCache = new Map();
+	const previousContent = previousEntry
+		? await getEntryContent(repoDir, backend, previousEntry, relativePath, contentCache)
+		: '';
 	if (content === previousContent) {
 		return null;
 	}
@@ -726,7 +739,7 @@ function relativeTime(timestamp) {
 	return `${Math.round(hours / 24)} days ago`;
 }
 
-async function commit(repoDir, date, message, files) {
+async function commit(repoDir: string, date: string, message: string, files: Record<string, string>) {
 	await writeFiles(repoDir, files);
 	await run('git', ['add', '.'], repoDir);
 	await run('git', ['commit', '-m', message], repoDir, {
@@ -735,7 +748,7 @@ async function commit(repoDir, date, message, files) {
 	});
 }
 
-async function writeFiles(repoDir, files) {
+async function writeFiles(repoDir: string, files: Record<string, string>) {
 	for (const [relativePath, content] of Object.entries(files)) {
 		const targetPath = path.join(repoDir, relativePath);
 		await fs.mkdir(path.dirname(targetPath), { recursive: true });
@@ -765,8 +778,7 @@ function isMissingFileAtRevisionError(error) {
 		/path .* does not exist in/i.test(message) ||
 		/no such path/i.test(message) ||
 		/no matching entries/i.test(message) ||
-		/No such file or directory/i.test(message) ||
-		/Path .* not found/i.test(message)
+		/No such file or directory/i.test(message)
 	);
 }
 

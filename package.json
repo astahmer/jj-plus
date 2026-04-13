@@ -16,16 +16,16 @@
 	},
 	"publisher": "astahmer",
 	"bin": {
-		"jj-range-diff": "./dist/bin.js"
+		"jj-range-diff": "./dist/bin.cjs"
 	},
-	"main": "./dist/extension/index.js",
+	"main": "./dist/extension/index.cjs",
 	"scripts": {
 		"bddgen": "bddgen",
 		"build": "pnpm build:extension && pnpm build:webview && pnpm vsce package --skip-license --no-dependencies",
 		"build:extension": "tsdown",
 		"build:webview": "vite build",
 		"dev": "vite --host 127.0.0.1 --open /",
-		"fixtures:e2e": "node ./scripts/generate-e2e-fixtures.mjs",
+		"fixtures:e2e": "node ./scripts/generate-e2e-fixtures.ts",
 		"fmt": "oxfmt --write",
 		"lint": "pnpm lint:ox && pnpm lint:knip",
 		"lint:knip": "knip",
@@ -34,7 +34,7 @@
 		"test": "node --test test/**/*.test.ts",
 		"test:all": "pnpm test && pnpm test:e2e && pnpm test:integration",
 		"test:e2e": "pnpm build:extension && pnpm fixtures:e2e && pnpm bddgen && playwright test",
-		"test:integration": "pnpm build:extension && pnpm build:webview && pnpm fixtures:e2e && node ./integration/vscode/run.js",
+		"test:integration": "pnpm build:extension && pnpm build:webview && pnpm fixtures:e2e && node ./integration/vscode/run.ts",
 		"typecheck": "pnpm typecheck:web && pnpm typecheck:extension",
 		"typecheck:extension": "tsgo --noEmit -p tsconfig.js.json",
 		"typecheck:web": "tsgo --noEmit -p tsconfig.json"

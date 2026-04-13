@@ -11,7 +11,7 @@ import {
 	parseTimelineArgs,
 	resolveIde,
 	usage,
-} from './cli/options';
+} from './cli/options.ts';
 import { EXTENSION_ID } from './extension/constants.ts';
 
 void main().catch((error: unknown) => {
@@ -109,7 +109,7 @@ async function launchStandaloneTimeline(options: ReturnType<typeof parseTimeline
 		throw new Error(`File not found: ${absoluteFilePath}`);
 	}
 
-	const { startStandaloneTimelineServer } = await import('./standalone/server.js');
+	const { startStandaloneTimelineServer } = await import('./standalone/server.ts');
 	const server = await startStandaloneTimelineServer({
 		workspacePath,
 		filePath: absoluteFilePath,

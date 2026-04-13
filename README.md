@@ -87,7 +87,7 @@ When running from this repository directly, build the extension runtime first:
 pnpm build:extension
 ```
 
-Then invoke the local binary with `pnpm exec jj-range-diff ...`. If you prefer, `node ./dist/bin.js ...` is equivalent against the built output.
+Then invoke the local binary with `pnpm exec jj-range-diff ...`. If you prefer, `node ./dist/bin.cjs ...` is equivalent against the built output.
 
 ### Range Diff Deep Link
 

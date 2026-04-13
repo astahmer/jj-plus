@@ -11,8 +11,6 @@
 		"noImplicitAny": false,
 		"noEmit": true,
 		"allowImportingTsExtensions": true,
-		"allowJs": true,
-		"checkJs": true,
 		"skipLibCheck": true,
 		"resolveJsonModule": true,
 		"types": [
@@ -23,9 +21,9 @@
 	},
 	"include": [
 		"src/**/*.ts",
-		"scripts/**/*.mjs",
+		"scripts/**/*.ts",
 		"test/**/*.ts",
-		"integration/**/*.js",
+		"integration/**/*.ts",
 		"tsdown.config.ts"
 	],
 	"exclude": [

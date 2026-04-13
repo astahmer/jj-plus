@@ -1,23 +1,24 @@
-import { ok, equal, match, fail } from 'node:assert/strict';
+import { equal, fail, match, ok } from 'node:assert/strict';
 import { basename, join } from 'node:path';
-import { commands, workspace, Uri, window } from 'vscode';
+import { Uri, commands, window, workspace } from 'vscode';
+
+process.stderr.write('[integration] timeline.integration.ts loaded\n');
+
+type TimelineDebugState = {
+	panelOpen?: boolean;
+	viewReady?: boolean;
+	backend?: 'git' | 'jj';
+	relativePath?: string;
+	fileName?: string;
+	panelTitle?: string;
+	usesBundledWebview?: boolean;
+	entryCount?: number;
+};
 
 const DEBUG_COMMAND = 'jj-range-diff._debug.getTimelineState';
 const OPEN_TIMELINE_COMMAND = 'jj-range-diff.openFileRevisionTimeline';
 const TARGET_RELATIVE_PATH = 'apps/backend/instructions/lazy-di-rollout-plan.md';
 const SECONDARY_RELATIVE_PATH = 'apps/backend/src/service.ts';
-
-/**
- * @typedef {object} TimelineDebugState
- * @property {boolean=} panelOpen
- * @property {boolean=} viewReady
- * @property {'git' | 'jj'=} backend
- * @property {string=} relativePath
- * @property {string=} fileName
- * @property {string=} panelTitle
- * @property {boolean=} usesBundledWebview
- * @property {number=} entryCount
- */
 
 suite('Revision Timeline integration', () => {
 	teardown(async () => {
@@ -42,8 +43,8 @@ suite('Revision Timeline integration', () => {
 		equal(state.relativePath, TARGET_RELATIVE_PATH);
 		equal(state.fileName, 'lazy-di-rollout-plan.md');
 		equal(state.usesBundledWebview, true);
-		ok(state.entryCount >= 2, `expected at least 2 timeline entries, got ${state.entryCount}`);
-		match(state.panelTitle, /^Revision Timeline: lazy-di-rollout-plan\.md$/u);
+		ok(state.entryCount && state.entryCount >= 2, `expected at least 2 timeline entries, got ${state.entryCount}`);
+		match(state.panelTitle || '', /^Revision Timeline: lazy-di-rollout-plan\.md$/u);
 	});
 
 	test('reuses the existing timeline panel when opening a different workspace file', async () => {
@@ -62,31 +63,28 @@ suite('Revision Timeline integration', () => {
 		);
 		equal(state.relativePath, SECONDARY_RELATIVE_PATH);
 		equal(state.fileName, 'service.ts');
-		match(state.panelTitle, /^Revision Timeline: service\.ts$/u);
+		match(state.panelTitle || '', /^Revision Timeline: service\.ts$/u);
 	});
 });
 
-async function openWorkspaceFile(workspacePath, relativePath) {
+async function openWorkspaceFile(workspacePath: string, relativePath: string): Promise<void> {
 	const fileUri = Uri.file(join(workspacePath, relativePath));
 	const document = await workspace.openTextDocument(fileUri);
 	await window.showTextDocument(document, { preview: false });
 }
 
-async function waitForTimelineReady() {
+async function waitForTimelineReady(): Promise<TimelineDebugState> {
 	return waitForTimelineState((state) => state?.viewReady === true);
 }
 
-/**
- * @param {(state: TimelineDebugState | undefined) => boolean} predicate
- * @returns {Promise<TimelineDebugState>}
- */
-async function waitForTimelineState(predicate) {
+async function waitForTimelineState(
+	predicate: (state: TimelineDebugState | undefined) => boolean,
+): Promise<TimelineDebugState> {
 	const deadline = Date.now() + 15000;
-	/** @type {TimelineDebugState | undefined} */
-	let lastState;
+	let lastState: TimelineDebugState | undefined;
 
 	while (Date.now() < deadline) {
-		lastState = /** @type {TimelineDebugState | undefined} */ (await commands.executeCommand(DEBUG_COMMAND));
+		lastState = (await commands.executeCommand(DEBUG_COMMAND)) as TimelineDebugState | undefined;
 		if (predicate(lastState)) {
 			return lastState;
 		}
@@ -97,6 +95,6 @@ async function waitForTimelineState(predicate) {
 	fail(`timeline webview did not initialize in time; last state: ${JSON.stringify(lastState)}`);
 }
 
-function delay(ms) {
-	return new Promise((resolve) => setTimeout(resolve, ms));
+function delay(milliseconds: number): Promise<void> {
+	return new Promise((resolveDelay) => setTimeout(resolveDelay, milliseconds));
 }
