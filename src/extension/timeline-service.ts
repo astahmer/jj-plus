@@ -242,17 +242,11 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 		}
 
 		if (request.session.backend === 'jj' && comparisonSource === 'snapshot') {
-			const canonicalKey = `${comparisonSource}:${normalizedToIndex}:${normalizedToIndex}`;
-			const canonicalPreview =
-				request.session.previewCache.get(canonicalKey) ||
-				(await getJjSnapshotPreview({ session: request.session, entryIndex: normalizedToIndex }));
-			request.session.previewCache.set(canonicalKey, canonicalPreview);
-
-			const preview = {
-				...canonicalPreview,
+			const preview = await getJjSnapshotPreview({
+				session: request.session,
 				fromIndex: normalizedFromIndex,
 				toIndex: normalizedToIndex,
-			};
+			});
 			request.session.previewCache.set(cacheKey, preview);
 			return preview;
 		}
@@ -695,15 +689,18 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 
 	async function getJjSnapshotPreview(request: {
 		session: ExtensionTimelineSession;
-		entryIndex: number;
+		fromIndex: number;
+		toIndex: number;
 	}): Promise<DiffPreview> {
 		const sourceEntries = getEntriesForSource({ session: request.session, comparisonSource: 'snapshot' });
-		const entry = sourceEntries[request.entryIndex];
+		const normalizedFromIndex = Math.max(0, Math.min(request.fromIndex, request.toIndex));
+		const normalizedToIndex = Math.max(normalizedFromIndex, Math.max(request.fromIndex, request.toIndex));
+		const entry = sourceEntries[normalizedToIndex];
 		if (!entry) {
 			return createEmptyPreview({
-				index: request.entryIndex,
-				fromIndex: request.entryIndex,
-				toIndex: request.entryIndex,
+				index: normalizedToIndex,
+				fromIndex: normalizedFromIndex,
+				toIndex: normalizedToIndex,
 				comparisonSource: 'snapshot',
 				title: 'No revision selected',
 			});
@@ -712,59 +709,56 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 		const afterPath = await resolveEntryFilePath({
 			session: request.session,
 			entry,
-			entryIndex: request.entryIndex,
+			entryIndex: normalizedToIndex,
 		});
-		const previousEntryIndex = Math.max(0, request.entryIndex - 1);
-		const previousEntry = request.entryIndex > 0 ? sourceEntries[previousEntryIndex] : undefined;
-		const previousPath = entry.isWorkingTree
-			? previousEntry
-				? await resolveEntryFilePath({
-						session: request.session,
-						entry: previousEntry,
-						entryIndex: previousEntryIndex,
-					})
-				: request.session.relativePath
-			: await resolvePreviousPathAcrossRevision({
+		const previousEntryIndex = normalizedFromIndex === normalizedToIndex ? normalizedToIndex - 1 : normalizedFromIndex;
+		const previousEntry = previousEntryIndex >= 0 ? sourceEntries[previousEntryIndex] : undefined;
+		const previousPath = previousEntry
+			? await resolveEntryFilePath({
 					session: request.session,
-					entry,
-					currentPath: afterPath,
-				});
-		const beforeText = entry.isWorkingTree
-			? previousEntry
-				? await getRevisionContent({
+					entry: previousEntry,
+					entryIndex: previousEntryIndex,
+				})
+			: entry.isWorkingTree
+				? request.session.relativePath
+				: await resolvePreviousPathAcrossRevision({
 						session: request.session,
-						entry: previousEntry,
-						entryIndex: previousEntryIndex,
-					})
-				: ''
-			: await getContentForRevset({
+						entry,
+						currentPath: afterPath,
+					});
+		const beforeText = previousEntry
+			? await getRevisionContent({
 					session: request.session,
-					revset: `${entry.revision}-`,
-					filePath: previousPath,
-				});
+					entry: previousEntry,
+					entryIndex: previousEntryIndex,
+				})
+			: entry.isWorkingTree
+				? ''
+				: await getContentForRevset({
+						session: request.session,
+						revset: `${entry.revision}-`,
+						filePath: previousPath,
+					});
 		const afterText = await getRevisionContent({
 			session: request.session,
 			entry,
-			entryIndex: request.entryIndex,
+			entryIndex: normalizedToIndex,
 		});
 
 		return {
 			...buildDiffPreview({
-				index: request.entryIndex,
+				index: normalizedToIndex,
 				previousEntry,
 				currentEntry: entry,
 				beforeText,
 				afterText,
-				fromIndex: previousEntryIndex,
-				toIndex: request.entryIndex,
+				fromIndex: normalizedFromIndex,
+				toIndex: normalizedToIndex,
 				beforePath: previousPath,
 				afterPath,
 				comparisonSource: 'snapshot',
 			}),
 			title: entry.isWorkingTree ? `Snapshot @ ${entry.shortRevision}` : `Snapshot ${entry.shortRevision}`,
-			subtitle: entry.isWorkingTree
-				? 'Current working-copy patch'
-				: `${formatEntryDateTime(entry.authorDate)} · patch introduced by ${entry.shortRevision}`,
 		};
 	}
 

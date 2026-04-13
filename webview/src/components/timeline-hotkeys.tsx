@@ -1,4 +1,4 @@
-import { useTimelineContext } from '../timeline-context';
+import { useTimelineContext } from '../timeline-context.tsx';
 
 export function TimelineHotkeys() {
 	const { state, actions } = useTimelineContext();

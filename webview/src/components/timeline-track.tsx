@@ -1,7 +1,7 @@
 import { For } from 'solid-js';
-import type { FileRevisionEntry } from '../types';
-import { getTimelineAnchorPercent } from '../timeline-model';
-import { useTimelineContext } from '../timeline-context';
+import type { FileRevisionEntry } from '../types.ts';
+import { getTimelineAnchorPercent } from '../timeline-model.ts';
+import { useTimelineContext } from '../timeline-context.tsx';
 
 export function TimelineTrack() {
 	const { state, actions } = useTimelineContext();

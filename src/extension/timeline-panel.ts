@@ -16,6 +16,8 @@ import type { ExtensionTimelineSession, TimelineDebugState, TimelinePanelControl
 
 type TimelineService = ReturnType<typeof createTimelineService>;
 
+const LARGE_MULTI_DIFF_CONFIRMATION_THRESHOLD = 200;
+
 function postTimelineMessage(request: {
 	panel: vscode.WebviewPanel;
 	message: TimelineInboundMessage;
@@ -566,6 +568,10 @@ export function createTimelinePanelController(args: {
 					return;
 				}
 
+				if (!(await confirmMultiDiffOpen({ title: plan.title, fileCount: plan.files.length }))) {
+					return;
+				}
+
 				if (signal.aborted) {
 					return;
 				}
@@ -619,6 +625,10 @@ export function createTimelinePanelController(args: {
 
 				if (!plan.files.length) {
 					void vscode.window.showInformationMessage(`No files changed in ${entry.shortRevision}`);
+					return;
+				}
+
+				if (!(await confirmMultiDiffOpen({ title: plan.title, fileCount: plan.files.length }))) {
 					return;
 				}
 
@@ -679,6 +689,24 @@ export function createTimelinePanelController(args: {
 				}),
 			})),
 		);
+	}
+
+	async function confirmMultiDiffOpen(request: { title: string; fileCount: number }): Promise<boolean> {
+		if (request.fileCount <= LARGE_MULTI_DIFF_CONFIRMATION_THRESHOLD) {
+			return true;
+		}
+
+		const confirmLabel = `Open ${request.fileCount} diffs`;
+		const selection = await vscode.window.showWarningMessage(
+			`Open ${request.fileCount} file diffs?`,
+			{
+				modal: true,
+				detail: `${request.title} touches a large number of files. Opening every diff at once may be slow and create a lot of editors.`,
+			},
+			confirmLabel,
+		);
+
+		return selection === confirmLabel;
 	}
 
 	async function createTargetUri(request: {

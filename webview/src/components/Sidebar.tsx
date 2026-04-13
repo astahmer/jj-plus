@@ -1,6 +1,6 @@
 import { For, Show, createSignal, onCleanup } from 'solid-js';
-import { useTimelineContext } from '../timeline-context';
-import { RevisionIdentifier, getRevisionIdentifierValue } from './revision-identifier';
+import { useTimelineContext } from '../timeline-context.tsx';
+import { RevisionIdentifier, getRevisionIdentifierValue } from './revision-identifier.tsx';
 
 export function Sidebar() {
 	const { state, actions } = useTimelineContext();
@@ -108,12 +108,20 @@ export function Sidebar() {
 									entry.index <= Math.max(pendingIndex, hoveredIndex)
 								);
 							};
+							const showOperationPrimary = () => state.comparisonSource() === 'snapshot' && Boolean(entry.operationId);
 							const copyKey = `primary:${entry.id}`;
-							const primaryCopyValue =
+							const revisionIdentifierValue =
 								getRevisionIdentifierValue(entry) || entry.shortRevision || entry.revision || entry.id;
+							const primaryCopyValue = showOperationPrimary()
+								? entry.operationId || revisionIdentifierValue
+								: revisionIdentifierValue;
 							const primaryContent = () =>
 								copiedIdentifierKey() === copyKey ? (
 									'Copied!'
+								) : showOperationPrimary() ? (
+									<span class="identifier">
+										<span class="identifier-plain">{entry.operationId}</span>
+									</span>
 								) : (
 									<RevisionIdentifier
 										value={getRevisionIdentifierValue(entry)}
@@ -122,6 +130,10 @@ export function Sidebar() {
 									/>
 								);
 							const operationCopyKey = `operation-key:${entry.id}`;
+							const primaryTooltipLabel = () =>
+								showOperationPrimary() ? 'Revision' : entry.operationId ? 'Operation' : null;
+							const primaryTooltipValue = () =>
+								showOperationPrimary() ? revisionIdentifierValue : entry.operationId || '';
 
 							return (
 								<article
@@ -142,41 +154,44 @@ export function Sidebar() {
 								>
 									<div class="history-top">
 										<div class="history-primary">
-											<button
-												class="history-id-button"
-												type="button"
-												onMouseEnter={(event) => {
-													if (entry.operationId) {
-														actions.showInfoTooltip(event, 'Operation', entry.operationId);
-													}
-												}}
-												onMouseLeave={actions.hideInfoTooltip}
-												onClick={(event) => {
-													event.stopPropagation();
-													void copyIdentifier(copyKey, primaryCopyValue);
-												}}
-											>
-												{primaryContent()}
-											</button>
-											<Show when={entry.operationKey}>
+											<div class="history-identity">
 												<button
-													class="mini-badge other mini-badge-copy"
+													class="history-id-button"
 													type="button"
+													onMouseEnter={(event) => {
+														const tooltipValue = primaryTooltipValue();
+														if (tooltipValue) {
+															actions.showInfoTooltip(event, primaryTooltipLabel(), tooltipValue);
+														}
+													}}
+													onMouseLeave={actions.hideInfoTooltip}
 													onClick={(event) => {
 														event.stopPropagation();
-														void copyIdentifier(operationCopyKey, entry.operationKey || '');
+														void copyIdentifier(copyKey, primaryCopyValue);
 													}}
 												>
-													<Show
-														when={copiedIdentifierKey() === operationCopyKey}
-														fallback={
-															<RevisionIdentifier value={entry.operationKey || ''} highlightPrefix={entry.changeId} />
-														}
-													>
-														Copied!
-													</Show>
+													{primaryContent()}
 												</button>
-											</Show>
+												<Show when={entry.operationKey}>
+													<button
+														class="mini-badge other mini-badge-copy"
+														type="button"
+														onClick={(event) => {
+															event.stopPropagation();
+															void copyIdentifier(operationCopyKey, entry.operationKey || '');
+														}}
+													>
+														<Show
+															when={copiedIdentifierKey() === operationCopyKey}
+															fallback={
+																<RevisionIdentifier value={entry.operationKey || ''} highlightPrefix={entry.changeId} />
+															}
+														>
+															Copied!
+														</Show>
+													</button>
+												</Show>
+											</div>
 											<Show when={!entry.touchesFile}>
 												<span class="mini-badge other">OTHER</span>
 											</Show>

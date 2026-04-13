@@ -1,8 +1,8 @@
 import { Show, createMemo } from 'solid-js';
-import type { ComboboxOption } from './combobox';
-import { Combobox } from './combobox';
-import { RevisionIdentifier, getRevisionIdentifierValue } from './revision-identifier';
-import { useTimelineContext } from '../timeline-context';
+import type { ComboboxOption } from './combobox.tsx';
+import { Combobox } from './combobox.tsx';
+import { RevisionIdentifier, getRevisionIdentifierValue } from './revision-identifier.tsx';
+import { useTimelineContext } from '../timeline-context.tsx';
 
 export function TimelineRevisionPickers() {
 	const { state, actions } = useTimelineContext();

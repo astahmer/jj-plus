@@ -10,7 +10,7 @@ import type {
 	LayoutMode,
 	RangeOverviewItem,
 	TimelinePreset,
-} from './types';
+} from './types.ts';
 
 export type TimelineStateContext = {
 	backend: Accessor<HistoryBackend | null>;

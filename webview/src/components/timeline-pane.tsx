@@ -1,10 +1,10 @@
 import { Show, createMemo } from 'solid-js';
-import { useTimelineContext } from '../timeline-context';
-import { Combobox, type ComboboxOption } from './combobox';
-import { TimelineControls } from './timeline-controls';
-import { TimelineHotkeys } from './timeline-hotkeys';
-import { TimelineRevisionPickers } from './timeline-revision-pickers';
-import { TimelineTrack } from './timeline-track';
+import { useTimelineContext } from '../timeline-context.tsx';
+import { Combobox, type ComboboxOption } from './combobox.tsx';
+import { TimelineControls } from './timeline-controls.tsx';
+import { TimelineHotkeys } from './timeline-hotkeys.tsx';
+import { TimelineRevisionPickers } from './timeline-revision-pickers.tsx';
+import { TimelineTrack } from './timeline-track.tsx';
 
 export function TimelinePane() {
 	const { state, actions } = useTimelineContext();
@@ -21,7 +21,7 @@ export function TimelinePane() {
 
 		return state.workspaceFiles().map((value) => ({ value }) satisfies ComboboxOption);
 	});
-	const collapseLabel = createMemo(() => (state.timelinePaneCollapsed() ? 'Expand' : 'Timeline only'));
+	const collapseLabel = createMemo(() => (state.timelinePaneCollapsed() ? 'Expand timeline' : 'Collapse timeline'));
 	const showStepStatusRow = createMemo(() => Boolean(state.stepStatus()) || state.showSnapshotStatus());
 	const fileSwitcherPlaceholder = createMemo(() =>
 		state.fileSwitcherMode() === 'overview' ? 'Jump to a top-changed file...' : 'Switch file...',

@@ -1,9 +1,10 @@
 import { Show, createEffect, createMemo, createSignal, onCleanup, onMount } from 'solid-js';
 import { createStore, reconcile } from 'solid-js/store';
-import { Sidebar } from './components/sidebar';
-import { TimelinePane } from './components/timeline-pane';
-import { DiffPanel } from './components/diff-panel';
-import { createTimelineHost } from './host';
+import { DiffPanel } from './components/diff-panel.tsx';
+import { RevisionIdentifier, getRevisionIdentifierValue } from './components/revision-identifier.tsx';
+import { Sidebar } from './components/sidebar.tsx';
+import { TimelinePane } from './components/timeline-pane.tsx';
+import { createTimelineHost } from './host.ts';
 import {
 	adjustRangeBoundary,
 	alignStepSelection,
@@ -17,7 +18,7 @@ import {
 	normalizeSelection,
 	shiftRangeSelection,
 	shiftStepSelection,
-} from './timeline-selection';
+} from './timeline-selection.ts';
 import {
 	getEntriesForSource,
 	getIntermediateToggleLabel,
@@ -26,7 +27,7 @@ import {
 	getSelectedEntryCount,
 	getSidebarPreviewRequests,
 	getUnitPreviewRange,
-} from './timeline-model';
+} from './timeline-model.ts';
 import type {
 	ComparisonMode,
 	ComparisonSource,
@@ -40,9 +41,8 @@ import type {
 	TimelineData,
 	TimelineInboundMessage,
 	TimelinePreset,
-} from './types';
-import { TimelineProvider, type TimelineContextValue } from './timeline-context';
-import { RevisionIdentifier, getRevisionIdentifierValue } from './components/revision-identifier';
+} from './types.ts';
+import { TimelineProvider, type TimelineContextValue } from './timeline-context.tsx';
 
 type TooltipState =
 	| {
@@ -126,6 +126,22 @@ const initialState: UiState = {
 const TIMELINE_EXPANDED_MIN_HEIGHT = 176;
 const TIMELINE_COLLAPSED_HEIGHT = 128;
 const TIMELINE_MAX_HEIGHT = 520;
+const SIDEBAR_MIN_WIDTH = 220;
+const SIDEBAR_MAX_WIDTH = 760;
+const SIDEBAR_COLLAPSE_THRESHOLD = 120;
+const SIDEBAR_REOPEN_THRESHOLD = 20;
+
+function getSidebarMaxWidth() {
+	if (typeof window === 'undefined') {
+		return SIDEBAR_MAX_WIDTH;
+	}
+
+	return Math.max(SIDEBAR_MIN_WIDTH, Math.min(SIDEBAR_MAX_WIDTH, window.innerWidth - 220));
+}
+
+function clampSidebarWidth(width: number) {
+	return Math.max(SIDEBAR_MIN_WIDTH, Math.min(getSidebarMaxWidth(), Math.round(width)));
+}
 
 export function App() {
 	const host = createTimelineHost();
@@ -301,18 +317,18 @@ export function App() {
 			const onPointerMove = (moveEvent: PointerEvent) => {
 				const delta = moveEvent.clientX - startX;
 				if (wasCollapsed) {
-					if (delta < 20) {
+					if (delta < SIDEBAR_REOPEN_THRESHOLD) {
 						return;
 					}
 
 					setState({
 						sidebarCollapsed: false,
-						sidebarWidth: Math.max(180, Math.min(420, 180 + (delta - 20))),
+						sidebarWidth: clampSidebarWidth(SIDEBAR_MIN_WIDTH + (delta - SIDEBAR_REOPEN_THRESHOLD)),
 					});
 					return;
 				}
 
-				if (startWidth + delta < 100) {
+				if (startWidth + delta < SIDEBAR_COLLAPSE_THRESHOLD) {
 					setState('sidebarCollapsed', true);
 					onPointerUp();
 					return;
@@ -320,7 +336,7 @@ export function App() {
 
 				setState({
 					sidebarCollapsed: false,
-					sidebarWidth: Math.max(180, Math.min(420, startWidth + delta)),
+					sidebarWidth: clampSidebarWidth(startWidth + delta),
 				});
 			};
 
@@ -332,6 +348,14 @@ export function App() {
 
 			window.addEventListener('pointermove', onPointerMove);
 			window.addEventListener('pointerup', onPointerUp);
+		};
+
+		const onWindowResize = () => {
+			if (window.matchMedia('(max-width: 980px)').matches) {
+				return;
+			}
+
+			setState('sidebarWidth', (value) => clampSidebarWidth(value));
 		};
 
 		const onTimelineResizePointerDown = (event: PointerEvent) => {
@@ -521,10 +545,12 @@ export function App() {
 		track?.addEventListener('mouseleave', onTrackMouseLeave);
 		fromMarker?.addEventListener('pointerdown', (event) => beginMarkerDrag('from', event));
 		toMarker?.addEventListener('pointerdown', (event) => beginMarkerDrag('to', event));
+		window.addEventListener('resize', onWindowResize);
 
 		onCleanup(() => {
 			unsubscribe();
 			window.removeEventListener('keydown', onKeyDown);
+			window.removeEventListener('resize', onWindowResize);
 			document.removeEventListener('click', onDocumentClick);
 			resizeHandle?.removeEventListener('pointerdown', onSidebarResizePointerDown);
 			timelineResizeHandle?.removeEventListener('pointerdown', onTimelineResizePointerDown);
@@ -685,7 +711,7 @@ export function App() {
 			const preferences = message.payload.preferences || {};
 			setState({
 				data: message.payload,
-				sidebarWidth: preferences.sidebarWidth || 280,
+				sidebarWidth: clampSidebarWidth(preferences.sidebarWidth || 280),
 				timelinePaneHeight: preferences.timelinePaneHeight || 278,
 				timelinePaneCollapsed: preferences.timelinePaneCollapsed === true,
 				layoutMode: preferences.layoutMode || 'split',
@@ -1026,7 +1052,7 @@ export function App() {
 			preset: 'year',
 			showIntermediateRevisions: false,
 			sidebarSearchQuery: '',
-			sidebarWidth: 280,
+			sidebarWidth: clampSidebarWidth(280),
 			timelinePaneHeight: 278,
 			timelinePaneCollapsed: false,
 			sidebarCollapsed: false,
@@ -1468,7 +1494,7 @@ export function App() {
 				>
 					<Sidebar />
 					<div class="resize-handle" id="resizeHandle" />
-					<section class={`panel diff-panel${state.timelinePaneCollapsed ? ' is-timeline-only' : ''}`}>
+					<section class="panel diff-panel">
 						<TimelinePane />
 						<DiffPanel />
 					</section>

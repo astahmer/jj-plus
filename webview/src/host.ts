@@ -1,4 +1,4 @@
-import { getEntriesForSource } from './timeline-model';
+import { getEntriesForSource } from './timeline-model.ts';
 import type {
 	ComparisonSource,
 	DiffPreview,
@@ -8,7 +8,7 @@ import type {
 	TimelineHost,
 	TimelineInboundMessage,
 	TimelinePreferences,
-} from './types';
+} from './types.ts';
 
 type VsCodeApi = {
 	postMessage: (message: TimelineCommand) => void;

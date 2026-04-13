@@ -1,8 +1,8 @@
 import { For, Show, createMemo } from 'solid-js';
 import { createStore } from 'solid-js/store';
-import type { ComparisonMode, ComparisonSource, ContentMode, DiffPreview } from '../types';
-import { useTimelineContext } from '../timeline-context';
-import { RevisionIdentifier, getRevisionIdentifierValue } from './revision-identifier';
+import type { ComparisonMode, ComparisonSource, ContentMode, DiffPreview } from '../types.ts';
+import { useTimelineContext } from '../timeline-context.tsx';
+import { RevisionIdentifier, getRevisionIdentifierValue } from './revision-identifier.tsx';
 
 const comparisonModeLabels: Record<ComparisonMode, string> = {
 	range: 'Range',
@@ -46,7 +46,13 @@ export function DiffPanel() {
 		if (activeComparisonSource() === 'snapshot') {
 			return (
 				<>
-					<span>Snapshot </span>
+					<span class="diff-title-prefix">Snapshot</span>
+					<RevisionIdentifier
+						value={getRevisionIdentifierValue(fromEntry)}
+						highlightPrefix={fromEntry.changeId}
+						plain={fromEntry.isWorkingTree}
+					/>
+					<span class="diff-title-arrow">→</span>
 					<RevisionIdentifier
 						value={getRevisionIdentifierValue(toEntry)}
 						highlightPrefix={toEntry.changeId}

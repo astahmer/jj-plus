@@ -1,4 +1,4 @@
-import type { FileRevisionEntry } from '../types';
+import type { FileRevisionEntry } from '../types.ts';
 
 type RevisionIdentifierProps = {
 	value: string;

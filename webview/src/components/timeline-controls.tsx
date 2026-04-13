@@ -1,6 +1,6 @@
 import { For, Show } from 'solid-js';
-import type { TimelinePreset } from '../types';
-import { useTimelineContext } from '../timeline-context';
+import type { TimelinePreset } from '../types.ts';
+import { useTimelineContext } from '../timeline-context.tsx';
 
 const presetLabels: Record<TimelinePreset, string> = {
 	year: 'This year',
