@@ -2,8 +2,8 @@ import { defineConfig, devices } from '@playwright/test';
 import { defineBddConfig } from 'playwright-bdd';
 
 const bddTestDir = defineBddConfig({
-	features: 'features/**/*.feature',
-	steps: ['features/steps/**/*.ts', 'features/support/**/*.ts'],
+	features: 'tests/features/**/*.feature',
+	steps: ['tests/features/steps/**/*.ts', 'tests/features/support/**/*.ts'],
 	outputDir: '.features-gen',
 });
 
@@ -28,9 +28,15 @@ export default defineConfig({
 			use: { ...devices['Desktop Chrome'] },
 		},
 		{
+			name: 'browser',
+			testDir: '.',
+			testMatch: 'tests/features/**/*.spec.ts',
+			use: { ...devices['Desktop Chrome'] },
+		},
+		{
 			name: 'visual',
 			testDir: '.',
-			testMatch: 'tests/**/*.spec.ts',
+			testMatch: 'tests/visual/**/*.spec.ts',
 			use: { ...devices['Desktop Chrome'] },
 		},
 	],

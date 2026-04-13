@@ -21,9 +21,9 @@
 	},
 	"include": [
 		"src/**/*.ts",
-		"scripts/**/*.ts",
-		"test/**/*.ts",
-		"integration/**/*.ts",
+		"tests/fixtures/**/*.ts",
+		"tests/units/**/*.ts",
+		"tests/vscode/**/*.ts",
 		"tsdown.config.ts"
 	],
 	"exclude": [

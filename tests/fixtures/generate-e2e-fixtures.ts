@@ -7,7 +7,7 @@ import {
 	normalizeSnapshotOperationKey,
 	parseJjEvolutionSummaryEntries,
 	parseJjSummaryChangedPaths,
-} from '../src/shared/history-helpers.ts';
+} from '../../src/shared/history-helpers.ts';
 
 const execFileAsync = promisify(execFile);
 const rootDir = process.cwd();

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { getEditableShortcutBehavior, resolveTimelineShortcut } from '../webview/src/timeline-shortcuts.ts';
+import { getEditableShortcutBehavior, resolveTimelineShortcut } from '../../webview/src/timeline-shortcuts.ts';
 
 function makeShortcutEvent(
 	overrides: Partial<{

@@ -4,8 +4,8 @@ export default defineConfig({
 	clean: true,
 	dts: false,
 	entry: {
-		'suite/index': 'integration/vscode/suite/index.ts',
-		'suite/timeline.integration': 'integration/vscode/suite/timeline.integration.ts',
+		'suite/index': 'tests/vscode/suite/index.ts',
+		'suite/timeline.integration': 'tests/vscode/suite/timeline.integration.ts',
 	},
 	external: ['mocha', 'vscode'],
 	format: ['cjs'],

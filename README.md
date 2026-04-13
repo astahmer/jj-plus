@@ -10,6 +10,11 @@ It also includes a custom revision timeline panel for the active file. The panel
 - `src/extension/`: VS Code entrypoint, timeline controller, and history adapters
 - `src/bin.ts`: CLI entrypoint for deep links and the standalone timeline
 - `src/shared/`: diff helpers, history parsing, and shared timeline contracts
+- `tests/units/`: Node unit tests for CLI, shared helpers, and extracted webview logic
+- `tests/features/`: Playwright browser specs plus BDD features, steps, and fixtures
+- `tests/visual/`: Playwright screenshot baselines
+- `tests/vscode/`: VS Code extension-host integration harness
+- `tests/fixtures/`: generated browser fixture builder for end-to-end tests
 - `webview/src/`: SolidJS webview source
 
 ## Run Locally
@@ -76,9 +81,9 @@ await vscode.commands.executeCommand('jj-range-diff.openRangeMultiDiff', {
 
 ## CLI
 
-The CLI supports two entry points now:
+The CLI supports two flows:
 
-- the original deep-link flow into VS Code
+- the deep-link range diff flow into VS Code, available both implicitly and as `diff`
 - a standalone browser timeline for a single file
 
 When running from this repository directly, build the extension runtime first:
@@ -91,17 +96,18 @@ Then invoke the local binary with `pnpm exec jj-range-diff ...`. If you prefer, 
 
 ### Range Diff Deep Link
 
-`jj-range-diff` opens the same flow from your shell by forwarding a deep link into VS Code.
+`jj-range-diff` opens the same flow from your shell by forwarding a deep link into VS Code. `jj-range-diff diff` is the explicit equivalent, and that is the documented form below. The implicit default still works.
 
 CLI launches now skip the extension input prompts and open the diff directly. Add `--confirm` if you want the prompt flow before opening.
 
 ```sh
+pnpm exec jj-range-diff diff -f closest_bookmark(@) -t @
+pnpm exec jj-range-diff diff --from yvspkqrx --to mvvosnsv --title 'range diff'
+pnpm exec jj-range-diff diff --confirm -f closest_bookmark(@) -t @
+pnpm exec jj-range-diff diff --ide cursor -f closest_bookmark(@) -t @
+pnpm exec jj-range-diff diff --verbose --ide zed -f closest_bookmark(@) -t @
+pnpm exec jj-range-diff diff -f closest_bookmark(@) -t @ -w /path/to/workspace
 pnpm exec jj-range-diff -f closest_bookmark(@) -t @
-pnpm exec jj-range-diff --from yvspkqrx --to mvvosnsv --title 'range diff'
-pnpm exec jj-range-diff --confirm -f closest_bookmark(@) -t @
-pnpm exec jj-range-diff --ide cursor -f closest_bookmark(@) -t @
-pnpm exec jj-range-diff --verbose --ide zed -f closest_bookmark(@) -t @
-pnpm exec jj-range-diff -f closest_bookmark(@) -t @ -w /path/to/workspace
 ```
 
 If you install the package with `npm link`, the `jj-range-diff` command is also available on your `PATH`.

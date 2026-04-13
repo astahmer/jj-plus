@@ -1,7 +1,22 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { parseRangeDiffArgs, parseTimelineArgs } from '../src/cli/options.ts';
-import { renderPreviewText } from '../src/standalone/server.ts';
+import { parseRangeDiffArgs, parseTimelineArgs, resolveCliInvocation } from '../../src/cli/options.ts';
+import { renderPreviewText } from '../../src/standalone/server.ts';
+
+test('resolveCliInvocation keeps the implicit default flow and exposes an explicit diff alias', () => {
+	assert.deepEqual(resolveCliInvocation(['--from', 'main', '--to', '@']), {
+		command: 'range-diff',
+		argv: ['--from', 'main', '--to', '@'],
+	});
+	assert.deepEqual(resolveCliInvocation(['diff', '--from', 'main', '--to', '@']), {
+		command: 'range-diff',
+		argv: ['--from', 'main', '--to', '@'],
+	});
+	assert.deepEqual(resolveCliInvocation(['timeline', 'README.md']), {
+		command: 'timeline',
+		argv: ['README.md'],
+	});
+});
 
 test('parseRangeDiffArgs accepts aliases and preserves the existing deep-link flags', () => {
 	assert.deepEqual(

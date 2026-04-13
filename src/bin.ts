@@ -9,6 +9,7 @@ import {
 	logVerbose,
 	parseRangeDiffArgs,
 	parseTimelineArgs,
+	resolveCliInvocation,
 	resolveIde,
 	usage,
 } from './cli/options.ts';
@@ -22,8 +23,9 @@ void main().catch((error: unknown) => {
 
 async function main(): Promise<void> {
 	const argv = process.argv.slice(2);
-	if (argv[0] === 'timeline' || argv[0] === 'webview') {
-		const options = parseTimelineArgs(argv.slice(1));
+	const invocation = resolveCliInvocation(argv);
+	if (invocation.command === 'timeline') {
+		const options = parseTimelineArgs(invocation.argv);
 		if (options.help) {
 			process.stdout.write(`${usage()}\n`);
 			return;
@@ -33,7 +35,7 @@ async function main(): Promise<void> {
 		return;
 	}
 
-	const options = parseRangeDiffArgs(argv);
+	const options = parseRangeDiffArgs(invocation.argv);
 	if (options.help) {
 		process.stdout.write(`${usage()}\n`);
 		return;

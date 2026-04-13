@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { normalizeTextForComparison, textsMatchIgnoringLineEndings } from '../src/shared/diff-helpers.ts';
+import { normalizeTextForComparison, textsMatchIgnoringLineEndings } from '../../src/shared/diff-helpers.ts';
 import {
 	dedupeAdjacentEntriesByChangeId,
 	getGitHubRemoteBaseUrl,
@@ -9,7 +9,7 @@ import {
 	parseJjEvolutionSummaryEntries,
 	parseJjSummaryChangedPaths,
 	parseJjSummaryRenameLines,
-} from '../src/shared/history-helpers.ts';
+} from '../../src/shared/history-helpers.ts';
 import {
 	findRevisionEntryMatch,
 	getEntriesForSource,
@@ -22,9 +22,9 @@ import {
 	getSidebarPreviewRequests,
 	getTimelineAnchorPercent,
 	getUnitPreviewRange,
-} from '../src/shared/timeline-model.ts';
-import type { FileRevisionEntry, TimelineData } from '../src/shared/timeline-types.ts';
-import { normalizeTimelinePreferences } from '../src/extension/timeline-service.ts';
+} from '../../src/shared/timeline-model.ts';
+import type { FileRevisionEntry, TimelineData } from '../../src/shared/timeline-types.ts';
+import { normalizeTimelinePreferences } from '../../src/extension/timeline-service.ts';
 
 function makeEntry(overrides: Partial<FileRevisionEntry> & Pick<FileRevisionEntry, 'index'>): FileRevisionEntry {
 	const index = overrides.index;

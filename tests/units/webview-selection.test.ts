@@ -11,8 +11,8 @@ import {
 	normalizeSelection,
 	shiftRangeSelection,
 	shiftStepSelection,
-} from '../webview/src/timeline-selection.ts';
-import type { FileRevisionEntry, TimelineData } from '../webview/src/types.ts';
+} from '../../webview/src/timeline-selection.ts';
+import type { FileRevisionEntry, TimelineData } from '../../webview/src/types.ts';
 
 function makeEntry(overrides: Partial<FileRevisionEntry> & Pick<FileRevisionEntry, 'index'>): FileRevisionEntry {
 	return {

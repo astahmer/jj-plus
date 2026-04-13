@@ -86,9 +86,12 @@ export function getSelectedDiffEntryIndexes(
 	const minIndex = Math.min(fromIndex, toIndex);
 	const maxIndex = Math.max(fromIndex, toIndex);
 	return visibleEntries
-		.filter((entry) => entry.index >= minIndex && entry.index <= maxIndex)
-		.slice(1)
-		.map((entry) => entry.index);
+		.map((entry) => entry.index)
+		.filter(
+			(entryIndex): entryIndex is number =>
+				entryIndex !== undefined && entryIndex >= minIndex && entryIndex <= maxIndex,
+		)
+		.slice(1);
 }
 
 export function getRangeOverviewDiffCount(items: RangeOverviewItem[]): number {

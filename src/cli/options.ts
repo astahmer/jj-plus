@@ -23,6 +23,11 @@ type TimelineCliOptions = {
 	workspacePath?: string;
 };
 
+type CliInvocation = {
+	command: 'range-diff' | 'timeline';
+	argv: string[];
+};
+
 type IdePreset = {
 	command: string;
 	schemes: string[];
@@ -39,6 +44,29 @@ const idePresets: Record<string, IdePreset> = {
 	windsurf: { command: 'windsurf', schemes: ['windsurf'] },
 	codium: { command: 'codium', schemes: ['vscodium', 'vscode'] },
 };
+
+export function resolveCliInvocation(argv: string[]): CliInvocation {
+	const [command, ...rest] = argv;
+
+	if (command === 'timeline' || command === 'webview') {
+		return {
+			command: 'timeline',
+			argv: rest,
+		};
+	}
+
+	if (command === 'diff') {
+		return {
+			command: 'range-diff',
+			argv: rest,
+		};
+	}
+
+	return {
+		command: 'range-diff',
+		argv,
+	};
+}
 
 export function parseRangeDiffArgs(argv: string[]): RangeDiffCliOptions {
 	const options: RangeDiffCliOptions = {
@@ -270,7 +298,13 @@ export function usage(): string {
 	return [
 		'Usage:',
 		'  jj-range-diff [options]',
+		'  jj-range-diff diff [options]',
 		'  jj-range-diff timeline [options] <file>',
+		'',
+		'Commands:',
+		'  diff                          Explicit alias for the default range diff deep-link flow',
+		'  timeline <file>               Open the timeline webview in the default browser',
+		'  webview <file>                Alias for timeline',
 		'',
 		'Range Diff Options:',
 		'      --confirm                    Prompt before opening when launched from the CLI',
@@ -285,7 +319,6 @@ export function usage(): string {
 		'      --workspace-path <path>      Alias for --workspace',
 		'',
 		'Standalone Timeline Options:',
-		'  timeline <file>                  Open the timeline webview in the default browser',
 		'  -f, --file <path>                File path inside the workspace (or absolute path)',
 		'      --no-open                    Start the local server without opening the browser',
 		'      --port <port>                Preferred local port (default: random free port)',
