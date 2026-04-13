@@ -35,6 +35,81 @@ const DEFAULT_TIMELINE_PREFERENCES: Required<TimelinePreferences> = {
 
 const IGNORED_WORKSPACE_DIRECTORIES = new Set(['.git', '.jj', 'node_modules', 'dist', 'build', 'out', 'coverage']);
 
+function getComparisonEntries(request: {
+	entries: FileRevisionEntry[];
+	fromIndex: number;
+	toIndex: number;
+}): { fromEntry: FileRevisionEntry; toEntry: FileRevisionEntry } | undefined {
+	const normalizedFromIndex = Math.max(0, Math.min(request.fromIndex, request.toIndex));
+	const normalizedToIndex = Math.max(normalizedFromIndex, Math.max(request.fromIndex, request.toIndex));
+	const fromEntry = request.entries[normalizedFromIndex];
+	const toEntry = request.entries[normalizedToIndex];
+	if (!fromEntry || !toEntry) {
+		return undefined;
+	}
+
+	return { fromEntry, toEntry };
+}
+
+function syncSession(request: { target: ExtensionTimelineSession; source: ExtensionTimelineSession }): void {
+	request.target.adapter = request.source.adapter;
+	request.target.backend = request.source.backend;
+	request.target.workspacePath = request.source.workspacePath;
+	request.target.relativePath = request.source.relativePath;
+	request.target.absolutePath = request.source.absolutePath;
+	request.target.fileName = request.source.fileName;
+	request.target.entries = request.source.entries;
+	request.target.snapshotEntries = request.source.snapshotEntries;
+	request.target.snapshotLoadedChangeIds = request.source.snapshotLoadedChangeIds;
+	request.target.snapshotPendingChangeIds = request.source.snapshotPendingChangeIds;
+	request.target.workspaceFiles = request.source.workspaceFiles;
+	request.target.contentCache = request.source.contentCache;
+	request.target.previewCache = request.source.previewCache;
+	request.target.rangeOverviewCache = request.source.rangeOverviewCache;
+	request.target.pathCache = request.source.pathCache;
+	request.target.activeActionAbortController = request.source.activeActionAbortController;
+}
+
+async function getContentForRevset(request: {
+	session: ExtensionTimelineSession;
+	revset: string;
+	filePath: string;
+}): Promise<string> {
+	const cacheKey = `revset:${request.revset}:${request.filePath}`;
+	const cached = request.session.contentCache.get(cacheKey);
+	if (cached !== undefined) {
+		return cached;
+	}
+
+	const content = await request.session.adapter.showFileAtRevision({
+		workspacePath: request.session.workspacePath,
+		revset: request.revset,
+		filePath: request.filePath,
+	});
+	request.session.contentCache.set(cacheKey, content);
+	return content;
+}
+
+async function resolvePreviousPathAcrossRevision(request: {
+	session: ExtensionTimelineSession;
+	entry: FileRevisionEntry;
+	currentPath: string;
+}): Promise<string> {
+	const cacheKey = `${request.entry.revision}:${request.currentPath}`;
+	const cached = request.session.pathCache.get(cacheKey);
+	if (cached) {
+		return cached;
+	}
+
+	const previousPath = await request.session.adapter.resolvePreviousPath({
+		workspacePath: request.session.workspacePath,
+		revision: request.entry.revision,
+		currentPath: request.currentPath,
+	});
+	request.session.pathCache.set(cacheKey, previousPath);
+	return previousPath;
+}
+
 export function createTimelineService(args: { runner: CommandRunner }) {
 	const { runner } = args;
 
@@ -145,22 +220,6 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 			snapshotEntries: request.session.snapshotEntries,
 			loadedChangeIds: request.session.snapshotLoadedChangeIds,
 		});
-	}
-
-	function getComparisonEntries(request: {
-		entries: FileRevisionEntry[];
-		fromIndex: number;
-		toIndex: number;
-	}): { fromEntry: FileRevisionEntry; toEntry: FileRevisionEntry } | undefined {
-		const normalizedFromIndex = Math.max(0, Math.min(request.fromIndex, request.toIndex));
-		const normalizedToIndex = Math.max(normalizedFromIndex, Math.max(request.fromIndex, request.toIndex));
-		const fromEntry = request.entries[normalizedFromIndex];
-		const toEntry = request.entries[normalizedToIndex];
-		if (!fromEntry || !toEntry) {
-			return undefined;
-		}
-
-		return { fromEntry, toEntry };
 	}
 
 	async function getDiffPreview(request: {
@@ -455,25 +514,6 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 		}
 	}
 
-	function syncSession(request: { target: ExtensionTimelineSession; source: ExtensionTimelineSession }): void {
-		request.target.adapter = request.source.adapter;
-		request.target.backend = request.source.backend;
-		request.target.workspacePath = request.source.workspacePath;
-		request.target.relativePath = request.source.relativePath;
-		request.target.absolutePath = request.source.absolutePath;
-		request.target.fileName = request.source.fileName;
-		request.target.entries = request.source.entries;
-		request.target.snapshotEntries = request.source.snapshotEntries;
-		request.target.snapshotLoadedChangeIds = request.source.snapshotLoadedChangeIds;
-		request.target.snapshotPendingChangeIds = request.source.snapshotPendingChangeIds;
-		request.target.workspaceFiles = request.source.workspaceFiles;
-		request.target.contentCache = request.source.contentCache;
-		request.target.previewCache = request.source.previewCache;
-		request.target.rangeOverviewCache = request.source.rangeOverviewCache;
-		request.target.pathCache = request.source.pathCache;
-		request.target.activeActionAbortController = request.source.activeActionAbortController;
-	}
-
 	async function buildTimelineEntries(request: {
 		adapter: HistoryAdapter;
 		workspacePath: string;
@@ -753,26 +793,6 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 		return content;
 	}
 
-	async function getContentForRevset(request: {
-		session: ExtensionTimelineSession;
-		revset: string;
-		filePath: string;
-	}): Promise<string> {
-		const cacheKey = `revset:${request.revset}:${request.filePath}`;
-		const cached = request.session.contentCache.get(cacheKey);
-		if (cached !== undefined) {
-			return cached;
-		}
-
-		const content = await request.session.adapter.showFileAtRevision({
-			workspacePath: request.session.workspacePath,
-			revset: request.revset,
-			filePath: request.filePath,
-		});
-		request.session.contentCache.set(cacheKey, content);
-		return content;
-	}
-
 	async function ensureEntryFilePath(request: {
 		session: ExtensionTimelineSession;
 		entry: FileRevisionEntry;
@@ -818,26 +838,6 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 
 			currentPath = previousEntry.filePath || currentPath;
 		}
-	}
-
-	async function resolvePreviousPathAcrossRevision(request: {
-		session: ExtensionTimelineSession;
-		entry: FileRevisionEntry;
-		currentPath: string;
-	}): Promise<string> {
-		const cacheKey = `${request.entry.revision}:${request.currentPath}`;
-		const cached = request.session.pathCache.get(cacheKey);
-		if (cached) {
-			return cached;
-		}
-
-		const previousPath = await request.session.adapter.resolvePreviousPath({
-			workspacePath: request.session.workspacePath,
-			revision: request.entry.revision,
-			currentPath: request.currentPath,
-		});
-		request.session.pathCache.set(cacheKey, previousPath);
-		return previousPath;
 	}
 }
 

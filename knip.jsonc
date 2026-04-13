@@ -3,8 +3,10 @@
 	"entry": [
 		"features/steps/**/*.ts",
 		"integration/vscode/suite/**/*.ts",
-		"integration/vscode/run.ts",
 		"scripts/**/*.ts"
+	],
+	"ignoreBinaries": [
+		"tsgo"
 	],
 	"project": [
 		"*.ts",

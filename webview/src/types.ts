@@ -15,7 +15,7 @@ import type {
 	TimelineFixtureFile as SharedTimelineFixtureFile,
 	TimelinePreferences,
 	TimelinePreset,
-} from '../../src/shared/timeline-types';
+} from '../../src/shared/timeline-types.ts';
 
 export type {
 	ComparisonMode,

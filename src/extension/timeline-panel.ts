@@ -16,6 +16,14 @@ import type { ExtensionTimelineSession, TimelineDebugState, TimelinePanelControl
 
 type TimelineService = ReturnType<typeof createTimelineService>;
 
+function postTimelineMessage(request: {
+	panel: vscode.WebviewPanel;
+	message: TimelineInboundMessage;
+}): Promise<boolean> {
+	// oxlint-disable-next-line unicorn/require-post-message-target-origin
+	return Promise.resolve(request.panel.webview.postMessage(request.message));
+}
+
 export function createTimelinePanelController(args: {
 	context: vscode.ExtensionContext;
 	service: TimelineService;
@@ -468,13 +476,6 @@ export function createTimelinePanelController(args: {
 				},
 			},
 		});
-	}
-
-	async function postTimelineMessage(request: {
-		panel: vscode.WebviewPanel;
-		message: TimelineInboundMessage;
-	}): Promise<boolean> {
-		return request.panel.webview.postMessage(request.message);
 	}
 
 	async function openRangeDiffInEditor(request: {
