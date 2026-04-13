@@ -55,7 +55,6 @@
 		"oxlint": "1.59.0",
 		"playwright-bdd": "8.5.0",
 		"tsdown": "0.15.4",
-		"tsx": "4.20.6",
 		"typescript": "6.0.2",
 		"vite": "8.0.8",
 		"vite-plugin-solid": "2.11.12"

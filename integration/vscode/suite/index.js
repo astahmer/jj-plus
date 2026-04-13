@@ -1,5 +1,5 @@
-const path = require('node:path');
-const Mocha = require('mocha');
+import { resolve as _resolve } from 'node:path';
+import Mocha from 'mocha';
 
 function run() {
 	const mocha = new Mocha({
@@ -8,7 +8,7 @@ function run() {
 		timeout: 60000,
 	});
 
-	mocha.addFile(path.resolve(__dirname, 'timeline.integration.js'));
+	mocha.addFile(_resolve(__dirname, 'timeline.integration.js'));
 
 	return new Promise((resolve, reject) => {
 		mocha.run((failures) => {
@@ -22,4 +22,4 @@ function run() {
 	});
 }
 
-module.exports = { run };
+export default { run };

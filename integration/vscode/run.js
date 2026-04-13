@@ -1,19 +1,20 @@
-const fs = require('node:fs/promises');
-const os = require('node:os');
-const path = require('node:path');
-const { runTests } = require('@vscode/test-electron');
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { resolve, join } from 'node:path';
+import { runTests } from '@vscode/test-electron';
 
 async function main() {
-	const extensionDevelopmentPath = path.resolve(__dirname, '..', '..');
-	const extensionTestsPath = path.resolve(__dirname, 'suite', 'index.js');
-	const repoRoot = path.join(extensionDevelopmentPath, '.e2e-runtime', 'repos');
-	const userDataRoot = path.join(os.tmpdir(), 'jjrd-u-');
-	const extensionsRoot = path.join(os.tmpdir(), 'jjrd-x-');
+	const __dirname = new URL('.', import.meta.url).pathname;
+	const extensionDevelopmentPath = resolve(__dirname, '..', '..');
+	const extensionTestsPath = resolve(__dirname, 'suite', 'index.js');
+	const repoRoot = join(extensionDevelopmentPath, '.e2e-runtime', 'repos');
+	const userDataRoot = join(tmpdir(), 'jjrd-u-');
+	const extensionsRoot = join(tmpdir(), 'jjrd-x-');
 
 	for (const fixtureName of ['git-basic', 'jj-basic']) {
-		const workspacePath = path.join(repoRoot, fixtureName);
-		const userDataDir = await fs.mkdtemp(userDataRoot);
-		const extensionsDir = await fs.mkdtemp(extensionsRoot);
+		const workspacePath = join(repoRoot, fixtureName);
+		const userDataDir = await mkdtemp(userDataRoot);
+		const extensionsDir = await mkdtemp(extensionsRoot);
 
 		try {
 			await runTests({
@@ -32,8 +33,8 @@ async function main() {
 			});
 		} finally {
 			await Promise.all([
-				fs.rm(userDataDir, { recursive: true, force: true }),
-				fs.rm(extensionsDir, { recursive: true, force: true }),
+				rm(userDataDir, { recursive: true, force: true }),
+				rm(extensionsDir, { recursive: true, force: true }),
 			]);
 		}
 	}
