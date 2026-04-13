@@ -14,6 +14,6 @@ export default defineConfig({
 	platform: 'node',
 	sourcemap: true,
 	target: 'node20',
-	tsconfig: 'tsconfig.js.json',
+	tsconfig: 'tsconfig.node.json',
 	unbundle: true,
 });

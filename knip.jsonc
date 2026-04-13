@@ -2,13 +2,15 @@
 	"$schema": "https://unpkg.com/knip@6/schema.json",
 	"entry": [
 		"features/steps/**/*.ts",
-		"integration/vscode/suite/**/*.js"
+		"integration/vscode/suite/**/*.ts",
+		"integration/vscode/run.ts",
+		"scripts/**/*.ts"
 	],
 	"project": [
-		"*.{mjs,ts}",
+		"*.ts",
 		"src/**/*.ts",
-		"integration/**/*.js",
-		"scripts/**/*.mjs",
+		"integration/**/*.ts",
+		"scripts/**/*.ts",
 		"test/**/*.ts",
 		"tests/**/*.ts",
 		"features/**/*.ts",

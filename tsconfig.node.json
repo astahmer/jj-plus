@@ -28,6 +28,7 @@
 	],
 	"exclude": [
 		"node_modules",
+		".integration-dist",
 		".e2e-runtime",
 		".features-gen",
 		".vscode-test",

@@ -23,6 +23,7 @@
 		"bddgen": "bddgen",
 		"build": "pnpm build:extension && pnpm build:webview && pnpm vsce package --skip-license --no-dependencies",
 		"build:extension": "tsdown",
+		"build:integration": "tsdown --config ./integration/vscode/tsdown.config.ts",
 		"build:webview": "vite build",
 		"dev": "vite --host 127.0.0.1 --open /",
 		"fixtures:e2e": "node ./scripts/generate-e2e-fixtures.ts",
@@ -34,9 +35,9 @@
 		"test": "node --test test/**/*.test.ts",
 		"test:all": "pnpm test && pnpm test:e2e && pnpm test:integration",
 		"test:e2e": "pnpm build:extension && pnpm fixtures:e2e && pnpm bddgen && playwright test",
-		"test:integration": "pnpm build:extension && pnpm build:webview && pnpm fixtures:e2e && node ./integration/vscode/run.ts",
+		"test:integration": "pnpm build:extension && pnpm build:webview && pnpm build:integration && pnpm fixtures:e2e && node ./integration/vscode/run.ts",
 		"typecheck": "pnpm typecheck:web && pnpm typecheck:extension",
-		"typecheck:extension": "tsgo --noEmit -p tsconfig.js.json",
+		"typecheck:extension": "tsgo --noEmit -p tsconfig.node.json",
 		"typecheck:web": "tsgo --noEmit -p tsconfig.json"
 	},
 	"dependencies": {

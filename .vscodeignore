@@ -1,5 +1,6 @@
 .e2e-runtime/**
 .features-gen/**
+.integration-dist/**
 .git/**
 .github/**
 .gitignore
@@ -27,7 +28,7 @@ TODO.md
 knip.jsonc
 tsdown.config.ts
 tsconfig.json
-tsconfig.js.json
+tsconfig.node.json
 vite.config.mjs
 vscode-timeline-prompt-history.md
 webview/**

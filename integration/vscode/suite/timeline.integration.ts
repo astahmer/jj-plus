@@ -2,8 +2,6 @@ import { equal, fail, match, ok } from 'node:assert/strict';
 import { basename, join } from 'node:path';
 import { Uri, commands, window, workspace } from 'vscode';
 
-process.stderr.write('[integration] timeline.integration.ts loaded\n');
-
 type TimelineDebugState = {
 	panelOpen?: boolean;
 	viewReady?: boolean;
