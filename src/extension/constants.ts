@@ -1,5 +1,3 @@
-import packageJson from '../../package.json';
-
 export const EXTENSION_ID = 'astahmer.jj-range-diff';
 export const HELPER_COMMAND = 'jj-range-diff.openRangeMultiDiff';
 export const OPEN_FILE_TIMELINE_COMMAND = 'jj-range-diff.openFileRevisionTimeline';
@@ -14,7 +12,6 @@ export const DEFAULT_FROM_REVSET = 'closest_bookmark(@)';
 export const DEFAULT_TO_REVSET = '@';
 export const MAX_TIMELINE_ENTRIES = 200;
 export const MAX_SNAPSHOT_HYDRATION_CHANGES = 8;
-export const EXTENSION_VERSION = packageJson.version;
 
 export const TIMELINE_PRESET_DAYS = {
 	year: 365,

@@ -1,11 +1,8 @@
 import type * as vscode from 'vscode';
 import type {
 	ComparisonSource,
-	DiffPreview,
 	FileRevisionEntry,
 	HistoryBackend,
-	RangeOverviewItem,
-	TimelineData,
 	TimelinePreferences,
 	TimelineSession,
 } from '../shared/timeline-types';
@@ -122,18 +119,4 @@ export type TimelinePayloadArgs = {
 	presets: Record<string, number>;
 };
 
-export type TimelinePayloadMapper = (args: TimelinePayloadArgs) => TimelineData;
-
-export type SessionPreviewRequest = {
-	fromIndex: number;
-	toIndex: number;
-	comparisonSource?: ComparisonSource;
-};
-
-export type SessionRangeOverviewRequest = SessionPreviewRequest;
-
 export type SessionAction = (signal: AbortSignal) => Promise<void>;
-
-export type PreviewCacheMap = Map<string, DiffPreview>;
-
-export type RangeOverviewCacheMap = Map<string, RangeOverviewItem[]>;

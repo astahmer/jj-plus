@@ -1,4 +1,4 @@
-export type TimelineDocumentHtmlOptions = {
+type TimelineDocumentHtmlOptions = {
 	title?: string;
 	styleHref?: string;
 	appSrc?: string;
@@ -7,7 +7,7 @@ export type TimelineDocumentHtmlOptions = {
 	cspSource?: string;
 };
 
-export function renderTimelineBodyHtml(): string {
+function renderTimelineBodyHtml(): string {
 	return `<div class="app">
       <section class="workspace" id="workspace">
         <aside class="panel sidebar" id="sidebar">

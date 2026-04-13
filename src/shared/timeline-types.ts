@@ -113,17 +113,6 @@ export type TimelineData = {
 	};
 };
 
-export type RangeComparison = {
-	fromEntry: FileRevisionEntry;
-	toEntry: FileRevisionEntry;
-};
-
-export type RangeSelection = {
-	fromIndex: number;
-	toIndex: number;
-	comparisonSource: ComparisonSource;
-};
-
 export type TimelineInboundMessage =
 	| { type: 'timeline-data'; payload: TimelineData }
 	| { type: 'diff-preview'; payload: DiffPreview }

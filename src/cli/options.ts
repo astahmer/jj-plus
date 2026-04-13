@@ -2,7 +2,7 @@ export const EXTENSION_ID = 'astahmer.jj-range-diff';
 const URI_PATH = '/open-range-multi-diff';
 const DEFAULT_IDE = 'code';
 
-export type RangeDiffCliOptions = {
+type RangeDiffCliOptions = {
 	help: boolean;
 	confirm: boolean;
 	from?: string;
@@ -13,7 +13,7 @@ export type RangeDiffCliOptions = {
 	workspacePath?: string;
 };
 
-export type TimelineCliOptions = {
+type TimelineCliOptions = {
 	help: boolean;
 	filePath?: string;
 	open: boolean;
@@ -22,7 +22,7 @@ export type TimelineCliOptions = {
 	workspacePath?: string;
 };
 
-export type IdePreset = {
+type IdePreset = {
 	command: string;
 	schemes: string[];
 };

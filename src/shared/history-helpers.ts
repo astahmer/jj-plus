@@ -1,9 +1,9 @@
-export type RenameEntry = {
+type RenameEntry = {
 	fromPath: string;
 	toPath: string;
 };
 
-export type ParsedEvolutionLine = {
+type ParsedEvolutionLine = {
 	revision: string;
 	changeId?: string;
 	authorDate: string;
@@ -12,7 +12,7 @@ export type ParsedEvolutionLine = {
 	operationDescription: string;
 };
 
-export type ParsedEvolutionSummaryEntry = {
+type ParsedEvolutionSummaryEntry = {
 	changeKey: string;
 	changeId?: string;
 	operationIndex?: number;

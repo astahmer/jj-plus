@@ -63,7 +63,7 @@ export function areSamePath(args: { left: string; right: string }): boolean {
 	return normalizePath(args.left) === normalizePath(args.right);
 }
 
-export function normalizePath(value: string): string {
+function normalizePath(value: string): string {
 	return value.replace(/\\/g, '/').replace(/\/+$/, '') || '/';
 }
 
