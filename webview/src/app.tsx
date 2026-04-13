@@ -29,6 +29,7 @@ import {
 	getSelectedDiffEntryIndexes,
 	getSelectedEntryCount,
 	getUnitPreviewRange,
+	getVisibleIndexFromClientX,
 } from './timeline-model.ts';
 import { getEditableShortcutBehavior, resolveTimelineShortcut } from './timeline-shortcuts.ts';
 import { buildTimelineSyncPlan } from './timeline-sync.ts';
@@ -1530,18 +1531,6 @@ export function App() {
 			</div>
 		</TimelineProvider>
 	);
-}
-
-function getVisibleIndexFromClientX(entries: FileRevisionEntry[], clientX: number) {
-	const track = document.getElementById('track');
-	const trackRect = track?.getBoundingClientRect();
-	if (!trackRect || !entries.length) {
-		return -1;
-	}
-
-	const ratio = Math.min(Math.max((clientX - trackRect.left) / Math.max(1, trackRect.width), 0), 1);
-	const denominator = Math.max(1, entries.length - 1);
-	return Math.min(entries.length - 1, Math.max(0, Math.round(ratio * denominator)));
 }
 
 function getHoveredTrackEntryIndex(
