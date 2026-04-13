@@ -94,11 +94,16 @@ When('I open the actions menu', async ({ page }) => {
 });
 
 When('I choose the action menu item {string}', async ({ page }, value: string) => {
-	await page.locator('#actionsMenu').getByRole('button', { name: value, exact: true }).click();
+	await page
+		.locator('#actionsMenu')
+		.getByRole('button', { name: buttonNamePattern(value) })
+		.click();
 });
 
 When('I click the {string} row action for revision {string}', async ({ page }, action: string, revision: string) => {
-	await sidebarRevision(page, revision).getByRole('button', { name: action, exact: true }).click();
+	await sidebarRevision(page, revision)
+		.getByRole('button', { name: buttonNamePattern(action) })
+		.click();
 });
 
 When('I click the sidebar open diff button', async ({ page }) => {
@@ -263,4 +268,12 @@ function buttonByName(page: Page, value: string) {
 	}
 
 	return page.getByRole('button', { name: value, exact: true });
+}
+
+function buttonNamePattern(value: string) {
+	return new RegExp(`^${escapeRegExp(value)}(?: \\([0-9]+\\))?$`);
+}
+
+function escapeRegExp(value: string) {
+	return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

@@ -120,19 +120,6 @@ function createGitHistoryAdapter(args: { runner: CommandRunner }): HistoryAdapte
 				// Ignore missing HEAD or empty repos.
 			}
 
-			try {
-				const { stdout } = await runner.runGit({
-					workspacePath,
-					args: ['ls-files', '--others', '--exclude-standard'],
-					options: { signal },
-				});
-				for (const relativePath of parseOutputLines(stdout)) {
-					files.add(relativePath);
-				}
-			} catch {
-				// Ignore ls-files errors in detached test repos.
-			}
-
 			return [...files].toSorted((left, right) => left.localeCompare(right));
 		},
 		async getRemoteBaseUrl({ workspacePath }) {
@@ -403,12 +390,21 @@ function createJjHistoryAdapter(args: { runner: CommandRunner }): HistoryAdapter
 				comparisonSource === 'snapshot'
 					? sourceEntries[Math.max(0, entryIndex - 1)]?.revision || `${entry.revision}-`
 					: `${entry.revision}-`;
-			const revisionFiles = await parseRevisionFilesForJj({
-				runner,
-				workspacePath,
-				revision: entry.revision,
-				signal,
-			});
+			const revisionFiles =
+				comparisonSource === 'snapshot'
+					? await listChangedJjFiles({
+							runner,
+							workspacePath,
+							base: baseRevision,
+							target: entry.revision,
+							signal,
+						})
+					: await parseRevisionFilesForJj({
+							runner,
+							workspacePath,
+							revision: entry.revision,
+							signal,
+						});
 
 			return {
 				title: entry.shortRevision,

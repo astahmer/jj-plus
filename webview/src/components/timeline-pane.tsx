@@ -8,6 +8,10 @@ import { TimelineTrack } from './timeline-track.tsx';
 
 export function TimelinePane() {
 	const { state, actions } = useTimelineContext();
+	const openSelectionDiffsLabel = createMemo(() => {
+		const diffCount = state.selectionDiffCount();
+		return diffCount === null ? 'Open diffs' : `Open diffs (${diffCount})`;
+	});
 	const fileOptions = createMemo(() => {
 		if (state.fileSwitcherMode() === 'overview') {
 			return state.rangeOverviewItems().map(
@@ -138,7 +142,7 @@ export function TimelinePane() {
 									Open diff
 								</button>
 								<button class="menu-item" id="openRangeFilesButton" type="button" onClick={actions.openSelectionDiffs}>
-									Open diffs
+									{openSelectionDiffsLabel()}
 								</button>
 								<button
 									class="menu-item"

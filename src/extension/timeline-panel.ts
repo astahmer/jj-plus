@@ -26,6 +26,71 @@ function postTimelineMessage(request: {
 	return Promise.resolve(request.panel.webview.postMessage(request.message));
 }
 
+async function buildSelectedEntryMultiDiffPlan(request: {
+	adapter: ExtensionTimelineSession['adapter'];
+	workspacePath: string;
+	sourceEntries: FileRevisionEntry[];
+	comparisonSource: ComparisonSource;
+	entryIndexes: number[];
+	title: string;
+	signal?: AbortSignal;
+}) {
+	const files: Array<{
+		relativePath: string;
+		originalRevset: string;
+		modifiedRevset: string;
+		backend: 'git' | 'jj';
+	}> = [];
+
+	for (const entryIndex of request.entryIndexes) {
+		const entry = request.sourceEntries[entryIndex];
+		if (!entry) {
+			continue;
+		}
+
+		let plan = {
+			title: request.title,
+			files: [] as Array<{
+				relativePath: string;
+				originalRevset: string;
+				modifiedRevset: string;
+				backend: 'git' | 'jj';
+			}>,
+		};
+		if (entry.isWorkingTree) {
+			const previousEntry = request.sourceEntries[entryIndex - 1];
+			if (!previousEntry) {
+				continue;
+			}
+
+			plan = await request.adapter.buildRangeMultiDiffPlan({
+				workspacePath: request.workspacePath,
+				fromEntry: previousEntry,
+				toEntry: entry,
+				comparisonSource: request.comparisonSource,
+				sourceEntries: request.sourceEntries,
+				signal: request.signal,
+			});
+		} else {
+			plan = await request.adapter.buildRevisionMultiDiffPlan({
+				workspacePath: request.workspacePath,
+				entry,
+				entryIndex,
+				comparisonSource: request.comparisonSource,
+				sourceEntries: request.sourceEntries,
+				signal: request.signal,
+			});
+		}
+
+		files.push(...plan.files);
+	}
+
+	return {
+		title: request.title,
+		files,
+	};
+}
+
 export function createTimelinePanelController(args: {
 	context: vscode.ExtensionContext;
 	service: TimelineService;
@@ -218,6 +283,11 @@ export function createTimelinePanelController(args: {
 			const fromIndex = Number(Reflect.get(request.message, 'fromIndex'));
 			const toIndex = Number(Reflect.get(request.message, 'toIndex'));
 			const comparisonSource = normalizeComparisonSource(Reflect.get(request.message, 'comparisonSource'));
+			const selectedEntryIndexes = Array.isArray(Reflect.get(request.message, 'selectedEntryIndexes'))
+				? (Reflect.get(request.message, 'selectedEntryIndexes') as unknown[])
+						.map((value) => Number(value))
+						.filter((value) => Number.isInteger(value))
+				: [];
 			if (!Number.isInteger(fromIndex) || !Number.isInteger(toIndex)) {
 				return;
 			}
@@ -228,6 +298,35 @@ export function createTimelinePanelController(args: {
 				fromIndex,
 				toIndex,
 				comparisonSource,
+				selectedEntryIndexes,
+			});
+			return;
+		}
+
+		if (command === 'load-entry-diff-counts') {
+			const comparisonSource = normalizeComparisonSource(Reflect.get(request.message, 'comparisonSource'));
+			const entryIndexes = Array.isArray(Reflect.get(request.message, 'entryIndexes'))
+				? (Reflect.get(request.message, 'entryIndexes') as unknown[])
+						.map((value) => Number(value))
+						.filter((value) => Number.isInteger(value))
+				: [];
+			if (!entryIndexes.length) {
+				return;
+			}
+
+			await postTimelineMessage({
+				panel: request.panel,
+				message: {
+					type: 'entry-diff-counts',
+					payload: {
+						comparisonSource,
+						counts: await args.service.getEntryDiffCounts({
+							session: request.session,
+							entryIndexes,
+							comparisonSource,
+						}),
+					},
+				},
 			});
 			return;
 		}
@@ -307,6 +406,11 @@ export function createTimelinePanelController(args: {
 			const fromIndex = Number(Reflect.get(request.message, 'fromIndex'));
 			const toIndex = Number(Reflect.get(request.message, 'toIndex'));
 			const comparisonSource = normalizeComparisonSource(Reflect.get(request.message, 'comparisonSource'));
+			const selectedEntryIndexes = Array.isArray(Reflect.get(request.message, 'selectedEntryIndexes'))
+				? (Reflect.get(request.message, 'selectedEntryIndexes') as unknown[])
+						.map((value) => Number(value))
+						.filter((value) => Number.isInteger(value))
+				: [];
 			if (!Number.isInteger(fromIndex) || !Number.isInteger(toIndex)) {
 				return;
 			}
@@ -316,6 +420,7 @@ export function createTimelinePanelController(args: {
 				fromIndex,
 				toIndex,
 				comparisonSource,
+				selectedEntryIndexes,
 			});
 			return;
 		}
@@ -458,9 +563,11 @@ export function createTimelinePanelController(args: {
 		fromIndex: number;
 		toIndex: number;
 		comparisonSource: ComparisonSource;
+		selectedEntryIndexes?: number[];
 	}): Promise<void> {
 		const normalizedFromIndex = Math.max(0, Math.min(request.fromIndex, request.toIndex));
 		const normalizedToIndex = Math.max(normalizedFromIndex, Math.max(request.fromIndex, request.toIndex));
+		const selectedEntryIndexes = request.selectedEntryIndexes || [];
 		await postTimelineMessage({
 			panel: request.panel,
 			message: {
@@ -469,11 +576,13 @@ export function createTimelinePanelController(args: {
 					fromIndex: normalizedFromIndex,
 					toIndex: normalizedToIndex,
 					comparisonSource: request.comparisonSource,
+					selectedEntryIndexes,
 					items: await args.service.getRangeOverview({
 						session: request.session,
 						fromIndex: normalizedFromIndex,
 						toIndex: normalizedToIndex,
 						comparisonSource: request.comparisonSource,
+						selectedEntryIndexes,
 					}),
 				},
 			},
@@ -537,6 +646,7 @@ export function createTimelinePanelController(args: {
 		fromIndex: number;
 		toIndex: number;
 		comparisonSource: ComparisonSource;
+		selectedEntryIndexes?: number[];
 	}): Promise<void> {
 		await args.service.runSessionAction({
 			session: request.session,
@@ -554,14 +664,24 @@ export function createTimelinePanelController(args: {
 					return;
 				}
 
-				const plan = await request.session.adapter.buildRangeMultiDiffPlan({
-					workspacePath: request.session.workspacePath,
-					fromEntry: comparison.fromEntry,
-					toEntry: comparison.toEntry,
-					comparisonSource: request.comparisonSource,
-					sourceEntries,
-					signal,
-				});
+				const plan = request.selectedEntryIndexes?.length
+					? await buildSelectedEntryMultiDiffPlan({
+							adapter: request.session.adapter,
+							workspacePath: request.session.workspacePath,
+							sourceEntries,
+							comparisonSource: request.comparisonSource,
+							entryIndexes: request.selectedEntryIndexes,
+							title: `${comparison.fromEntry.shortRevision}..${comparison.toEntry.shortRevision}`,
+							signal,
+						})
+					: await request.session.adapter.buildRangeMultiDiffPlan({
+							workspacePath: request.session.workspacePath,
+							fromEntry: comparison.fromEntry,
+							toEntry: comparison.toEntry,
+							comparisonSource: request.comparisonSource,
+							sourceEntries,
+							signal,
+						});
 
 				if (!plan.files.length) {
 					void vscode.window.showInformationMessage(`No changes found for ${plan.title}`);

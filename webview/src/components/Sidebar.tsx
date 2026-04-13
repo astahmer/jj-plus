@@ -2,9 +2,14 @@ import { For, Show, createSignal, onCleanup } from 'solid-js';
 import { useTimelineContext } from '../timeline-context.tsx';
 import { RevisionIdentifier, getRevisionIdentifierValue } from './revision-identifier.tsx';
 
+function formatDiffActionLabel(label: string, diffCount: number | null) {
+	return diffCount === null ? label : `${label} (${diffCount})`;
+}
+
 export function Sidebar() {
 	const { state, actions } = useTimelineContext();
 	const [copiedIdentifierKey, setCopiedIdentifierKey] = createSignal('');
+	const [expandedDescriptionById, setExpandedDescriptionById] = createSignal<Record<string, boolean>>({});
 	let copiedIdentifierTimer: number | undefined;
 
 	onCleanup(() => {
@@ -34,6 +39,13 @@ export function Sidebar() {
 		}, 2000);
 	}
 
+	function toggleDescription(entryId: string) {
+		setExpandedDescriptionById((current) => ({
+			...current,
+			[entryId]: !current[entryId],
+		}));
+	}
+
 	return (
 		<aside class="panel sidebar" id="sidebar">
 			<div class="sidebar-head">
@@ -59,7 +71,7 @@ export function Sidebar() {
 						type="button"
 						onClick={actions.openSelectionDiffs}
 					>
-						Open selection diffs
+						{formatDiffActionLabel('Open selection diffs', state.selectionDiffCount())}
 					</button>
 				</div>
 			</div>
@@ -134,6 +146,9 @@ export function Sidebar() {
 								showOperationPrimary() ? 'Revision' : entry.operationId ? 'Operation' : null;
 							const primaryTooltipValue = () =>
 								showOperationPrimary() ? revisionIdentifierValue : entry.operationId || '';
+							const descriptionExpandable = entry.description.length > 88 || entry.description.includes('\n');
+							const descriptionExpanded = () => expandedDescriptionById()[entry.id] === true;
+							const rowDiffCount = () => state.entryDiffCount(entry.index);
 
 							return (
 								<article
@@ -231,12 +246,28 @@ export function Sidebar() {
 														actions.openRevisionFilesDiff(entry.index);
 													}}
 												>
-													Open diffs
+													{formatDiffActionLabel('Open diffs', rowDiffCount())}
 												</button>
 											</Show>
 										</div>
 									</div>
-									<div class="history-description">{entry.description}</div>
+									<div
+										class={`history-description${descriptionExpandable && !descriptionExpanded() ? ' is-truncated' : ''}`}
+									>
+										{entry.description}
+									</div>
+									<Show when={descriptionExpandable}>
+										<button
+											class="history-more"
+											type="button"
+											onClick={(event) => {
+												event.stopPropagation();
+												toggleDescription(entry.id);
+											}}
+										>
+											{descriptionExpanded() ? 'Less' : 'More...'}
+										</button>
+									</Show>
 									<div class="history-bottom">
 										<span class="history-meta">
 											<span

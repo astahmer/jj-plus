@@ -175,7 +175,8 @@ async function createStandaloneRuntime(args: { workspacePath: string; filePath: 
 					const normalizedFromIndex = Math.max(0, Math.min(command.fromIndex, command.toIndex));
 					const normalizedToIndex = Math.max(normalizedFromIndex, Math.max(command.fromIndex, command.toIndex));
 					const comparisonSource = command.comparisonSource === 'snapshot' ? 'snapshot' : 'revision';
-					const overviewKey = `${activeRelativePath}:${comparisonSource}:${normalizedFromIndex}:${normalizedToIndex}`;
+					const selectedEntryIndexes = command.selectedEntryIndexes || [];
+					const overviewKey = `${activeRelativePath}:${comparisonSource}:${normalizedFromIndex}:${normalizedToIndex}:${selectedEntryIndexes.join(',') || 'all'}`;
 					let items = rangeOverviewCache.get(overviewKey);
 					if (!items) {
 						items = await buildRangeOverview({
@@ -185,6 +186,7 @@ async function createStandaloneRuntime(args: { workspacePath: string; filePath: 
 							fromIndex: normalizedFromIndex,
 							toIndex: normalizedToIndex,
 							comparisonSource,
+							selectedEntryIndexes,
 						});
 						rangeOverviewCache.set(overviewKey, items);
 					}
@@ -196,7 +198,30 @@ async function createStandaloneRuntime(args: { workspacePath: string; filePath: 
 								fromIndex: normalizedFromIndex,
 								toIndex: normalizedToIndex,
 								comparisonSource,
+								selectedEntryIndexes,
 								items,
+							},
+						},
+					];
+				}
+				case 'load-entry-diff-counts': {
+					const fileFixture = await getActiveFileFixture();
+					return [
+						{
+							type: 'entry-diff-counts',
+							payload: {
+								comparisonSource: command.comparisonSource,
+								counts: await Promise.all(
+									command.entryIndexes.map(async (entryIndex) => ({
+										entryIndex,
+										diffCount: await getStandaloneEntryDiffCount({
+											repoRoot: repoContext.repoRoot,
+											fileFixture,
+											entryIndex,
+											comparisonSource: command.comparisonSource,
+										}),
+									})),
+								),
 							},
 						},
 					];
@@ -222,6 +247,26 @@ async function createStandaloneRuntime(args: { workspacePath: string; filePath: 
 					return [];
 				case 'open-editor-diff':
 				case 'open-range-files-diff': {
+					if (command.command === 'open-range-files-diff' && command.editorCommand) {
+						const fileFixture = await getActiveFileFixture();
+						const plan = await buildStandaloneRangeMultiDiffPlan({
+							repoRoot: repoContext.repoRoot,
+							fileFixture,
+							fromIndex: command.fromIndex,
+							toIndex: command.toIndex,
+							comparisonSource: command.comparisonSource,
+							selectedEntryIndexes: command.selectedEntryIndexes || [],
+						});
+						if (plan.files.length) {
+							await openMultiDiffWithEditor({
+								repoRoot: repoContext.repoRoot,
+								editorCommand: command.editorCommand,
+								files: plan.files,
+							});
+						}
+						return [];
+					}
+
 					const fileFixture = await getActiveFileFixture();
 					const preview = getFixturePreview({
 						fileFixture,
@@ -233,6 +278,24 @@ async function createStandaloneRuntime(args: { workspacePath: string; filePath: 
 					return [];
 				}
 				case 'open-revision-files-diff': {
+					if (command.editorCommand) {
+						const fileFixture = await getActiveFileFixture();
+						const plan = await buildStandaloneEntryMultiDiffPlan({
+							repoRoot: repoContext.repoRoot,
+							fileFixture,
+							entryIndex: command.entryIndex,
+							comparisonSource: command.comparisonSource,
+						});
+						if (plan.files.length) {
+							await openMultiDiffWithEditor({
+								repoRoot: repoContext.repoRoot,
+								editorCommand: command.editorCommand,
+								files: plan.files,
+							});
+						}
+						return [];
+					}
+
 					const fileFixture = await getActiveFileFixture();
 					const preview = getUnitPreview({
 						fileFixture,
@@ -644,7 +707,7 @@ async function getJjEntries(args: {
 		entries.push(workingTreeEntry);
 	}
 
-	return reindexEntries(entries);
+	return reindexEntries(dedupeAdjacentTimelineEntries(entries));
 }
 
 async function getJjSnapshotEntries(args: {
@@ -777,6 +840,22 @@ function mergeTimelineEntries(
 	);
 }
 
+function dedupeAdjacentTimelineEntries(entries: FileRevisionEntry[]): FileRevisionEntry[] {
+	return entries.reduce<FileRevisionEntry[]>((deduped, entry) => {
+		const previousEntry = deduped.at(-1);
+		if (!previousEntry?.changeId || previousEntry.changeId !== entry.changeId) {
+			deduped.push(entry);
+			return deduped;
+		}
+
+		if (!previousEntry.touchesFile && entry.touchesFile) {
+			deduped[deduped.length - 1] = entry;
+		}
+
+		return deduped;
+	}, []);
+}
+
 async function buildPreviewMap(args: {
 	repoRoot: string;
 	entries: FileRevisionEntry[];
@@ -864,6 +943,7 @@ async function buildPreview(args: {
 		subtitle: toEntry?.isWorkingTree
 			? 'Working tree'
 			: `${subtitleDateFormatter.format(new Date(toEntry?.authorDate || 0))} · ${toEntry?.description || ''}`,
+		diffCount: 0,
 		additions,
 		deletions,
 		hunkCount,
@@ -1202,27 +1282,25 @@ async function listGitRevisionFiles(args: { repoRoot: string; revision: string }
 		.filter(Boolean);
 }
 
+async function resolveGitParentRevision(args: { repoRoot: string; revision: string }): Promise<string | undefined> {
+	try {
+		const { stdout } = await run({
+			command: 'git',
+			args: ['rev-parse', `${args.revision}^`],
+			cwd: args.repoRoot,
+		});
+		const parentRevision = stdout.trim();
+		return parentRevision || undefined;
+	} catch {
+		return undefined;
+	}
+}
+
 async function listGitWorkingTreeFiles(args: { repoRoot: string }): Promise<string[]> {
 	const files = new Set<string>();
 
 	try {
 		const { stdout } = await run({ command: 'git', args: ['diff', '--name-only', 'HEAD', '--'], cwd: args.repoRoot });
-		for (const relativePath of stdout
-			.split(/\r?\n/u)
-			.map((line) => line.trim())
-			.filter(Boolean)) {
-			files.add(relativePath);
-		}
-	} catch {
-		// Ignore.
-	}
-
-	try {
-		const { stdout } = await run({
-			command: 'git',
-			args: ['ls-files', '--others', '--exclude-standard'],
-			cwd: args.repoRoot,
-		});
 		for (const relativePath of stdout
 			.split(/\r?\n/u)
 			.map((line) => line.trim())
@@ -1248,6 +1326,257 @@ async function listJjRevisionFiles(args: { repoRoot: string; revision: string })
 		.filter(Boolean);
 }
 
+async function listJjChangedFiles(args: { repoRoot: string; base: string; target: string }): Promise<string[]> {
+	const { stdout } = await run({
+		command: 'jj',
+		args: ['diff', '--name-only', '--from', args.base, '--to', args.target],
+		cwd: args.repoRoot,
+	});
+	return stdout
+		.split(/\r?\n/u)
+		.map((line) => line.trim())
+		.filter(Boolean);
+}
+
+async function buildStandaloneEntryMultiDiffPlan(args: {
+	repoRoot: string;
+	fileFixture: TimelineFixtureFile;
+	entryIndex: number;
+	comparisonSource: ComparisonSource;
+}): Promise<{
+	title: string;
+	files: Array<{
+		relativePath: string;
+		originalRevset: string;
+		modifiedRevset: string;
+		backend: HistoryBackend;
+	}>;
+}> {
+	const backend = args.fileFixture.timelineData.backend;
+	const sourceEntries = getEntriesForSource(args.fileFixture.timelineData, args.comparisonSource);
+	const entry = sourceEntries[args.entryIndex];
+	if (!entry) {
+		return { title: '', files: [] };
+	}
+
+	if (backend === 'git') {
+		if (entry.isWorkingTree) {
+			const previousEntry = sourceEntries[Math.max(0, args.entryIndex - 1)];
+			if (!previousEntry) {
+				return { title: entry.shortRevision, files: [] };
+			}
+
+			const files = await listGitWorkingTreeFiles({ repoRoot: args.repoRoot });
+			return {
+				title: `${previousEntry.shortRevision}..${entry.shortRevision}`,
+				files: files.map((relativePath) => ({
+					relativePath,
+					originalRevset: previousEntry.revision,
+					modifiedRevset: '@',
+					backend,
+				})),
+			};
+		}
+
+		const files = await listGitRevisionFiles({ repoRoot: args.repoRoot, revision: entry.revision });
+		const parentRevision = await resolveGitParentRevision({ repoRoot: args.repoRoot, revision: entry.revision });
+		return {
+			title: entry.shortRevision,
+			files: files.map((relativePath) => ({
+				relativePath,
+				originalRevset: parentRevision || 'EMPTY',
+				modifiedRevset: entry.revision,
+				backend,
+			})),
+		};
+	}
+
+	if (entry.isWorkingTree) {
+		const previousEntry = sourceEntries[Math.max(0, args.entryIndex - 1)];
+		if (!previousEntry) {
+			return { title: entry.shortRevision, files: [] };
+		}
+
+		const files = await listJjChangedFiles({ repoRoot: args.repoRoot, base: previousEntry.revision, target: '@' });
+		return {
+			title: `${previousEntry.shortRevision}..${entry.shortRevision}`,
+			files: files.map((relativePath) => ({
+				relativePath,
+				originalRevset: previousEntry.revision,
+				modifiedRevset: '@',
+				backend,
+			})),
+		};
+	}
+
+	const baseRevision =
+		args.comparisonSource === 'snapshot'
+			? sourceEntries[Math.max(0, args.entryIndex - 1)]?.revision || `${entry.revision}-`
+			: `${entry.revision}-`;
+	const files =
+		args.comparisonSource === 'snapshot'
+			? await listJjChangedFiles({ repoRoot: args.repoRoot, base: baseRevision, target: entry.revision })
+			: await listJjRevisionFiles({ repoRoot: args.repoRoot, revision: entry.revision });
+	return {
+		title: entry.shortRevision,
+		files: files.map((relativePath) => ({
+			relativePath,
+			originalRevset: baseRevision,
+			modifiedRevset: entry.revision,
+			backend,
+		})),
+	};
+}
+
+async function buildStandaloneRangeMultiDiffPlan(args: {
+	repoRoot: string;
+	fileFixture: TimelineFixtureFile;
+	fromIndex: number;
+	toIndex: number;
+	comparisonSource: ComparisonSource;
+	selectedEntryIndexes: number[];
+}) {
+	const sourceEntries = getEntriesForSource(args.fileFixture.timelineData, args.comparisonSource);
+	const fromEntry = sourceEntries[Math.min(args.fromIndex, args.toIndex)];
+	const toEntry = sourceEntries[Math.max(args.fromIndex, args.toIndex)];
+	const title = fromEntry && toEntry ? `${fromEntry.shortRevision}..${toEntry.shortRevision}` : 'Selection';
+	if (!args.selectedEntryIndexes.length) {
+		return { title, files: [] };
+	}
+
+	const plans = await Promise.all(
+		args.selectedEntryIndexes.map((entryIndex) =>
+			buildStandaloneEntryMultiDiffPlan({
+				repoRoot: args.repoRoot,
+				fileFixture: args.fileFixture,
+				entryIndex,
+				comparisonSource: args.comparisonSource,
+			}),
+		),
+	);
+
+	return {
+		title,
+		files: plans.flatMap((plan) => plan.files),
+	};
+}
+
+async function getStandaloneEntryDiffCount(args: {
+	repoRoot: string;
+	fileFixture: TimelineFixtureFile;
+	entryIndex: number;
+	comparisonSource: ComparisonSource;
+}): Promise<number> {
+	const plan = await buildStandaloneEntryMultiDiffPlan(args);
+	return plan.files.length;
+}
+
+async function openMultiDiffWithEditor(args: {
+	repoRoot: string;
+	editorCommand: string;
+	files: Array<{
+		relativePath: string;
+		originalRevset: string;
+		modifiedRevset: string;
+		backend: HistoryBackend;
+	}>;
+}): Promise<void> {
+	const { command, args: baseArgs } = parseEditorCommand(args.editorCommand);
+	const tempRoot = path.join(os.tmpdir(), 'jj-range-diff-editor', `${Date.now()}`);
+	await fs.mkdir(tempRoot, { recursive: true });
+
+	for (const [index, file] of args.files.entries()) {
+		const originalPath = await materializeEditorDiffSide({
+			repoRoot: args.repoRoot,
+			backend: file.backend,
+			revset: file.originalRevset,
+			relativePath: file.relativePath,
+			tempRoot,
+			suffix: `${index}-original`,
+		});
+		const modifiedPath = await materializeEditorDiffSide({
+			repoRoot: args.repoRoot,
+			backend: file.backend,
+			revset: file.modifiedRevset,
+			relativePath: file.relativePath,
+			tempRoot,
+			suffix: `${index}-modified`,
+		});
+
+		await spawnDetached(command, [...baseArgs, '--reuse-window', '--diff', originalPath, modifiedPath]);
+	}
+}
+
+async function materializeEditorDiffSide(args: {
+	repoRoot: string;
+	backend: HistoryBackend;
+	revset: string;
+	relativePath: string;
+	tempRoot: string;
+	suffix: string;
+}): Promise<string> {
+	const safePath = args.relativePath.replace(/[^a-zA-Z0-9._/-]+/g, '_');
+	const targetPath = path.join(args.tempRoot, `${args.suffix}-${safePath}`);
+	await fs.mkdir(path.dirname(targetPath), { recursive: true });
+	const content = await readStandaloneRevsetFile({
+		repoRoot: args.repoRoot,
+		backend: args.backend,
+		revset: args.revset,
+		relativePath: args.relativePath,
+	});
+	await fs.writeFile(targetPath, content, 'utf8');
+	return targetPath;
+}
+
+async function readStandaloneRevsetFile(args: {
+	repoRoot: string;
+	backend: HistoryBackend;
+	revset: string;
+	relativePath: string;
+}): Promise<string> {
+	if (args.revset === 'EMPTY') {
+		return '';
+	}
+
+	if (args.revset === '@') {
+		try {
+			return await fs.readFile(path.join(args.repoRoot, args.relativePath), 'utf8');
+		} catch (error) {
+			if (isMissingFileError(error)) {
+				return '';
+			}
+			throw error;
+		}
+	}
+
+	return args.backend === 'jj'
+		? showJjFileAtRevision({ repoRoot: args.repoRoot, revision: args.revset, relativePath: args.relativePath })
+		: showGitFileAtRevision({ repoRoot: args.repoRoot, revision: args.revset, relativePath: args.relativePath });
+}
+
+function parseEditorCommand(editorCommand: string): { command: string; args: string[] } {
+	const parts = editorCommand.trim().split(/\s+/u).filter(Boolean);
+	if (!parts.length) {
+		throw new Error('Missing editor command.');
+	}
+
+	return {
+		command: parts[0],
+		args: parts.slice(1),
+	};
+}
+
+async function spawnDetached(command: string, args: string[]): Promise<void> {
+	await new Promise<void>((resolve, reject) => {
+		const child = spawn(command, args, { detached: true, stdio: 'ignore' });
+		child.once('error', reject);
+		child.once('spawn', () => {
+			child.unref();
+			resolve();
+		});
+	});
+}
+
 async function buildRangeOverview(args: {
 	repoRoot: string;
 	fileFixture: TimelineFixtureFile;
@@ -1255,12 +1584,16 @@ async function buildRangeOverview(args: {
 	fromIndex: number;
 	toIndex: number;
 	comparisonSource: ComparisonSource;
+	selectedEntryIndexes?: number[];
 }): Promise<RangeOverviewItem[]> {
 	const sourceEntries = getEntriesForSource(args.fileFixture.timelineData, args.comparisonSource);
 	const workspaceFileSet = new Set(args.fileFixture.timelineData.workspaceFiles || []);
 	const countedPaths = new Map<string, number>();
+	const entryIndexesToScan = args.selectedEntryIndexes?.length
+		? args.selectedEntryIndexes
+		: Array.from({ length: args.toIndex - args.fromIndex }, (_, index) => args.fromIndex + index + 1);
 
-	for (let index = args.fromIndex + 1; index <= args.toIndex; index += 1) {
+	for (const index of entryIndexesToScan) {
 		const entry = sourceEntries[index];
 		if (!entry) {
 			continue;
@@ -1306,19 +1639,27 @@ async function buildRangeOverview(args: {
 
 async function getWorkspaceFiles(repoRoot: string): Promise<string[]> {
 	try {
-		const { stdout } = await run({
-			command: 'git',
-			args: ['ls-files', '--cached', '--others', '--exclude-standard'],
-			cwd: repoRoot,
-		});
+		const { stdout } = await run({ command: 'jj', args: ['file', 'list'], cwd: repoRoot });
 		return stdout
 			.split(/\r?\n/)
 			.filter(Boolean)
 			.toSorted((left, right) => left.localeCompare(right));
 	} catch {
-		const files: string[] = [];
-		await collectWorkspaceFiles({ repoRoot, currentDir: repoRoot, files });
-		return files.toSorted((left, right) => left.localeCompare(right));
+		try {
+			const { stdout } = await run({
+				command: 'git',
+				args: ['ls-files', '--cached'],
+				cwd: repoRoot,
+			});
+			return stdout
+				.split(/\r?\n/)
+				.filter(Boolean)
+				.toSorted((left, right) => left.localeCompare(right));
+		} catch {
+			const files: string[] = [];
+			await collectWorkspaceFiles({ repoRoot, currentDir: repoRoot, files });
+			return files.toSorted((left, right) => left.localeCompare(right));
+		}
 	}
 }
 
@@ -1531,6 +1872,7 @@ function getFixturePreview(args: {
 		index: normalizedToIndex,
 		title: 'No diff available',
 		subtitle: '',
+		diffCount: 0,
 		additions: 0,
 		deletions: 0,
 		hunkCount: 0,

@@ -7,6 +7,7 @@ import { TimelinePane } from './components/timeline-pane.tsx';
 import { createTimelineHost } from './host.ts';
 import {
 	adjustRangeBoundary,
+	buildEntryDiffCountKey,
 	alignStepSelection,
 	buildPreviewKey,
 	buildRangeOverviewKey,
@@ -24,6 +25,8 @@ import {
 	getIntermediateToggleLabel,
 	getPendingSelectionRange,
 	getPendingSnapshotRevisionIndexes,
+	getRangeOverviewDiffCount,
+	getSelectedDiffEntryIndexes,
 	getSelectedEntryCount,
 	getSidebarPreviewRequests,
 	getUnitPreviewRange,
@@ -88,6 +91,8 @@ type UiState = {
 	fileSwitcherMode: FileSwitcherMode;
 	rangeOverviewByRange: Record<string, RangeOverviewItem[]>;
 	rangeOverviewLoadingKey: string;
+	entryDiffCountByKey: Record<string, number>;
+	entryDiffCountLoadingKey: string;
 	previewByRange: Record<string, DiffPreview>;
 	sidebarPreviewInFlightKey: string;
 	pendingRangeResolutionKey: string;
@@ -118,6 +123,8 @@ const initialState: UiState = {
 	fileSwitcherMode: 'workspace',
 	rangeOverviewByRange: {},
 	rangeOverviewLoadingKey: '',
+	entryDiffCountByKey: {},
+	entryDiffCountLoadingKey: '',
 	previewByRange: {},
 	sidebarPreviewInFlightKey: '',
 	pendingRangeResolutionKey: '',
@@ -149,6 +156,7 @@ export function App() {
 	const [ready, setReady] = createSignal(false);
 	const [tooltip, setTooltip] = createSignal<TooltipState | null>(null);
 	let shortcutFocusedInputId: string | null = null;
+	let shortcutFocusedInputArmed = false;
 	const effectiveComparisonSource = createMemo<ComparisonSource>(() => {
 		if (state.data?.backend !== 'jj') {
 			return 'revision';
@@ -259,15 +267,23 @@ export function App() {
 	const activePreviewKey = createMemo(() =>
 		buildPreviewKey(state.fromIndex, state.toIndex, effectiveComparisonSource()),
 	);
+	const selectedDiffEntryIndexes = createMemo(() =>
+		getSelectedDiffEntryIndexes(visibleEntries(), state.fromIndex, state.toIndex, state.comparisonMode),
+	);
 	const activeRangeOverviewKey = createMemo(() =>
-		buildRangeOverviewKey(state.fromIndex, state.toIndex, effectiveComparisonSource()),
+		buildRangeOverviewKey(state.fromIndex, state.toIndex, effectiveComparisonSource(), selectedDiffEntryIndexes()),
 	);
 	const activeRangeOverviewItems = createMemo<RangeOverviewItem[]>(
 		() => state.rangeOverviewByRange[activeRangeOverviewKey()] || [],
 	);
-	const rangeOverviewLoading = createMemo(
-		() => state.fileSwitcherMode === 'overview' && state.rangeOverviewLoadingKey === activeRangeOverviewKey(),
-	);
+	const rangeOverviewLoading = createMemo(() => state.rangeOverviewLoadingKey === activeRangeOverviewKey());
+	const selectionDiffCount = createMemo<number | null>(() => {
+		if (rangeOverviewLoading()) {
+			return null;
+		}
+
+		return getRangeOverviewDiffCount(activeRangeOverviewItems());
+	});
 	const preview = createMemo<DiffPreview | null>(() => state.previewByRange[activePreviewKey()] || null);
 
 	const previewForEntry = (entryIndex: number) => {
@@ -287,6 +303,11 @@ export function App() {
 	function clearRangeOverviewState() {
 		setState('rangeOverviewByRange', reconcile({}));
 		setState('rangeOverviewLoadingKey', '');
+	}
+
+	function clearEntryDiffCountState() {
+		setState('entryDiffCountByKey', reconcile({}));
+		setState('entryDiffCountLoadingKey', '');
 	}
 
 	onMount(() => {
@@ -627,7 +648,6 @@ export function App() {
 		if (
 			!ready() ||
 			!state.data ||
-			state.fileSwitcherMode !== 'overview' ||
 			visibleEntries().length < 2 ||
 			state.rangeOverviewLoadingKey === activeRangeOverviewKey() ||
 			state.rangeOverviewByRange[activeRangeOverviewKey()]
@@ -640,6 +660,41 @@ export function App() {
 			command: 'load-range-overview',
 			fromIndex: state.fromIndex,
 			toIndex: state.toIndex,
+			comparisonSource: effectiveComparisonSource(),
+			selectedEntryIndexes: selectedDiffEntryIndexes(),
+		});
+	});
+
+	createEffect(() => {
+		if (!ready() || !state.data || !filteredSidebarEntries().length || state.entryDiffCountLoadingKey) {
+			return;
+		}
+
+		if (
+			state.data.backend === 'jj' &&
+			effectiveComparisonSource() === 'snapshot' &&
+			pendingSnapshotRevisionIndexes().length
+		) {
+			return;
+		}
+
+		const nextEntryIndexes = filteredSidebarEntries()
+			.filter((entry) => entry.hasPreviousEntry)
+			.map((entry) => entry.index)
+			.filter(
+				(entryIndex) =>
+					state.entryDiffCountByKey[buildEntryDiffCountKey(entryIndex, effectiveComparisonSource())] === undefined,
+			)
+			.slice(0, 24);
+
+		if (!nextEntryIndexes.length) {
+			return;
+		}
+
+		setState('entryDiffCountLoadingKey', `${effectiveComparisonSource()}:${nextEntryIndexes.join(',')}`);
+		host.send({
+			command: 'load-entry-diff-counts',
+			entryIndexes: nextEntryIndexes,
 			comparisonSource: effectiveComparisonSource(),
 		});
 	});
@@ -729,10 +784,11 @@ export function App() {
 				hoveredSelectionIndex: null,
 				oldestFirst: false,
 				fileInputValue: message.payload.relativePath,
-				sidebarSearchQuery: '',
+				sidebarSearchQuery: state.sidebarSearchQuery,
 			});
 			clearPreviewState();
 			clearRangeOverviewState();
+			clearEntryDiffCountState();
 			return;
 		}
 
@@ -789,10 +845,12 @@ export function App() {
 				});
 				clearPreviewState();
 				clearRangeOverviewState();
+				clearEntryDiffCountState();
 				return;
 			}
 
 			setState('data', nextData);
+			clearEntryDiffCountState();
 			return;
 		}
 
@@ -801,11 +859,24 @@ export function App() {
 				message.payload.fromIndex,
 				message.payload.toIndex,
 				message.payload.comparisonSource,
+				message.payload.selectedEntryIndexes || [],
 			);
 			setState('rangeOverviewByRange', rangeKey, message.payload.items);
 			if (state.rangeOverviewLoadingKey === rangeKey) {
 				setState('rangeOverviewLoadingKey', '');
 			}
+			return;
+		}
+
+		if (message.type === 'entry-diff-counts') {
+			for (const item of message.payload.counts) {
+				setState(
+					'entryDiffCountByKey',
+					buildEntryDiffCountKey(item.entryIndex, message.payload.comparisonSource),
+					item.diffCount,
+				);
+			}
+			setState('entryDiffCountLoadingKey', '');
 			return;
 		}
 
@@ -852,6 +923,7 @@ export function App() {
 	function onDocumentClick(event: MouseEvent) {
 		const target = event.target as HTMLElement | null;
 		shortcutFocusedInputId = null;
+		shortcutFocusedInputArmed = false;
 		if (state.actionsMenuOpen && !target?.closest('.menu-wrap')) {
 			setState('actionsMenuOpen', false);
 		}
@@ -995,12 +1067,22 @@ export function App() {
 	}
 
 	function sendRangeCommand(command: 'open-editor-diff' | 'open-range-files-diff') {
-		host.send({
-			command,
-			fromIndex: state.fromIndex,
-			toIndex: state.toIndex,
-			comparisonSource: effectiveComparisonSource(),
-		});
+		if (command === 'open-range-files-diff') {
+			host.send({
+				command,
+				fromIndex: state.fromIndex,
+				toIndex: state.toIndex,
+				comparisonSource: effectiveComparisonSource(),
+				selectedEntryIndexes: selectedDiffEntryIndexes(),
+			});
+		} else {
+			host.send({
+				command,
+				fromIndex: state.fromIndex,
+				toIndex: state.toIndex,
+				comparisonSource: effectiveComparisonSource(),
+			});
+		}
 		setState({ actionsMenuOpen: false, hotkeysOpen: false });
 	}
 
@@ -1009,6 +1091,22 @@ export function App() {
 			command: 'open-revision-files-diff',
 			entryIndex,
 			comparisonSource: effectiveComparisonSource(),
+		});
+	}
+
+	function scrollToEntry(entryIndex: number) {
+		if (state.sidebarCollapsed) {
+			setState('sidebarCollapsed', false);
+		}
+
+		window.requestAnimationFrame(() => {
+			const entry = document.querySelector(`.history-item[data-entry-index="${entryIndex}"]`);
+			if (!(entry instanceof HTMLElement)) {
+				return;
+			}
+
+			entry.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+			entry.focus({ preventScroll: true });
 		});
 	}
 
@@ -1192,6 +1290,7 @@ export function App() {
 		}
 
 		shortcutFocusedInputId = elementId;
+		shortcutFocusedInputArmed = true;
 
 		window.requestAnimationFrame(() => {
 			const element = document.getElementById(elementId) as HTMLInputElement | null;
@@ -1207,9 +1306,8 @@ export function App() {
 	function onKeyDown(event: KeyboardEvent) {
 		const target = event.target as HTMLElement | null;
 		const lowerKey = event.key.toLowerCase();
-		const editableTargetRetainsInput =
-			isEditableTarget(target) && target?.id !== shortcutFocusedInputId && !hasFullInputSelection(target);
-		if (editableTargetRetainsInput) {
+		const editableTargetAllowsShortcut = target?.id === shortcutFocusedInputId && shortcutFocusedInputArmed;
+		if (isEditableTarget(target) && !editableTargetAllowsShortcut) {
 			if (event.key === 'Escape' && (state.hotkeysOpen || state.actionsMenuOpen)) {
 				event.preventDefault();
 				setState({
@@ -1220,6 +1318,11 @@ export function App() {
 				});
 			}
 
+			return;
+		}
+
+		if (editableTargetAllowsShortcut && !isEditableShortcutKey(event)) {
+			shortcutFocusedInputArmed = false;
 			return;
 		}
 
@@ -1416,6 +1519,7 @@ export function App() {
 			fileSwitcherMode: () => state.fileSwitcherMode,
 			rangeOverviewItems: activeRangeOverviewItems,
 			rangeOverviewLoading,
+			selectionDiffCount,
 			fromIndex: () => state.fromIndex,
 			toIndex: () => state.toIndex,
 			pendingSelectionIndex: () => state.pendingSelectionIndex,
@@ -1446,6 +1550,8 @@ export function App() {
 			currentToEntry,
 			preview,
 			previewForEntry,
+			entryDiffCount: (entryIndex) =>
+				state.entryDiffCountByKey[buildEntryDiffCountKey(entryIndex, effectiveComparisonSource())] ?? null,
 			sidebarSearchQuery: () => state.sidebarSearchQuery,
 			visibleEntryCount: () => visibleEntries().length,
 			oldestFirst: () => state.oldestFirst,
@@ -1481,6 +1587,7 @@ export function App() {
 			showAnchorTooltip,
 			hideRangeTooltip,
 			submitRevision,
+			scrollToEntry,
 			toggleDiffFocus,
 			setFileSwitcherMode: (value) => setState('fileSwitcherMode', value),
 		},
@@ -1759,17 +1866,23 @@ function isEditableTarget(target: HTMLElement | null) {
 	return tagName === 'input' || tagName === 'textarea' || tagName === 'select' || target?.isContentEditable === true;
 }
 
-function hasFullInputSelection(target: HTMLElement | null) {
-	if (!(target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement)) {
+function isEditableShortcutKey(event: KeyboardEvent) {
+	if (event.metaKey || event.ctrlKey || event.altKey) {
 		return false;
 	}
 
-	const valueLength = target.value.length;
-	if (!valueLength) {
-		return false;
-	}
-
-	return target.selectionStart === 0 && target.selectionEnd === valueLength;
+	const lowerKey = event.key.toLowerCase();
+	return (
+		event.key === '?' ||
+		(event.shiftKey && event.key === '/') ||
+		event.key === '/' ||
+		event.key === ' ' ||
+		lowerKey === 'b' ||
+		lowerKey === 'd' ||
+		lowerKey === 'f' ||
+		lowerKey === 's' ||
+		lowerKey === 't'
+	);
 }
 
 function clampTooltipX(left: number) {

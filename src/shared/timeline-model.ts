@@ -1,4 +1,11 @@
-import type { ComparisonSource, DiffPreview, FileRevisionEntry, TimelineData } from './timeline-types.ts';
+import type {
+	ComparisonMode,
+	ComparisonSource,
+	DiffPreview,
+	FileRevisionEntry,
+	RangeOverviewItem,
+	TimelineData,
+} from './timeline-types.ts';
 
 export function getEntriesForSource(
 	data: TimelineData | null,
@@ -48,6 +55,32 @@ export function getSelectedEntryCount(visibleEntries: FileRevisionEntry[], fromI
 	return visibleEntries.filter(
 		(entry) => entry.index !== undefined && entry.index >= minIndex && entry.index <= maxIndex,
 	).length;
+}
+
+export function getSelectedDiffEntryIndexes(
+	visibleEntries: FileRevisionEntry[],
+	fromIndex: number,
+	toIndex: number,
+	comparisonMode: ComparisonMode,
+): number[] {
+	if (!visibleEntries.length) {
+		return [];
+	}
+
+	if (comparisonMode === 'step') {
+		return visibleEntries.some((entry) => entry.index === toIndex) ? [toIndex] : [];
+	}
+
+	const minIndex = Math.min(fromIndex, toIndex);
+	const maxIndex = Math.max(fromIndex, toIndex);
+	return visibleEntries
+		.filter((entry) => entry.index >= minIndex && entry.index <= maxIndex)
+		.slice(1)
+		.map((entry) => entry.index);
+}
+
+export function getRangeOverviewDiffCount(items: RangeOverviewItem[]): number {
+	return items.reduce((total, item) => total + item.changeCount, 0);
 }
 
 export function getTimelineAnchorPercent(visibleEntries: FileRevisionEntry[], visibleIndex: number): number {

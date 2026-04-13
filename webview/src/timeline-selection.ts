@@ -46,8 +46,18 @@ export function buildPreviewKey(fromIndex: number, toIndex: number, comparisonSo
 	return `${comparisonSource}:${normalizedFromIndex}:${normalizedToIndex}`;
 }
 
-export function buildRangeOverviewKey(fromIndex: number, toIndex: number, comparisonSource: ComparisonSource) {
-	return buildPreviewKey(fromIndex, toIndex, comparisonSource);
+export function buildRangeOverviewKey(
+	fromIndex: number,
+	toIndex: number,
+	comparisonSource: ComparisonSource,
+	selectedEntryIndexes: number[] = [],
+) {
+	const selectedKey = selectedEntryIndexes.length ? selectedEntryIndexes.join(',') : 'all';
+	return `${buildPreviewKey(fromIndex, toIndex, comparisonSource)}:${selectedKey}`;
+}
+
+export function buildEntryDiffCountKey(entryIndex: number, comparisonSource: ComparisonSource) {
+	return `${comparisonSource}:${entryIndex}`;
 }
 
 export function getVisibleIndexForAbsoluteIndex(entries: FileRevisionEntry[], entryIndex: number) {

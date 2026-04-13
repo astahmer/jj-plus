@@ -21,6 +21,7 @@ export type TimelineStateContext = {
 	fileSwitcherMode: Accessor<FileSwitcherMode>;
 	rangeOverviewItems: Accessor<RangeOverviewItem[]>;
 	rangeOverviewLoading: Accessor<boolean>;
+	selectionDiffCount: Accessor<number | null>;
 	fromIndex: Accessor<number>;
 	toIndex: Accessor<number>;
 	pendingSelectionIndex: Accessor<number | null>;
@@ -51,6 +52,7 @@ export type TimelineStateContext = {
 	currentToEntry: Accessor<FileRevisionEntry | undefined>;
 	preview: Accessor<DiffPreview | null>;
 	previewForEntry: (entryIndex: number) => DiffPreview | null;
+	entryDiffCount: (entryIndex: number) => number | null;
 	sidebarSearchQuery: Accessor<string>;
 	visibleEntryCount: Accessor<number>;
 	oldestFirst: Accessor<boolean>;
@@ -87,6 +89,7 @@ export type TimelineActionsContext = {
 	showAnchorTooltip: (entryIndex: number, target: HTMLElement) => void;
 	hideRangeTooltip: () => void;
 	submitRevision: (side: 'from' | 'to', value: string) => void;
+	scrollToEntry: (entryIndex: number) => void;
 	toggleDiffFocus: () => void;
 	setFileSwitcherMode: (value: FileSwitcherMode) => void;
 };

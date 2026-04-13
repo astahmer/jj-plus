@@ -21,6 +21,7 @@ export function Combobox(props: ComboboxProps) {
 	const [draftValue, setDraftValue] = createSignal(props.value);
 	const [open, setOpen] = createSignal(false);
 	const [activeIndex, setActiveIndex] = createSignal(0);
+	const [editing, setEditing] = createSignal(false);
 	const listId = `${props.id}Options`;
 	let closeTimer: number | undefined;
 	let optionRefs: Array<HTMLButtonElement | undefined> = [];
@@ -39,6 +40,10 @@ export function Combobox(props: ComboboxProps) {
 	});
 
 	createEffect(() => {
+		if (editing() && draftValue() !== props.value) {
+			return;
+		}
+
 		setDraftValue(props.value);
 	});
 
@@ -77,10 +82,12 @@ export function Combobox(props: ComboboxProps) {
 		clearCloseTimer();
 		closeTimer = window.setTimeout(() => {
 			setOpen(false);
+			setEditing(false);
 		}, 120);
 	}
 
 	function commit(value: string) {
+		setEditing(false);
 		setDraftValue(value);
 		props.onInput?.(value);
 		props.onCommit(value);
@@ -88,7 +95,14 @@ export function Combobox(props: ComboboxProps) {
 	}
 
 	return (
-		<div class="combobox" onFocusIn={() => setOpen(true)} onFocusOut={scheduleClose}>
+		<div
+			class="combobox"
+			onFocusIn={() => {
+				clearCloseTimer();
+				setOpen(true);
+			}}
+			onFocusOut={scheduleClose}
+		>
 			<input
 				class={props.inputClass}
 				id={props.id}
@@ -102,6 +116,7 @@ export function Combobox(props: ComboboxProps) {
 				onClick={() => setOpen(true)}
 				onInput={(event) => {
 					clearCloseTimer();
+					setEditing(true);
 					setDraftValue(event.currentTarget.value);
 					props.onInput?.(event.currentTarget.value);
 					setOpen(true);
@@ -133,13 +148,16 @@ export function Combobox(props: ComboboxProps) {
 
 					if (event.key === 'Enter') {
 						event.preventDefault();
-						const option = options[activeIndex()];
+						const query = event.currentTarget.value.trim().toLowerCase();
+						const exactOption = props.options.find((option) => option.value.toLowerCase() === query);
+						const option = exactOption || options[activeIndex()];
 						commit(option?.value || event.currentTarget.value);
 						return;
 					}
 
 					if (event.key === 'Escape') {
 						event.preventDefault();
+						setEditing(false);
 						setOpen(false);
 					}
 				}}

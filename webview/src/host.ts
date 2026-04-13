@@ -66,6 +66,31 @@ function getFixtureRangeOverview(fileFixture: TimelineFixtureFile) {
 		});
 }
 
+async function maybeAttachStandaloneEditorCommand(command: TimelineCommand): Promise<TimelineCommand | null> {
+	if (command.command !== 'open-range-files-diff' && command.command !== 'open-revision-files-diff') {
+		return command;
+	}
+
+	if (command.editorCommand) {
+		return command;
+	}
+
+	const editorCommand = window.prompt('Open diffs with which editor command?', 'code');
+	if (editorCommand === null) {
+		return null;
+	}
+
+	const trimmedEditorCommand = editorCommand.trim();
+	if (!trimmedEditorCommand) {
+		return null;
+	}
+
+	return {
+		...command,
+		editorCommand: trimmedEditorCommand,
+	};
+}
+
 export function createTimelineHost(): TimelineHost {
 	if (typeof window.acquireVsCodeApi === 'function') {
 		const vscode = window.acquireVsCodeApi();
@@ -91,7 +116,7 @@ export function createTimelineHost(): TimelineHost {
 
 		return {
 			send(command) {
-				void dispatch(command).catch((error) => {
+				void prepareAndDispatch(command).catch((error) => {
 					console.error(error);
 				});
 			},
@@ -103,6 +128,15 @@ export function createTimelineHost(): TimelineHost {
 
 		function emitStandalone(message: TimelineInboundMessage) {
 			listeners.forEach((listener) => listener(message));
+		}
+
+		async function prepareAndDispatch(command: TimelineCommand) {
+			const nextCommand = await maybeAttachStandaloneEditorCommand(command);
+			if (!nextCommand) {
+				return;
+			}
+
+			await dispatch(nextCommand);
 		}
 
 		async function dispatch(command: TimelineCommand) {
@@ -185,6 +219,7 @@ export function createTimelineHost(): TimelineHost {
 							fromIndex: Math.min(command.fromIndex, command.toIndex),
 							toIndex: Math.max(command.fromIndex, command.toIndex),
 							comparisonSource: command.comparisonSource,
+							selectedEntryIndexes: command.selectedEntryIndexes,
 							items: getFixtureRangeOverview(fileFixture),
 						},
 					});
@@ -308,6 +343,7 @@ export function createTimelineHost(): TimelineHost {
 			index: Math.max(fromIndex, toIndex),
 			title: 'No diff available',
 			subtitle: '',
+			diffCount: 0,
 			additions: 0,
 			deletions: 0,
 			hunkCount: 0,
@@ -369,6 +405,8 @@ export function createTimelineHost(): TimelineHost {
 			payload.fromIndex = command.fromIndex;
 			payload.toIndex = command.toIndex;
 			payload.comparisonSource = command.comparisonSource;
+			payload.selectedEntryIndexes =
+				command.command === 'open-range-files-diff' ? command.selectedEntryIndexes || [] : [];
 		}
 
 		if (command.command === 'open-revision-files-diff' || command.command === 'open-revision-remote') {
@@ -380,13 +418,19 @@ export function createTimelineHost(): TimelineHost {
 			payload.remoteUrl = entry?.remoteUrl || null;
 		}
 
+		if (command.command === 'open-range-files-diff' || command.command === 'open-revision-files-diff') {
+			payload.editorCommand = command.editorCommand || null;
+		}
+
 		const action = {
 			command: command.command,
 			payload,
 		};
 
-		testState.lastAction = action;
 		testState.actions.push(action);
+		if (command.command !== 'select-entry') {
+			testState.lastAction = action;
+		}
 		window.__TIMELINE_TEST_STATE__ = testState;
 	}
 }

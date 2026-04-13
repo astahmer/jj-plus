@@ -15,6 +15,8 @@ import {
 	getIntermediateToggleLabel,
 	getPendingSelectionRange,
 	getPendingSnapshotRevisionIndexes,
+	getRangeOverviewDiffCount,
+	getSelectedDiffEntryIndexes,
 	getSelectedEntryCount,
 	getSidebarPreviewRequests,
 	getTimelineAnchorPercent,
@@ -249,6 +251,18 @@ test('timeline model computes unit preview ranges and selected counts', () => {
 	assert.deepEqual(getUnitPreviewRange(visibleEntries, 10), { fromIndex: 8, toIndex: 10 });
 	assert.equal(getUnitPreviewRange(visibleEntries, 4), null);
 	assert.equal(getSelectedEntryCount(visibleEntries, 8, 14), 3);
+	assert.deepEqual(getSelectedDiffEntryIndexes(visibleEntries, 4, 14, 'range'), [8, 10, 14]);
+	assert.deepEqual(getSelectedDiffEntryIndexes(visibleEntries, 8, 10, 'step'), [10]);
+});
+
+test('timeline model totals selection diff counts from range overview items', () => {
+	assert.equal(
+		getRangeOverviewDiffCount([
+			{ relativePath: 'src/a.ts', changeCount: 2 },
+			{ relativePath: 'src/b.ts', changeCount: 1 },
+		]),
+		3,
+	);
 });
 
 test('timeline model derives the pending selection range from the anchored start and hovered end', () => {

@@ -40,6 +40,7 @@ test('renderPreviewText prints the preview header and line rows in a readable ex
 			index: 1,
 			title: 'abc123 -> def456',
 			subtitle: 'Working tree',
+			diffCount: 0,
 			additions: 1,
 			deletions: 1,
 			hunkCount: 1,

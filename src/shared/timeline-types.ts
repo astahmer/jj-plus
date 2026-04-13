@@ -59,6 +59,7 @@ export type DiffPreview = {
 	index: number;
 	title: string;
 	subtitle: string;
+	diffCount: number;
 	additions: number;
 	deletions: number;
 	hunkCount: number;
@@ -90,6 +91,7 @@ export type TimelineSession = {
 	contentCache: Map<string, string>;
 	previewCache: Map<string, DiffPreview>;
 	rangeOverviewCache: Map<string, RangeOverviewItem[]>;
+	entryDiffCountCache: Map<string, number>;
 	pathCache: Map<string, string>;
 	activeActionAbortController?: AbortController;
 };
@@ -123,7 +125,18 @@ export type TimelineInboundMessage =
 				fromIndex: number;
 				toIndex: number;
 				comparisonSource: ComparisonSource;
+				selectedEntryIndexes?: number[];
 				items: RangeOverviewItem[];
+			};
+	  }
+	| {
+			type: 'entry-diff-counts';
+			payload: {
+				comparisonSource: ComparisonSource;
+				counts: Array<{
+					entryIndex: number;
+					diffCount: number;
+				}>;
 			};
 	  }
 	| { type: 'resolved-range'; payload: { fromIndex: number; toIndex: number } | null };
@@ -135,11 +148,34 @@ export type TimelineCommand =
 	| { command: 'open-current-file' }
 	| { command: 'select-entry'; fromIndex: number; toIndex: number; comparisonSource: ComparisonSource }
 	| { command: 'open-editor-diff'; fromIndex: number; toIndex: number; comparisonSource: ComparisonSource }
-	| { command: 'open-range-files-diff'; fromIndex: number; toIndex: number; comparisonSource: ComparisonSource }
-	| { command: 'open-revision-files-diff'; entryIndex: number; comparisonSource: ComparisonSource }
+	| {
+			command: 'open-range-files-diff';
+			fromIndex: number;
+			toIndex: number;
+			comparisonSource: ComparisonSource;
+			selectedEntryIndexes?: number[];
+			editorCommand?: string;
+	  }
+	| {
+			command: 'open-revision-files-diff';
+			entryIndex: number;
+			comparisonSource: ComparisonSource;
+			editorCommand?: string;
+	  }
 	| { command: 'open-revision-remote'; entryIndex: number; comparisonSource: ComparisonSource }
 	| { command: 'hydrate-snapshot-entries'; revisionIndexes: number[] }
-	| { command: 'load-range-overview'; fromIndex: number; toIndex: number; comparisonSource: ComparisonSource }
+	| {
+			command: 'load-range-overview';
+			fromIndex: number;
+			toIndex: number;
+			comparisonSource: ComparisonSource;
+			selectedEntryIndexes?: number[];
+	  }
+	| {
+			command: 'load-entry-diff-counts';
+			entryIndexes: number[];
+			comparisonSource: ComparisonSource;
+	  }
 	| { command: 'resolve-nonempty-range'; candidateIndexes: number[] }
 	| { command: 'switch-file'; relativePath: string }
 	| {

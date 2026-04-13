@@ -66,6 +66,7 @@ function syncSession(request: { target: ExtensionTimelineSession; source: Extens
 	request.target.contentCache = request.source.contentCache;
 	request.target.previewCache = request.source.previewCache;
 	request.target.rangeOverviewCache = request.source.rangeOverviewCache;
+	request.target.entryDiffCountCache = request.source.entryDiffCountCache;
 	request.target.pathCache = request.source.pathCache;
 	request.target.activeActionAbortController = request.source.activeActionAbortController;
 }
@@ -119,6 +120,7 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 		findNearestNonEmptyVisibleRange,
 		getComparisonEntries,
 		getDiffPreview,
+		getEntryDiffCounts,
 		getEntriesForSource,
 		getRangeOverview,
 		hydrateSnapshotEntries,
@@ -171,6 +173,7 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 			contentCache: new Map(),
 			previewCache: new Map(),
 			rangeOverviewCache: new Map(),
+			entryDiffCountCache: new Map(),
 			pathCache: new Map(),
 			activeActionAbortController: undefined,
 		};
@@ -374,6 +377,16 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 				request.session.previewCache.delete(cacheKey);
 			}
 		}
+		for (const cacheKey of request.session.rangeOverviewCache.keys()) {
+			if (cacheKey.startsWith('snapshot:')) {
+				request.session.rangeOverviewCache.delete(cacheKey);
+			}
+		}
+		for (const cacheKey of request.session.entryDiffCountCache.keys()) {
+			if (cacheKey.startsWith('snapshot:')) {
+				request.session.entryDiffCountCache.delete(cacheKey);
+			}
+		}
 
 		return true;
 	}
@@ -407,11 +420,14 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 		fromIndex: number;
 		toIndex: number;
 		comparisonSource?: ComparisonSource;
+		selectedEntryIndexes?: number[];
 	}): Promise<RangeOverviewItem[]> {
 		const comparisonSource = request.comparisonSource || 'revision';
 		const normalizedFromIndex = Math.max(0, Math.min(request.fromIndex, request.toIndex));
 		const normalizedToIndex = Math.max(normalizedFromIndex, Math.max(request.fromIndex, request.toIndex));
-		const cacheKey = `${comparisonSource}:${normalizedFromIndex}:${normalizedToIndex}`;
+		const selectedEntryIndexes = (request.selectedEntryIndexes || []).filter((value) => Number.isInteger(value));
+		const selectedKey = selectedEntryIndexes.length ? selectedEntryIndexes.join(',') : 'all';
+		const cacheKey = `${comparisonSource}:${normalizedFromIndex}:${normalizedToIndex}:${selectedKey}`;
 		const cached = request.session.rangeOverviewCache.get(cacheKey);
 		if (cached) {
 			return cached;
@@ -423,8 +439,11 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 		});
 		const countedPaths = new Map<string, number>();
 		const workspaceFileSet = new Set(request.session.workspaceFiles);
+		const entryIndexesToScan = selectedEntryIndexes.length
+			? selectedEntryIndexes
+			: Array.from({ length: normalizedToIndex - normalizedFromIndex }, (_, index) => normalizedFromIndex + index + 1);
 
-		for (let index = normalizedFromIndex + 1; index <= normalizedToIndex; index += 1) {
+		for (const index of entryIndexesToScan) {
 			const entry = sourceEntries[index];
 			if (!entry) {
 				continue;
@@ -467,6 +486,61 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 
 		request.session.rangeOverviewCache.set(cacheKey, items);
 		return items;
+	}
+
+	async function getEntryDiffCounts(request: {
+		session: ExtensionTimelineSession;
+		entryIndexes: number[];
+		comparisonSource?: ComparisonSource;
+	}): Promise<Array<{ entryIndex: number; diffCount: number }>> {
+		const comparisonSource = request.comparisonSource || 'revision';
+		const sourceEntries = getEntriesForSource({
+			session: request.session,
+			comparisonSource,
+		});
+
+		return Promise.all(
+			request.entryIndexes.map(async (entryIndex) => {
+				const cacheKey = `${comparisonSource}:${entryIndex}`;
+				const cached = request.session.entryDiffCountCache.get(cacheKey);
+				if (cached !== undefined) {
+					return { entryIndex, diffCount: cached };
+				}
+
+				const entry = sourceEntries[entryIndex];
+				if (!entry || entryIndex <= 0) {
+					request.session.entryDiffCountCache.set(cacheKey, 0);
+					return { entryIndex, diffCount: 0 };
+				}
+
+				let diffCount = 0;
+				if (entry.isWorkingTree) {
+					const previousEntry = sourceEntries[entryIndex - 1];
+					if (previousEntry) {
+						const plan = await request.session.adapter.buildRangeMultiDiffPlan({
+							workspacePath: request.session.workspacePath,
+							fromEntry: previousEntry,
+							toEntry: entry,
+							comparisonSource,
+							sourceEntries,
+						});
+						diffCount = plan.files.length;
+					}
+				} else {
+					const plan = await request.session.adapter.buildRevisionMultiDiffPlan({
+						workspacePath: request.session.workspacePath,
+						entry,
+						entryIndex,
+						comparisonSource,
+						sourceEntries,
+					});
+					diffCount = plan.files.length;
+				}
+
+				request.session.entryDiffCountCache.set(cacheKey, diffCount);
+				return { entryIndex, diffCount };
+			}),
+		);
 	}
 
 	async function resolveEntryFilePath(request: {
@@ -536,6 +610,10 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 			}
 		}
 
+		if (request.adapter.backend === 'jj') {
+			entries = dedupeAdjacentTimelineEntries(entries);
+		}
+
 		return appendWorkingTreeEntry({
 			adapter: request.adapter,
 			workspacePath: request.workspacePath,
@@ -550,10 +628,29 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 			try {
 				const { stdout } = await runner.runGit({
 					workspacePath: request.workspacePath,
-					args: ['ls-files', '--cached', '--others', '--exclude-standard', '-z'],
+					args: ['ls-files', '--cached', '-z'],
 				});
 				const files = stdout
 					.split('\u0000')
+					.map((value) => value.trim())
+					.filter(Boolean)
+					.toSorted((left, right) => left.localeCompare(right));
+				if (files.length) {
+					return files;
+				}
+			} catch {
+				// Fall back to filesystem traversal.
+			}
+		}
+
+		if (request.adapter.backend === 'jj') {
+			try {
+				const { stdout } = await runner.runJj({
+					workspacePath: request.workspacePath,
+					args: ['file', 'list'],
+				});
+				const files = stdout
+					.split(/\r?\n/u)
 					.map((value) => value.trim())
 					.filter(Boolean)
 					.toSorted((left, right) => left.localeCompare(right));
@@ -877,6 +974,7 @@ function createEmptyPreview(args: {
 		index: args.index,
 		title: args.title,
 		subtitle: '',
+		diffCount: 0,
 		additions: 0,
 		deletions: 0,
 		hunkCount: 0,
@@ -914,6 +1012,7 @@ function buildDiffPreview(args: {
 			index: args.index,
 			title,
 			subtitle,
+			diffCount: 0,
 			additions: 0,
 			deletions: 0,
 			hunkCount: 0,
@@ -939,6 +1038,7 @@ function buildDiffPreview(args: {
 		index: args.index,
 		title,
 		subtitle,
+		diffCount: 0,
 		additions,
 		deletions,
 		hunkCount,
@@ -1010,6 +1110,22 @@ function mergeTimelineEntries(args: {
 	return merged.toSorted(
 		(left, right) => left.timestamp - right.timestamp || left.revision.localeCompare(right.revision),
 	);
+}
+
+function dedupeAdjacentTimelineEntries(entries: FileRevisionEntry[]): FileRevisionEntry[] {
+	return entries.reduce<FileRevisionEntry[]>((deduped, entry) => {
+		const previousEntry = deduped.at(-1);
+		if (!previousEntry?.changeId || previousEntry.changeId !== entry.changeId) {
+			deduped.push(entry);
+			return deduped;
+		}
+
+		if (!previousEntry.touchesFile && entry.touchesFile) {
+			deduped[deduped.length - 1] = entry;
+		}
+
+		return deduped;
+	}, []);
 }
 
 function countDiffHunks(rows: DiffRow[]): number {

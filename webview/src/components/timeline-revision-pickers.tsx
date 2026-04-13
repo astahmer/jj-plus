@@ -33,7 +33,7 @@ export function TimelineRevisionPickers() {
 						class="handle-pill from"
 						id="fromHandleLabel"
 						type="button"
-						onClick={() => state.currentFromEntry() && actions.selectEntry(state.currentFromEntry()!.index)}
+						onClick={() => state.currentFromEntry() && actions.scrollToEntry(state.currentFromEntry()!.index)}
 					>
 						<span>From </span>
 						<Show when={state.currentFromEntry()}>
@@ -63,7 +63,7 @@ export function TimelineRevisionPickers() {
 						class="handle-pill to"
 						id="toHandleLabel"
 						type="button"
-						onClick={() => state.currentToEntry() && actions.selectEntry(state.currentToEntry()!.index)}
+						onClick={() => state.currentToEntry() && actions.scrollToEntry(state.currentToEntry()!.index)}
 					>
 						<span>To </span>
 						<Show when={state.currentToEntry()}>

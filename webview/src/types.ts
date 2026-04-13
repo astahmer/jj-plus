@@ -58,7 +58,18 @@ export type TimelineInboundMessage =
 				fromIndex: number;
 				toIndex: number;
 				comparisonSource: ComparisonSource;
+				selectedEntryIndexes?: number[];
 				items: RangeOverviewItem[];
+			};
+	  }
+	| {
+			type: 'entry-diff-counts';
+			payload: {
+				comparisonSource: ComparisonSource;
+				counts: Array<{
+					entryIndex: number;
+					diffCount: number;
+				}>;
 			};
 	  }
 	| { type: 'resolved-range'; payload: { fromIndex: number; toIndex: number } | null };
