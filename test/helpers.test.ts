@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { normalizeTextForComparison, textsMatchIgnoringLineEndings } from '../src/shared/diff-helpers';
+import { normalizeTextForComparison, textsMatchIgnoringLineEndings } from '../src/shared/diff-helpers.ts';
 import {
 	dedupeAdjacentEntriesByChangeId,
 	getGitHubRemoteBaseUrl,
@@ -9,7 +9,7 @@ import {
 	parseJjEvolutionSummaryEntries,
 	parseJjSummaryChangedPaths,
 	parseJjSummaryRenameLines,
-} from '../src/shared/history-helpers';
+} from '../src/shared/history-helpers.ts';
 import {
 	getEntriesForSource,
 	getIntermediateToggleLabel,
@@ -19,9 +19,9 @@ import {
 	getSidebarPreviewRequests,
 	getTimelineAnchorPercent,
 	getUnitPreviewRange,
-} from '../src/shared/timeline-model';
-import type { FileRevisionEntry, TimelineData } from '../src/shared/timeline-types';
-import { normalizeTimelinePreferences } from '../src/extension/timeline-service';
+} from '../src/shared/timeline-model.ts';
+import type { FileRevisionEntry, TimelineData } from '../src/shared/timeline-types.ts';
+import { normalizeTimelinePreferences } from '../src/extension/timeline-service.ts';
 
 function makeEntry(overrides: Partial<FileRevisionEntry> & Pick<FileRevisionEntry, 'index'>): FileRevisionEntry {
 	const index = overrides.index;
@@ -35,7 +35,7 @@ function makeEntry(overrides: Partial<FileRevisionEntry> & Pick<FileRevisionEntr
 		description: overrides.description || `entry ${index}`,
 		isWorkingTree: overrides.isWorkingTree === true,
 		touchesFile: overrides.touchesFile !== false,
-		timestamp: overrides.timestamp ?? index,
+		timestamp: (overrides.timestamp ?? index)!,
 		filePath: overrides.filePath,
 		operationId: overrides.operationId,
 		operationIndex: overrides.operationIndex,

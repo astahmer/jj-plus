@@ -1,18 +1,18 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
 import * as vscode from 'vscode';
-import { renderTimelineDocumentHtml } from '../webview/timeline-template';
+import { renderTimelineDocumentHtml } from '../webview/timeline-template.ts';
 import type {
 	ComparisonSource,
 	FileRevisionEntry,
 	TimelineCommand,
 	TimelineInboundMessage,
 	TimelinePreferences,
-} from '../shared/timeline-types';
-import { OPEN_MULTI_DIFF_COMMAND, TIMELINE_PRESET_DAYS } from './constants';
-import { createTimelineService } from './timeline-service';
-import { createSnapshotUri } from './uri-utils';
-import type { ExtensionTimelineSession, TimelineDebugState, TimelinePanelController } from './types';
+} from '../shared/timeline-types.ts';
+import { OPEN_MULTI_DIFF_COMMAND, TIMELINE_PRESET_DAYS } from './constants.ts';
+import { createTimelineService } from './timeline-service.ts';
+import { createSnapshotUri } from './uri-utils.ts';
+import type { ExtensionTimelineSession, TimelineDebugState, TimelinePanelController } from './types.ts';
 
 type TimelineService = ReturnType<typeof createTimelineService>;
 

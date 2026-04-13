@@ -5,7 +5,7 @@ import type {
 	HistoryBackend,
 	TimelinePreferences,
 	TimelineSession,
-} from '../shared/timeline-types';
+} from '../shared/timeline-types.ts';
 
 export type RangeDiffArgs = {
 	from?: string;

@@ -5,10 +5,10 @@ import {
 	parseJjEvolutionSummaryEntries,
 	parseJjSummaryChangedPaths,
 	parseJjSummaryRenameLines,
-} from '../shared/history-helpers';
-import type { FileRevisionEntry } from '../shared/timeline-types';
-import { MAX_TIMELINE_ENTRIES } from './constants';
-import type { CommandRunner, HistoryAdapter } from './types';
+} from '../shared/history-helpers.ts';
+import type { FileRevisionEntry } from '../shared/timeline-types.ts';
+import { MAX_TIMELINE_ENTRIES } from './constants.ts';
+import type { CommandRunner, HistoryAdapter } from './types.ts';
 
 export async function resolveHistoryAdapter(args: {
 	workspacePath: string;

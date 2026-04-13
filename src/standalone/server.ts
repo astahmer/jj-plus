@@ -5,15 +5,15 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
-import packageJson from '../../package.json';
-import { getEntriesForSource } from '../shared/timeline-model';
+import packageJson from '../../package.json' with { type: 'json' };
+import { getEntriesForSource } from '../shared/timeline-model.ts';
 import {
 	getGitHubRemoteBaseUrl,
 	normalizeSnapshotOperationKey,
 	parseJjEvolutionSummaryEntries,
 	parseJjSummaryChangedPaths,
 	parseJjSummaryRenameLines,
-} from '../shared/history-helpers';
+} from '../shared/history-helpers.ts';
 import type {
 	ComparisonSource,
 	DiffPreview,
@@ -26,9 +26,10 @@ import type {
 	TimelineFixtureFile,
 	TimelineInboundMessage,
 	TimelinePreferences,
-} from '../shared/timeline-types';
+} from '../shared/timeline-types.ts';
 
 const execFileAsync = promisify(execFile);
+const __dirname = new URL('.', import.meta.url).pathname;
 const rootDir = path.resolve(__dirname, '..', '..');
 const distDir = path.join(rootDir, 'webview-dist');
 const displayLocale = 'en-US';

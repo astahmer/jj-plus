@@ -4,7 +4,6 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import {
-	EXTENSION_ID,
 	formatCommand,
 	getLaunchers,
 	logVerbose,
@@ -13,6 +12,7 @@ import {
 	resolveIde,
 	usage,
 } from './cli/options';
+import { EXTENSION_ID } from './extension/constants.ts';
 
 void main().catch((error: unknown) => {
 	const message = error instanceof Error ? error.message : String(error);

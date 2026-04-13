@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { access } from 'node:fs/promises';
 import type * as vscode from 'vscode';
-import type { CommandResult, CommandRunner, RunCommandOptions } from './types';
+import type { CommandResult, CommandRunner, RunCommandOptions } from './types.ts';
 
 export function createCommandRunner(args: { outputChannel?: vscode.OutputChannel }): CommandRunner {
 	const { outputChannel } = args;

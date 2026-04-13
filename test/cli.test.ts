@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { parseRangeDiffArgs, parseTimelineArgs } from '../src/cli/options';
-import { renderPreviewText } from '../src/standalone/server';
+import { parseRangeDiffArgs, parseTimelineArgs } from '../src/cli/options.ts';
+import { renderPreviewText } from '../src/standalone/server.ts';
 
 test('parseRangeDiffArgs accepts aliases and preserves the existing deep-link flags', () => {
 	assert.deepEqual(

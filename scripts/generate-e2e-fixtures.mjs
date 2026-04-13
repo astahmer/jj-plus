@@ -48,8 +48,9 @@ await fs.rm(runtimeDir, { recursive: true, force: true });
 await fs.mkdir(reposDir, { recursive: true });
 await fs.mkdir(outputDir, { recursive: true });
 
-await fs.writeFile(path.join(outputDir, 'git-basic.json'), JSON.stringify(await generateGitFixture(), null, 2) + '\n');
-await fs.writeFile(path.join(outputDir, 'jj-basic.json'), JSON.stringify(await generateJjFixture(), null, 2) + '\n');
+const [gitFixture, jjFixture] = await Promise.all([generateGitFixture(), generateJjFixture()]);
+await fs.writeFile(path.join(outputDir, 'git-basic.json'), JSON.stringify(gitFixture, null, 2) + '\n');
+await fs.writeFile(path.join(outputDir, 'jj-basic.json'), JSON.stringify(jjFixture, null, 2) + '\n');
 
 async function generateGitFixture() {
 	const repoDir = path.join(reposDir, 'git-basic');

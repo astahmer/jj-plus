@@ -1,4 +1,4 @@
-import type { ComparisonSource, DiffPreview, FileRevisionEntry, TimelineData } from './timeline-types';
+import type { ComparisonSource, DiffPreview, FileRevisionEntry, TimelineData } from './timeline-types.ts';
 
 export function getEntriesForSource(
 	data: TimelineData | null,

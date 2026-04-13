@@ -1,4 +1,5 @@
-export const EXTENSION_ID = 'astahmer.jj-range-diff';
+import { EXTENSION_ID } from '../extension/constants.ts';
+
 const URI_PATH = '/open-range-multi-diff';
 const DEFAULT_IDE = 'code';
 

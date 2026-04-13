@@ -1,6 +1,6 @@
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { textsMatchIgnoringLineEndings } from '../shared/diff-helpers';
+import { textsMatchIgnoringLineEndings } from '../shared/diff-helpers.ts';
 import type {
 	ComparisonSource,
 	DiffPreview,
@@ -9,16 +9,16 @@ import type {
 	RangeOverviewItem,
 	TimelineData,
 	TimelinePreferences,
-} from '../shared/timeline-types';
-import { MAX_SNAPSHOT_HYDRATION_CHANGES } from './constants';
-import { resolveHistoryAdapter } from './history-adapters';
+} from '../shared/timeline-types.ts';
+import { MAX_SNAPSHOT_HYDRATION_CHANGES } from './constants.ts';
+import { resolveHistoryAdapter } from './history-adapters.ts';
 import type {
 	CommandRunner,
 	ExtensionTimelineSession,
 	HistoryAdapter,
 	SessionAction,
 	TimelinePayloadArgs,
-} from './types';
+} from './types.ts';
 
 const DEFAULT_TIMELINE_PREFERENCES: Required<TimelinePreferences> = {
 	sidebarWidth: 276,

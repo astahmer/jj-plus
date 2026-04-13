@@ -1,7 +1,7 @@
 import path from 'node:path';
 import * as vscode from 'vscode';
-import packageJson from '../../package.json';
-import { createCommandRunner } from './command-runner';
+import packageJson from '../../package.json' with { type: 'json' };
+import { createCommandRunner } from './command-runner.ts';
 import {
 	CLI_SOURCE,
 	DEFAULT_FROM_REVSET,
@@ -13,10 +13,10 @@ import {
 	OPEN_MULTI_DIFF_COMMAND,
 	PENDING_RANGE_DIFF_KEY,
 	TIMELINE_PREFERENCES_KEY,
-} from './constants';
-import { resolveHistoryAdapter } from './history-adapters';
-import { createTimelinePanelController } from './timeline-panel';
-import { createTimelineService, normalizeTimelinePreferences } from './timeline-service';
+} from './constants.ts';
+import { resolveHistoryAdapter } from './history-adapters.ts';
+import { createTimelinePanelController } from './timeline-panel.ts';
+import { createTimelineService, normalizeTimelinePreferences } from './timeline-service.ts';
 import {
 	areSamePath,
 	createSnapshotUri,
@@ -24,8 +24,8 @@ import {
 	parseRangeDiffUri,
 	parseSnapshotUri,
 	sanitizeRangeDiffArgs,
-} from './uri-utils';
-import type { RangeDiffArgs } from './types';
+} from './uri-utils.ts';
+import type { RangeDiffArgs } from './types.ts';
 
 export function activate(context: vscode.ExtensionContext): void {
 	const outputChannel = vscode.window.createOutputChannel('JJ Range Diff');

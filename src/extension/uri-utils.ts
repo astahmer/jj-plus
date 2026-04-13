@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
-import type { HistoryBackend } from '../shared/timeline-types';
-import { OPEN_RANGE_DIFF_URI_PATH, SNAPSHOT_SCHEME } from './constants';
-import type { RangeDiffArgs, SnapshotQuery } from './types';
+import type { HistoryBackend } from '../shared/timeline-types.ts';
+import { OPEN_RANGE_DIFF_URI_PATH, SNAPSHOT_SCHEME } from './constants.ts';
+import type { RangeDiffArgs, SnapshotQuery } from './types.ts';
 
 export function createSnapshotUri(args: {
 	workspacePath: string;
