@@ -9,6 +9,49 @@ import {
 	parseJjSummaryChangedPaths,
 	toJjRootFileFileset,
 } from '../../src/shared/history-helpers.ts';
+import type {
+	ComparisonSource,
+	DiffPreview,
+	DiffRow,
+	FileRevisionEntry,
+	HistoryBackend,
+	TimelineFixture,
+	TimelineFixtureFile,
+	TimelinePreferences,
+} from '../../src/shared/timeline-types.ts';
+
+type EvolutionSummaryEntry = ReturnType<typeof parseJjEvolutionSummaryEntries>[number];
+
+type FixtureEntry = FileRevisionEntry & {
+	index: number;
+};
+
+type RepositoryFixture = TimelineFixture & {
+	files: Record<string, TimelineFixtureFile>;
+};
+
+type PreviewMap = Record<string, DiffPreview>;
+
+type BuildEntryArgs = {
+	id: string;
+	index: number;
+	revision: string;
+	shortRevision: string;
+	changeId?: string;
+	authorDate: string;
+	authorName: string;
+	description: string;
+	touchesFile: boolean;
+	isWorkingTree: boolean;
+	filePath: string;
+};
+
+type StableEntryOverrides = Partial<Pick<FixtureEntry, 'changeId' | 'shortRevision' | 'authorDate' | 'authorName'>>;
+
+type RunResult = {
+	stdout: string;
+	stderr: string;
+};
 
 const execFileAsync = promisify(execFile);
 const rootDir = process.cwd();
@@ -44,12 +87,12 @@ const subtitleDateFormatter = new Intl.DateTimeFormat(displayLocale, {
 	hour12: true,
 	timeZone: displayTimeZone,
 });
-const revisionTouchedPathsCache = {
+const revisionTouchedPathsCache: Record<HistoryBackend, Map<string, Promise<Set<string>>>> = {
 	git: new Map<string, Promise<Set<string>>>(),
 	jj: new Map<string, Promise<Set<string>>>(),
 };
 const entryContentCache = new Map<string, Promise<string>>();
-const jjEvolutionSummaryCache = new Map<string, Promise<ReturnType<typeof parseJjEvolutionSummaryEntries>>>();
+const jjEvolutionSummaryCache = new Map<string, Promise<EvolutionSummaryEntry[]>>();
 
 await fs.rm(runtimeDir, { recursive: true, force: true });
 await fs.mkdir(reposDir, { recursive: true });
@@ -59,7 +102,7 @@ const [gitFixture, jjFixture] = await Promise.all([generateGitFixture(), generat
 await fs.writeFile(path.join(outputDir, 'git-basic.json'), JSON.stringify(gitFixture, null, 2) + '\n');
 await fs.writeFile(path.join(outputDir, 'jj-basic.json'), JSON.stringify(jjFixture, null, 2) + '\n');
 
-async function generateGitFixture() {
+async function generateGitFixture(): Promise<RepositoryFixture> {
 	const repoDir = path.join(reposDir, 'git-basic');
 	await fs.mkdir(repoDir, { recursive: true });
 	await run('git', ['init'], repoDir);
@@ -95,7 +138,7 @@ async function generateGitFixture() {
 	return buildRepositoryFixture(repoDir, 'git');
 }
 
-async function generateJjFixture() {
+async function generateJjFixture(): Promise<RepositoryFixture> {
 	const repoDir = path.join(reposDir, 'jj-basic');
 	await fs.mkdir(repoDir, { recursive: true });
 	await run('jj', ['git', 'init', '--colocate', repoDir], rootDir);
@@ -141,24 +184,28 @@ async function generateJjFixture() {
 	return stabilizeJjFixture(await buildRepositoryFixture(repoDir, 'jj'), repoDir);
 }
 
-async function buildRepositoryFixture(repoDir, backend) {
+async function buildRepositoryFixture(repoDir: string, backend: HistoryBackend): Promise<RepositoryFixture> {
 	const workspaceFiles = await getWorkspaceFiles(repoDir);
-	const fileEntries = await Promise.all(
+	const fileEntries: Array<[string, TimelineFixtureFile]> = await Promise.all(
 		trackedFilePaths.map(async (relativePath) => {
 			const fileFixture = await buildFileFixture(repoDir, backend, relativePath, workspaceFiles);
 			return [relativePath, fileFixture];
 		}),
 	);
-	const files = Object.fromEntries(fileEntries);
+	const files = toRecord(fileEntries);
+	const primaryFileFixture = files[defaultRelativeFilePath];
+	if (!primaryFileFixture) {
+		throw new Error(`Missing primary fixture file for ${defaultRelativeFilePath}`);
+	}
 
 	return {
-		...files[defaultRelativeFilePath],
+		...primaryFileFixture,
 		files,
 	};
 }
 
-async function stabilizeJjFixture(fixture, repoDir) {
-	const fileFixtures = Object.values(fixture.files || {});
+async function stabilizeJjFixture(fixture: RepositoryFixture, repoDir: string): Promise<RepositoryFixture> {
+	const fileFixtures = Object.values(fixture.files);
 
 	for (const fileFixture of fileFixtures) {
 		await stabilizeJjFileFixture(fileFixture, repoDir);
@@ -173,12 +220,14 @@ async function stabilizeJjFixture(fixture, repoDir) {
 	return fixture;
 }
 
-async function stabilizeJjFileFixture(fileFixture, repoDir) {
+async function stabilizeJjFileFixture(fileFixture: TimelineFixtureFile, repoDir: string): Promise<void> {
 	const workingTreeEntry = fileFixture.timelineData.entries.find((entry) => entry.isWorkingTree);
 	const mutableRevisionEntry = fileFixture.timelineData.entries.find(
 		(entry) => !entry.isWorkingTree && entry.description === 'snapshot working copy' && entry.changeId,
 	);
 	const mutableChangeId = mutableRevisionEntry?.changeId;
+	const fallbackMutableAuthorDate =
+		stableJjMutableAuthorDates[stableJjMutableAuthorDates.length - 1] || stableJjWorkingTreeAuthorDate;
 
 	if (mutableRevisionEntry) {
 		applyStableEntryMetadata(mutableRevisionEntry, {
@@ -200,12 +249,12 @@ async function stabilizeJjFileFixture(fileFixture, repoDir) {
 		(entry) => !mutableChangeId || entry.changeId === mutableChangeId,
 	);
 	mutableSnapshotEntries
-		.toSorted((left, right) => left.index - right.index)
+		.toSorted((left, right) => (left.index ?? 0) - (right.index ?? 0))
 		.forEach((entry, index) => {
 			applyStableEntryMetadata(entry, {
 				changeId: stableJjMutableChangeId,
 				shortRevision: stableJjMutableShortRevisions[index] || `${stableJjMutableChangeId}/${index + 1}`,
-				authorDate: stableJjMutableAuthorDates[index] || stableJjMutableAuthorDates.at(-1),
+				authorDate: stableJjMutableAuthorDates[index] || fallbackMutableAuthorDate,
 				authorName: stableJjMutableAuthorName,
 			});
 		});
@@ -240,7 +289,7 @@ async function stabilizeJjFileFixture(fileFixture, repoDir) {
 	};
 }
 
-function applyStableEntryMetadata(entry, overrides) {
+function applyStableEntryMetadata(entry: FileRevisionEntry, overrides: StableEntryOverrides): void {
 	const authorDate = overrides.authorDate || entry.authorDate;
 	const timestamp = Date.parse(authorDate);
 	Object.assign(entry, overrides, {
@@ -252,13 +301,28 @@ function applyStableEntryMetadata(entry, overrides) {
 	});
 }
 
-async function buildFileFixture(repoDir, backend, relativePath, workspaceFiles) {
+async function buildFileFixture(
+	repoDir: string,
+	backend: HistoryBackend,
+	relativePath: string,
+	workspaceFiles: string[],
+): Promise<TimelineFixtureFile> {
 	const entries =
 		backend === 'jj' ? await getJjEntries(repoDir, relativePath) : await getGitEntries(repoDir, relativePath);
 	const snapshotEntries = backend === 'jj' ? await getJjSnapshotEntries(repoDir, relativePath, entries) : [];
-	const loadedChangeIds = backend === 'jj' ? [...new Set(entries.map((entry) => entry.changeId).filter(Boolean))] : [];
+	const loadedChangeIds =
+		backend === 'jj' ? [...new Set(entries.map((entry) => entry.changeId).filter(isDefined))] : [];
 	const snapshotSourceEntries =
 		backend === 'jj' ? composeSnapshotEntries(entries, snapshotEntries, new Set(loadedChangeIds)) : entries;
+	const preferences: TimelinePreferences = {
+		sidebarWidth: 280,
+		layoutMode: 'split',
+		contentMode: 'diffs',
+		comparisonMode: 'range',
+		comparisonSource: backend === 'jj' ? 'snapshot' : 'revision',
+		preset: '90d',
+		showIntermediateRevisions: true,
+	};
 
 	return {
 		timelineData: {
@@ -270,15 +334,7 @@ async function buildFileFixture(repoDir, backend, relativePath, workspaceFiles) 
 			presets: { year: 365, '7d': 7, '30d': 30, '90d': 90, all: Number.POSITIVE_INFINITY },
 			defaultIndex: entries.length - 1,
 			latestIndex: entries.length - 1,
-			preferences: {
-				sidebarWidth: 280,
-				layoutMode: 'split',
-				contentMode: 'diffs',
-				comparisonMode: 'range',
-				comparisonSource: backend === 'jj' ? 'snapshot' : 'revision',
-				preset: '90d',
-				showIntermediateRevisions: true,
-			},
+			preferences,
 			workspaceFiles,
 			hasIntermediateRevisions: entries.some((entry) => !entry.touchesFile),
 			entries,
@@ -297,7 +353,7 @@ async function buildFileFixture(repoDir, backend, relativePath, workspaceFiles) 
 	};
 }
 
-async function getGitEntries(repoDir, relativePath) {
+async function getGitEntries(repoDir: string, relativePath: string): Promise<FixtureEntry[]> {
 	const entries = await getGitHistoryEntries(repoDir, relativePath);
 	const workingTreeEntry = await makeWorkingTreeEntry(repoDir, entries.at(-1), relativePath, 'git');
 	if (workingTreeEntry) {
@@ -307,7 +363,7 @@ async function getGitEntries(repoDir, relativePath) {
 	return reindexEntries(entries);
 }
 
-async function getGitHistoryEntries(repoDir, relativePath) {
+async function getGitHistoryEntries(repoDir: string, relativePath: string): Promise<FixtureEntry[]> {
 	const { stdout } = await run('git', ['log', '--reverse', '--format=%H%x09%cI%x09%an%x09%s'], repoDir);
 	const revisions = stdout.trim().split(/\r?\n/).filter(Boolean);
 
@@ -332,7 +388,7 @@ async function getGitHistoryEntries(repoDir, relativePath) {
 	);
 }
 
-async function getJjEntries(repoDir, relativePath) {
+async function getJjEntries(repoDir: string, relativePath: string): Promise<FixtureEntry[]> {
 	const template = [
 		'commit_id.short()',
 		'"\\t"',
@@ -347,7 +403,7 @@ async function getJjEntries(repoDir, relativePath) {
 	].join(' ++ ');
 	const { stdout } = await run('jj', ['log', '--no-graph', '--reversed', '--limit', '100', '-T', template], repoDir);
 	const revisions = stdout.trim().split(/\r?\n/).filter(Boolean);
-	const entries = await Promise.all(
+	const entries: Array<FixtureEntry | null> = await Promise.all(
 		revisions.map(async (line, index) => {
 			const [revision, changeId, authorDate, authorName, description] = line.split('\t');
 			if (/^0+$/u.test(revision)) {
@@ -370,7 +426,7 @@ async function getJjEntries(repoDir, relativePath) {
 			});
 		}),
 	);
-	const filteredEntries = entries.filter(Boolean);
+	const filteredEntries = entries.filter(isDefined);
 
 	const lastEntry = filteredEntries.at(-1);
 	if (lastEntry && (!lastEntry.description || lastEntry.description === '')) {
@@ -390,7 +446,11 @@ async function getJjEntries(repoDir, relativePath) {
 	return reindexEntries(filteredEntries);
 }
 
-async function getJjSnapshotEntries(repoDir, relativePath, revisionEntries) {
+async function getJjSnapshotEntries(
+	repoDir: string,
+	relativePath: string,
+	revisionEntries: FixtureEntry[],
+): Promise<FixtureEntry[]> {
 	const snapshotEntryGroups = await Promise.all(
 		revisionEntries.map(async (entry) => {
 			if (!entry.changeId || entry.isWorkingTree || !entry.touchesFile) {
@@ -427,12 +487,16 @@ async function getJjSnapshotEntries(repoDir, relativePath, revisionEntries) {
 	return reindexEntries(snapshotEntries);
 }
 
-function composeSnapshotEntries(revisionEntries, snapshotEntries, loadedChangeIds) {
+function composeSnapshotEntries(
+	revisionEntries: FileRevisionEntry[],
+	snapshotEntries: FileRevisionEntry[],
+	loadedChangeIds: Set<string>,
+): FileRevisionEntry[] {
 	if (!loadedChangeIds.size) {
 		return revisionEntries;
 	}
 
-	const snapshotEntriesByChangeId = snapshotEntries.reduce((groups, entry) => {
+	const snapshotEntriesByChangeId = snapshotEntries.reduce<Map<string, FileRevisionEntry[]>>((groups, entry) => {
 		if (!entry.changeId) {
 			return groups;
 		}
@@ -441,7 +505,7 @@ function composeSnapshotEntries(revisionEntries, snapshotEntries, loadedChangeId
 		existing.push(entry);
 		groups.set(entry.changeId, existing);
 		return groups;
-	}, new Map());
+	}, new Map<string, FileRevisionEntry[]>());
 
 	return reindexEntries(
 		revisionEntries.flatMap((entry) => {
@@ -455,14 +519,14 @@ function composeSnapshotEntries(revisionEntries, snapshotEntries, loadedChangeId
 }
 
 async function buildPreviewMap(
-	repoDir,
-	entries,
-	backend,
-	relativePath,
-	comparisonSource,
+	repoDir: string,
+	entries: FileRevisionEntry[],
+	backend: HistoryBackend,
+	relativePath: string,
+	comparisonSource: ComparisonSource,
 	contentCache = entryContentCache,
-) {
-	const previews = {};
+): Promise<PreviewMap> {
+	const previews: PreviewMap = {};
 	const entryContents = await Promise.all(
 		entries.map((entry) => getEntryContent(repoDir, backend, entry, relativePath, contentCache)),
 	);
@@ -476,7 +540,13 @@ async function buildPreviewMap(
 	return previews;
 }
 
-function buildPreview(entries, entryContents, comparisonSource, fromIndex, toIndex) {
+function buildPreview(
+	entries: FileRevisionEntry[],
+	entryContents: string[],
+	comparisonSource: ComparisonSource,
+	fromIndex: number,
+	toIndex: number,
+): DiffPreview {
 	const fromEntry = entries[fromIndex];
 	const toEntry = entries[toIndex];
 	const beforeText = entryContents[fromIndex] || '';
@@ -492,6 +562,7 @@ function buildPreview(entries, entryContents, comparisonSource, fromIndex, toInd
 		subtitle: toEntry.isWorkingTree
 			? 'Working tree'
 			: `${subtitleDateFormatter.format(new Date(toEntry.authorDate))} · ${toEntry.description}`,
+		diffCount: 0,
 		additions,
 		deletions,
 		hunkCount,
@@ -504,14 +575,20 @@ function buildPreview(entries, entryContents, comparisonSource, fromIndex, toInd
 	};
 }
 
-async function getEntryContent(repoDir, backend, entry, relativePath, contentCache = entryContentCache) {
+async function getEntryContent(
+	repoDir: string,
+	backend: HistoryBackend,
+	entry: FileRevisionEntry,
+	relativePath: string,
+	contentCache = entryContentCache,
+): Promise<string> {
 	const cacheKey = `${backend}:${entry.revision}:${relativePath}`;
 	const cached = contentCache.get(cacheKey);
 	if (cached) {
 		return cached;
 	}
 
-	const contentPromise = entry.isWorkingTree
+	const contentPromise: Promise<string> = entry.isWorkingTree
 		? fs.readFile(path.join(repoDir, relativePath), 'utf8')
 		: backend === 'jj'
 			? showJjFileAtRevision(repoDir, entry.revision, relativePath)
@@ -526,7 +603,7 @@ async function getEntryContent(repoDir, backend, entry, relativePath, contentCac
 	}
 }
 
-async function showGitFileAtRevision(repoDir, revision, relativePath) {
+async function showGitFileAtRevision(repoDir: string, revision: string, relativePath: string): Promise<string> {
 	try {
 		const { stdout } = await run('git', ['show', `${revision}:${relativePath}`], repoDir);
 		return stdout;
@@ -538,7 +615,7 @@ async function showGitFileAtRevision(repoDir, revision, relativePath) {
 	}
 }
 
-async function showJjFileAtRevision(repoDir, revision, relativePath) {
+async function showJjFileAtRevision(repoDir: string, revision: string, relativePath: string): Promise<string> {
 	try {
 		const { stdout } = await run('jj', ['file', 'show', '-r', revision, toJjRootFileFileset(relativePath)], repoDir);
 		return stdout;
@@ -550,7 +627,7 @@ async function showJjFileAtRevision(repoDir, revision, relativePath) {
 	}
 }
 
-function buildRows(beforeText, afterText) {
+function buildRows(beforeText: string, afterText: string): DiffRow[] {
 	const beforeLines = splitLines(beforeText);
 	const afterLines = splitLines(afterText);
 	if (beforeText === afterText) {
@@ -569,7 +646,7 @@ function buildRows(beforeText, afterText) {
 		endAfter -= 1;
 	}
 
-	const rows = [];
+	const rows: DiffRow[] = [];
 	rows.push(...buildContextRows(beforeLines.slice(0, start), 0, 0));
 	for (let index = start; index <= endBefore; index += 1) {
 		rows.push({ type: 'remove', leftNumber: index + 1, rightNumber: null, text: beforeLines[index] });
@@ -583,23 +660,23 @@ function buildRows(beforeText, afterText) {
 	return rows;
 }
 
-function buildContextRows(lines, leftOffset = 0, rightOffset = 0) {
+function buildContextRows(lines: string[], leftOffset = 0, rightOffset = 0): DiffRow[] {
 	if (lines.length <= 6) {
 		return lines.map((line, index) => ({
-			type: 'context',
+			type: 'context' as const,
 			leftNumber: leftOffset + index + 1,
 			rightNumber: rightOffset + index + 1,
 			text: line,
 		}));
 	}
 
-	const head = lines.slice(0, 3).map((line, index) => ({
+	const head: DiffRow[] = lines.slice(0, 3).map((line, index) => ({
 		type: 'context',
 		leftNumber: leftOffset + index + 1,
 		rightNumber: rightOffset + index + 1,
 		text: line,
 	}));
-	const tail = lines.slice(-3).map((line, index) => ({
+	const tail: DiffRow[] = lines.slice(-3).map((line, index) => ({
 		type: 'context',
 		leftNumber: leftOffset + lines.length - 3 + index + 1,
 		rightNumber: rightOffset + lines.length - 3 + index + 1,
@@ -613,7 +690,7 @@ function buildContextRows(lines, leftOffset = 0, rightOffset = 0) {
 	];
 }
 
-function splitLines(value) {
+function splitLines(value: string): string[] {
 	const normalized = value.replace(/\r\n/g, '\n');
 	if (!normalized) {
 		return [];
@@ -622,15 +699,15 @@ function splitLines(value) {
 	return normalized.endsWith('\n') ? normalized.slice(0, -1).split('\n') : normalized.split('\n');
 }
 
-async function gitTouchesFile(repoDir, revision, relativePath) {
+async function gitTouchesFile(repoDir: string, revision: string, relativePath: string): Promise<boolean> {
 	return (await getGitTouchedPaths(repoDir, revision)).has(relativePath);
 }
 
-async function jjTouchesFile(repoDir, revision, relativePath) {
+async function jjTouchesFile(repoDir: string, revision: string, relativePath: string): Promise<boolean> {
 	return (await getJjTouchedPaths(repoDir, revision)).has(relativePath);
 }
 
-async function getWorkspaceFiles(repoDir) {
+async function getWorkspaceFiles(repoDir: string): Promise<string[]> {
 	const { stdout } = await run('git', ['ls-files', '--cached', '--others', '--exclude-standard'], repoDir);
 	return stdout
 		.split(/\r?\n/)
@@ -638,7 +715,12 @@ async function getWorkspaceFiles(repoDir) {
 		.toSorted((a, b) => a.localeCompare(b));
 }
 
-async function makeWorkingTreeEntry(repoDir, previousEntry, relativePath, backend) {
+async function makeWorkingTreeEntry(
+	repoDir: string,
+	previousEntry: FileRevisionEntry | undefined,
+	relativePath: string,
+	backend: HistoryBackend,
+): Promise<FixtureEntry | null> {
 	const content = await fs.readFile(path.join(repoDir, relativePath), 'utf8');
 	const previousContent = previousEntry ? await getEntryContent(repoDir, backend, previousEntry, relativePath) : '';
 	if (content === previousContent) {
@@ -647,7 +729,7 @@ async function makeWorkingTreeEntry(repoDir, previousEntry, relativePath, backen
 
 	return makeEntry({
 		id: `working-tree:${relativePath}`,
-		index: previousEntry ? previousEntry.index + 1 : 0,
+		index: (previousEntry?.index ?? -1) + 1,
 		revision: 'WORKTREE',
 		shortRevision: 'Current',
 		changeId: undefined,
@@ -672,7 +754,7 @@ function makeEntry({
 	touchesFile,
 	isWorkingTree,
 	filePath,
-}) {
+}: BuildEntryArgs): FixtureEntry {
 	const timestamp = Date.parse(authorDate);
 	return {
 		id,
@@ -695,7 +777,7 @@ function makeEntry({
 	};
 }
 
-function reindexEntries(entries) {
+function reindexEntries(entries: FileRevisionEntry[]): FixtureEntry[] {
 	return entries.map((entry, index) => ({
 		...entry,
 		index,
@@ -703,7 +785,7 @@ function reindexEntries(entries) {
 	}));
 }
 
-function normalizeSnapshotAuthorDate(authorDate, fallbackAuthorDate) {
+function normalizeSnapshotAuthorDate(authorDate: string | undefined, fallbackAuthorDate: string): string {
 	const value = String(authorDate || '').trim();
 	if (value && !Number.isNaN(Date.parse(value))) {
 		return value;
@@ -712,7 +794,10 @@ function normalizeSnapshotAuthorDate(authorDate, fallbackAuthorDate) {
 	return fallbackAuthorDate;
 }
 
-function normalizeSnapshotDescription(description, operationDescription) {
+function normalizeSnapshotDescription(
+	description: string | undefined,
+	operationDescription: string | undefined,
+): string {
 	const trimmed = String(description || '').trim();
 	if (!trimmed || trimmed === '(no description set)' || trimmed === '(empty) (no description set)') {
 		return operationDescription || 'Snapshot';
@@ -721,7 +806,7 @@ function normalizeSnapshotDescription(description, operationDescription) {
 	return trimmed;
 }
 
-function relativeTime(timestamp) {
+function relativeTime(timestamp: number): string {
 	const now = Date.parse('2026-04-11T12:00:00Z');
 	const hours = Math.round((now - timestamp) / (1000 * 60 * 60));
 	if (hours <= 1) {
@@ -752,11 +837,11 @@ async function writeFiles(repoDir: string, files: Record<string, string>) {
 	);
 }
 
-function buildPlanContent(title, line, note) {
+function buildPlanContent(title: string, line: string, note: string): string {
 	return `## ${title}\n\n1. Inventory\n${line}\n\n2. Notes\n${note}\n`;
 }
 
-function buildServiceContent(version, note) {
+function buildServiceContent(version: string, note: string): string {
 	return [
 		'export function buildServiceLabel() {',
 		`  return '${version}';`,
@@ -767,7 +852,7 @@ function buildServiceContent(version, note) {
 	].join('\n');
 }
 
-function isMissingFileAtRevisionError(error) {
+function isMissingFileAtRevisionError(error: unknown): boolean {
 	const message = error instanceof Error ? error.message : String(error);
 	return (
 		/exists on disk, but not in/i.test(message) ||
@@ -778,7 +863,12 @@ function isMissingFileAtRevisionError(error) {
 	);
 }
 
-async function run(command, args, cwd, env = {}) {
+async function run(
+	command: 'git' | 'jj',
+	args: string[],
+	cwd: string,
+	env: NodeJS.ProcessEnv = {},
+): Promise<RunResult> {
 	return execFileAsync(command, args, {
 		cwd,
 		env: {
@@ -788,7 +878,7 @@ async function run(command, args, cwd, env = {}) {
 	});
 }
 
-async function getJjEvolutionEntries(repoDir: string, revision: string) {
+async function getJjEvolutionEntries(repoDir: string, revision: string): Promise<EvolutionSummaryEntry[]> {
 	const cacheKey = `${repoDir}:${revision}`;
 	let cached = jjEvolutionSummaryCache.get(cacheKey);
 	if (!cached) {
@@ -801,7 +891,7 @@ async function getJjEvolutionEntries(repoDir: string, revision: string) {
 	return cached;
 }
 
-async function getGitTouchedPaths(repoDir: string, revision: string) {
+async function getGitTouchedPaths(repoDir: string, revision: string): Promise<Set<string>> {
 	const cacheKey = `${repoDir}:${revision}`;
 	let cached = revisionTouchedPathsCache.git.get(cacheKey);
 	if (!cached) {
@@ -814,7 +904,7 @@ async function getGitTouchedPaths(repoDir: string, revision: string) {
 	return cached;
 }
 
-async function getJjTouchedPaths(repoDir: string, revision: string) {
+async function getJjTouchedPaths(repoDir: string, revision: string): Promise<Set<string>> {
 	const cacheKey = `${repoDir}:${revision}`;
 	let cached = revisionTouchedPathsCache.jj.get(cacheKey);
 	if (!cached) {
@@ -827,11 +917,19 @@ async function getJjTouchedPaths(repoDir: string, revision: string) {
 	return cached;
 }
 
-function parseTouchedPaths(stdout: string) {
+function parseTouchedPaths(stdout: string): Set<string> {
 	return new Set(
 		stdout
 			.split(/\r?\n/)
 			.map((line) => line.trim())
 			.filter(Boolean),
 	);
+}
+
+function isDefined<T>(value: T | null | undefined): value is T {
+	return value !== null && value !== undefined;
+}
+
+function toRecord<K extends string, V>(entries: Array<readonly [K, V]>): Record<K, V> {
+	return Object.fromEntries(entries) as Record<K, V>;
 }
