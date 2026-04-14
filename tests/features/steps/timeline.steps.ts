@@ -114,7 +114,9 @@ When('I click the sidebar open diff button', async ({ page }) => {
 
 When('I switch to file {string}', async ({ page }, relativePath: string) => {
 	const switcher = page.locator('#fileSwitcher');
-	await switcher.fill(relativePath);
+	await switcher.click();
+	await switcher.fill('');
+	await switcher.type(relativePath);
 	await switcher.press('Enter');
 	await page.waitForFunction((path) => window.__TIMELINE_TEST_STATE__?.activeRelativePath === path, relativePath);
 });

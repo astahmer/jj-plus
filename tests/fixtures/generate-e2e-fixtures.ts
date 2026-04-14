@@ -7,6 +7,7 @@ import {
 	normalizeSnapshotOperationKey,
 	parseJjEvolutionSummaryEntries,
 	parseJjSummaryChangedPaths,
+	toJjRootFileFileset,
 } from '../../src/shared/history-helpers.ts';
 
 const execFileAsync = promisify(execFile);
@@ -539,7 +540,7 @@ async function showGitFileAtRevision(repoDir, revision, relativePath) {
 
 async function showJjFileAtRevision(repoDir, revision, relativePath) {
 	try {
-		const { stdout } = await run('jj', ['file', 'show', '-r', revision, relativePath], repoDir);
+		const { stdout } = await run('jj', ['file', 'show', '-r', revision, toJjRootFileFileset(relativePath)], repoDir);
 		return stdout;
 	} catch (error) {
 		if (isMissingFileAtRevisionError(error)) {

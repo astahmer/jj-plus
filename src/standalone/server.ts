@@ -4,6 +4,7 @@ import http, { type IncomingMessage, type ServerResponse } from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { execFile, spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import packageJson from '../../package.json' with { type: 'json' };
 import { getEntriesForSource } from '../shared/timeline-model.ts';
@@ -13,6 +14,8 @@ import {
 	parseJjEvolutionSummaryEntries,
 	parseJjSummaryChangedPaths,
 	parseJjSummaryRenameLines,
+	resolvePreferredHistoryBackend,
+	toJjRootFileFileset,
 } from '../shared/history-helpers.ts';
 import type {
 	ComparisonSource,
@@ -29,7 +32,7 @@ import type {
 } from '../shared/timeline-types.ts';
 
 const execFileAsync = promisify(execFile);
-const __dirname = new URL('.', import.meta.url).pathname;
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..', '..');
 const distDir = path.join(rootDir, 'webview-dist');
 const displayLocale = 'en-US';
@@ -1167,7 +1170,7 @@ async function showJjFileAtRevision(args: {
 	try {
 		const { stdout } = await run({
 			command: 'jj',
-			args: ['file', 'show', '-r', args.revision, args.relativePath],
+			args: ['file', 'show', '-r', args.revision, toJjRootFileFileset(args.relativePath)],
 			cwd: args.repoRoot,
 		});
 		return stdout;
@@ -1810,21 +1813,23 @@ function relativeTime(timestamp: number): string {
 }
 
 async function resolveRepoContext(workspacePath: string): Promise<RepoContext> {
-	try {
-		const { stdout } = await run({ command: 'jj', args: ['root'], cwd: workspacePath });
-		const repoRoot = stdout.trim();
-		return { backend: 'jj', repoRoot, remoteBaseUrl: await resolveRemoteBaseUrl(repoRoot) };
-	} catch {
-		// Fall through to git.
+	const [gitResult, jjResult] = await Promise.allSettled([
+		run({ command: 'git', args: ['rev-parse', '--show-toplevel'], cwd: workspacePath }),
+		run({ command: 'jj', args: ['root'], cwd: workspacePath }),
+	]);
+	const gitRoot = gitResult.status === 'fulfilled' ? gitResult.value.stdout.trim() : undefined;
+	const jjRoot = jjResult.status === 'fulfilled' ? jjResult.value.stdout.trim() : undefined;
+	const backend = resolvePreferredHistoryBackend({ workspacePath, gitRoot, jjRoot });
+
+	if (backend === 'jj' && jjRoot) {
+		return { backend: 'jj', repoRoot: jjRoot, remoteBaseUrl: await resolveRemoteBaseUrl(jjRoot) };
 	}
 
-	try {
-		const { stdout } = await run({ command: 'git', args: ['rev-parse', '--show-toplevel'], cwd: workspacePath });
-		const repoRoot = stdout.trim();
-		return { backend: 'git', repoRoot, remoteBaseUrl: await resolveRemoteBaseUrl(repoRoot) };
-	} catch {
-		throw new Error('Standalone timeline requires a Git or JJ repository.');
+	if (backend === 'git' && gitRoot) {
+		return { backend: 'git', repoRoot: gitRoot, remoteBaseUrl: await resolveRemoteBaseUrl(gitRoot) };
 	}
+
+	throw new Error('Standalone timeline requires a Git or JJ repository.');
 }
 
 async function resolveRemoteBaseUrl(repoRoot: string): Promise<string | undefined> {

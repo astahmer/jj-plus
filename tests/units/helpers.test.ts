@@ -9,6 +9,8 @@ import {
 	parseJjEvolutionSummaryEntries,
 	parseJjSummaryChangedPaths,
 	parseJjSummaryRenameLines,
+	resolvePreferredHistoryBackend,
+	toJjRootFileFileset,
 } from '../../src/shared/history-helpers.ts';
 import {
 	findRevisionEntryMatch,
@@ -184,6 +186,46 @@ test('parseJjEvolutionSummaryEntries keeps the commit revision when a visible he
 test('normalizeSnapshotOperationKey adds an explicit zero suffix for the visible revision snapshot', () => {
 	assert.equal(normalizeSnapshotOperationKey('kqppukkm'), 'kqppukkm/0');
 	assert.equal(normalizeSnapshotOperationKey('kqppukkm/4'), 'kqppukkm/4');
+});
+
+test('toJjRootFileFileset safely encodes file paths for jj fileset commands', () => {
+	assert.equal(
+		toJjRootFileFileset('apps/frontend/src/routes/_auth/$organization/commitments/$commitment/index.tsx'),
+		'root-file:"apps/frontend/src/routes/_auth/$organization/commitments/$commitment/index.tsx"',
+	);
+});
+
+test('resolvePreferredHistoryBackend prefers the closest repo root and breaks ties in favor of jj', () => {
+	assert.equal(
+		resolvePreferredHistoryBackend({
+			workspacePath: '/workspace/repos/git-basic',
+			gitRoot: '/workspace/repos/git-basic',
+			jjRoot: '/workspace',
+		}),
+		'git',
+	);
+	assert.equal(
+		resolvePreferredHistoryBackend({
+			workspacePath: '/workspace/repos/jj-basic/src',
+			gitRoot: '/workspace/repos/jj-basic',
+			jjRoot: '/workspace/repos/jj-basic',
+		}),
+		'jj',
+	);
+	assert.equal(
+		resolvePreferredHistoryBackend({
+			workspacePath: '/workspace/repos/jj-basic/src',
+			jjRoot: '/workspace/repos/jj-basic',
+		}),
+		'jj',
+	);
+	assert.equal(
+		resolvePreferredHistoryBackend({
+			workspacePath: '/workspace/repos/git-basic/src',
+			gitRoot: '/workspace/repos/git-basic',
+		}),
+		'git',
+	);
 });
 
 test('parseJjSummaryChangedPaths includes direct and renamed paths', () => {

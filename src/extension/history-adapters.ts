@@ -5,6 +5,8 @@ import {
 	parseJjEvolutionSummaryEntries,
 	parseJjSummaryChangedPaths,
 	parseJjSummaryRenameLines,
+	resolvePreferredHistoryBackend,
+	toJjRootFileFileset,
 } from '../shared/history-helpers.ts';
 import type { FileRevisionEntry } from '../shared/timeline-types.ts';
 import { MAX_TIMELINE_ENTRIES } from './constants.ts';
@@ -14,15 +16,33 @@ export async function resolveHistoryAdapter(args: {
 	workspacePath: string;
 	runner: CommandRunner;
 }): Promise<HistoryAdapter> {
-	try {
-		await args.runner.runJj({
+	const { gitRoot, jjRoot } = await resolveRepositoryRoots(args);
+	if (resolvePreferredHistoryBackend({ workspacePath: args.workspacePath, gitRoot, jjRoot }) === 'jj') {
+		return createJjHistoryAdapter({ runner: args.runner });
+	}
+
+	return createGitHistoryAdapter({ runner: args.runner });
+}
+
+async function resolveRepositoryRoots(args: {
+	workspacePath: string;
+	runner: CommandRunner;
+}): Promise<{ gitRoot?: string; jjRoot?: string }> {
+	const [gitResult, jjResult] = await Promise.allSettled([
+		args.runner.runGit({
+			workspacePath: args.workspacePath,
+			args: ['rev-parse', '--show-toplevel'],
+		}),
+		args.runner.runJj({
 			workspacePath: args.workspacePath,
 			args: ['root'],
-		});
-		return createJjHistoryAdapter({ runner: args.runner });
-	} catch {
-		return createGitHistoryAdapter({ runner: args.runner });
-	}
+		}),
+	]);
+
+	return {
+		gitRoot: gitResult.status === 'fulfilled' ? gitResult.value.stdout.trim() : undefined,
+		jjRoot: jjResult.status === 'fulfilled' ? jjResult.value.stdout.trim() : undefined,
+	};
 }
 
 function createGitHistoryAdapter(args: { runner: CommandRunner }): HistoryAdapter {
@@ -263,7 +283,7 @@ function createJjHistoryAdapter(args: { runner: CommandRunner }): HistoryAdapter
 			try {
 				const { stdout } = await runner.runJj({
 					workspacePath,
-					args: ['file', 'show', '-r', revset, filePath],
+					args: ['file', 'show', '-r', revset, toJjRootFileFileset(filePath)],
 				});
 				return stdout;
 			} catch (error) {
@@ -503,10 +523,6 @@ function normalizeSnapshotDescription(description: string, operationDescription:
 	}
 
 	return trimmed;
-}
-
-function toJjRootFileFileset(relativePath: string): string {
-	return `root-file:${JSON.stringify(relativePath)}`;
 }
 
 async function listGitChangedFiles(args: {

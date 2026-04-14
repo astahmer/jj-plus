@@ -1,3 +1,5 @@
+import path from 'node:path';
+
 type RenameEntry = {
 	fromPath: string;
 	toPath: string;
@@ -115,6 +117,65 @@ export function normalizeSnapshotOperationKey(changeKey?: string): string | unde
 	}
 
 	return trimmed.includes('/') ? trimmed : `${trimmed}/0`;
+}
+
+export function toJjRootFileFileset(relativePath: string): string {
+	return `root-file:${JSON.stringify(relativePath)}`;
+}
+
+export function resolvePreferredHistoryBackend(args: {
+	workspacePath: string;
+	gitRoot?: string;
+	jjRoot?: string;
+}): 'git' | 'jj' | undefined {
+	const workspacePath = normalizeFilesystemPath(args.workspacePath);
+	const gitRoot = normalizeCandidateRoot(args.gitRoot, workspacePath);
+	const jjRoot = normalizeCandidateRoot(args.jjRoot, workspacePath);
+
+	if (gitRoot && jjRoot) {
+		if (gitRoot === jjRoot) {
+			return 'jj';
+		}
+
+		if (isPathWithinRoot({ candidatePath: gitRoot, rootPath: jjRoot })) {
+			return 'git';
+		}
+
+		if (isPathWithinRoot({ candidatePath: jjRoot, rootPath: gitRoot })) {
+			return 'jj';
+		}
+
+		return gitRoot.length >= jjRoot.length ? 'git' : 'jj';
+	}
+
+	if (jjRoot) {
+		return 'jj';
+	}
+
+	if (gitRoot) {
+		return 'git';
+	}
+
+	return undefined;
+}
+
+function normalizeCandidateRoot(root: string | undefined, workspacePath: string): string | undefined {
+	const trimmed = String(root || '').trim();
+	if (!trimmed) {
+		return undefined;
+	}
+
+	const normalizedRoot = normalizeFilesystemPath(trimmed);
+	return isPathWithinRoot({ candidatePath: workspacePath, rootPath: normalizedRoot }) ? normalizedRoot : undefined;
+}
+
+function normalizeFilesystemPath(value: string): string {
+	return path.resolve(value.trim());
+}
+
+function isPathWithinRoot(args: { candidatePath: string; rootPath: string }): boolean {
+	const relativePath = path.relative(args.rootPath, args.candidatePath);
+	return relativePath === '' || (!relativePath.startsWith('..') && !path.isAbsolute(relativePath));
 }
 
 export function parseJjEvolutionSummaryEntries(output: string): ParsedEvolutionSummaryEntry[] {

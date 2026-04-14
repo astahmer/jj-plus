@@ -135,6 +135,7 @@ const initialState: UiState = {
 const TIMELINE_EXPANDED_MIN_HEIGHT = 176;
 const TIMELINE_COLLAPSED_HEIGHT = 128;
 const TIMELINE_MAX_HEIGHT = 520;
+const TRACK_ANCHOR_DRAG_START_DISTANCE = 4;
 const SIDEBAR_MIN_WIDTH = 220;
 const SIDEBAR_MAX_WIDTH = 760;
 const SIDEBAR_COLLAPSE_THRESHOLD = 120;
@@ -158,6 +159,7 @@ export function App() {
 	const [ready, setReady] = createSignal(false);
 	const [tooltip, setTooltip] = createSignal<TooltipState | null>(null);
 	let shortcutFocusedInputId: string | null = null;
+	let suppressAnchorSelectionUntil = 0;
 	const effectiveComparisonSource = createMemo<ComparisonSource>(() => {
 		if (state.data?.backend !== 'jj') {
 			return 'revision';
@@ -462,7 +464,7 @@ export function App() {
 			}
 		};
 
-		const beginRangeDrag = (event: PointerEvent) => {
+		const beginRangeDrag = (event: PointerEvent, initialClientX = event.clientX) => {
 			if (!visibleEntries().length) {
 				return;
 			}
@@ -511,6 +513,7 @@ export function App() {
 
 			window.addEventListener('pointermove', onPointerMove);
 			window.addEventListener('pointerup', onPointerUp);
+			onPointerMove({ clientX: initialClientX } as PointerEvent);
 		};
 
 		const beginMarkerDrag = (side: 'from' | 'to', event: PointerEvent) => {
@@ -542,11 +545,48 @@ export function App() {
 			window.addEventListener('pointerup', onPointerUp);
 		};
 
+		const beginAnchorDragIntent = (event: PointerEvent) => {
+			if (!visibleEntries().length || event.button !== 0) {
+				return;
+			}
+
+			const startX = event.clientX;
+			const startY = event.clientY;
+			let dragStarted = false;
+
+			const onPointerMove = (moveEvent: PointerEvent) => {
+				if (dragStarted) {
+					return;
+				}
+
+				const movedX = Math.abs(moveEvent.clientX - startX);
+				const movedY = Math.abs(moveEvent.clientY - startY);
+				if (Math.max(movedX, movedY) < TRACK_ANCHOR_DRAG_START_DISTANCE) {
+					return;
+				}
+
+				dragStarted = true;
+				suppressAnchorSelectionUntil = performance.now() + 250;
+				window.removeEventListener('pointermove', onPointerMove);
+				window.removeEventListener('pointerup', onPointerUp);
+				beginRangeDrag(event, moveEvent.clientX);
+			};
+
+			const onPointerUp = () => {
+				window.removeEventListener('pointermove', onPointerMove);
+				window.removeEventListener('pointerup', onPointerUp);
+			};
+
+			window.addEventListener('pointermove', onPointerMove);
+			window.addEventListener('pointerup', onPointerUp);
+		};
+
 		resizeHandle?.addEventListener('pointerdown', onSidebarResizePointerDown);
 		timelineResizeHandle?.addEventListener('pointerdown', onTimelineResizePointerDown);
 		rangeFill?.addEventListener('pointerdown', beginRangeDrag);
 		track?.addEventListener('pointerdown', (event) => {
 			if ((event.target as HTMLElement | null)?.closest('.track-anchor')) {
+				beginAnchorDragIntent(event);
 				return;
 			}
 
@@ -885,6 +925,10 @@ export function App() {
 	}
 
 	function handleEntrySelection(entryIndex: number) {
+		if (performance.now() < suppressAnchorSelectionUntil) {
+			return;
+		}
+
 		setState({ actionsMenuOpen: false, hoveredSelectionIndex: null });
 
 		if (state.comparisonMode === 'step') {

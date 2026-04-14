@@ -74,6 +74,31 @@ test.describe('timeline interactions', () => {
 			.toBe('2,4,5');
 	});
 
+	test('dragging from a track anchor moves the range instead of starting pending selection', async ({ page }) => {
+		await openFixture(page, 'git-basic');
+
+		await sidebarRevision(page, '972dd9e5').click();
+		await sidebarRevision(page, 'b671cdd4').click();
+		const initialFromLabel = await page.locator('#fromHandleLabel').textContent();
+
+		const anchor = page.locator('.track-anchor').nth(2);
+		const anchorBox = await anchor.boundingBox();
+		expect(anchorBox).not.toBeNull();
+		if (!anchorBox) {
+			return;
+		}
+
+		await page.mouse.move(anchorBox.x + anchorBox.width / 2, anchorBox.y + anchorBox.height / 2);
+		await page.mouse.down();
+		await page.mouse.move(anchorBox.x + anchorBox.width / 2 + 220, anchorBox.y + anchorBox.height / 2, {
+			steps: 4,
+		});
+		await page.mouse.up();
+
+		await expect(page.locator('#selectionMeta')).not.toContainText('Pick another revision to complete the range.');
+		await expect(page.locator('#fromHandleLabel')).not.toHaveText(initialFromLabel || '');
+	});
+
 	test('range tooltips switch into pending-selection mode while hovering the track', async ({ page }) => {
 		await openFixture(page, 'git-basic');
 
