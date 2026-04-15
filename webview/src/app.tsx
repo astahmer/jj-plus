@@ -82,6 +82,7 @@ type UiState = {
 	sidebarWidth: number;
 	timelinePaneHeight: number;
 	timelinePaneCollapsed: boolean;
+	responsiveSidebarHeight: number;
 	sidebarCollapsed: boolean;
 	diffFocusMode: boolean;
 	actionsMenuOpen: boolean;
@@ -114,6 +115,7 @@ const initialState: UiState = {
 	sidebarWidth: 280,
 	timelinePaneHeight: 278,
 	timelinePaneCollapsed: false,
+	responsiveSidebarHeight: 248,
 	sidebarCollapsed: false,
 	diffFocusMode: false,
 	actionsMenuOpen: false,
@@ -136,10 +138,18 @@ const TIMELINE_EXPANDED_MIN_HEIGHT = 176;
 const TIMELINE_COLLAPSED_HEIGHT = 128;
 const TIMELINE_MAX_HEIGHT = 520;
 const TRACK_ANCHOR_DRAG_START_DISTANCE = 4;
+const RESPONSIVE_SIDEBAR_DEFAULT_HEIGHT = 248;
+const RESPONSIVE_SIDEBAR_MIN_HEIGHT = 136;
+const RESPONSIVE_SIDEBAR_MAX_HEIGHT = 420;
+const RESPONSIVE_SIDEBAR_COLLAPSE_THRESHOLD = 88;
 const SIDEBAR_MIN_WIDTH = 220;
 const SIDEBAR_MAX_WIDTH = 760;
 const SIDEBAR_COLLAPSE_THRESHOLD = 120;
 const SIDEBAR_REOPEN_THRESHOLD = 20;
+
+function isResponsiveLayout() {
+	return typeof window !== 'undefined' && window.matchMedia('(max-width: 980px)').matches;
+}
 
 function getSidebarMaxWidth() {
 	if (typeof window === 'undefined') {
@@ -151,6 +161,18 @@ function getSidebarMaxWidth() {
 
 function clampSidebarWidth(width: number) {
 	return Math.max(SIDEBAR_MIN_WIDTH, Math.min(getSidebarMaxWidth(), Math.round(width)));
+}
+
+function getResponsiveSidebarMaxHeight() {
+	if (typeof window === 'undefined') {
+		return RESPONSIVE_SIDEBAR_MAX_HEIGHT;
+	}
+
+	return Math.max(RESPONSIVE_SIDEBAR_MIN_HEIGHT, Math.min(RESPONSIVE_SIDEBAR_MAX_HEIGHT, window.innerHeight - 220));
+}
+
+function clampResponsiveSidebarHeight(height: number) {
+	return Math.max(RESPONSIVE_SIDEBAR_MIN_HEIGHT, Math.min(getResponsiveSidebarMaxHeight(), Math.round(height)));
 }
 
 export function App() {
@@ -192,9 +214,12 @@ export function App() {
 						entry.shortRevision,
 						entry.description,
 						entry.changeId,
+						...(entry.bookmarkNames || []),
+						...(entry.branchNames || []),
 						entry.shortDate,
 						entry.authorName,
 						entry.operationId,
+						entry.operationIndex,
 						entry.operationKey,
 						entry.monthLabel,
 					]
@@ -329,15 +354,40 @@ export function App() {
 		let draggingTimeline = false;
 
 		const onSidebarResizePointerDown = (event: PointerEvent) => {
-			if (window.matchMedia('(max-width: 980px)').matches) {
+			event.preventDefault();
+			resizeHandle?.classList.add('is-dragging');
+
+			if (isResponsiveLayout()) {
+				const startY = event.clientY;
+				const startHeight = state.responsiveSidebarHeight;
+
+				const onPointerMove = (moveEvent: PointerEvent) => {
+					const delta = moveEvent.clientY - startY;
+					if (startHeight + delta < RESPONSIVE_SIDEBAR_COLLAPSE_THRESHOLD) {
+						setState('sidebarCollapsed', true);
+						return;
+					}
+
+					setState({
+						sidebarCollapsed: false,
+						responsiveSidebarHeight: clampResponsiveSidebarHeight(startHeight + delta),
+					});
+				};
+
+				const onPointerUp = () => {
+					resizeHandle?.classList.remove('is-dragging');
+					window.removeEventListener('pointermove', onPointerMove);
+					window.removeEventListener('pointerup', onPointerUp);
+				};
+
+				window.addEventListener('pointermove', onPointerMove);
+				window.addEventListener('pointerup', onPointerUp);
 				return;
 			}
 
-			event.preventDefault();
 			const startX = event.clientX;
 			const startWidth = state.sidebarWidth;
 			const wasCollapsed = state.sidebarCollapsed;
-			resizeHandle?.classList.add('is-dragging');
 
 			const onPointerMove = (moveEvent: PointerEvent) => {
 				const delta = moveEvent.clientX - startX;
@@ -376,7 +426,8 @@ export function App() {
 		};
 
 		const onWindowResize = () => {
-			if (window.matchMedia('(max-width: 980px)').matches) {
+			if (isResponsiveLayout()) {
+				setState('responsiveSidebarHeight', (value) => clampResponsiveSidebarHeight(value));
 				return;
 			}
 
@@ -627,6 +678,10 @@ export function App() {
 	createEffect(() => {
 		document.documentElement.style.setProperty('--sidebar-width', `${state.sidebarWidth}px`);
 		document.documentElement.style.setProperty(
+			'--responsive-sidebar-height',
+			`${state.sidebarCollapsed ? 0 : state.responsiveSidebarHeight}px`,
+		);
+		document.documentElement.style.setProperty(
 			'--timeline-pane-height',
 			`${state.timelinePaneCollapsed ? TIMELINE_COLLAPSED_HEIGHT : state.timelinePaneHeight}px`,
 		);
@@ -740,6 +795,9 @@ export function App() {
 				sidebarWidth: clampSidebarWidth(preferences.sidebarWidth || 280),
 				timelinePaneHeight: preferences.timelinePaneHeight || 278,
 				timelinePaneCollapsed: preferences.timelinePaneCollapsed === true,
+				responsiveSidebarHeight: clampResponsiveSidebarHeight(
+					state.responsiveSidebarHeight || RESPONSIVE_SIDEBAR_DEFAULT_HEIGHT,
+				),
 				layoutMode: preferences.layoutMode || 'split',
 				contentMode: preferences.contentMode || 'diffs',
 				comparisonMode: preferences.comparisonMode || 'range',
@@ -1131,6 +1189,7 @@ export function App() {
 			sidebarWidth: clampSidebarWidth(280),
 			timelinePaneHeight: 278,
 			timelinePaneCollapsed: false,
+			responsiveSidebarHeight: RESPONSIVE_SIDEBAR_DEFAULT_HEIGHT,
 			sidebarCollapsed: false,
 			diffFocusMode: false,
 			actionsMenuOpen: false,

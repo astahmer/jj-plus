@@ -2,10 +2,14 @@
 	color-scheme: dark;
 	--ui-size: var(--vscode-font-size, 13px);
 	--sidebar-width: 280px;
+	--responsive-sidebar-height: 248px;
 	--timeline-pane-height: 278px;
 	--bg: var(--vscode-editor-background, #11151c);
 	--panel: var(--vscode-sideBar-background, #171c24);
 	--panel-alt: var(--vscode-editorWidget-background, #1d232d);
+	--overlay-top: rgba(19, 25, 34, 0.98);
+	--overlay-bottom: rgba(14, 19, 27, 0.98);
+	--overlay-border: rgba(148, 165, 192, 0.18);
 	--text: var(--vscode-foreground, #e8ecf3);
 	--muted: var(--vscode-descriptionForeground, #9da7b5);
 	--border: var(--vscode-panel-border, rgba(255, 255, 255, 0.08));
@@ -325,6 +329,10 @@ input {
 	min-width: 0;
 	max-width: 100%;
 	flex-wrap: wrap;
+}
+
+.history-markers {
+	flex: 1 1 100%;
 }
 
 .history-id-button {
@@ -876,12 +884,27 @@ kbd {
 	overflow: auto;
 	padding: 6px;
 	border-radius: 12px;
-	border: 1px solid var(--border);
-	background: linear-gradient(180deg, rgba(23, 28, 36, 0.98), rgba(29, 35, 45, 0.98));
-	box-shadow: var(--shadow);
+	border: 1px solid var(--overlay-border);
+	background: linear-gradient(180deg, var(--overlay-top), var(--overlay-bottom));
+	box-shadow:
+		0 20px 48px rgba(0, 0, 0, 0.34),
+		inset 0 1px 0 rgba(255, 255, 255, 0.04);
+	backdrop-filter: blur(16px);
 	z-index: 40;
 	display: grid;
 	gap: 4px;
+}
+
+.combobox-menu--wide {
+	left: 0;
+	right: auto;
+	width: min(720px, calc(100vw - 32px));
+	max-width: min(720px, calc(100vw - 32px));
+}
+
+.revision-picker-col:last-child .combobox-menu--wide {
+	left: auto;
+	right: 0;
 }
 
 .combobox-option {
@@ -901,8 +924,8 @@ kbd {
 
 .combobox-option:hover,
 .combobox-option.is-active {
-	border-color: rgba(113, 183, 255, 0.22);
-	background: rgba(113, 183, 255, 0.1);
+	border-color: rgba(113, 183, 255, 0.26);
+	background: rgba(113, 183, 255, 0.12);
 }
 
 .combobox-option.is-selected {
@@ -937,6 +960,62 @@ kbd {
 .combobox-empty {
 	font-size: 11px;
 	line-height: 1.35;
+}
+
+.combobox-option-markers,
+.timeline-marker-list {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+	flex-wrap: wrap;
+	min-width: 0;
+}
+
+.timeline-marker {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	min-width: 0;
+	max-width: 100%;
+	padding: 1px 6px;
+	border-radius: 999px;
+	border: 1px solid transparent;
+	font-size: 10px;
+	line-height: 1.3;
+}
+
+.timeline-marker-prefix {
+	font-size: 9px;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	opacity: 0.8;
+}
+
+.timeline-marker-label {
+	min-width: 0;
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-family: var(--code-font);
+}
+
+.timeline-marker--bookmark {
+	border-color: rgba(88, 197, 150, 0.26);
+	background: rgba(88, 197, 150, 0.12);
+	color: #9de2c3;
+}
+
+.timeline-marker--branch {
+	border-color: rgba(113, 183, 255, 0.26);
+	background: rgba(113, 183, 255, 0.12);
+	color: #c5deff;
+}
+
+.timeline-marker--operation {
+	border-color: rgba(255, 191, 102, 0.28);
+	background: rgba(255, 191, 102, 0.13);
+	color: #ffd39c;
 }
 
 .combobox-empty {
@@ -1528,7 +1607,8 @@ kbd {
 	.workspace,
 	.workspace.is-collapsed {
 		grid-template-columns: 1fr;
-		gap: 8px;
+		grid-template-rows: minmax(0, var(--responsive-sidebar-height)) 6px minmax(0, 1fr);
+		gap: 0;
 	}
 
 	.workspace.is-diff-focus {
@@ -1536,6 +1616,18 @@ kbd {
 	}
 
 	.resize-handle {
+		cursor: row-resize;
+	}
+
+	.resize-handle::before {
+		inset: 2px 0;
+	}
+
+	.workspace.is-collapsed {
+		grid-template-rows: 0px 0px minmax(0, 1fr);
+	}
+
+	.workspace.is-collapsed .resize-handle {
 		display: none;
 	}
 
@@ -1556,10 +1648,6 @@ kbd {
 		padding: 0 2px;
 	}
 
-	.workspace.is-collapsed {
-		gap: 0;
-	}
-
 	.diff-head-top {
 		grid-template-columns: minmax(0, 1fr) auto;
 		align-items: center;
@@ -1575,6 +1663,14 @@ kbd {
 
 	.hotkeys-card {
 		width: 100%;
+	}
+
+	.revision-picker-col .combobox-menu--wide,
+	.revision-picker-col:last-child .combobox-menu--wide {
+		left: 0;
+		right: auto;
+		width: min(720px, calc(100vw - 24px));
+		max-width: min(720px, calc(100vw - 24px));
 	}
 
 	.hotkeys-grid {

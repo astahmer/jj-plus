@@ -2,6 +2,8 @@ import {
 	dedupeAdjacentEntriesByChangeId,
 	getGitHubRemoteBaseUrl,
 	normalizeSnapshotOperationKey,
+	parseGitBranchNames,
+	parseJjBookmarkNames,
 	parseJjEvolutionSummaryEntries,
 	parseJjSummaryChangedPaths,
 	parseJjSummaryRenameLines,
@@ -56,8 +58,9 @@ function createGitHistoryAdapter(args: { runner: CommandRunner }): HistoryAdapte
 				args: [
 					'log',
 					'--follow',
+					'--decorate=short',
 					'--date=iso-strict',
-					'--format=%H%x09%ad%x09%an%x09%s',
+					'--format=%H%x09%ad%x09%an%x09%D%x09%s',
 					`--max-count=${MAX_TIMELINE_ENTRIES}`,
 					'--',
 					relativePath,
@@ -74,7 +77,13 @@ function createGitHistoryAdapter(args: { runner: CommandRunner }): HistoryAdapte
 		async getRepositoryRevisionHistory({ workspacePath }) {
 			const { stdout } = await runner.runGit({
 				workspacePath,
-				args: ['log', '--date=iso-strict', '--format=%H%x09%ad%x09%an%x09%s', `--max-count=${MAX_TIMELINE_ENTRIES}`],
+				args: [
+					'log',
+					'--decorate=short',
+					'--date=iso-strict',
+					'--format=%H%x09%ad%x09%an%x09%D%x09%s',
+					`--max-count=${MAX_TIMELINE_ENTRIES}`,
+				],
 			});
 
 			return stdout
@@ -219,6 +228,8 @@ function createJjHistoryAdapter(args: { runner: CommandRunner }): HistoryAdapter
 				'"\\t"',
 				'author.name()',
 				'"\\t"',
+				'self.local_bookmarks().map(|b| b.name()).join(",")',
+				'"\\t"',
 				'description.first_line()',
 				'"\\n"',
 			].join(' ++ ');
@@ -253,6 +264,8 @@ function createJjHistoryAdapter(args: { runner: CommandRunner }): HistoryAdapter
 				'author.timestamp().format("%Y-%m-%dT%H:%M:%S%:z")',
 				'"\\t"',
 				'author.name()',
+				'"\\t"',
+				'self.local_bookmarks().map(|b| b.name()).join(",")',
 				'"\\t"',
 				'description.first_line()',
 				'"\\n"',
@@ -352,6 +365,7 @@ function createJjHistoryAdapter(args: { runner: CommandRunner }): HistoryAdapter
 						shortRevision:
 							normalizeSnapshotOperationKey(evolutionEntry.changeKey) || evolutionEntry.revision.slice(0, 8),
 						changeId: entry.changeId,
+						bookmarkNames: evolutionEntry.bookmarkNames,
 						authorDate: normalizeSnapshotAuthorDate(evolutionEntry.authorDate, entry.authorDate),
 						authorName: evolutionEntry.authorName || entry.authorName,
 						description: normalizeSnapshotDescription(evolutionEntry.description, evolutionEntry.operationDescription),
@@ -440,11 +454,12 @@ function createJjHistoryAdapter(args: { runner: CommandRunner }): HistoryAdapter
 }
 
 function parseGitHistoryLine(line: string): FileRevisionEntry {
-	const [revision = '', authorDate = '', authorName = '', ...descriptionParts] = line.split('\t');
+	const [revision = '', authorDate = '', authorName = '', decorations = '', ...descriptionParts] = line.split('\t');
 	return {
 		id: revision,
 		revision,
 		shortRevision: revision.slice(0, 8),
+		branchNames: parseGitBranchNames(decorations),
 		changeId: undefined,
 		authorDate,
 		authorName: authorName || 'Unknown author',
@@ -456,12 +471,14 @@ function parseGitHistoryLine(line: string): FileRevisionEntry {
 }
 
 function parseJjHistoryLine(line: string): FileRevisionEntry {
-	const [revision = '', changeId = '', authorDate = '', authorName = '', ...descriptionParts] = line.split('\t');
+	const [revision = '', changeId = '', authorDate = '', authorName = '', bookmarkNames = '', ...descriptionParts] =
+		line.split('\t');
 	return {
 		id: revision,
 		revision,
 		shortRevision: changeId || revision.slice(0, 8),
 		changeId: changeId || undefined,
+		bookmarkNames: parseJjBookmarkNames(bookmarkNames),
 		authorDate,
 		authorName: authorName || 'Unknown author',
 		description: descriptionParts.join('\t') || 'No description',

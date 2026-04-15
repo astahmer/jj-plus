@@ -5,6 +5,8 @@ import { promisify } from 'node:util';
 
 import {
 	normalizeSnapshotOperationKey,
+	parseGitBranchNames,
+	parseJjBookmarkNames,
 	parseJjEvolutionSummaryEntries,
 	parseJjSummaryChangedPaths,
 	toJjRootFileFileset,
@@ -38,12 +40,17 @@ type BuildEntryArgs = {
 	revision: string;
 	shortRevision: string;
 	changeId?: string;
+	bookmarkNames?: string[];
+	branchNames?: string[];
 	authorDate: string;
 	authorName: string;
 	description: string;
 	touchesFile: boolean;
 	isWorkingTree: boolean;
 	filePath: string;
+	operationId?: string;
+	operationIndex?: number;
+	operationKey?: string;
 };
 
 type StableEntryOverrides = Partial<Pick<FixtureEntry, 'changeId' | 'shortRevision' | 'authorDate' | 'authorName'>>;
@@ -364,12 +371,16 @@ async function getGitEntries(repoDir: string, relativePath: string): Promise<Fix
 }
 
 async function getGitHistoryEntries(repoDir: string, relativePath: string): Promise<FixtureEntry[]> {
-	const { stdout } = await run('git', ['log', '--reverse', '--format=%H%x09%cI%x09%an%x09%s'], repoDir);
+	const { stdout } = await run(
+		'git',
+		['log', '--reverse', '--decorate=short', '--format=%H%x09%cI%x09%an%x09%D%x09%s'],
+		repoDir,
+	);
 	const revisions = stdout.trim().split(/\r?\n/).filter(Boolean);
 
 	return Promise.all(
 		revisions.map(async (line, index) => {
-			const [revision, authorDate, authorName, description] = line.split('\t');
+			const [revision, authorDate, authorName, branchNames, description] = line.split('\t');
 			const touchesFile = await gitTouchesFile(repoDir, revision, relativePath);
 			return makeEntry({
 				id: revision,
@@ -377,6 +388,7 @@ async function getGitHistoryEntries(repoDir: string, relativePath: string): Prom
 				revision,
 				shortRevision: revision.slice(0, 8),
 				changeId: undefined,
+				branchNames: parseGitBranchNames(branchNames || ''),
 				authorDate,
 				authorName,
 				description,
@@ -398,6 +410,8 @@ async function getJjEntries(repoDir: string, relativePath: string): Promise<Fixt
 		'"\\t"',
 		'author.name()',
 		'"\\t"',
+		'self.local_bookmarks().map(|b| b.name()).join(",")',
+		'"\\t"',
 		'description.first_line()',
 		'"\\n"',
 	].join(' ++ ');
@@ -405,7 +419,7 @@ async function getJjEntries(repoDir: string, relativePath: string): Promise<Fixt
 	const revisions = stdout.trim().split(/\r?\n/).filter(Boolean);
 	const entries: Array<FixtureEntry | null> = await Promise.all(
 		revisions.map(async (line, index) => {
-			const [revision, changeId, authorDate, authorName, description] = line.split('\t');
+			const [revision, changeId, authorDate, authorName, bookmarkNames, description] = line.split('\t');
 			if (/^0+$/u.test(revision)) {
 				return null;
 			}
@@ -417,6 +431,7 @@ async function getJjEntries(repoDir: string, relativePath: string): Promise<Fixt
 				revision,
 				shortRevision: changeId || revision.slice(0, 8),
 				changeId: changeId || undefined,
+				bookmarkNames: parseJjBookmarkNames(bookmarkNames || ''),
 				authorDate,
 				authorName,
 				description,
@@ -469,12 +484,16 @@ async function getJjSnapshotEntries(
 						shortRevision:
 							normalizeSnapshotOperationKey(evolutionEntry.changeKey) || evolutionEntry.revision.slice(0, 8),
 						changeId: entry.changeId,
+						bookmarkNames: evolutionEntry.bookmarkNames,
 						authorDate: normalizeSnapshotAuthorDate(evolutionEntry.authorDate, entry.authorDate),
 						authorName: evolutionEntry.authorName || entry.authorName,
 						description: normalizeSnapshotDescription(evolutionEntry.description, evolutionEntry.operationDescription),
 						touchesFile: true,
 						isWorkingTree: false,
 						filePath: relativePath,
+						operationId: evolutionEntry.operationId,
+						operationIndex: evolutionEntry.operationIndex,
+						operationKey: evolutionEntry.changeKey,
 					}),
 				);
 		}),
@@ -748,12 +767,17 @@ function makeEntry({
 	revision,
 	shortRevision,
 	changeId,
+	bookmarkNames,
+	branchNames,
 	authorDate,
 	authorName,
 	description,
 	touchesFile,
 	isWorkingTree,
 	filePath,
+	operationId,
+	operationIndex,
+	operationKey,
 }: BuildEntryArgs): FixtureEntry {
 	const timestamp = Date.parse(authorDate);
 	return {
@@ -762,6 +786,8 @@ function makeEntry({
 		revision,
 		shortRevision,
 		changeId,
+		bookmarkNames,
+		branchNames,
 		authorDate,
 		authorName,
 		description: description || '',
@@ -769,6 +795,9 @@ function makeEntry({
 		touchesFile,
 		timestamp,
 		filePath,
+		operationId,
+		operationIndex,
+		operationKey,
 		monthLabel: monthFormatter.format(timestamp),
 		shortDate: shortDateFormatter.format(timestamp),
 		relativeDate: relativeTime(timestamp),

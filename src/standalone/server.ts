@@ -11,6 +11,8 @@ import { getEntriesForSource } from '../shared/timeline-model.ts';
 import {
 	getGitHubRemoteBaseUrl,
 	normalizeSnapshotOperationKey,
+	parseGitBranchNames,
+	parseJjBookmarkNames,
 	parseJjEvolutionSummaryEntries,
 	parseJjSummaryChangedPaths,
 	parseJjSummaryRenameLines,
@@ -565,8 +567,9 @@ async function getGitHistoryEntries(args: {
 			'log',
 			'--follow',
 			'--reverse',
+			'--decorate=short',
 			'--date=iso-strict',
-			'--format=%H%x09%ad%x09%an%x09%s',
+			'--format=%H%x09%ad%x09%an%x09%D%x09%s',
 			'--max-count=200',
 			'--',
 			args.relativePath,
@@ -576,7 +579,7 @@ async function getGitHistoryEntries(args: {
 	const revisions = stdout.trim().split(/\r?\n/).filter(Boolean);
 	const entries: FileRevisionEntry[] = [];
 	for (const [index, line] of revisions.entries()) {
-		const [revision, authorDate, authorName, description] = line.split('\t');
+		const [revision, authorDate, authorName, branchNames, description] = line.split('\t');
 		entries.push(
 			makeEntry({
 				id: revision || '',
@@ -584,6 +587,7 @@ async function getGitHistoryEntries(args: {
 				revision: revision || '',
 				shortRevision: (revision || '').slice(0, 8),
 				changeId: undefined,
+				branchNames: parseGitBranchNames(branchNames || ''),
 				authorDate: authorDate || '',
 				authorName: authorName || '',
 				description: description || '',
@@ -605,14 +609,21 @@ async function getGitRepositoryEntries(args: {
 }): Promise<FileRevisionEntry[]> {
 	const { stdout } = await run({
 		command: 'git',
-		args: ['log', '--reverse', '--date=iso-strict', '--format=%H%x09%ad%x09%an%x09%s', '--max-count=200'],
+		args: [
+			'log',
+			'--reverse',
+			'--decorate=short',
+			'--date=iso-strict',
+			'--format=%H%x09%ad%x09%an%x09%D%x09%s',
+			'--max-count=200',
+		],
 		cwd: args.repoRoot,
 	});
 	const revisions = stdout.trim().split(/\r?\n/).filter(Boolean);
 	const entries: FileRevisionEntry[] = [];
 
 	for (const [index, line] of revisions.entries()) {
-		const [revision, authorDate, authorName, description] = line.split('\t');
+		const [revision, authorDate, authorName, branchNames, description] = line.split('\t');
 		entries.push(
 			makeEntry({
 				id: revision || '',
@@ -620,6 +631,7 @@ async function getGitRepositoryEntries(args: {
 				revision: revision || '',
 				shortRevision: (revision || '').slice(0, 8),
 				changeId: undefined,
+				branchNames: parseGitBranchNames(branchNames || ''),
 				authorDate: authorDate || '',
 				authorName: authorName || '',
 				description: description || '',
@@ -648,6 +660,8 @@ async function getJjEntries(args: {
 		'"\\t"',
 		'author.name()',
 		'"\\t"',
+		'self.local_bookmarks().map(|b| b.name()).join(",")',
+		'"\\t"',
 		'description.first_line()',
 		'"\\n"',
 	].join(' ++ ');
@@ -659,7 +673,7 @@ async function getJjEntries(args: {
 	const revisions = stdout.trim().split(/\r?\n/).filter(Boolean);
 	const entries: FileRevisionEntry[] = [];
 	for (const [index, line] of revisions.entries()) {
-		const [revision, changeId, authorDate, authorName, description] = line.split('\t');
+		const [revision, changeId, authorDate, authorName, bookmarkNames, description] = line.split('\t');
 		if (/^0+$/u.test(revision || '')) {
 			continue;
 		}
@@ -676,6 +690,7 @@ async function getJjEntries(args: {
 				revision: revision || '',
 				shortRevision: changeId || (revision || '').slice(0, 8),
 				changeId: changeId || undefined,
+				bookmarkNames: parseJjBookmarkNames(bookmarkNames || ''),
 				authorDate: authorDate || '',
 				authorName: authorName || '',
 				description: description || '',
@@ -746,12 +761,16 @@ async function getJjSnapshotEntries(args: {
 					revision: evolutionEntry.revision,
 					shortRevision: normalizeSnapshotOperationKey(evolutionEntry.changeKey) || evolutionEntry.revision.slice(0, 8),
 					changeId: entry.changeId,
+					bookmarkNames: evolutionEntry.bookmarkNames,
 					authorDate: normalizeSnapshotAuthorDate(evolutionEntry.authorDate, entry.authorDate),
 					authorName: evolutionEntry.authorName || entry.authorName,
 					description: normalizeSnapshotDescription(evolutionEntry.description, evolutionEntry.operationDescription),
 					touchesFile: true,
 					isWorkingTree: false,
 					filePath: args.relativePath,
+					operationId: evolutionEntry.operationId,
+					operationIndex: evolutionEntry.operationIndex,
+					operationKey: evolutionEntry.changeKey,
 					remoteBaseUrl: args.remoteBaseUrl,
 				}),
 			);
@@ -1745,12 +1764,17 @@ function makeEntry(args: {
 	revision: string;
 	shortRevision: string;
 	changeId?: string;
+	bookmarkNames?: string[];
+	branchNames?: string[];
 	authorDate: string;
 	authorName: string;
 	description: string;
 	touchesFile: boolean;
 	isWorkingTree: boolean;
 	filePath?: string;
+	operationId?: string;
+	operationIndex?: number;
+	operationKey?: string;
 	remoteBaseUrl?: string;
 }): FileRevisionEntry {
 	const timestamp = Date.parse(args.authorDate);
@@ -1760,6 +1784,8 @@ function makeEntry(args: {
 		revision: args.revision,
 		shortRevision: args.shortRevision,
 		changeId: args.changeId,
+		bookmarkNames: args.bookmarkNames,
+		branchNames: args.branchNames,
 		authorDate: args.authorDate,
 		authorName: args.authorName,
 		description: args.description || '',
@@ -1767,6 +1793,9 @@ function makeEntry(args: {
 		touchesFile: args.touchesFile,
 		timestamp,
 		filePath: args.filePath,
+		operationId: args.operationId,
+		operationIndex: args.operationIndex,
+		operationKey: args.operationKey,
 		monthLabel: monthFormatter.format(timestamp),
 		shortDate: shortDateFormatter.format(timestamp),
 		relativeDate: relativeTime(timestamp),

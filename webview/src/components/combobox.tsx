@@ -1,10 +1,12 @@
 import { For, Show, createEffect, createMemo, createSignal, onCleanup } from 'solid-js';
+import { getTimelineMarkerPrefix, type TimelineMarker } from '../timeline-markers.ts';
 
 export type ComboboxOption = {
 	value: string;
 	label?: string;
 	description?: string;
 	keywords?: string[];
+	markers?: TimelineMarker[];
 };
 
 type ComboboxProps = {
@@ -13,6 +15,7 @@ type ComboboxProps = {
 	value: string;
 	options: ComboboxOption[];
 	placeholder?: string;
+	menuClass?: string;
 	onInput?: (value: string) => void;
 	onCommit: (value: string) => void;
 };
@@ -166,7 +169,12 @@ export function Combobox(props: ComboboxProps) {
 				}}
 			/>
 			<Show when={open()}>
-				<div class="combobox-menu" id={listId} role="listbox" onMouseDown={(event) => event.preventDefault()}>
+				<div
+					class={`combobox-menu${props.menuClass ? ` ${props.menuClass}` : ''}`}
+					id={listId}
+					role="listbox"
+					onMouseDown={(event) => event.preventDefault()}
+				>
 					<Show when={filteredOptions().length} fallback={<div class="combobox-empty">No matches</div>}>
 						<For each={filteredOptions()}>
 							{(option, index) => {
@@ -198,6 +206,18 @@ export function Combobox(props: ComboboxProps) {
 										</div>
 										<Show when={option.description}>
 											<div class="combobox-option-description">{option.description}</div>
+										</Show>
+										<Show when={option.markers?.length}>
+											<div class="combobox-option-markers">
+												<For each={option.markers || []}>
+													{(marker) => (
+														<span class={`timeline-marker timeline-marker--${marker.kind}`} title={marker.title}>
+															<span class="timeline-marker-prefix">{getTimelineMarkerPrefix(marker.kind)}</span>
+															<span class="timeline-marker-label">{marker.label}</span>
+														</span>
+													)}
+												</For>
+											</div>
 										</Show>
 									</button>
 								);

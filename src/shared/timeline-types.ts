@@ -17,6 +17,8 @@ export type FileRevisionEntry = {
 	revision: string;
 	shortRevision: string;
 	changeId?: string;
+	bookmarkNames?: string[];
+	branchNames?: string[];
 	authorDate: string;
 	authorName: string;
 	description: string;

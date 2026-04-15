@@ -3,19 +3,23 @@ import type { ComboboxOption } from './combobox.tsx';
 import { Combobox } from './combobox.tsx';
 import { RevisionIdentifier, getRevisionIdentifierValue } from './revision-identifier.tsx';
 import { useTimelineContext } from '../timeline-context.tsx';
+import { getEntryTimelineMarkers, getTimelineMarkerKeywords } from '../timeline-markers.ts';
 
 export function TimelineRevisionPickers() {
 	const { state, actions } = useTimelineContext();
 	const revisionOptions = createMemo(() =>
-		state.visibleEntries().map(
-			(entry) =>
-				({
-					value: entry.shortRevision,
-					label: getRevisionIdentifierValue(entry),
-					description: [entry.relativeDate, entry.description].filter(Boolean).join(' · '),
-					keywords: [entry.revision, entry.changeId, entry.authorName].filter(Boolean) as string[],
-				}) satisfies ComboboxOption,
-		),
+		state.visibleEntries().map((entry) => {
+			const markers = getEntryTimelineMarkers(entry);
+			return {
+				value: entry.shortRevision,
+				label: getRevisionIdentifierValue(entry),
+				description: [entry.relativeDate, entry.description].filter(Boolean).join(' · '),
+				keywords: [entry.revision, entry.changeId, entry.authorName, ...getTimelineMarkerKeywords(markers)].filter(
+					Boolean,
+				) as string[],
+				markers,
+			} satisfies ComboboxOption;
+		}),
 	);
 
 	return (
@@ -26,6 +30,7 @@ export function TimelineRevisionPickers() {
 					inputClass="revision-input"
 					value={state.currentFromEntry()?.shortRevision || ''}
 					options={revisionOptions()}
+					menuClass="combobox-menu--wide"
 					onCommit={(value) => actions.submitRevision('from', value)}
 				/>
 				<div class="revision-picker-meta">
@@ -56,6 +61,7 @@ export function TimelineRevisionPickers() {
 					inputClass="revision-input"
 					value={state.currentToEntry()?.shortRevision || ''}
 					options={revisionOptions()}
+					menuClass="combobox-menu--wide"
 					onCommit={(value) => actions.submitRevision('to', value)}
 				/>
 				<div class="revision-picker-meta">

@@ -5,7 +5,9 @@ import {
 	dedupeAdjacentEntriesByChangeId,
 	getGitHubRemoteBaseUrl,
 	normalizeSnapshotOperationKey,
+	parseGitBranchNames,
 	parseJjEvolutionLine,
+	parseJjBookmarkNames,
 	parseJjEvolutionSummaryEntries,
 	parseJjSummaryChangedPaths,
 	parseJjSummaryRenameLines,
@@ -181,6 +183,21 @@ test('parseJjEvolutionSummaryEntries keeps the commit revision when a visible he
 	);
 
 	assert.equal(entry.revision, '4c3a9ffa');
+	assert.deepEqual(entry.bookmarkNames, ['chore/rm-unused-endpoints']);
+});
+
+test('parseGitBranchNames keeps branch refs and strips HEAD aliases and tags', () => {
+	assert.deepEqual(parseGitBranchNames('HEAD -> main, origin/main, tag: v0.0.4'), ['main', 'origin/main']);
+	assert.deepEqual(parseGitBranchNames('origin/HEAD -> origin/main, feature/responsive-pane'), [
+		'origin/main',
+		'feature/responsive-pane',
+	]);
+	assert.equal(parseGitBranchNames('HEAD, tag: latest'), undefined);
+});
+
+test('parseJjBookmarkNames normalizes the template bookmark list', () => {
+	assert.deepEqual(parseJjBookmarkNames('main, feature/responsive-pane, main'), ['main', 'feature/responsive-pane']);
+	assert.equal(parseJjBookmarkNames(''), undefined);
 });
 
 test('normalizeSnapshotOperationKey adds an explicit zero suffix for the visible revision snapshot', () => {

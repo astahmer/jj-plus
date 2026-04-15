@@ -1,6 +1,7 @@
 import { For, Show, createSignal, onCleanup } from 'solid-js';
 import { useTimelineContext } from '../timeline-context.tsx';
 import { RevisionIdentifier, getRevisionIdentifierValue } from './revision-identifier.tsx';
+import { getEntryTimelineMarkers, getTimelineMarkerPrefix } from '../timeline-markers.ts';
 
 function formatDiffActionLabel(label: string, diffCount: number | null) {
 	return diffCount === null ? label : `${label} (${diffCount})`;
@@ -149,6 +150,7 @@ export function Sidebar() {
 							const descriptionExpandable = entry.description.length > 88 || entry.description.includes('\n');
 							const descriptionExpanded = () => expandedDescriptionById()[entry.id] === true;
 							const rowDiffCount = () => state.entryDiffCount(entry.index);
+							const markers = () => getEntryTimelineMarkers(entry);
 
 							return (
 								<article
@@ -209,6 +211,18 @@ export function Sidebar() {
 											</div>
 											<Show when={!entry.touchesFile}>
 												<span class="mini-badge other">OTHER</span>
+											</Show>
+											<Show when={markers().length}>
+												<div class="timeline-marker-list history-markers">
+													<For each={markers()}>
+														{(marker) => (
+															<span class={`timeline-marker timeline-marker--${marker.kind}`} title={marker.title}>
+																<span class="timeline-marker-prefix">{getTimelineMarkerPrefix(marker.kind)}</span>
+																<span class="timeline-marker-label">{marker.label}</span>
+															</span>
+														)}
+													</For>
+												</div>
 											</Show>
 											<Show when={isFrom()}>
 												<span class="mini-badge from">FROM</span>

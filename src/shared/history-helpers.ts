@@ -18,6 +18,7 @@ type ParsedEvolutionSummaryEntry = {
 	changeKey: string;
 	changeId?: string;
 	operationIndex?: number;
+	bookmarkNames?: string[];
 	authorDate: string;
 	authorName: string;
 	revision: string;
@@ -31,10 +32,41 @@ type ParsedEvolutionSummaryHeader = {
 	changeKey: string;
 	changeId?: string;
 	operationIndex?: number;
+	bookmarkNames?: string[];
 	authorDate: string;
 	authorName: string;
 	revision: string;
 };
+
+function parseMarkerNames(rawValue: string): string[] | undefined {
+	const names = rawValue
+		.split(',')
+		.map((value) => value.trim())
+		.filter(Boolean);
+
+	return names.length ? [...new Set(names)] : undefined;
+}
+
+export function parseGitBranchNames(decorations: string): string[] | undefined {
+	const names = decorations
+		.split(',')
+		.map((value) => value.trim())
+		.flatMap((value) => {
+			if (!value || value === 'HEAD' || value.startsWith('tag: ')) {
+				return [];
+			}
+
+			const [left, right] = value.split('->').map((part) => part.trim());
+			if (right) {
+				return right === 'HEAD' ? [] : [right];
+			}
+
+			return left ? [left] : [];
+		})
+		.filter(Boolean);
+
+	return names.length ? [...new Set(names)] : undefined;
+}
 
 export function parseJjSummaryRenameLines(output: string): RenameEntry[] {
 	return output
@@ -99,11 +131,13 @@ function parseJjEvolutionSummaryHeader(line: string): ParsedEvolutionSummaryHead
 	const changeKey = tokens[0];
 	const [changeId = '', operationIndexRaw = ''] = changeKey.split('/');
 	const operationIndex = Number.parseInt(operationIndexRaw, 10);
+	const bookmarkNames = tokens.slice(dateIndex + 2, revisionIndex).filter(Boolean);
 
 	return {
 		changeKey,
 		changeId: changeId || undefined,
 		operationIndex: Number.isInteger(operationIndex) ? operationIndex : undefined,
+		...(bookmarkNames.length ? { bookmarkNames } : {}),
 		authorDate: `${tokens[dateIndex]}T${timeToken}`,
 		authorName: tokens.slice(1, dateIndex).join(' ') || 'Unknown author',
 		revision: tokens[revisionIndex] || '',
@@ -235,6 +269,10 @@ export function parseJjEvolutionSummaryEntries(output: string): ParsedEvolutionS
 
 	pushCurrent();
 	return entries;
+}
+
+export function parseJjBookmarkNames(rawValue: string): string[] | undefined {
+	return parseMarkerNames(rawValue);
 }
 
 export function parseJjSummaryChangedPaths(summaryLines: string[] | string): string[] {
