@@ -102,6 +102,18 @@ export function getTimelineAnchorPercent(visibleEntries: FileRevisionEntry[], vi
 	return (Math.min(Math.max(visibleIndex, 0), visibleEntries.length - 1) / denominator) * 100;
 }
 
+export function getVisibleIndexFromClientX(entries: FileRevisionEntry[], clientX: number) {
+	const track = document.getElementById('track');
+	const trackRect = track?.getBoundingClientRect();
+	if (!trackRect || !entries.length) {
+		return -1;
+	}
+
+	const ratio = Math.min(Math.max((clientX - trackRect.left) / Math.max(1, trackRect.width), 0), 1);
+	const denominator = Math.max(1, entries.length - 1);
+	return Math.min(entries.length - 1, Math.max(0, Math.round(ratio * denominator)));
+}
+
 export function getPendingSnapshotRevisionIndexes(
 	revisionEntries: FileRevisionEntry[],
 	loadedChangeIds: Set<string>,

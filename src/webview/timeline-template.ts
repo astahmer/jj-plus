@@ -98,7 +98,7 @@ function renderTimelineBodyHtml(): string {
                   <div class="range-fill" id="rangeFill"></div>
                   <button class="handle-marker from" id="fromMarker" type="button" aria-label="Adjust from revision"></button>
                   <button class="handle-marker to" id="toMarker" type="button" aria-label="Adjust to revision"></button>
-                  <div class="month-row" id="monthRow"></div>
+                  <div class="timeline-hover-axis" id="timelineHoverAxis" aria-hidden="true"></div>
                 </div>
                 <button class="step-button" id="stepForwardButton" type="button" aria-label="Next range">&#x203A;</button>
                 <button class="step-button" id="stepFastForwardButton" type="button" aria-label="Jump forward">&#187;</button>

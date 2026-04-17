@@ -1,10 +1,25 @@
-import { For } from 'solid-js';
+import { For, Show, createMemo, createSignal } from 'solid-js';
 import type { FileRevisionEntry } from '../types.ts';
-import { getTimelineAnchorPercent } from '../timeline-model.ts';
+import { getTimelineAnchorPercent, getVisibleIndexFromClientX } from '../timeline-model.ts';
 import { useTimelineContext } from '../timeline-context.tsx';
 
 export function TimelineTrack() {
 	const { state, actions } = useTimelineContext();
+	const [hoveredVisibleIndex, setHoveredVisibleIndex] = createSignal<number | null>(null);
+
+	const monthLabels = createMemo(() => {
+		const entries = state.visibleEntries();
+		return getHoveredMonthLabels(entries, hoveredVisibleIndex());
+	});
+	const hoverLeft = createMemo(() => {
+		const entries = state.visibleEntries();
+		const visibleIndex = hoveredVisibleIndex();
+		if (visibleIndex === null || visibleIndex < 0 || visibleIndex >= entries.length) {
+			return 0;
+		}
+
+		return getTimelineAnchorPercent(entries, visibleIndex);
+	});
 	const fromPercent = () =>
 		getTimelineAnchorPercent(
 			state.visibleEntries(),
@@ -38,7 +53,24 @@ export function TimelineTrack() {
 			>
 				‹
 			</button>
-			<div class="timeline">
+			<div
+				class="timeline"
+				onMouseMove={(event) =>
+					setHoveredVisibleIndex(getVisibleIndexFromClientX(state.visibleEntries(), event.clientX))
+				}
+				onMouseLeave={() => setHoveredVisibleIndex(null)}
+			>
+				<div class="timeline-hover-axis">
+					<Show when={monthLabels().length}>
+						<div class="timeline-hover-axis-popover" style={{ left: `${hoverLeft()}%` }} aria-hidden="true">
+							<For each={monthLabels()}>
+								{(label) => (
+									<div class={`timeline-hover-axis-item${label.isActive ? ' is-active' : ''}`}>{label.label}</div>
+								)}
+							</For>
+						</div>
+					</Show>
+				</div>
 				<div class="selection-meta" id="selectionMeta">
 					{state.selectionMeta()}
 				</div>
@@ -113,9 +145,6 @@ export function TimelineTrack() {
 					aria-label="Adjust to revision"
 					style={{ left: `${toPercent()}%` }}
 				/>
-				<div class="month-row">
-					<For each={groupMonthLabels(state.visibleEntries())}>{(label) => <div>{label}</div>}</For>
-				</div>
 			</div>
 			<button
 				class="step-button"
@@ -141,13 +170,44 @@ export function TimelineTrack() {
 	);
 }
 
-function groupMonthLabels(entries: FileRevisionEntry[]): string[] {
-	const labels = new Set<string>();
-	entries.forEach((entry) => {
-		labels.add(formatMonthLabel(entry.authorDate, entry.monthLabel));
-	});
+function getHoveredMonthLabels(
+	entries: FileRevisionEntry[],
+	hoveredVisibleIndex: number | null,
+): Array<{ label: string; visibleIndex: number; isActive: boolean }> {
+	if (hoveredVisibleIndex === null || hoveredVisibleIndex < 0 || hoveredVisibleIndex >= entries.length) {
+		return [];
+	}
 
-	return [...labels].slice(-4);
+	const candidateIndexes = [
+		hoveredVisibleIndex,
+		hoveredVisibleIndex - 1,
+		hoveredVisibleIndex + 1,
+		hoveredVisibleIndex - 2,
+		hoveredVisibleIndex + 2,
+	].filter((index) => index >= 0 && index < entries.length);
+
+	const labels: Array<{ label: string; visibleIndex: number; isActive: boolean }> = [];
+	const seen = new Set<string>();
+
+	for (const visibleIndex of candidateIndexes) {
+		const entry = entries[visibleIndex];
+		if (!entry) {
+			continue;
+		}
+
+		const label = formatMonthLabel(entry.authorDate, entry.monthLabel);
+		if (seen.has(label)) {
+			continue;
+		}
+
+		seen.add(label);
+		labels.push({ label, visibleIndex, isActive: visibleIndex === hoveredVisibleIndex });
+		if (labels.length >= 3) {
+			break;
+		}
+	}
+
+	return labels.sort((left, right) => left.visibleIndex - right.visibleIndex);
 }
 
 function formatMonthLabel(authorDate: string, fallbackLabel?: string) {
@@ -156,5 +216,5 @@ function formatMonthLabel(authorDate: string, fallbackLabel?: string) {
 		return fallbackLabel || 'Unknown month';
 	}
 
-	return new Intl.DateTimeFormat('en', { month: 'long', year: 'numeric' }).format(date);
+	return new Intl.DateTimeFormat('en', { month: 'short', year: 'numeric' }).format(date);
 }

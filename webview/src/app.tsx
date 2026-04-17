@@ -1624,7 +1624,19 @@ export function App() {
 											To {current.toEntry.relativeDate || 'unknown'} ·{' '}
 											{formatExactTimestamp(current.toEntry.authorDate)}
 										</div>
-										<div class="anchor-tooltip-desc">{current.preview?.subtitle || current.toEntry.description}</div>
+										<div class="anchor-tooltip-desc">
+											<div class="anchor-tooltip-desc-line">
+												<div class="anchor-tooltip-desc-label">From description</div>
+												<div class="anchor-tooltip-desc-value">{current.fromEntry.description || 'No description'}</div>
+											</div>
+											<div class="anchor-tooltip-desc-line">
+												<div class="anchor-tooltip-desc-label">To description</div>
+												<div class="anchor-tooltip-desc-value">{current.toEntry.description || 'No description'}</div>
+											</div>
+										</div>
+										<Show when={current.preview?.subtitle}>
+											<div class="anchor-tooltip-meta">{current.preview?.subtitle}</div>
+										</Show>
 									</>
 								)}
 							</div>
