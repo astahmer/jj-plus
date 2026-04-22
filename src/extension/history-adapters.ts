@@ -240,6 +240,8 @@ function createJjHistoryAdapter(args: { runner: CommandRunner }): HistoryAdapter
 					'--no-graph',
 					'--limit',
 					String(MAX_TIMELINE_ENTRIES),
+					'-r',
+					'ancestors(@)',
 					'-T',
 					template,
 					toJjRootFileFileset(relativePath),
@@ -272,7 +274,7 @@ function createJjHistoryAdapter(args: { runner: CommandRunner }): HistoryAdapter
 			].join(' ++ ');
 			const { stdout } = await runner.runJj({
 				workspacePath,
-				args: ['log', '--no-graph', '--limit', String(MAX_TIMELINE_ENTRIES), '-T', template],
+				args: ['log', '--no-graph', '--limit', String(MAX_TIMELINE_ENTRIES), '-r', 'ancestors(@)', '-T', template],
 			});
 
 			return dedupeAdjacentEntriesByChangeId(

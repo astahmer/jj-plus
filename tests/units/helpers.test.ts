@@ -14,6 +14,7 @@ import {
 	resolvePreferredHistoryBackend,
 	toJjRootFileFileset,
 } from '../../src/shared/history-helpers.ts';
+import { resolveHistoryAdapter } from '../../src/extension/history-adapters.ts';
 import {
 	findRevisionEntryMatch,
 	getEntriesForSource,
@@ -243,6 +244,49 @@ test('resolvePreferredHistoryBackend prefers the closest repo root and breaks ti
 		}),
 		'git',
 	);
+});
+
+test('resolveHistoryAdapter scopes jj file history to the current ancestry', async () => {
+	const jjCalls: string[][] = [];
+	const adapter = await resolveHistoryAdapter({
+		workspacePath: '/workspace/repos/jj-basic/src',
+		runner: {
+			runGit: async () => {
+				throw new Error('git is unavailable in this test');
+			},
+			runJj: async ({ args }) => {
+				jjCalls.push(args);
+				if (args[0] === 'root') {
+					return { stdout: '/workspace/repos/jj-basic\n', stderr: '' };
+				}
+
+				return { stdout: '', stderr: '' };
+			},
+			fileExists: async () => false,
+			quoteShellArg: (value) => JSON.stringify(value),
+		},
+	});
+
+	assert.equal(adapter.backend, 'jj');
+	await adapter.getFileRevisionHistory({
+		workspacePath: '/workspace/repos/jj-basic/src',
+		relativePath: 'apps/backend/src/auth/use-cases/app-invite-member-to-organization.use-case.ts',
+	});
+	await adapter.getRepositoryRevisionHistory({ workspacePath: '/workspace/repos/jj-basic/src' });
+
+	const fileHistoryArgs = jjCalls.find((args) => args[0] === 'log' && args.includes('root-file:"apps/backend/src/auth/use-cases/app-invite-member-to-organization.use-case.ts"'));
+	const repoHistoryArgs = jjCalls.find((args) => args[0] === 'log' && !args.some((arg) => arg.startsWith('root-file:')));
+
+	assert.ok(fileHistoryArgs);
+	assert.ok(repoHistoryArgs);
+	assert.deepEqual(fileHistoryArgs?.slice(fileHistoryArgs.indexOf('-r'), fileHistoryArgs.indexOf('-r') + 2), [
+		'-r',
+		'ancestors(@)',
+	]);
+	assert.deepEqual(repoHistoryArgs?.slice(repoHistoryArgs.indexOf('-r'), repoHistoryArgs.indexOf('-r') + 2), [
+		'-r',
+		'ancestors(@)',
+	]);
 });
 
 test('parseJjSummaryChangedPaths includes direct and renamed paths', () => {

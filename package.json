@@ -25,6 +25,7 @@
 		"build:extension": "tsdown",
 		"build:integration": "tsdown --config ./tests/vscode/tsdown.config.ts",
 		"build:webview": "vite build",
+		"watch": "pnpm build:extension --watch",
 		"dev": "vite --host 127.0.0.1 --open /",
 		"fixtures:e2e": "node ./tests/fixtures/generate-e2e-fixtures.ts",
 		"fmt": "oxfmt --write",
