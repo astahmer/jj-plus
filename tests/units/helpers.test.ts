@@ -15,6 +15,7 @@ import {
 	toJjRootFileFileset,
 } from '../../src/shared/history-helpers.ts';
 import { resolveHistoryAdapter } from '../../src/extension/history-adapters.ts';
+import { createTimelineService } from '../../src/extension/timeline-service.ts';
 import {
 	findRevisionEntryMatch,
 	getEntriesForSource,
@@ -93,11 +94,19 @@ test('textsMatchIgnoringLineEndings treats CRLF and LF as equal', () => {
 test('parseJjSummaryRenameLines extracts renamed paths from jj diff summary output', () => {
 	assert.deepEqual(
 		parseJjSummaryRenameLines(
-			['M src/index.js', 'R old/name.ts => new/name.ts', 'A src/added.ts', 'R docs/old.md => docs/new.md'].join('\n'),
+			[
+				'M src/index.js',
+				'R old/name.ts => new/name.ts',
+				'A src/added.ts',
+				'R apps/backend/src/auth/use-cases/{invite-member-to-organization.use-case.ts => app-invite-member-to-organization.use-case.ts}',
+			].join('\n'),
 		),
 		[
 			{ fromPath: 'old/name.ts', toPath: 'new/name.ts' },
-			{ fromPath: 'docs/old.md', toPath: 'docs/new.md' },
+			{
+				fromPath: 'apps/backend/src/auth/use-cases/invite-member-to-organization.use-case.ts',
+				toPath: 'apps/backend/src/auth/use-cases/app-invite-member-to-organization.use-case.ts',
+			},
 		],
 	);
 });
@@ -246,8 +255,22 @@ test('resolvePreferredHistoryBackend prefers the closest repo root and breaks ti
 	);
 });
 
-test('resolveHistoryAdapter scopes jj file history to the current ancestry', async () => {
+test('resolveHistoryAdapter follows jj file renames back to file creation', async () => {
 	const jjCalls: string[][] = [];
+	const currentPath = 'apps/backend/src/auth/use-cases/app-invite-member-to-organization.use-case.ts';
+	const previousPath = 'apps/backend/src/auth/use-cases/invite-member-to-organization.use-case.ts';
+	const currentPathHistory = [
+		'rename-revision	rename-change	2026-03-02T10:00:00+00:00	Renamer		move invite use case',
+		`R apps/backend/src/auth/use-cases/{invite-member-to-organization.use-case.ts => app-invite-member-to-organization.use-case.ts}`,
+		'current-revision	current-change	2026-03-03T10:00:00+00:00	Current Author		update invite use case',
+		`M ${currentPath}`,
+	].join('\n');
+	const previousPathHistory = [
+		'creation-revision	creation-change	2026-03-01T10:00:00+00:00	Old Author		initial app invite',
+		`A ${previousPath}`,
+		'rename-revision	rename-change	2026-03-02T10:00:00+00:00	Renamer		move invite use case',
+		`D ${previousPath}`,
+	].join('\n');
 	const adapter = await resolveHistoryAdapter({
 		workspacePath: '/workspace/repos/jj-basic/src',
 		runner: {
@@ -260,6 +283,18 @@ test('resolveHistoryAdapter scopes jj file history to the current ancestry', asy
 					return { stdout: '/workspace/repos/jj-basic\n', stderr: '' };
 				}
 
+				if (args[0] === 'log') {
+					if (args.includes(`root-file:"${currentPath}"`)) {
+						return { stdout: currentPathHistory, stderr: '' };
+					}
+
+					if (args.includes(`root-file:"${previousPath}"`)) {
+						return { stdout: previousPathHistory, stderr: '' };
+					}
+
+					return { stdout: '', stderr: '' };
+				}
+
 				return { stdout: '', stderr: '' };
 			},
 			fileExists: async () => false,
@@ -268,25 +303,206 @@ test('resolveHistoryAdapter scopes jj file history to the current ancestry', asy
 	});
 
 	assert.equal(adapter.backend, 'jj');
-	await adapter.getFileRevisionHistory({
+	const entries = await adapter.getFileRevisionHistory({
 		workspacePath: '/workspace/repos/jj-basic/src',
-		relativePath: 'apps/backend/src/auth/use-cases/app-invite-member-to-organization.use-case.ts',
+		relativePath: currentPath,
 	});
-	await adapter.getRepositoryRevisionHistory({ workspacePath: '/workspace/repos/jj-basic/src' });
 
-	const fileHistoryArgs = jjCalls.find((args) => args[0] === 'log' && args.includes('root-file:"apps/backend/src/auth/use-cases/app-invite-member-to-organization.use-case.ts"'));
-	const repoHistoryArgs = jjCalls.find((args) => args[0] === 'log' && !args.some((arg) => arg.startsWith('root-file:')));
+	assert.deepEqual(
+		entries.map((entry) => entry.revision),
+		['creation-revision', 'rename-revision', 'current-revision'],
+	);
 
-	assert.ok(fileHistoryArgs);
-	assert.ok(repoHistoryArgs);
-	assert.deepEqual(fileHistoryArgs?.slice(fileHistoryArgs.indexOf('-r'), fileHistoryArgs.indexOf('-r') + 2), [
-		'-r',
-		'ancestors(@)',
-	]);
-	assert.deepEqual(repoHistoryArgs?.slice(repoHistoryArgs.indexOf('-r'), repoHistoryArgs.indexOf('-r') + 2), [
-		'-r',
-		'ancestors(@)',
-	]);
+	const logCalls = jjCalls.filter((args) => args[0] === 'log');
+	assert.equal(logCalls.length, 2);
+	assert.ok(logCalls.every((args) => args.includes('--summary')));
+	assert.ok(logCalls.every((args) => !args.includes('--limit')));
+	assert.ok(logCalls.every((args) => args.includes('-r')));
+	assert.ok(logCalls.some((args) => args.includes(`root-file:"${currentPath}"`)));
+	assert.ok(logCalls.some((args) => args.includes(`root-file:"${previousPath}"`)));
+});
+
+test('resolveHistoryAdapter keeps git file history uncapped', async () => {
+	const gitCalls: string[][] = [];
+	const adapter = await resolveHistoryAdapter({
+		workspacePath: '/workspace/repos/git-basic',
+		runner: {
+			runGit: async ({ args }) => {
+				gitCalls.push(args);
+				if (args[0] === 'rev-parse') {
+					return { stdout: '/workspace/repos/git-basic\n', stderr: '' };
+				}
+
+				if (args[0] === 'log') {
+					return { stdout: 'git-revision\t2026-03-01T10:00:00+00:00\tGit Author\tHEAD -> main\tinit\n', stderr: '' };
+				}
+
+				throw new Error('git is unavailable in this test');
+			},
+			runJj: async () => {
+				throw new Error('jj is unavailable in this test');
+			},
+			fileExists: async () => false,
+			quoteShellArg: (value) => JSON.stringify(value),
+		},
+	});
+
+	assert.equal(adapter.backend, 'git');
+	await adapter.getFileRevisionHistory({
+		workspacePath: '/workspace/repos/git-basic',
+		relativePath: 'src/example.ts',
+	});
+
+	const logCalls = gitCalls.filter((args) => args[0] === 'log');
+	assert.ok(logCalls.every((args) => !args.includes('--max-count')));
+});
+
+test('createTimelineService keeps every jj revision that touched the file across renames', async () => {
+	const jjCalls: string[][] = [];
+	const currentPath = 'apps/backend/src/auth/use-cases/app-invite-member-to-organization.use-case.ts';
+	const previousPath = 'apps/backend/src/auth/use-cases/invite-member-to-organization.use-case.ts';
+	const absolutePath = `/workspace/repos/jj-basic/src/${currentPath}`;
+	const workspacePath = '/workspace/repos/jj-basic/src';
+	const currentPathHistory = [
+		'rename-revision\trename-change\t2026-03-02T10:00:00+00:00\tRenamer\t\tmove invite use case',
+		`R apps/backend/src/auth/use-cases/{invite-member-to-organization.use-case.ts => app-invite-member-to-organization.use-case.ts}`,
+		'current-revision-a\trepeat-change\t2026-03-03T10:00:00+00:00\tCurrent Author\t\tupdate invite use case',
+		`M ${currentPath}`,
+		'current-revision-b\trepeat-change\t2026-03-04T10:00:00+00:00\tCurrent Author\t\tupdate invite use case again',
+		`M ${currentPath}`,
+	].join('\n');
+	const previousPathHistory = [
+		'creation-revision\tcreation-change\t2026-03-01T10:00:00+00:00\tOld Author\t\tinitial app invite',
+		`A ${previousPath}`,
+		'rename-revision\trename-change\t2026-03-02T10:00:00+00:00\tRenamer\t\tmove invite use case',
+		`D ${previousPath}`,
+	].join('\n');
+	const service = createTimelineService({
+		runner: {
+			runGit: async ({ args }) => {
+				if (args[0] === 'rev-parse') {
+					return { stdout: '/workspace/repos/jj-basic\n', stderr: '' };
+				}
+
+				throw new Error('git is unavailable in this test');
+			},
+			runJj: async ({ args }) => {
+				jjCalls.push(args);
+				if (args[0] === 'root') {
+					return { stdout: '/workspace/repos/jj-basic\n', stderr: '' };
+				}
+
+				if (args[0] === 'file' && args[1] === 'list') {
+					return { stdout: `${currentPath}\n`, stderr: '' };
+				}
+
+				if (args[0] === 'log') {
+					if (args.includes(`root-file:"${currentPath}"`)) {
+						return { stdout: currentPathHistory, stderr: '' };
+					}
+
+					if (args.includes(`root-file:"${previousPath}"`)) {
+						return { stdout: previousPathHistory, stderr: '' };
+					}
+
+					return { stdout: '', stderr: '' };
+				}
+
+				return { stdout: '', stderr: '' };
+			},
+			fileExists: async () => false,
+			quoteShellArg: (value) => JSON.stringify(value),
+		},
+	});
+
+	const session = await service.buildSession({ workspacePath, absolutePath });
+
+	assert.equal(session.adapter.backend, 'jj');
+	assert.deepEqual(
+		session.entries.map((entry) => entry.revision),
+		['creation-revision', 'rename-revision', 'current-revision-a', 'current-revision-b'],
+	);
+	assert.ok(session.entries.every((entry) => entry.touchesFile));
+	assert.ok(jjCalls.some((args) => args[0] === 'log' && args.includes(`root-file:"${previousPath}"`)));
+});
+
+test('createTimelineService resolves jj historical paths across same-name copy boundaries', async () => {
+	const gitCalls: string[][] = [];
+	const jjCalls: string[][] = [];
+	const currentPath = 'packages/backend/src/commitments/commitment.entity.ts';
+	const previousPath = 'packages/service-serf/src/commitments/commitment.entity.ts';
+	const absolutePath = `/workspace/repos/jj-basic/src/${currentPath}`;
+	const workspacePath = '/workspace/repos/jj-basic/src';
+	const currentPathHistory = [
+		'copy-revision\tcopy-change\t2026-03-02T10:00:00+00:00\tRenamer\t\tmove commitment entity',
+		`A ${currentPath}`,
+		'current-revision\tcurrent-change\t2026-03-03T10:00:00+00:00\tCurrent Author\t\tupdate commitment entity',
+		`M ${currentPath}`,
+	].join('\n');
+	const previousPathHistory = [
+		'creation-revision\tcreation-change\t2026-03-01T10:00:00+00:00\tOld Author\t\tinitial commitment entity',
+		`A ${previousPath}`,
+	].join('\n');
+	const service = createTimelineService({
+		runner: {
+			runGit: async ({ args }) => {
+				gitCalls.push(args);
+				if (args[0] === 'rev-parse') {
+					return { stdout: '/workspace/repos/jj-basic\n', stderr: '' };
+				}
+
+				if (args[0] === 'diff-tree' && args.at(-1) === 'copy-revision') {
+					return {
+						stdout: `C094\t${previousPath}\t${currentPath}\n`,
+						stderr: '',
+					};
+				}
+
+				throw new Error('git is unavailable in this test');
+			},
+			runJj: async ({ args }) => {
+				jjCalls.push(args);
+				if (args[0] === 'root') {
+					return { stdout: '/workspace/repos/jj-basic\n', stderr: '' };
+				}
+
+				if (args[0] === 'file' && args[1] === 'list') {
+					return { stdout: `${currentPath}\n`, stderr: '' };
+				}
+
+				if (args[0] === 'log') {
+					if (args.includes(`root-file:"${currentPath}"`)) {
+						return { stdout: currentPathHistory, stderr: '' };
+					}
+
+					if (args.includes(`root-file:"${previousPath}"`)) {
+						return { stdout: previousPathHistory, stderr: '' };
+					}
+
+					return { stdout: '', stderr: '' };
+				}
+
+				if (args[0] === 'diff' && args[1] === '--summary' && args.at(-1) === 'copy-revision') {
+					return { stdout: `A ${currentPath}\n`, stderr: '' };
+				}
+
+				return { stdout: '', stderr: '' };
+			},
+			fileExists: async () => false,
+			quoteShellArg: (value) => JSON.stringify(value),
+		},
+	});
+
+	const session = await service.buildSession({ workspacePath, absolutePath });
+	const resolvedPath = await service.resolveEntryFilePath({
+		session,
+		entry: session.entries[0],
+		entryIndex: 0,
+	});
+
+	assert.equal(resolvedPath, previousPath);
+	assert.ok(jjCalls.some((args) => args[0] === 'diff' && args.includes('copy-revision')));
+	assert.ok(gitCalls.some((args) => args[0] === 'diff-tree' && args.includes('copy-revision')));
 });
 
 test('parseJjSummaryChangedPaths includes direct and renamed paths', () => {

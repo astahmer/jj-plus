@@ -1,3 +1,5 @@
+import path from 'node:path';
+
 import {
 	dedupeAdjacentEntriesByChangeId,
 	getGitHubRemoteBaseUrl,
@@ -61,7 +63,6 @@ function createGitHistoryAdapter(args: { runner: CommandRunner }): HistoryAdapte
 					'--decorate=short',
 					'--date=iso-strict',
 					'--format=%H%x09%ad%x09%an%x09%D%x09%s',
-					`--max-count=${MAX_TIMELINE_ENTRIES}`,
 					'--',
 					relativePath,
 				],
@@ -116,13 +117,14 @@ function createGitHistoryAdapter(args: { runner: CommandRunner }): HistoryAdapte
 			}
 		},
 		async resolvePreviousPath({ workspacePath, revision, currentPath }) {
-			const { stdout } = await runner.runGit({
+			const previousTransition = await resolvePreviousGitPath({
+				runner,
 				workspacePath,
-				args: ['diff-tree', '--root', '--no-commit-id', '--name-status', '--find-renames', '-r', revision],
+				revision,
+				currentPath,
 			});
 
-			const rename = parseGitRenameLines(stdout).find((entry) => entry.toPath === currentPath);
-			return rename ? rename.fromPath : currentPath;
+			return previousTransition?.fromPath || currentPath;
 		},
 		async listRevisionFiles({ workspacePath, revision, signal }) {
 			const { stdout } = await runner.runGit({
@@ -219,43 +221,11 @@ function createJjHistoryAdapter(args: { runner: CommandRunner }): HistoryAdapter
 	return {
 		backend: 'jj',
 		async getFileRevisionHistory({ workspacePath, relativePath }) {
-			const template = [
-				'commit_id.short()',
-				'"\\t"',
-				'change_id.shortest()',
-				'"\\t"',
-				'author.timestamp().format("%Y-%m-%dT%H:%M:%S%:z")',
-				'"\\t"',
-				'author.name()',
-				'"\\t"',
-				'self.local_bookmarks().map(|b| b.name()).join(",")',
-				'"\\t"',
-				'description.first_line()',
-				'"\\n"',
-			].join(' ++ ');
-			const { stdout } = await runner.runJj({
+			return collectJjFileRevisionHistory({
+				runner,
 				workspacePath,
-				args: [
-					'log',
-					'--no-graph',
-					'--limit',
-					String(MAX_TIMELINE_ENTRIES),
-					'-r',
-					'ancestors(@)',
-					'-T',
-					template,
-					toJjRootFileFileset(relativePath),
-				],
+				relativePath,
 			});
-
-			return dedupeAdjacentEntriesByChangeId(
-				stdout
-					.split(/\r?\n/u)
-					.map((line) => line.trim())
-					.filter(Boolean)
-					.map(parseJjHistoryLine)
-					.toReversed(),
-			);
 		},
 		async getRepositoryRevisionHistory({ workspacePath }) {
 			const template = [
@@ -315,10 +285,20 @@ function createJjHistoryAdapter(args: { runner: CommandRunner }): HistoryAdapter
 					args: ['diff', '--summary', '-r', revision],
 				});
 				const rename = parseJjSummaryRenameLines(stdout).find((entry) => entry.toPath === currentPath);
-				return rename ? rename.fromPath : currentPath;
+				if (rename) {
+					return rename.fromPath;
+				}
 			} catch {
-				return currentPath;
+				// Fall through to git-based predecessor detection when jj summary is insufficient.
 			}
+
+			const previousTransition = await resolvePreviousGitPath({
+				runner,
+				workspacePath,
+				revision,
+				currentPath,
+			});
+			return shouldFollowPredecessorTransition(previousTransition) ? previousTransition.fromPath : currentPath;
 		},
 		async listRevisionFiles({ workspacePath, revision, signal }) {
 			const { stdout } = await runner.runJj({
@@ -490,6 +470,184 @@ function parseJjHistoryLine(line: string): FileRevisionEntry {
 	};
 }
 
+type ParsedJjHistoryEntry = {
+	entry: FileRevisionEntry;
+	summaryLines: string[];
+};
+
+async function collectJjFileRevisionHistory(args: {
+	runner: CommandRunner;
+	workspacePath: string;
+	relativePath: string;
+	ancestorLimitRevset?: string;
+	seenSegments?: Set<string>;
+}): Promise<FileRevisionEntry[]> {
+	const ancestorLimitRevset = args.ancestorLimitRevset || '@';
+	const seenSegments = args.seenSegments || new Set<string>();
+	const segmentKey = `${args.relativePath}\u0000${ancestorLimitRevset}`;
+	if (seenSegments.has(segmentKey)) {
+		return [];
+	}
+
+	seenSegments.add(segmentKey);
+	const segment = await loadJjFileHistorySegment(
+		args.runner,
+		args.workspacePath,
+		args.relativePath,
+		ancestorLimitRevset,
+	);
+	const previousSource = await resolvePreviousJjPath({
+		runner: args.runner,
+		workspacePath: args.workspacePath,
+		relativePath: args.relativePath,
+		segment,
+	});
+	const previousEntries = previousSource
+		? await collectJjFileRevisionHistory({
+				runner: args.runner,
+				workspacePath: args.workspacePath,
+				relativePath: previousSource.relativePath,
+				ancestorLimitRevset: previousSource.ancestorLimitRevset,
+				seenSegments,
+			})
+		: [];
+
+	return mergeJjHistoryEntries(
+		previousEntries,
+		segment.map(({ entry }) => entry),
+	);
+}
+
+async function loadJjFileHistorySegment(
+	runner: CommandRunner,
+	workspacePath: string,
+	relativePath: string,
+	ancestorLimitRevset: string,
+): Promise<ParsedJjHistoryEntry[]> {
+	const template = [
+		'commit_id.short()',
+		'"\\t"',
+		'change_id.shortest()',
+		'"\\t"',
+		'author.timestamp().format("%Y-%m-%dT%H:%M:%S%:z")',
+		'"\\t"',
+		'author.name()',
+		'"\\t"',
+		'self.local_bookmarks().map(|b| b.name()).join(",")',
+		'"\\t"',
+		'description.first_line()',
+		'"\\n"',
+	].join(' ++ ');
+	const { stdout } = await runner.runJj({
+		workspacePath,
+		args: [
+			'log',
+			'--no-graph',
+			'--reversed',
+			'--summary',
+			'-r',
+			buildJjAncestorHistoryRevset(ancestorLimitRevset),
+			'-T',
+			template,
+			toJjRootFileFileset(relativePath),
+		],
+	});
+
+	return parseJjHistoryEntriesWithSummary(stdout);
+}
+
+function parseJjHistoryEntriesWithSummary(output: string): ParsedJjHistoryEntry[] {
+	const entries: ParsedJjHistoryEntry[] = [];
+	let currentEntry: ParsedJjHistoryEntry | null = null;
+
+	for (const rawLine of output.split(/\r?\n/u)) {
+		const line = rawLine.trim();
+		if (!line) {
+			continue;
+		}
+
+		if (line.includes('\t')) {
+			if (currentEntry) {
+				entries.push(currentEntry);
+			}
+
+			currentEntry = {
+				entry: parseJjHistoryLine(line),
+				summaryLines: [],
+			};
+			continue;
+		}
+
+		if (currentEntry) {
+			currentEntry.summaryLines.push(line);
+		}
+	}
+
+	if (currentEntry) {
+		entries.push(currentEntry);
+	}
+
+	return entries;
+}
+
+function buildJjAncestorHistoryRevset(ancestorLimitRevset: string): string {
+	return `ancestors(${ancestorLimitRevset})`;
+}
+
+async function resolvePreviousJjPath(args: {
+	runner: CommandRunner;
+	workspacePath: string;
+	relativePath: string;
+	segment: ParsedJjHistoryEntry[];
+}): Promise<{ relativePath: string; ancestorLimitRevset: string } | undefined> {
+	const boundaryEntry = args.segment[0];
+	if (!boundaryEntry) {
+		return undefined;
+	}
+
+	const boundarySummary = boundaryEntry.summaryLines.join('\n');
+	const rename = parseJjSummaryRenameLines(boundarySummary).find((entry) => entry.toPath === args.relativePath);
+	if (rename) {
+		return {
+			relativePath: rename.fromPath,
+			ancestorLimitRevset: `${boundaryEntry.entry.revision}-`,
+		};
+	}
+
+	const previousTransition = await resolvePreviousGitPath({
+		runner: args.runner,
+		workspacePath: args.workspacePath,
+		revision: boundaryEntry.entry.revision,
+		currentPath: args.relativePath,
+	});
+	if (!shouldFollowPredecessorTransition(previousTransition)) {
+		return undefined;
+	}
+
+	return {
+		relativePath: previousTransition.fromPath,
+		ancestorLimitRevset: `${boundaryEntry.entry.revision}-`,
+	};
+}
+
+function mergeJjHistoryEntries(...segments: FileRevisionEntry[][]): FileRevisionEntry[] {
+	const seenRevisions = new Set<string>();
+	const merged: FileRevisionEntry[] = [];
+
+	for (const segment of segments) {
+		for (const entry of segment) {
+			if (seenRevisions.has(entry.revision)) {
+				continue;
+			}
+
+			seenRevisions.add(entry.revision);
+			merged.push(entry);
+		}
+	}
+
+	return merged;
+}
+
 function parseOutputLines(output: string): string[] {
 	return output
 		.split(/\r?\n/u)
@@ -497,7 +655,11 @@ function parseOutputLines(output: string): string[] {
 		.filter(Boolean);
 }
 
-function parseGitRenameLines(output: string): Array<{ fromPath: string; toPath: string }> {
+function parseGitPathTransitionLines(output: string): Array<{
+	fromPath: string;
+	toPath: string;
+	kind: 'rename' | 'copy';
+}> {
 	return parseOutputLines(output)
 		.map((line) => {
 			const [status = '', fromPath = '', toPath = ''] = line.split('\t');
@@ -505,9 +667,61 @@ function parseGitRenameLines(output: string): Array<{ fromPath: string; toPath: 
 				return null;
 			}
 
-			return fromPath && toPath ? { fromPath, toPath } : null;
+			return fromPath && toPath
+				? {
+					fromPath,
+					toPath,
+					kind: status.startsWith('C') ? 'copy' : 'rename',
+				  }
+				: null;
 		})
-		.filter((entry): entry is { fromPath: string; toPath: string } => entry !== null);
+		.filter(
+			(entry): entry is { fromPath: string; toPath: string; kind: 'rename' | 'copy' } => entry !== null,
+		);
+}
+
+function shouldFollowPredecessorTransition(
+	transition: { fromPath: string; toPath: string; kind: 'rename' | 'copy' } | undefined,
+): transition is { fromPath: string; toPath: string; kind: 'rename' | 'copy' } {
+	if (!transition) {
+		return false;
+	}
+
+	if (transition.kind === 'rename') {
+		return true;
+	}
+
+	return path.basename(transition.fromPath) === path.basename(transition.toPath);
+}
+
+async function resolvePreviousGitPath(args: {
+	runner: CommandRunner;
+	workspacePath: string;
+	revision: string;
+	currentPath: string;
+	signal?: AbortSignal;
+}): Promise<{ fromPath: string; toPath: string; kind: 'rename' | 'copy' } | undefined> {
+	try {
+		const { stdout } = await args.runner.runGit({
+			workspacePath: args.workspacePath,
+			args: [
+				'diff-tree',
+				'--root',
+				'--no-commit-id',
+				'--name-status',
+				'--find-renames=1%',
+				'--find-copies=1%',
+				'--find-copies-harder',
+				'-r',
+				args.revision,
+			],
+			options: { signal: args.signal },
+		});
+
+		return parseGitPathTransitionLines(stdout).find((entry) => entry.toPath === args.currentPath);
+	} catch {
+		return undefined;
+	}
 }
 
 function isMissingFileAtRevisionError(error: unknown): boolean {

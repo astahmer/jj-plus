@@ -15,6 +15,18 @@ test.describe('timeline interactions', () => {
 		).toBeVisible();
 	});
 
+	test('jj rename history keeps the pre-rename revision visible', async ({ page }) => {
+		await openFixture(page, 'jj-rename');
+
+		await expect(page.locator('.history-list .history-item')).toHaveCount(3);
+		await expect(sidebarRevision(page, 'initial commitment file')).toBeVisible();
+		await expect(sidebarRevision(page, 'rename packages to apps')).toBeVisible();
+		await expect(sidebarRevision(page, 'update commitment after rename')).toBeVisible();
+
+		await sidebarRevision(page, 'initial commitment file').click();
+		await expect(sidebarRevision(page, 'initial commitment file')).toBeVisible();
+	});
+
 	test('modifier-free letter hotkeys stay inert while an input is focused', async ({ page }) => {
 		await openFixture(page, 'git-basic');
 

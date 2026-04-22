@@ -58,21 +58,23 @@ function makeTimelineData(entries: FileRevisionEntry[]): TimelineData {
 	};
 }
 
-test('filterEntries falls back to the touched-file set when a preset window would leave too little context', () => {
+test('filterEntries keeps the full file history regardless of preset window', () => {
 	const entries = [
 		makeEntry({ index: 1, timestamp: 1, touchesFile: true }),
-		makeEntry({ index: 2, timestamp: 10, touchesFile: false }),
-		makeEntry({ index: 3, timestamp: 20, touchesFile: true }),
+		makeEntry({ index: 2, timestamp: 2, touchesFile: true }),
+		makeEntry({ index: 3, timestamp: 20, touchesFile: false }),
+		makeEntry({ index: 4, timestamp: 25, touchesFile: true }),
+		makeEntry({ index: 5, timestamp: 30, touchesFile: true }),
 	];
 	const data = makeTimelineData(entries);
 
 	assert.deepEqual(
 		filterEntries(entries, data, '7d', false).map((entry) => entry.index),
-		[1, 3],
+		[1, 2, 4, 5],
 	);
 	assert.deepEqual(
 		filterEntries(entries, data, '7d', true).map((entry) => entry.index),
-		[1, 2, 3],
+		[1, 2, 3, 4, 5],
 	);
 });
 

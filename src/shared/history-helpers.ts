@@ -79,9 +79,27 @@ export function parseJjSummaryRenameLines(output: string): RenameEntry[] {
 				return entries;
 			}
 
+			const fromPath = match[1].trim();
+			const toPath = match[2].trim();
+			const braceStart = fromPath.indexOf('{');
+			const braceEnd = toPath.lastIndexOf('}');
+
+			if (braceStart >= 0 && braceEnd >= 0) {
+				const prefix = fromPath.slice(0, braceStart);
+				const fromSuffix = fromPath.slice(braceStart + 1);
+				const toPrefix = toPath.slice(0, braceEnd);
+				const suffix = toPath.slice(braceEnd + 1);
+
+				entries.push({
+					fromPath: `${prefix}${fromSuffix}${suffix}`,
+					toPath: `${prefix}${toPrefix}${suffix}`,
+				});
+				return entries;
+			}
+
 			entries.push({
-				fromPath: match[1].trim(),
-				toPath: match[2].trim(),
+				fromPath,
+				toPath,
 			});
 			return entries;
 		}, []);

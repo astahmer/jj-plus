@@ -10,22 +10,8 @@ export function filterEntries(
 		return [];
 	}
 
-	const lastEntry = entries[entries.length - 1];
-	if (!lastEntry) {
-		return [];
-	}
-
-	const windowDays = data.presets[preset];
-	const cutoff = Number.isFinite(windowDays)
-		? lastEntry.timestamp - windowDays * 24 * 60 * 60 * 1000
-		: Number.NEGATIVE_INFINITY;
-
-	const fallbackEntries = entries.filter((entry) => showIntermediateRevisions || entry.touchesFile);
-	const filteredEntries = entries
-		.filter((entry) => entry.timestamp >= cutoff)
-		.filter((entry) => showIntermediateRevisions || entry.touchesFile);
-
-	return filteredEntries.length >= 2 ? filteredEntries : fallbackEntries;
+	void preset;
+	return entries.filter((entry) => showIntermediateRevisions || entry.touchesFile);
 }
 
 export function getDefaultSelection(entries: FileRevisionEntry[]) {

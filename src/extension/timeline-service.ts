@@ -1120,6 +1120,11 @@ function dedupeAdjacentTimelineEntries(entries: FileRevisionEntry[]): FileRevisi
 			return deduped;
 		}
 
+		if (previousEntry.touchesFile && entry.touchesFile) {
+			deduped.push(entry);
+			return deduped;
+		}
+
 		if (!previousEntry.touchesFile && entry.touchesFile) {
 			deduped[deduped.length - 1] = entry;
 		}
