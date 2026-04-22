@@ -92,6 +92,7 @@ export type ExtensionTimelineSession = TimelineSession & {
 
 export type TimelineDebugState = {
 	panelOpen: boolean;
+	panelCount: number;
 	panelTitle: string;
 	backend: string;
 	workspacePath: string;

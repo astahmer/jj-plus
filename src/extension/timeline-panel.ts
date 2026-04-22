@@ -98,15 +98,17 @@ export function createTimelinePanelController(args: {
 	savePreferences: (nextPreferences: TimelinePreferences) => Promise<void>;
 	version: string;
 }): TimelinePanelController {
-	let timelinePanel: vscode.WebviewPanel | undefined;
-	let currentTimelineSession: ExtensionTimelineSession | undefined;
+	const timelineSessions = new Map<vscode.WebviewPanel, ExtensionTimelineSession>();
+	let activeTimelinePanel: vscode.WebviewPanel | undefined;
 	let timelineDebugState = createEmptyTimelineDebugState();
 
 	return {
 		dispose() {
-			timelinePanel?.dispose();
-			timelinePanel = undefined;
-			currentTimelineSession = undefined;
+			for (const panel of [...timelineSessions.keys()]) {
+				panel.dispose();
+			}
+			timelineSessions.clear();
+			activeTimelinePanel = undefined;
 			timelineDebugState = createEmptyTimelineDebugState();
 		},
 		getDebugState() {
@@ -141,15 +143,21 @@ export function createTimelinePanelController(args: {
 				return;
 			}
 
-			const hadExistingPanel = Boolean(timelinePanel);
-			const panel = getOrCreateTimelinePanel({ fileName: session.fileName });
-			currentTimelineSession = session;
+			const hadExistingPanel = timelineSessions.size > 0;
+			const panel = createTimelinePanel({ fileName: session.fileName });
+			timelineSessions.set(panel, session);
+			activeTimelinePanel = panel;
 			panel.webview.html = getTimelineWebviewHtml({
 				context: args.context,
 				webview: panel.webview,
 			});
 			panel.title = `Revision Timeline: ${session.fileName}`;
-			timelineDebugState = createDebugState({ panel, session, lastMessageCommand: '' });
+			timelineDebugState = createDebugState({
+				panel,
+				session,
+				lastMessageCommand: '',
+				panelCount: timelineSessions.size,
+			});
 
 			if (!hadExistingPanel && shouldMaximizeTimelinePanel()) {
 				await maximizeTimelinePanel();
@@ -157,13 +165,8 @@ export function createTimelinePanelController(args: {
 		},
 	};
 
-	function getOrCreateTimelinePanel(request: { fileName: string }): vscode.WebviewPanel {
-		if (timelinePanel) {
-			timelinePanel.reveal(timelinePanel.viewColumn, true);
-			return timelinePanel;
-		}
-
-		timelinePanel = vscode.window.createWebviewPanel(
+	function createTimelinePanel(request: { fileName: string }): vscode.WebviewPanel {
+		const panel = vscode.window.createWebviewPanel(
 			'jjRangeDiffTimeline',
 			`Revision Timeline: ${request.fileName}`,
 			getTimelineViewColumn(),
@@ -178,27 +181,50 @@ export function createTimelinePanelController(args: {
 			},
 		);
 
-		timelinePanel.onDidDispose(
+		panel.onDidDispose(
 			() => {
-				currentTimelineSession?.activeActionAbortController?.abort();
-				timelinePanel = undefined;
-				currentTimelineSession = undefined;
-				timelineDebugState = createEmptyTimelineDebugState();
+				timelineSessions.get(panel)?.activeActionAbortController?.abort();
+				timelineSessions.delete(panel);
+
+				if (activeTimelinePanel === panel) {
+					const fallback = [...timelineSessions.entries()].at(-1);
+					if (!fallback) {
+						activeTimelinePanel = undefined;
+						timelineDebugState = createEmptyTimelineDebugState();
+						return;
+					}
+
+					activeTimelinePanel = fallback[0];
+					timelineDebugState = createDebugState({
+						panel: fallback[0],
+						session: fallback[1],
+						lastMessageCommand: timelineDebugState.lastMessageCommand,
+						panelCount: timelineSessions.size,
+					});
+					return;
+				}
+
+				timelineDebugState = {
+					...timelineDebugState,
+					panelCount: timelineSessions.size,
+				};
 			},
 			undefined,
 			args.context.subscriptions,
 		);
 
-		timelinePanel.webview.onDidReceiveMessage(
+		panel.webview.onDidReceiveMessage(
 			async (message: TimelineCommand | unknown) => {
-				if (!currentTimelineSession || !timelinePanel) {
+				const session = timelineSessions.get(panel);
+				if (!session) {
 					return;
 				}
 
 				try {
+					activeTimelinePanel = panel;
 					await handleTimelineMessage({
-						panel: timelinePanel,
-						session: currentTimelineSession,
+						panel,
+						session,
 						message,
 					});
 				} catch (error) {
@@ -210,7 +236,7 @@ export function createTimelinePanelController(args: {
 			args.context.subscriptions,
 		);
 
-		return timelinePanel;
+		return panel;
 	}
 
 	async function handleTimelineMessage(request: {
@@ -229,10 +255,14 @@ export function createTimelinePanelController(args: {
 
 		if (command === 'ready') {
 			timelineDebugState = {
-				...timelineDebugState,
+				...createDebugState({
+					panel: request.panel,
+					session: request.session,
+					lastMessageCommand: 'ready',
+					panelCount: timelineSessions.size,
+				}),
 				viewReady: true,
-				readyCount: timelineDebugState.readyCount + 1,
-				lastMessageCommand: 'ready',
+				readyCount: 1,
 				lastReadyAt: Date.now(),
 			};
 
@@ -476,12 +506,12 @@ export function createTimelinePanelController(args: {
 			}
 
 			args.service.syncSession({ target: request.session, source: nextSession });
-			currentTimelineSession = request.session;
 			request.panel.title = `Revision Timeline: ${request.session.fileName}`;
 			timelineDebugState = createDebugState({
 				panel: request.panel,
 				session: request.session,
 				lastMessageCommand: 'switch-file',
+				panelCount: timelineSessions.size,
 			});
 
 			await postTimelineMessage({
@@ -516,11 +546,11 @@ export function createTimelinePanelController(args: {
 				absolutePath: request.session.absolutePath,
 			});
 			args.service.syncSession({ target: request.session, source: nextSession });
-			currentTimelineSession = request.session;
 			timelineDebugState = createDebugState({
 				panel: request.panel,
 				session: request.session,
 				lastMessageCommand: 'refresh',
+				panelCount: timelineSessions.size,
 			});
 			await postTimelineMessage({
 				panel: request.panel,
@@ -922,6 +952,7 @@ function hasBundledTimelineWebviewAssets(args: { context: vscode.ExtensionContex
 function createEmptyTimelineDebugState(): TimelineDebugState {
 	return {
 		panelOpen: false,
+		panelCount: 0,
 		panelTitle: '',
 		backend: '',
 		workspacePath: '',
@@ -941,9 +972,11 @@ function createDebugState(args: {
 	panel: vscode.WebviewPanel;
 	session: ExtensionTimelineSession;
 	lastMessageCommand: string;
+	panelCount: number;
 }): TimelineDebugState {
 	return {
 		panelOpen: true,
+		panelCount: args.panelCount,
 		panelTitle: args.panel.title,
 		backend: args.session.backend,
 		workspacePath: args.session.workspacePath,

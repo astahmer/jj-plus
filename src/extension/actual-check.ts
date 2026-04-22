@@ -9,21 +9,21 @@ const execFileAsync = promisify(execFile);
 const workspacePath = '/Users/astahmer/dev/work-related/welii';
 // const currentPath = 'apps/backend/src/commitments/commitment.entity.ts';
 const currentPath = 'apps/backend/src/auth/use-cases/app-invite-member-to-organization.use-case.ts';
-const previousPath = 'apps/backend/src/auth/use-cases/invite-member-to-organization.use-case.ts';
-const jjHistoryTemplate = [
-	'commit_id.short()',
-	'"\\t"',
-	'change_id.shortest()',
-	'"\\t"',
-	'author.timestamp().format("%Y-%m-%dT%H:%M:%S%:z")',
-	'"\\t"',
-	'author.name()',
-	'"\\t"',
-	'self.local_bookmarks().map(|b| b.name()).join(",")',
-	'"\\t"',
-	'description.first_line()',
-	'"\\n"',
-].join(' ++ ');
+// const previousPath = 'apps/backend/src/auth/use-cases/invite-member-to-organization.use-case.ts';
+// const jjHistoryTemplate = [
+// 	'commit_id.short()',
+// 	'"\\t"',
+// 	'change_id.shortest()',
+// 	'"\\t"',
+// 	'author.timestamp().format("%Y-%m-%dT%H:%M:%S%:z")',
+// 	'"\\t"',
+// 	'author.name()',
+// 	'"\\t"',
+// 	'self.local_bookmarks().map(|b| b.name()).join(",")',
+// 	'"\\t"',
+// 	'description.first_line()',
+// 	'"\\n"',
+// ].join(' ++ ');
 
 async function runCommand(command: string, args: string[], cwd: string, signal?: AbortSignal) {
 	const { stdout, stderr } = await execFileAsync(command, args, {

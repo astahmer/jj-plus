@@ -4,6 +4,7 @@ import { Uri, commands, window, workspace } from 'vscode';
 
 type TimelineDebugState = {
 	panelOpen?: boolean;
+	panelCount?: number;
 	viewReady?: boolean;
 	backend?: 'git' | 'jj';
 	relativePath?: string;
@@ -45,22 +46,29 @@ suite('Revision Timeline integration', () => {
 		match(state.panelTitle || '', /^Revision Timeline: lazy-di-rollout-plan\.md$/u);
 	});
 
-	test('reuses the existing timeline panel when opening a different workspace file', async () => {
+	test('opens a new timeline panel when opening a different workspace file', async () => {
 		const workspaceFolder = workspace.workspaceFolders?.[0];
 		ok(workspaceFolder, 'expected the integration test workspace to be open');
 
 		await openWorkspaceFile(workspaceFolder.uri.fsPath, TARGET_RELATIVE_PATH);
 		await commands.executeCommand(OPEN_TIMELINE_COMMAND);
-		await waitForTimelineState((state) => state?.viewReady === true && state.relativePath === TARGET_RELATIVE_PATH);
+		await waitForTimelineState(
+			(state) =>
+				state?.viewReady === true && state.relativePath === TARGET_RELATIVE_PATH && state.panelCount === 1,
+		);
 
 		await openWorkspaceFile(workspaceFolder.uri.fsPath, SECONDARY_RELATIVE_PATH);
 		await commands.executeCommand(OPEN_TIMELINE_COMMAND);
 
 		const state = await waitForTimelineState(
-			(candidate) => candidate?.panelOpen === true && candidate.relativePath === SECONDARY_RELATIVE_PATH,
+			(candidate) =>
+				candidate?.panelOpen === true &&
+				candidate.relativePath === SECONDARY_RELATIVE_PATH &&
+				candidate.panelCount === 2,
 		);
 		equal(state.relativePath, SECONDARY_RELATIVE_PATH);
 		equal(state.fileName, 'service.ts');
+		equal(state.panelCount, 2);
 		match(state.panelTitle || '', /^Revision Timeline: service\.ts$/u);
 	});
 });
