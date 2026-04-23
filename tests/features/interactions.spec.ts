@@ -22,9 +22,20 @@ test.describe('timeline interactions', () => {
 		await expect(sidebarRevision(page, 'initial commitment file')).toBeVisible();
 		await expect(sidebarRevision(page, 'rename packages to apps')).toBeVisible();
 		await expect(sidebarRevision(page, 'update commitment after rename')).toBeVisible();
+		await expect(
+			page.locator('.history-list .history-item').last().locator('.history-bottom .mini-badge.introduced'),
+		).toBeVisible();
 
 		await sidebarRevision(page, 'initial commitment file').click();
 		await expect(sidebarRevision(page, 'initial commitment file')).toBeVisible();
+	});
+
+	test('sidebar markers show labels without type prefixes', async ({ page }) => {
+		await openFixture(page, 'jj-basic');
+
+		const markerRow = sidebarRevision(page, 'service extraction');
+		await expect(markerRow).toContainText('main');
+		await expect(markerRow.locator('.timeline-marker-prefix')).toHaveCount(0);
 	});
 
 	test('modifier-free letter hotkeys stay inert while an input is focused', async ({ page }) => {

@@ -669,15 +669,13 @@ function parseGitPathTransitionLines(output: string): Array<{
 
 			return fromPath && toPath
 				? {
-					fromPath,
-					toPath,
-					kind: status.startsWith('C') ? 'copy' : 'rename',
-				  }
+						fromPath,
+						toPath,
+						kind: status.startsWith('C') ? 'copy' : 'rename',
+					}
 				: null;
 		})
-		.filter(
-			(entry): entry is { fromPath: string; toPath: string; kind: 'rename' | 'copy' } => entry !== null,
-		);
+		.filter((entry): entry is { fromPath: string; toPath: string; kind: 'rename' | 'copy' } => entry !== null);
 }
 
 function shouldFollowPredecessorTransition(

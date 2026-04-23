@@ -91,6 +91,98 @@ async function buildSelectedEntryMultiDiffPlan(request: {
 	};
 }
 
+async function resolveTimelineSourcePath(request: { absolutePath?: string }): Promise<string | undefined> {
+	if (request.absolutePath) {
+		return request.absolutePath;
+	}
+
+	const activeEditor = vscode.window.activeTextEditor;
+	if (activeEditor && isWorkspaceFileUri(activeEditor.document.uri)) {
+		return activeEditor.document.uri.fsPath;
+	}
+
+	return pickOpenWorkspaceEditorPath();
+}
+
+async function pickOpenWorkspaceEditorPath(): Promise<string | undefined> {
+	const candidates = getOpenWorkspaceEditorCandidates();
+	if (!candidates.length) {
+		return undefined;
+	}
+
+	const selection = await vscode.window.showQuickPick(
+		candidates.map((candidate) => ({
+			label: candidate.label,
+			description: candidate.description,
+			detail: candidate.detail,
+			path: candidate.absolutePath,
+		})),
+		{
+			placeHolder: 'Select a workspace file to open its revision timeline',
+		},
+	);
+
+	return selection?.path;
+}
+
+function getOpenWorkspaceEditorCandidates(): Array<{
+	label: string;
+	description: string;
+	detail: string;
+	absolutePath: string;
+}> {
+	const candidates: Array<{
+		label: string;
+		description: string;
+		detail: string;
+		absolutePath: string;
+	}> = [];
+	const seenPaths = new Set<string>();
+
+	for (const group of vscode.window.tabGroups?.all || []) {
+		for (const tab of group.tabs) {
+			const uri = getTabUri(tab);
+			if (!uri || uri.scheme !== 'file') {
+				continue;
+			}
+
+			const workspaceFolder = vscode.workspace.getWorkspaceFolder(uri);
+			if (!workspaceFolder) {
+				continue;
+			}
+
+			const absolutePath = uri.fsPath;
+			if (seenPaths.has(absolutePath)) {
+				continue;
+			}
+
+			const relativePath = path.relative(workspaceFolder.uri.fsPath, absolutePath).replace(/\\/g, '/');
+			if (!relativePath || relativePath.startsWith('..')) {
+				continue;
+			}
+
+			seenPaths.add(absolutePath);
+			candidates.push({
+				label: path.basename(absolutePath),
+				description: relativePath,
+				detail: workspaceFolder.name,
+				absolutePath,
+			});
+		}
+	}
+
+	return candidates;
+}
+
+function isWorkspaceFileUri(uri: vscode.Uri): boolean {
+	return uri.scheme === 'file' && Boolean(vscode.workspace.getWorkspaceFolder(uri));
+}
+
+function getTabUri(tab: vscode.Tab): vscode.Uri | undefined {
+	const input = tab.input as { uri?: vscode.Uri } | undefined;
+	return input?.uri;
+}
+
 export function createTimelinePanelController(args: {
 	context: vscode.ExtensionContext;
 	service: TimelineService;
@@ -115,10 +207,9 @@ export function createTimelinePanelController(args: {
 			return { ...timelineDebugState };
 		},
 		async openFileRevisionTimeline({ absolutePath }) {
-			const activeEditor = vscode.window.activeTextEditor;
-			const initialPath = absolutePath || activeEditor?.document.uri.fsPath;
+			const initialPath = await resolveTimelineSourcePath({ absolutePath });
 			if (!initialPath) {
-				void vscode.window.showErrorMessage('Open a file in the editor to browse its revision timeline');
+				void vscode.window.showErrorMessage('Open a workspace file to browse its revision timeline');
 				return;
 			}
 

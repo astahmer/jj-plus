@@ -229,6 +229,14 @@ input {
 	font-size: 11px;
 }
 
+.history-meta {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	flex-wrap: wrap;
+	min-width: 0;
+}
+
 .history-list {
 	overflow: auto;
 	padding: 6px;
@@ -428,6 +436,10 @@ input {
 }
 
 .mini-badge.to {
+	color: var(--accent);
+}
+
+.mini-badge.introduced {
 	color: var(--accent);
 }
 

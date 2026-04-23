@@ -1,7 +1,7 @@
 import { For, Show, createSignal, onCleanup } from 'solid-js';
 import { useTimelineContext } from '../timeline-context.tsx';
 import { RevisionIdentifier, getRevisionIdentifierValue } from './revision-identifier.tsx';
-import { getEntryTimelineMarkers, getTimelineMarkerPrefix } from '../timeline-markers.ts';
+import { getEntryTimelineMarkers } from '../timeline-markers.ts';
 
 function formatDiffActionLabel(label: string, diffCount: number | null) {
 	return diffCount === null ? label : `${label} (${diffCount})`;
@@ -151,6 +151,7 @@ export function Sidebar() {
 							const descriptionExpanded = () => expandedDescriptionById()[entry.id] === true;
 							const rowDiffCount = () => state.entryDiffCount(entry.index);
 							const markers = () => getEntryTimelineMarkers(entry);
+							const isIntroduced = () => !entry.isWorkingTree && !entry.hasPreviousEntry;
 
 							return (
 								<article
@@ -217,7 +218,6 @@ export function Sidebar() {
 													<For each={markers()}>
 														{(marker) => (
 															<span class={`timeline-marker timeline-marker--${marker.kind}`} title={marker.title}>
-																<span class="timeline-marker-prefix">{getTimelineMarkerPrefix(marker.kind)}</span>
 																<span class="timeline-marker-label">{marker.label}</span>
 															</span>
 														)}
@@ -284,6 +284,11 @@ export function Sidebar() {
 									</Show>
 									<div class="history-bottom">
 										<span class="history-meta">
+											<Show when={isIntroduced()}>
+												<span class="mini-badge introduced" title="First revision touching this file">
+													INTRODUCED
+												</span>
+											</Show>
 											<span
 												class="history-meta-timestamp"
 												onMouseEnter={(event) => actions.showInfoTooltip(event, 'Timestamp', entry.authorDate)}

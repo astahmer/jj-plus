@@ -1,4 +1,4 @@
-import { equal, fail, match, ok } from 'node:assert/strict';
+import { equal, match, ok } from 'node:assert/strict';
 import { basename, join } from 'node:path';
 import { Uri, commands, window, workspace } from 'vscode';
 
@@ -26,7 +26,9 @@ suite('Revision Timeline integration', () => {
 
 	test('opens and initializes the timeline webview for the current workspace', async () => {
 		const workspaceFolder = workspace.workspaceFolders?.[0];
-		ok(workspaceFolder, 'expected the integration test workspace to be open');
+		if (!workspaceFolder) {
+			throw new Error('expected the integration test workspace to be open');
+		}
 
 		const expectedBackend = basename(workspaceFolder.uri.fsPath) === 'jj-basic' ? 'jj' : 'git';
 		const fileUri = Uri.file(join(workspaceFolder.uri.fsPath, TARGET_RELATIVE_PATH));
@@ -48,13 +50,14 @@ suite('Revision Timeline integration', () => {
 
 	test('opens a new timeline panel when opening a different workspace file', async () => {
 		const workspaceFolder = workspace.workspaceFolders?.[0];
-		ok(workspaceFolder, 'expected the integration test workspace to be open');
+		if (!workspaceFolder) {
+			throw new Error('expected the integration test workspace to be open');
+		}
 
 		await openWorkspaceFile(workspaceFolder.uri.fsPath, TARGET_RELATIVE_PATH);
 		await commands.executeCommand(OPEN_TIMELINE_COMMAND);
 		await waitForTimelineState(
-			(state) =>
-				state?.viewReady === true && state.relativePath === TARGET_RELATIVE_PATH && state.panelCount === 1,
+			(state) => state?.viewReady === true && state.relativePath === TARGET_RELATIVE_PATH && state.panelCount === 1,
 		);
 
 		await openWorkspaceFile(workspaceFolder.uri.fsPath, SECONDARY_RELATIVE_PATH);
@@ -70,6 +73,37 @@ suite('Revision Timeline integration', () => {
 		equal(state.fileName, 'service.ts');
 		equal(state.panelCount, 2);
 		match(state.panelTitle || '', /^Revision Timeline: service\.ts$/u);
+	});
+
+	test('prompts for a workspace file when the active editor is outside the workspace', async () => {
+		const workspaceFolder = workspace.workspaceFolders?.[0];
+		if (!workspaceFolder) {
+			throw new Error('expected the integration test workspace to be open');
+		}
+
+		await openWorkspaceFile(workspaceFolder.uri.fsPath, TARGET_RELATIVE_PATH);
+		const untitledDocument = await workspace.openTextDocument({ content: 'scratch', language: 'plaintext' });
+		await window.showTextDocument(untitledDocument, { preview: false });
+
+		const windowApi = window as typeof window & {
+			showQuickPick: typeof window.showQuickPick;
+		};
+		const originalShowQuickPick = windowApi.showQuickPick;
+		windowApi.showQuickPick = (async (items: Array<{ description?: string; path?: string }>) => {
+			return items.find((item) => item.description === TARGET_RELATIVE_PATH) || items[0];
+		}) as unknown as typeof window.showQuickPick;
+
+		try {
+			await commands.executeCommand(OPEN_TIMELINE_COMMAND);
+
+			const state = await waitForTimelineState(
+				(candidate) => candidate?.viewReady === true && candidate.relativePath === TARGET_RELATIVE_PATH,
+			);
+			equal(state.relativePath, TARGET_RELATIVE_PATH);
+			equal(state.panelCount, 1);
+		} finally {
+			windowApi.showQuickPick = originalShowQuickPick;
+		}
 	});
 });
 
@@ -92,13 +126,13 @@ async function waitForTimelineState(
 	while (Date.now() < deadline) {
 		lastState = (await commands.executeCommand(DEBUG_COMMAND)) as TimelineDebugState | undefined;
 		if (predicate(lastState)) {
-			return lastState;
+			return lastState as TimelineDebugState;
 		}
 
 		await delay(200);
 	}
 
-	fail(`timeline webview did not initialize in time; last state: ${JSON.stringify(lastState)}`);
+	throw new Error(`timeline webview did not initialize in time; last state: ${JSON.stringify(lastState)}`);
 }
 
 function delay(milliseconds: number): Promise<void> {
