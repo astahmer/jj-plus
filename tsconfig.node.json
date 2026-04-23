@@ -3,21 +3,14 @@
 		"target": "ES2023",
 		"module": "NodeNext",
 		"moduleResolution": "NodeNext",
-		"lib": [
-			"ES2023",
-			"DOM"
-		],
+		"lib": ["ES2023", "DOM"],
 		"strict": false,
 		"noImplicitAny": false,
 		"noEmit": true,
 		"allowImportingTsExtensions": true,
 		"skipLibCheck": true,
 		"resolveJsonModule": true,
-		"types": [
-			"node",
-			"mocha",
-			"vscode"
-		]
+		"types": ["node", "mocha", "vscode"]
 	},
 	"include": [
 		"src/**/*.ts",

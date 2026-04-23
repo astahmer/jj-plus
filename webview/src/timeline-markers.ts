@@ -10,7 +10,7 @@ export function getEntryTimelineMarkers(
 	entry: Pick<FileRevisionEntry, 'bookmarkNames' | 'branchNames' | 'operationId' | 'operationIndex'>,
 ): TimelineMarker[] {
 	const markers: TimelineMarker[] = [];
-	for (const bookmarkName of [...new Set(entry.bookmarkNames || [])]) {
+	for (const bookmarkName of new Set(entry.bookmarkNames || [])) {
 		markers.push({
 			kind: 'bookmark',
 			label: bookmarkName,
@@ -18,7 +18,7 @@ export function getEntryTimelineMarkers(
 		});
 	}
 
-	for (const branchName of [...new Set(entry.branchNames || [])]) {
+	for (const branchName of new Set(entry.branchNames || [])) {
 		markers.push({
 			kind: 'branch',
 			label: branchName,

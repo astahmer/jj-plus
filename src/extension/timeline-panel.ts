@@ -196,7 +196,7 @@ export function createTimelinePanelController(args: {
 
 	return {
 		dispose() {
-			for (const panel of [...timelineSessions.keys()]) {
+			for (const panel of timelineSessions.keys()) {
 				panel.dispose();
 			}
 			timelineSessions.clear();

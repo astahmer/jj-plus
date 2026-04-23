@@ -3,7 +3,6 @@
 	"displayName": "JJ Range Diff",
 	"version": "0.0.5",
 	"private": true,
-	"type": "module",
 	"description": "Open JJ multi-diff views for revision ranges.",
 	"categories": [
 		"Other",
@@ -18,6 +17,7 @@
 	"bin": {
 		"jj-range-diff": "./dist/bin.cjs"
 	},
+	"type": "module",
 	"main": "./dist/extension/index.cjs",
 	"scripts": {
 		"bddgen": "bddgen",
@@ -25,21 +25,21 @@
 		"build:extension": "tsdown",
 		"build:integration": "tsdown --config ./tests/vscode/tsdown.config.ts",
 		"build:webview": "vite build",
-		"watch": "pnpm build:extension --watch",
 		"dev": "vite --host 127.0.0.1 --open /",
 		"fixtures:e2e": "node ./tests/fixtures/generate-e2e-fixtures.ts",
 		"fmt": "oxfmt --write",
 		"lint": "pnpm lint:ox && pnpm lint:knip",
+		"lint:fix": "pnpm lint:ox --fix && pnpm lint:knip --fix",
 		"lint:knip": "knip",
 		"lint:ox": "oxlint .",
-		"lint:fix": "pnpm lint:ox --fix && pnpm lint:knip --fix",
 		"test": "node --test tests/units/**/*.test.ts",
 		"test:all": "pnpm test && pnpm test:e2e && pnpm test:integration",
 		"test:e2e": "pnpm build:extension && pnpm fixtures:e2e && pnpm bddgen && playwright test",
 		"test:integration": "pnpm build:extension && pnpm build:webview && pnpm build:integration && pnpm fixtures:e2e && node ./tests/vscode/run.ts",
 		"typecheck": "pnpm typecheck:web && pnpm typecheck:extension",
 		"typecheck:extension": "tsgo --noEmit -p tsconfig.node.json",
-		"typecheck:web": "tsgo --noEmit -p tsconfig.json"
+		"typecheck:web": "tsgo --noEmit -p tsconfig.json",
+		"watch": "pnpm build:extension --watch"
 	},
 	"dependencies": {
 		"solid-js": "1.9.12"

@@ -19,10 +19,24 @@ async function runCommand(command: string, args: string[], cwd: string, signal?:
 }
 
 const runner = {
-	runGit: async ({ workspacePath: cwd, args, options }: { workspacePath: string; args: string[]; options?: { signal?: AbortSignal } }) =>
-		runCommand('git', args, cwd, options?.signal),
-	runJj: async ({ workspacePath: cwd, args, options }: { workspacePath: string; args: string[]; options?: { signal?: AbortSignal } }) =>
-		runCommand('jj', args, cwd, options?.signal),
+	runGit: async ({
+		workspacePath: cwd,
+		args,
+		options,
+	}: {
+		workspacePath: string;
+		args: string[];
+		options?: { signal?: AbortSignal };
+	}) => runCommand('git', args, cwd, options?.signal),
+	runJj: async ({
+		workspacePath: cwd,
+		args,
+		options,
+	}: {
+		workspacePath: string;
+		args: string[];
+		options?: { signal?: AbortSignal };
+	}) => runCommand('jj', args, cwd, options?.signal),
 	fileExists: async ({ filePath }: { filePath: string }) => {
 		try {
 			await access(filePath);
@@ -36,7 +50,8 @@ const runner = {
 
 const service = createTimelineService({ runner });
 
-const invitePath = '/Users/astahmer/dev/work-related/welii/apps/backend/src/auth/use-cases/app-invite-member-to-organization.use-case.ts';
+const invitePath =
+	'/Users/astahmer/dev/work-related/welii/apps/backend/src/auth/use-cases/app-invite-member-to-organization.use-case.ts';
 const inviteSession = await service.buildSession({ workspacePath, absolutePath: invitePath });
 console.log('invite-first-entries');
 console.log(

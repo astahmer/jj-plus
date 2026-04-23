@@ -207,7 +207,7 @@ function getHoveredMonthLabels(
 		}
 	}
 
-	return labels.sort((left, right) => left.visibleIndex - right.visibleIndex);
+	return labels.toSorted((left, right) => left.visibleIndex - right.visibleIndex);
 }
 
 function formatMonthLabel(authorDate: string, fallbackLabel?: string) {
