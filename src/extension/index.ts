@@ -163,8 +163,9 @@ export function activate(context: vscode.ExtensionContext): void {
 		const title = rawArgs?.title?.trim() || `${fileTarget.fileName}: ${base} -> ${target}`;
 
 		try {
+			const preferredWorkspacePath = path.dirname(fileTarget.absolutePath);
 			const historyWorkspacePath = await resolveHistoryWorkspacePath({
-				workspacePath: workspaceUri.fsPath,
+				workspacePath: preferredWorkspacePath,
 				runner,
 			});
 			const relativePath = toHistoryRelativePath({
@@ -175,33 +176,68 @@ export function activate(context: vscode.ExtensionContext): void {
 				throw new Error('The selected file is outside the resolved repository root');
 			}
 
-			const adapter = await resolveHistoryAdapter({
+			let adapter = await resolveHistoryAdapter({
 				workspacePath: historyWorkspacePath,
 				runner,
 			});
-			const [originalContent, modifiedContent] = await Promise.all([
-				adapter.showFileAtRevision({
-					workspacePath: historyWorkspacePath,
-					revset: base,
-					filePath: relativePath,
-				}),
-				adapter.showFileAtRevision({
-					workspacePath: historyWorkspacePath,
-					revset: target,
-					filePath: relativePath,
-				}),
-			]);
+			let resolvedWorkspacePath = historyWorkspacePath;
+			let resolvedRelativePath = relativePath;
+			let originalContent = '';
+			let modifiedContent = '';
+
+			try {
+				[originalContent, modifiedContent] = await Promise.all([
+					adapter.showFileAtRevision({
+						workspacePath: resolvedWorkspacePath,
+						revset: base,
+						filePath: resolvedRelativePath,
+					}),
+					adapter.showFileAtRevision({
+						workspacePath: resolvedWorkspacePath,
+						revset: target,
+						filePath: resolvedRelativePath,
+					}),
+				]);
+			} catch (error) {
+				const fallback = await resolveJjFileFallback({
+					error,
+					adapter,
+					runner,
+					absolutePath: fileTarget.absolutePath,
+					base,
+					target,
+				});
+				if (!fallback) {
+					throw error;
+				}
+
+				adapter = fallback.adapter;
+				resolvedWorkspacePath = fallback.workspacePath;
+				resolvedRelativePath = fallback.relativePath;
+				[originalContent, modifiedContent] = await Promise.all([
+					adapter.showFileAtRevision({
+						workspacePath: resolvedWorkspacePath,
+						revset: base,
+						filePath: resolvedRelativePath,
+					}),
+					adapter.showFileAtRevision({
+						workspacePath: resolvedWorkspacePath,
+						revset: target,
+						filePath: resolvedRelativePath,
+					}),
+				]);
+			}
 
 			const originalUri = provider.createInlineContentUri({
-				workspacePath: historyWorkspacePath,
+				workspacePath: resolvedWorkspacePath,
 				revset: base,
-				relativePath: relativePath,
+				relativePath: resolvedRelativePath,
 				content: originalContent,
 			});
 			const modifiedUri = provider.createInlineContentUri({
-				workspacePath: historyWorkspacePath,
+				workspacePath: resolvedWorkspacePath,
 				revset: target,
-				relativePath: relativePath,
+				relativePath: resolvedRelativePath,
 				content: modifiedContent,
 			});
 
@@ -270,6 +306,10 @@ class SnapshotContentProvider implements vscode.TextDocumentContentProvider {
 		const query = parseSnapshotUri(uri);
 		if (query.contentId) {
 			return this.inlineContent.get(query.contentId) || '';
+		}
+
+		if (!query.workspacePath || !query.revset || !query.filePath) {
+			return '';
 		}
 
 		try {
@@ -418,6 +458,89 @@ function toHistoryRelativePath(args: { historyWorkspacePath: string; absolutePat
 	}
 
 	return relativePath;
+}
+
+async function resolveJjFileFallback(args: {
+	error: unknown;
+	adapter: Awaited<ReturnType<typeof resolveHistoryAdapter>>;
+	runner: ReturnType<typeof createCommandRunner>;
+	absolutePath: string;
+	base: string;
+	target: string;
+}): Promise<
+	| {
+			adapter: Awaited<ReturnType<typeof resolveHistoryAdapter>>;
+			workspacePath: string;
+			relativePath: string;
+	  }
+	| undefined
+> {
+	if (args.adapter.backend !== 'git') {
+		return undefined;
+	}
+
+	if (!looksLikeGitRejectedJjRevset({ error: args.error, base: args.base, target: args.target })) {
+		return undefined;
+	}
+
+	const preferredWorkspacePath = path.dirname(args.absolutePath);
+	const { stdout } = await args.runner.runJj({
+		workspacePath: preferredWorkspacePath,
+		args: ['root'],
+	});
+	const jjRoot = stdout.trim();
+	if (!jjRoot) {
+		return undefined;
+	}
+
+	const relativePath = toHistoryRelativePath({
+		historyWorkspacePath: jjRoot,
+		absolutePath: args.absolutePath,
+	});
+	if (!relativePath) {
+		return undefined;
+	}
+
+	const adapter = await resolveHistoryAdapter({
+		workspacePath: jjRoot,
+		runner: args.runner,
+	});
+	if (adapter.backend !== 'jj') {
+		return undefined;
+	}
+
+	return {
+		adapter,
+		workspacePath: jjRoot,
+		relativePath,
+	};
+}
+
+function looksLikeGitRejectedJjRevset(args: { error: unknown; base: string; target: string }): boolean {
+	const errorMessage = args.error instanceof Error ? args.error.message : String(args.error || '');
+	const gitRejectedRevision = /invalid\s+object\s+name|unknown\s+revision|ambiguous\s+argument/iu.test(errorMessage);
+	if (!gitRejectedRevision) {
+		return false;
+	}
+
+	return [args.base, args.target].some((candidate) => isLikelyJjRevset(candidate));
+}
+
+function isLikelyJjRevset(value: string): boolean {
+	const revset = value.trim();
+	if (!revset) {
+		return false;
+	}
+
+	if (revset.includes('closest_bookmark(') || revset.includes('latest(') || revset.includes('::')) {
+		return true;
+	}
+
+	if (revset === '@' || revset.startsWith('@-') || revset.startsWith('@+')) {
+		return true;
+	}
+
+	return /^@[0-9]+$/u.test(revset);
 }
 
 async function resolveFileDiffTarget(args: {

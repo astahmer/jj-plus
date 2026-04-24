@@ -1,7 +1,7 @@
 {
 	"name": "jj-range-diff",
 	"displayName": "JJ Range Diff",
-	"version": "0.0.5",
+	"version": "0.0.9",
 	"private": true,
 	"description": "Open JJ multi-diff views for revision ranges.",
 	"categories": [
@@ -21,6 +21,7 @@
 	"main": "./dist/extension/index.cjs",
 	"scripts": {
 		"bddgen": "bddgen",
+		"pkg": "bun build src/bin.ts --compile --outfile jjdiff ",
 		"build": "pnpm build:extension && pnpm build:webview && pnpm vsce package --skip-license --no-dependencies",
 		"build:extension": "tsdown",
 		"build:integration": "tsdown --config ./tests/vscode/tsdown.config.ts",
