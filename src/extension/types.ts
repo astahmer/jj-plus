@@ -20,10 +20,11 @@ export type RangeDiffArgs = {
 };
 
 export type SnapshotQuery = {
-	workspacePath: string;
-	filePath: string;
-	revset: string;
+	workspacePath?: string;
+	filePath?: string;
+	revset?: string;
 	backend?: HistoryBackend;
+	contentId?: string;
 };
 
 export type CommandResult = {

@@ -13,6 +13,7 @@ import {
 	OPEN_FILE_TIMELINE_COMMAND,
 	OPEN_MULTI_DIFF_COMMAND,
 	PENDING_RANGE_DIFF_KEY,
+	SNAPSHOT_SCHEME,
 	TIMELINE_PREFERENCES_KEY,
 } from './constants.ts';
 import { resolveHistoryAdapter } from './history-adapters.ts';
@@ -162,15 +163,34 @@ export function activate(context: vscode.ExtensionContext): void {
 		const title = rawArgs?.title?.trim() || `${fileTarget.fileName}: ${base} -> ${target}`;
 
 		try {
-			const originalUri = createSnapshotUri({
+			const adapter = await resolveHistoryAdapter({
+				workspacePath: workspaceUri.fsPath,
+				runner,
+			});
+			const [originalContent, modifiedContent] = await Promise.all([
+				adapter.showFileAtRevision({
+					workspacePath: workspaceUri.fsPath,
+					revset: base,
+					filePath: fileTarget.relativePath,
+				}),
+				adapter.showFileAtRevision({
+					workspacePath: workspaceUri.fsPath,
+					revset: target,
+					filePath: fileTarget.relativePath,
+				}),
+			]);
+
+			const originalUri = provider.createInlineContentUri({
 				workspacePath: workspaceUri.fsPath,
 				revset: base,
 				relativePath: fileTarget.relativePath,
+				content: originalContent,
 			});
-			const modifiedUri = createSnapshotUri({
+			const modifiedUri = provider.createInlineContentUri({
 				workspacePath: workspaceUri.fsPath,
 				revset: target,
 				relativePath: fileTarget.relativePath,
+				content: modifiedContent,
 			});
 
 			await vscode.commands.executeCommand('vscode.diff', originalUri, modifiedUri, title, { preview: true });
@@ -208,13 +228,37 @@ export function deactivate(): void {}
 
 class SnapshotContentProvider implements vscode.TextDocumentContentProvider {
 	private readonly runner;
+	private readonly inlineContent = new Map<string, string>();
 
 	constructor(args: { runner: ReturnType<typeof createCommandRunner> }) {
 		this.runner = args.runner;
 	}
 
+	createInlineContentUri(args: {
+		workspacePath: string;
+		revset: string;
+		relativePath: string;
+		content: string;
+	}): vscode.Uri {
+		const contentId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+		this.inlineContent.set(contentId, args.content);
+		return vscode.Uri.from({
+			scheme: SNAPSHOT_SCHEME,
+			path: `/${args.relativePath}`,
+			query: JSON.stringify({
+				workspacePath: args.workspacePath,
+				filePath: args.relativePath,
+				revset: args.revset,
+				contentId,
+			}),
+		});
+	}
+
 	async provideTextDocumentContent(uri: vscode.Uri): Promise<string> {
 		const query = parseSnapshotUri(uri);
+		if (query.contentId) {
+			return this.inlineContent.get(query.contentId) || '';
+		}
 
 		try {
 			const adapter = await resolveHistoryAdapter({

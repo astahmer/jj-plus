@@ -113,6 +113,7 @@ suite('Revision Timeline integration', () => {
 		if (!workspaceFolder) {
 			throw new Error('expected the integration test workspace to be open');
 		}
+		const expectedBackend = basename(workspaceFolder.uri.fsPath) === 'jj-basic' ? 'jj' : 'git';
 
 		await openWorkspaceFile(workspaceFolder.uri.fsPath, TARGET_RELATIVE_PATH);
 
@@ -125,7 +126,7 @@ suite('Revision Timeline integration', () => {
 		const originalShowInputBox = windowApi.showInputBox;
 		const originalExecuteCommand = commandsApi.executeCommand.bind(commandsApi);
 		const prompts: string[] = [];
-		const inputValues = ['@-', '@'];
+		const inputValues = expectedBackend === 'jj' ? ['@-', '@'] : ['HEAD~1', 'HEAD'];
 		let diffCall:
 			| {
 					originalUri: Uri;
@@ -160,7 +161,10 @@ suite('Revision Timeline integration', () => {
 
 		deepEqual(prompts, ['From change id or revset', 'To change id or revset']);
 		ok(diffCall, 'expected the command to invoke vscode.diff');
-		equal(diffCall?.title, 'lazy-di-rollout-plan.md: @- -> @');
+		equal(
+			diffCall?.title,
+			expectedBackend === 'jj' ? 'lazy-di-rollout-plan.md: @- -> @' : 'lazy-di-rollout-plan.md: HEAD~1 -> HEAD',
+		);
 		equal(diffCall?.originalUri.scheme, 'jj-range-diff');
 		equal(diffCall?.modifiedUri.scheme, 'jj-range-diff');
 
@@ -168,10 +172,17 @@ suite('Revision Timeline integration', () => {
 		const modifiedSnapshot = diffCall ? parseSnapshotUri(diffCall.modifiedUri) : undefined;
 		equal(originalSnapshot?.workspacePath, workspaceFolder.uri.fsPath);
 		equal(originalSnapshot?.filePath, TARGET_RELATIVE_PATH);
-		equal(originalSnapshot?.revset, '@-');
+		equal(originalSnapshot?.revset, expectedBackend === 'jj' ? '@-' : 'HEAD~1');
+		ok(originalSnapshot?.contentId, 'expected the original uri to reference cached content');
 		equal(modifiedSnapshot?.workspacePath, workspaceFolder.uri.fsPath);
 		equal(modifiedSnapshot?.filePath, TARGET_RELATIVE_PATH);
-		equal(modifiedSnapshot?.revset, '@');
+		equal(modifiedSnapshot?.revset, expectedBackend === 'jj' ? '@' : 'HEAD');
+		ok(modifiedSnapshot?.contentId, 'expected the modified uri to reference cached content');
+
+		const originalDocument = await workspace.openTextDocument(diffCall!.originalUri);
+		const modifiedDocument = await workspace.openTextDocument(diffCall!.modifiedUri);
+		ok(originalDocument.getText().length > 0, 'expected the original cached document to contain text');
+		ok(modifiedDocument.getText().length > 0, 'expected the modified cached document to contain text');
 	});
 });
 
