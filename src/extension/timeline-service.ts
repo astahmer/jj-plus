@@ -11,7 +11,7 @@ import type {
 	TimelinePreferences,
 } from '../shared/timeline-types.ts';
 import { MAX_SNAPSHOT_HYDRATION_CHANGES } from './constants.ts';
-import { resolveHistoryAdapter } from './history-adapters.ts';
+import { resolveHistoryAdapter, resolveHistoryWorkspacePath } from './history-adapters.ts';
 import type {
 	CommandRunner,
 	ExtensionTimelineSession,
@@ -133,22 +133,23 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 		workspacePath: string;
 		absolutePath: string;
 	}): Promise<ExtensionTimelineSession> {
-		const relativePath = path.relative(request.workspacePath, request.absolutePath).replace(/\\/g, '/');
-		const adapter = await resolveHistoryAdapter({ workspacePath: request.workspacePath, runner });
-		const workspaceFiles = await listWorkspaceFiles({ adapter, workspacePath: request.workspacePath });
+		const historyWorkspacePath = await resolveHistoryWorkspacePath({ workspacePath: request.workspacePath, runner });
+		const relativePath = path.relative(historyWorkspacePath, request.absolutePath).replace(/\\/g, '/');
+		const adapter = await resolveHistoryAdapter({ workspacePath: historyWorkspacePath, runner });
+		const workspaceFiles = await listWorkspaceFiles({ adapter, workspacePath: historyWorkspacePath });
 		const fileEntries = await adapter.getFileRevisionHistory({
-			workspacePath: request.workspacePath,
+			workspacePath: historyWorkspacePath,
 			relativePath,
 		});
 		const entries = await buildTimelineEntries({
 			adapter,
-			workspacePath: request.workspacePath,
+			workspacePath: historyWorkspacePath,
 			absolutePath: request.absolutePath,
 			relativePath,
 			fileEntries,
 		});
 		const snapshotEntries = adapter.backend === 'jj' ? [] : [...entries];
-		const remoteBaseUrl = await adapter.getRemoteBaseUrl({ workspacePath: request.workspacePath });
+		const remoteBaseUrl = await adapter.getRemoteBaseUrl({ workspacePath: historyWorkspacePath });
 
 		if (remoteBaseUrl) {
 			for (const entry of entries) {
@@ -161,7 +162,7 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 		return {
 			adapter,
 			backend: adapter.backend,
-			workspacePath: request.workspacePath,
+			workspacePath: historyWorkspacePath,
 			absolutePath: request.absolutePath,
 			relativePath,
 			fileName: path.basename(request.absolutePath),

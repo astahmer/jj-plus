@@ -28,6 +28,28 @@ export async function resolveHistoryAdapter(args: {
 	return createGitHistoryAdapter({ runner: args.runner });
 }
 
+export async function resolveHistoryWorkspacePath(args: {
+	workspacePath: string;
+	runner: CommandRunner;
+}): Promise<string> {
+	const { gitRoot, jjRoot } = await resolveRepositoryRoots(args);
+	const preferredBackend = resolvePreferredHistoryBackend({
+		workspacePath: args.workspacePath,
+		gitRoot,
+		jjRoot,
+	});
+
+	if (preferredBackend === 'jj') {
+		return jjRoot || args.workspacePath;
+	}
+
+	if (preferredBackend === 'git') {
+		return gitRoot || args.workspacePath;
+	}
+
+	return args.workspacePath;
+}
+
 async function resolveRepositoryRoots(args: {
 	workspacePath: string;
 	runner: CommandRunner;

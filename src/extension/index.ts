@@ -16,7 +16,7 @@ import {
 	SNAPSHOT_SCHEME,
 	TIMELINE_PREFERENCES_KEY,
 } from './constants.ts';
-import { resolveHistoryAdapter } from './history-adapters.ts';
+import { resolveHistoryAdapter, resolveHistoryWorkspacePath } from './history-adapters.ts';
 import { createTimelinePanelController } from './timeline-panel.ts';
 import { createTimelineService, normalizeTimelinePreferences } from './timeline-service.ts';
 import {
@@ -163,33 +163,45 @@ export function activate(context: vscode.ExtensionContext): void {
 		const title = rawArgs?.title?.trim() || `${fileTarget.fileName}: ${base} -> ${target}`;
 
 		try {
-			const adapter = await resolveHistoryAdapter({
+			const historyWorkspacePath = await resolveHistoryWorkspacePath({
 				workspacePath: workspaceUri.fsPath,
+				runner,
+			});
+			const relativePath = toHistoryRelativePath({
+				historyWorkspacePath,
+				absolutePath: fileTarget.absolutePath,
+			});
+			if (!relativePath) {
+				throw new Error('The selected file is outside the resolved repository root');
+			}
+
+			const adapter = await resolveHistoryAdapter({
+				workspacePath: historyWorkspacePath,
 				runner,
 			});
 			const [originalContent, modifiedContent] = await Promise.all([
 				adapter.showFileAtRevision({
-					workspacePath: workspaceUri.fsPath,
+					workspacePath: historyWorkspacePath,
 					revset: base,
-					filePath: fileTarget.relativePath,
+					filePath: relativePath,
 				}),
 				adapter.showFileAtRevision({
-					workspacePath: workspaceUri.fsPath,
+					workspacePath: historyWorkspacePath,
 					revset: target,
-					filePath: fileTarget.relativePath,
+					filePath: relativePath,
 				}),
 			]);
 
 			const originalUri = provider.createInlineContentUri({
-				workspacePath: workspaceUri.fsPath,
+				workspacePath: historyWorkspacePath,
 				revset: base,
-				relativePath: fileTarget.relativePath,
+				relativePath: relativePath,
 				content: originalContent,
 			});
 			const modifiedUri = provider.createInlineContentUri({
-				workspacePath: workspaceUri.fsPath,
+				workspacePath: historyWorkspacePath,
 				revset: target,
-				relativePath: fileTarget.relativePath,
+				relativePath: relativePath,
 				content: modifiedContent,
 			});
 
@@ -397,6 +409,15 @@ async function createTargetUri(args: {
 		revset: args.revset,
 		relativePath: args.relativePath,
 	});
+}
+
+function toHistoryRelativePath(args: { historyWorkspacePath: string; absolutePath: string }): string | undefined {
+	const relativePath = path.relative(args.historyWorkspacePath, args.absolutePath).replace(/\\/g, '/');
+	if (!relativePath || relativePath.startsWith('..')) {
+		return undefined;
+	}
+
+	return relativePath;
 }
 
 async function resolveFileDiffTarget(args: {

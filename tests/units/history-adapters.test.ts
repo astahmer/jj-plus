@@ -6,7 +6,7 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import test from 'node:test';
 
-import { resolveHistoryAdapter } from '../../src/extension/history-adapters.ts';
+import { resolveHistoryAdapter, resolveHistoryWorkspacePath } from '../../src/extension/history-adapters.ts';
 import type { CommandRunner } from '../../src/extension/types.ts';
 
 const execFileAsync = promisify(execFile);
@@ -252,6 +252,21 @@ test('getFileRevisionHistory follows jj rename history back to creation', async 
 			[...historyDescriptions],
 		);
 		assert.ok(entries.every((entry) => entry.touchesFile));
+	} finally {
+		await rm(repo.workspacePath, { recursive: true, force: true });
+	}
+});
+
+test('resolveHistoryWorkspacePath promotes nested JJ workspaces to the repository root', async () => {
+	const repo = await setupRepository('jj');
+	try {
+		const nestedWorkspacePath = path.join(repo.workspacePath, 'apps', 'backend');
+		const historyWorkspacePath = await resolveHistoryWorkspacePath({
+			workspacePath: nestedWorkspacePath,
+			runner: repo.runner,
+		});
+
+		assert.equal(historyWorkspacePath, repo.workspacePath);
 	} finally {
 		await rm(repo.workspacePath, { recursive: true, force: true });
 	}
