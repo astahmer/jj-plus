@@ -9,6 +9,7 @@ import {
 	EXTENSION_ID,
 	GET_TIMELINE_DEBUG_STATE_COMMAND,
 	HELPER_COMMAND,
+	OPEN_FILE_RANGE_DIFF_COMMAND,
 	OPEN_FILE_TIMELINE_COMMAND,
 	OPEN_MULTI_DIFF_COMMAND,
 	PENDING_RANGE_DIFF_KEY,
@@ -26,6 +27,16 @@ import {
 	sanitizeRangeDiffArgs,
 } from './uri-utils.ts';
 import type { RangeDiffArgs } from './types.ts';
+
+type FileRangeDiffArgs = RangeDiffArgs & {
+	absolutePath?: string;
+};
+
+type WorkspaceFileTarget = {
+	absolutePath: string;
+	relativePath: string;
+	fileName: string;
+};
 
 export function activate(context: vscode.ExtensionContext): void {
 	const outputChannel = vscode.window.createOutputChannel('JJ Range Diff');
@@ -102,10 +113,78 @@ export function activate(context: vscode.ExtensionContext): void {
 		}
 	};
 
+	const openFileRangeDiff = async (rawArgs?: FileRangeDiffArgs) => {
+		if (rawArgs?.verbose) {
+			outputChannel.show(true);
+		}
+
+		const workspaceUri = await resolveWorkspaceUri({ context, args: rawArgs });
+		if (workspaceUri === 'redirected') {
+			return;
+		}
+
+		if (!workspaceUri) {
+			void vscode.window.showErrorMessage('No workspace folder available');
+			return;
+		}
+
+		const fileTarget = await resolveFileDiffTarget({
+			workspaceUri,
+			absolutePath: rawArgs?.absolutePath,
+		});
+		if (!fileTarget) {
+			void vscode.window.showErrorMessage('No workspace file available from the active editor or open tabs');
+			return;
+		}
+
+		const base = shouldPromptForInputs(rawArgs)
+			? await resolveInput({
+					value: getFromValue(rawArgs),
+					prompt: 'From change id or revset',
+					placeHolder: DEFAULT_FROM_REVSET,
+				})
+			: getFromValue(rawArgs);
+		if (!base) {
+			return;
+		}
+
+		const target = shouldPromptForInputs(rawArgs)
+			? await resolveInput({
+					value: getToValue(rawArgs),
+					prompt: 'To change id or revset',
+					placeHolder: DEFAULT_TO_REVSET,
+				})
+			: getToValue(rawArgs);
+		if (!target) {
+			return;
+		}
+
+		const title = rawArgs?.title?.trim() || `${fileTarget.fileName}: ${base} -> ${target}`;
+
+		try {
+			const originalUri = createSnapshotUri({
+				workspacePath: workspaceUri.fsPath,
+				revset: base,
+				relativePath: fileTarget.relativePath,
+			});
+			const modifiedUri = await createTargetUri({
+				workspacePath: workspaceUri.fsPath,
+				revset: target,
+				relativePath: fileTarget.relativePath,
+			});
+
+			await vscode.commands.executeCommand('vscode.diff', originalUri, modifiedUri, title, { preview: true });
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			void vscode.window.showErrorMessage(`Failed to open file diff: ${message}`);
+		}
+	};
+
 	context.subscriptions.push(
 		outputChannel,
 		vscode.workspace.registerTextDocumentContentProvider('jj-range-diff', provider),
 		vscode.commands.registerCommand(HELPER_COMMAND, openRangeMultiDiff),
+		vscode.commands.registerCommand(OPEN_FILE_RANGE_DIFF_COMMAND, openFileRangeDiff),
 		vscode.commands.registerCommand(OPEN_FILE_TIMELINE_COMMAND, (absolutePath?: string) =>
 			panelController.openFileRevisionTimeline({ context, absolutePath }),
 		),
@@ -274,6 +353,130 @@ async function createTargetUri(args: {
 		revset: args.revset,
 		relativePath: args.relativePath,
 	});
+}
+
+async function resolveFileDiffTarget(args: {
+	workspaceUri: vscode.Uri;
+	absolutePath?: string;
+}): Promise<WorkspaceFileTarget | undefined> {
+	const explicitTarget = getWorkspaceFileTargetFromAbsolutePath(args);
+	if (explicitTarget) {
+		return explicitTarget;
+	}
+
+	const activeEditorTarget = getActiveWorkspaceFileTarget(args.workspaceUri);
+	if (activeEditorTarget) {
+		return activeEditorTarget;
+	}
+
+	return pickOpenWorkspaceFileTarget(args.workspaceUri);
+}
+
+function getWorkspaceFileTargetFromAbsolutePath(args: {
+	workspaceUri: vscode.Uri;
+	absolutePath?: string;
+}): WorkspaceFileTarget | undefined {
+	const trimmedPath = args.absolutePath?.trim();
+	if (!trimmedPath) {
+		return undefined;
+	}
+
+	return toWorkspaceFileTarget({
+		workspaceUri: args.workspaceUri,
+		fileUri: vscode.Uri.file(trimmedPath),
+	});
+}
+
+function getActiveWorkspaceFileTarget(workspaceUri: vscode.Uri): WorkspaceFileTarget | undefined {
+	const activeEditor = vscode.window.activeTextEditor;
+	if (!activeEditor) {
+		return undefined;
+	}
+
+	return toWorkspaceFileTarget({
+		workspaceUri,
+		fileUri: activeEditor.document.uri,
+	});
+}
+
+async function pickOpenWorkspaceFileTarget(workspaceUri: vscode.Uri): Promise<WorkspaceFileTarget | undefined> {
+	const candidates = getOpenWorkspaceFileTargets(workspaceUri);
+	if (!candidates.length) {
+		return undefined;
+	}
+
+	const selection = await vscode.window.showQuickPick(
+		candidates.map((candidate) => ({
+			label: candidate.fileName,
+			description: candidate.relativePath,
+			detail: path.dirname(candidate.relativePath) === '.' ? undefined : path.dirname(candidate.relativePath),
+			target: candidate,
+		})),
+		{
+			placeHolder: 'Select a workspace file to diff between revisions',
+		},
+	);
+
+	return selection?.target;
+}
+
+function getOpenWorkspaceFileTargets(workspaceUri: vscode.Uri): WorkspaceFileTarget[] {
+	const candidates: WorkspaceFileTarget[] = [];
+	const seenPaths = new Set<string>();
+
+	for (const group of vscode.window.tabGroups?.all || []) {
+		for (const tab of group.tabs) {
+			const uri = getTabUri(tab);
+			if (!uri || uri.scheme !== 'file') {
+				continue;
+			}
+
+			const absolutePath = uri.fsPath;
+			if (seenPaths.has(absolutePath)) {
+				continue;
+			}
+
+			const target = toWorkspaceFileTarget({ workspaceUri, fileUri: uri });
+			if (!target) {
+				continue;
+			}
+
+			seenPaths.add(absolutePath);
+			candidates.push(target);
+		}
+	}
+
+	return candidates;
+}
+
+function toWorkspaceFileTarget(args: {
+	workspaceUri: vscode.Uri;
+	fileUri: vscode.Uri;
+}): WorkspaceFileTarget | undefined {
+	if (args.fileUri.scheme !== 'file') {
+		return undefined;
+	}
+
+	const workspaceFolder = vscode.workspace.getWorkspaceFolder(args.fileUri);
+	if (!workspaceFolder || !areSamePath({ left: workspaceFolder.uri.fsPath, right: args.workspaceUri.fsPath })) {
+		return undefined;
+	}
+
+	const relativePath = path.relative(args.workspaceUri.fsPath, args.fileUri.fsPath).replace(/\\/g, '/');
+	if (!relativePath || relativePath.startsWith('..')) {
+		return undefined;
+	}
+
+	return {
+		absolutePath: args.fileUri.fsPath,
+		relativePath,
+		fileName: path.basename(args.fileUri.fsPath),
+	};
+}
+
+function getTabUri(tab: vscode.Tab): vscode.Uri | undefined {
+	const input = tab.input as { uri?: vscode.Uri } | undefined;
+	return input?.uri;
 }
 
 async function resolveWorkspaceUri(args: {

@@ -1,5 +1,6 @@
 export const EXTENSION_ID = 'astahmer.jj-range-diff';
 export const HELPER_COMMAND = 'jj-range-diff.openRangeMultiDiff';
+export const OPEN_FILE_RANGE_DIFF_COMMAND = 'jj-range-diff.openFileRangeDiff';
 export const OPEN_FILE_TIMELINE_COMMAND = 'jj-range-diff.openFileRevisionTimeline';
 export const GET_TIMELINE_DEBUG_STATE_COMMAND = 'jj-range-diff._debug.getTimelineState';
 export const OPEN_RANGE_DIFF_URI_PATH = '/open-range-multi-diff';

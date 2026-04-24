@@ -68,6 +68,10 @@
 				"title": "JJ: Open Range Multi Diff"
 			},
 			{
+				"command": "jj-range-diff.openFileRangeDiff",
+				"title": "JJ: Open File Diff Between Revisions"
+			},
+			{
 				"command": "jj-range-diff.openFileRevisionTimeline",
 				"title": "JJ: Open File Revision Timeline"
 			}

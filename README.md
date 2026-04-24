@@ -60,6 +60,7 @@ pnpm build:webview
 ## Revision Timeline
 
 `JJ: Open File Revision Timeline` opens a custom webview panel for the active file.
+`JJ: Open File Diff Between Revisions` prompts for `from` and `to` revisions, then opens a regular VS Code diff for just the active file.
 
 - Scrub across file revisions using the timeline slider
 - Filter the visible window with `This month`, `Last 7D`, `30D`, `90D`, and `All`
