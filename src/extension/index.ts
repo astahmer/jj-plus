@@ -167,7 +167,7 @@ export function activate(context: vscode.ExtensionContext): void {
 				revset: base,
 				relativePath: fileTarget.relativePath,
 			});
-			const modifiedUri = await createTargetUri({
+			const modifiedUri = createSnapshotUri({
 				workspacePath: workspaceUri.fsPath,
 				revset: target,
 				relativePath: fileTarget.relativePath,

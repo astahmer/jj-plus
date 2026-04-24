@@ -125,7 +125,7 @@ suite('Revision Timeline integration', () => {
 		const originalShowInputBox = windowApi.showInputBox;
 		const originalExecuteCommand = commandsApi.executeCommand.bind(commandsApi);
 		const prompts: string[] = [];
-		const inputValues = ['rev-from', 'rev-to'];
+		const inputValues = ['@-', '@'];
 		let diffCall:
 			| {
 					originalUri: Uri;
@@ -160,7 +160,7 @@ suite('Revision Timeline integration', () => {
 
 		deepEqual(prompts, ['From change id or revset', 'To change id or revset']);
 		ok(diffCall, 'expected the command to invoke vscode.diff');
-		equal(diffCall?.title, 'lazy-di-rollout-plan.md: rev-from -> rev-to');
+		equal(diffCall?.title, 'lazy-di-rollout-plan.md: @- -> @');
 		equal(diffCall?.originalUri.scheme, 'jj-range-diff');
 		equal(diffCall?.modifiedUri.scheme, 'jj-range-diff');
 
@@ -168,10 +168,10 @@ suite('Revision Timeline integration', () => {
 		const modifiedSnapshot = diffCall ? parseSnapshotUri(diffCall.modifiedUri) : undefined;
 		equal(originalSnapshot?.workspacePath, workspaceFolder.uri.fsPath);
 		equal(originalSnapshot?.filePath, TARGET_RELATIVE_PATH);
-		equal(originalSnapshot?.revset, 'rev-from');
+		equal(originalSnapshot?.revset, '@-');
 		equal(modifiedSnapshot?.workspacePath, workspaceFolder.uri.fsPath);
 		equal(modifiedSnapshot?.filePath, TARGET_RELATIVE_PATH);
-		equal(modifiedSnapshot?.revset, 'rev-to');
+		equal(modifiedSnapshot?.revset, '@');
 	});
 });
 
