@@ -1,10 +1,10 @@
 import { resolve } from 'node:path';
 import { defineConfig } from 'vite';
-import solid from 'vite-plugin-solid';
+import { foldkit } from '@foldkit/vite-plugin';
 
 export default defineConfig({
 	root: resolve(process.cwd(), 'webview'),
-	plugins: [solid()],
+	plugins: [foldkit()],
 	server: {
 		port: 4173,
 	},

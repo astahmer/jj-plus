@@ -36,7 +36,7 @@ export type DiffRow = SharedDiffRow & {
 };
 
 export type DiffPreview = Omit<SharedDiffPreview, 'rows'> & {
-	rows: Array<DiffRow>;
+	rows: DiffRow[];
 };
 
 export type FileRevisionEntry = Omit<SharedFileRevisionEntry, 'index'> & {
@@ -44,8 +44,8 @@ export type FileRevisionEntry = Omit<SharedFileRevisionEntry, 'index'> & {
 };
 
 export type TimelineData = Omit<SharedTimelineData, 'entries' | 'snapshotEntries'> & {
-	entries: Array<FileRevisionEntry>;
-	snapshotEntries: Array<FileRevisionEntry>;
+	entries: FileRevisionEntry[];
+	snapshotEntries: FileRevisionEntry[];
 };
 
 export type TimelineInboundMessage =
@@ -58,8 +58,8 @@ export type TimelineInboundMessage =
 				fromIndex: number;
 				toIndex: number;
 				comparisonSource: ComparisonSource;
-				selectedEntryIndexes?: Array<number>;
-				items: Array<RangeOverviewItem>;
+				selectedEntryIndexes?: number[];
+				items: RangeOverviewItem[];
 			};
 	  }
 	| {

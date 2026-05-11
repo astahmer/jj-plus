@@ -1,0 +1,3 @@
+| Name    | URL                                | Path                  | Why                                                                                                                                 |
+| ------- | ---------------------------------- | --------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| foldkit | https://github.com/foldkit/foldkit | ~/.references/foldkit | Foldkit TEA patterns, Machine from foldkit/experimental, checkout-machine + AsyncData/Command examples for timeline webview rewrite |

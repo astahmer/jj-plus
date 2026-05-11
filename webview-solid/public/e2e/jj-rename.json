@@ -1,0 +1,488 @@
+{
+	"timelineData": {
+		"backend": "jj",
+		"workspacePath": "/Users/astahmer/dev/alex/visualjj-range-diff-helper/.e2e-runtime/repos/jj-rename",
+		"relativePath": "apps/backend/src/commitments/commitment.entity.ts",
+		"fileName": "commitment.entity.ts",
+		"version": "0.0.2",
+		"presets": {
+			"year": 365,
+			"7d": 7,
+			"30d": 30,
+			"90d": 90,
+			"all": null
+		},
+		"defaultIndex": 2,
+		"latestIndex": 2,
+		"preferences": {
+			"sidebarWidth": 280,
+			"layoutMode": "split",
+			"contentMode": "diffs",
+			"comparisonMode": "range",
+			"comparisonSource": "revision",
+			"preset": "90d",
+			"showIntermediateRevisions": true
+		},
+		"workspaceFiles": ["apps/backend/src/commitments/commitment.entity.ts"],
+		"hasIntermediateRevisions": false,
+		"entries": [
+			{
+				"id": "70dcdf1fd317",
+				"index": 0,
+				"revision": "70dcdf1fd317",
+				"shortRevision": "y",
+				"changeId": "y",
+				"authorDate": "2026-04-08T10:00:00+00:00",
+				"authorName": "Fixture User",
+				"description": "initial commitment file",
+				"isWorkingTree": false,
+				"touchesFile": true,
+				"timestamp": 1775642400000,
+				"filePath": "packages/backend/src/commitments/commitment.entity.ts",
+				"monthLabel": "April",
+				"shortDate": "Apr 8, 2026",
+				"relativeDate": "3 days ago",
+				"hasPreviousEntry": false,
+				"remoteUrl": "https://github.com/astahmer/visualjj-range-diff-helper/commit/70dcdf1fd317"
+			},
+			{
+				"id": "7b347d7911aa",
+				"index": 1,
+				"revision": "7b347d7911aa",
+				"shortRevision": "k",
+				"changeId": "k",
+				"authorDate": "2026-04-09T10:00:00+00:00",
+				"authorName": "Fixture User",
+				"description": "rename packages to apps",
+				"isWorkingTree": false,
+				"touchesFile": true,
+				"timestamp": 1775728800000,
+				"filePath": "packages/backend/src/commitments/commitment.entity.ts",
+				"monthLabel": "April",
+				"shortDate": "Apr 9, 2026",
+				"relativeDate": "2 days ago",
+				"hasPreviousEntry": true,
+				"remoteUrl": "https://github.com/astahmer/visualjj-range-diff-helper/commit/7b347d7911aa"
+			},
+			{
+				"id": "50333204942a",
+				"index": 2,
+				"revision": "50333204942a",
+				"shortRevision": "v",
+				"changeId": "v",
+				"bookmarkNames": ["main"],
+				"authorDate": "2026-04-10T10:00:00+00:00",
+				"authorName": "Fixture User",
+				"description": "update commitment after rename",
+				"isWorkingTree": false,
+				"touchesFile": true,
+				"timestamp": 1775815200000,
+				"filePath": "apps/backend/src/commitments/commitment.entity.ts",
+				"monthLabel": "April",
+				"shortDate": "Apr 10, 2026",
+				"relativeDate": "yesterday",
+				"hasPreviousEntry": true,
+				"remoteUrl": "https://github.com/astahmer/visualjj-range-diff-helper/commit/50333204942a"
+			}
+		],
+		"snapshotEntries": [],
+		"snapshotState": {
+			"loadedChangeIds": []
+		}
+	},
+	"previews": {
+		"revision": {
+			"0:1": {
+				"index": 1,
+				"title": "y -> k",
+				"subtitle": "4/9/2026, 12:00:00 PM · rename packages to apps",
+				"diffCount": 0,
+				"additions": 0,
+				"deletions": 1,
+				"hunkCount": 1,
+				"hasChanges": true,
+				"fromIndex": 0,
+				"toIndex": 1,
+				"comparisonSource": "revision",
+				"rows": [
+					{
+						"type": "remove",
+						"leftNumber": 1,
+						"rightNumber": null,
+						"text": "export const commitmentStatus = 'initial';"
+					}
+				],
+				"nonTextualDetails": []
+			},
+			"0:2": {
+				"index": 2,
+				"title": "y -> v",
+				"subtitle": "4/10/2026, 12:00:00 PM · update commitment after rename",
+				"diffCount": 0,
+				"additions": 1,
+				"deletions": 1,
+				"hunkCount": 1,
+				"hasChanges": true,
+				"fromIndex": 0,
+				"toIndex": 2,
+				"comparisonSource": "revision",
+				"rows": [
+					{
+						"type": "remove",
+						"leftNumber": 1,
+						"rightNumber": null,
+						"text": "export const commitmentStatus = 'initial';"
+					},
+					{
+						"type": "add",
+						"leftNumber": null,
+						"rightNumber": 1,
+						"text": "export const commitmentStatus = 'updated';"
+					}
+				],
+				"nonTextualDetails": []
+			},
+			"1:2": {
+				"index": 2,
+				"title": "k -> v",
+				"subtitle": "4/10/2026, 12:00:00 PM · update commitment after rename",
+				"diffCount": 0,
+				"additions": 1,
+				"deletions": 0,
+				"hunkCount": 1,
+				"hasChanges": true,
+				"fromIndex": 1,
+				"toIndex": 2,
+				"comparisonSource": "revision",
+				"rows": [
+					{
+						"type": "add",
+						"leftNumber": null,
+						"rightNumber": 1,
+						"text": "export const commitmentStatus = 'updated';"
+					}
+				],
+				"nonTextualDetails": []
+			}
+		},
+		"snapshot": {
+			"0:1": {
+				"index": 1,
+				"title": "y -> k",
+				"subtitle": "4/9/2026, 12:00:00 PM · rename packages to apps",
+				"diffCount": 0,
+				"additions": 0,
+				"deletions": 1,
+				"hunkCount": 1,
+				"hasChanges": true,
+				"fromIndex": 0,
+				"toIndex": 1,
+				"comparisonSource": "snapshot",
+				"rows": [
+					{
+						"type": "remove",
+						"leftNumber": 1,
+						"rightNumber": null,
+						"text": "export const commitmentStatus = 'initial';"
+					}
+				],
+				"nonTextualDetails": []
+			},
+			"0:2": {
+				"index": 2,
+				"title": "y -> v",
+				"subtitle": "4/10/2026, 12:00:00 PM · update commitment after rename",
+				"diffCount": 0,
+				"additions": 1,
+				"deletions": 1,
+				"hunkCount": 1,
+				"hasChanges": true,
+				"fromIndex": 0,
+				"toIndex": 2,
+				"comparisonSource": "snapshot",
+				"rows": [
+					{
+						"type": "remove",
+						"leftNumber": 1,
+						"rightNumber": null,
+						"text": "export const commitmentStatus = 'initial';"
+					},
+					{
+						"type": "add",
+						"leftNumber": null,
+						"rightNumber": 1,
+						"text": "export const commitmentStatus = 'updated';"
+					}
+				],
+				"nonTextualDetails": []
+			},
+			"1:2": {
+				"index": 2,
+				"title": "k -> v",
+				"subtitle": "4/10/2026, 12:00:00 PM · update commitment after rename",
+				"diffCount": 0,
+				"additions": 1,
+				"deletions": 0,
+				"hunkCount": 1,
+				"hasChanges": true,
+				"fromIndex": 1,
+				"toIndex": 2,
+				"comparisonSource": "snapshot",
+				"rows": [
+					{
+						"type": "add",
+						"leftNumber": null,
+						"rightNumber": 1,
+						"text": "export const commitmentStatus = 'updated';"
+					}
+				],
+				"nonTextualDetails": []
+			}
+		}
+	},
+	"files": {
+		"apps/backend/src/commitments/commitment.entity.ts": {
+			"timelineData": {
+				"backend": "jj",
+				"workspacePath": "/Users/astahmer/dev/alex/visualjj-range-diff-helper/.e2e-runtime/repos/jj-rename",
+				"relativePath": "apps/backend/src/commitments/commitment.entity.ts",
+				"fileName": "commitment.entity.ts",
+				"version": "0.0.2",
+				"presets": {
+					"year": 365,
+					"7d": 7,
+					"30d": 30,
+					"90d": 90,
+					"all": null
+				},
+				"defaultIndex": 2,
+				"latestIndex": 2,
+				"preferences": {
+					"sidebarWidth": 280,
+					"layoutMode": "split",
+					"contentMode": "diffs",
+					"comparisonMode": "range",
+					"comparisonSource": "revision",
+					"preset": "90d",
+					"showIntermediateRevisions": true
+				},
+				"workspaceFiles": ["apps/backend/src/commitments/commitment.entity.ts"],
+				"hasIntermediateRevisions": false,
+				"entries": [
+					{
+						"id": "70dcdf1fd317",
+						"index": 0,
+						"revision": "70dcdf1fd317",
+						"shortRevision": "y",
+						"changeId": "y",
+						"authorDate": "2026-04-08T10:00:00+00:00",
+						"authorName": "Fixture User",
+						"description": "initial commitment file",
+						"isWorkingTree": false,
+						"touchesFile": true,
+						"timestamp": 1775642400000,
+						"filePath": "packages/backend/src/commitments/commitment.entity.ts",
+						"monthLabel": "April",
+						"shortDate": "Apr 8, 2026",
+						"relativeDate": "3 days ago",
+						"hasPreviousEntry": false,
+						"remoteUrl": "https://github.com/astahmer/visualjj-range-diff-helper/commit/70dcdf1fd317"
+					},
+					{
+						"id": "7b347d7911aa",
+						"index": 1,
+						"revision": "7b347d7911aa",
+						"shortRevision": "k",
+						"changeId": "k",
+						"authorDate": "2026-04-09T10:00:00+00:00",
+						"authorName": "Fixture User",
+						"description": "rename packages to apps",
+						"isWorkingTree": false,
+						"touchesFile": true,
+						"timestamp": 1775728800000,
+						"filePath": "packages/backend/src/commitments/commitment.entity.ts",
+						"monthLabel": "April",
+						"shortDate": "Apr 9, 2026",
+						"relativeDate": "2 days ago",
+						"hasPreviousEntry": true,
+						"remoteUrl": "https://github.com/astahmer/visualjj-range-diff-helper/commit/7b347d7911aa"
+					},
+					{
+						"id": "50333204942a",
+						"index": 2,
+						"revision": "50333204942a",
+						"shortRevision": "v",
+						"changeId": "v",
+						"bookmarkNames": ["main"],
+						"authorDate": "2026-04-10T10:00:00+00:00",
+						"authorName": "Fixture User",
+						"description": "update commitment after rename",
+						"isWorkingTree": false,
+						"touchesFile": true,
+						"timestamp": 1775815200000,
+						"filePath": "apps/backend/src/commitments/commitment.entity.ts",
+						"monthLabel": "April",
+						"shortDate": "Apr 10, 2026",
+						"relativeDate": "yesterday",
+						"hasPreviousEntry": true,
+						"remoteUrl": "https://github.com/astahmer/visualjj-range-diff-helper/commit/50333204942a"
+					}
+				],
+				"snapshotEntries": [],
+				"snapshotState": {
+					"loadedChangeIds": []
+				}
+			},
+			"previews": {
+				"revision": {
+					"0:1": {
+						"index": 1,
+						"title": "y -> k",
+						"subtitle": "4/9/2026, 12:00:00 PM · rename packages to apps",
+						"diffCount": 0,
+						"additions": 0,
+						"deletions": 1,
+						"hunkCount": 1,
+						"hasChanges": true,
+						"fromIndex": 0,
+						"toIndex": 1,
+						"comparisonSource": "revision",
+						"rows": [
+							{
+								"type": "remove",
+								"leftNumber": 1,
+								"rightNumber": null,
+								"text": "export const commitmentStatus = 'initial';"
+							}
+						],
+						"nonTextualDetails": []
+					},
+					"0:2": {
+						"index": 2,
+						"title": "y -> v",
+						"subtitle": "4/10/2026, 12:00:00 PM · update commitment after rename",
+						"diffCount": 0,
+						"additions": 1,
+						"deletions": 1,
+						"hunkCount": 1,
+						"hasChanges": true,
+						"fromIndex": 0,
+						"toIndex": 2,
+						"comparisonSource": "revision",
+						"rows": [
+							{
+								"type": "remove",
+								"leftNumber": 1,
+								"rightNumber": null,
+								"text": "export const commitmentStatus = 'initial';"
+							},
+							{
+								"type": "add",
+								"leftNumber": null,
+								"rightNumber": 1,
+								"text": "export const commitmentStatus = 'updated';"
+							}
+						],
+						"nonTextualDetails": []
+					},
+					"1:2": {
+						"index": 2,
+						"title": "k -> v",
+						"subtitle": "4/10/2026, 12:00:00 PM · update commitment after rename",
+						"diffCount": 0,
+						"additions": 1,
+						"deletions": 0,
+						"hunkCount": 1,
+						"hasChanges": true,
+						"fromIndex": 1,
+						"toIndex": 2,
+						"comparisonSource": "revision",
+						"rows": [
+							{
+								"type": "add",
+								"leftNumber": null,
+								"rightNumber": 1,
+								"text": "export const commitmentStatus = 'updated';"
+							}
+						],
+						"nonTextualDetails": []
+					}
+				},
+				"snapshot": {
+					"0:1": {
+						"index": 1,
+						"title": "y -> k",
+						"subtitle": "4/9/2026, 12:00:00 PM · rename packages to apps",
+						"diffCount": 0,
+						"additions": 0,
+						"deletions": 1,
+						"hunkCount": 1,
+						"hasChanges": true,
+						"fromIndex": 0,
+						"toIndex": 1,
+						"comparisonSource": "snapshot",
+						"rows": [
+							{
+								"type": "remove",
+								"leftNumber": 1,
+								"rightNumber": null,
+								"text": "export const commitmentStatus = 'initial';"
+							}
+						],
+						"nonTextualDetails": []
+					},
+					"0:2": {
+						"index": 2,
+						"title": "y -> v",
+						"subtitle": "4/10/2026, 12:00:00 PM · update commitment after rename",
+						"diffCount": 0,
+						"additions": 1,
+						"deletions": 1,
+						"hunkCount": 1,
+						"hasChanges": true,
+						"fromIndex": 0,
+						"toIndex": 2,
+						"comparisonSource": "snapshot",
+						"rows": [
+							{
+								"type": "remove",
+								"leftNumber": 1,
+								"rightNumber": null,
+								"text": "export const commitmentStatus = 'initial';"
+							},
+							{
+								"type": "add",
+								"leftNumber": null,
+								"rightNumber": 1,
+								"text": "export const commitmentStatus = 'updated';"
+							}
+						],
+						"nonTextualDetails": []
+					},
+					"1:2": {
+						"index": 2,
+						"title": "k -> v",
+						"subtitle": "4/10/2026, 12:00:00 PM · update commitment after rename",
+						"diffCount": 0,
+						"additions": 1,
+						"deletions": 0,
+						"hunkCount": 1,
+						"hasChanges": true,
+						"fromIndex": 1,
+						"toIndex": 2,
+						"comparisonSource": "snapshot",
+						"rows": [
+							{
+								"type": "add",
+								"leftNumber": null,
+								"rightNumber": 1,
+								"text": "export const commitmentStatus = 'updated';"
+							}
+						],
+						"nonTextualDetails": []
+					}
+				}
+			}
+		}
+	}
+}

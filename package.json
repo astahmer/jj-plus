@@ -21,7 +21,6 @@
 	"main": "./dist/extension/index.cjs",
 	"scripts": {
 		"bddgen": "bddgen",
-		"pkg": "bun build src/bin.ts --compile --outfile jjdiff ",
 		"build": "pnpm build:extension && pnpm build:webview && pnpm vsce package --skip-license --no-dependencies",
 		"build:extension": "tsdown",
 		"build:integration": "tsdown --config ./tests/vscode/tsdown.config.ts",
@@ -33,6 +32,7 @@
 		"lint:fix": "pnpm lint:ox --fix && pnpm lint:knip --fix",
 		"lint:knip": "knip",
 		"lint:ox": "oxlint .",
+		"pkg": "bun build src/bin.ts --compile --outfile jjdiff ",
 		"test": "node --test tests/units/**/*.test.ts",
 		"test:all": "pnpm test && pnpm test:e2e && pnpm test:integration",
 		"test:e2e": "pnpm build:extension && pnpm fixtures:e2e && pnpm bddgen && playwright test",
@@ -43,9 +43,12 @@
 		"watch": "pnpm build:extension --watch"
 	},
 	"dependencies": {
-		"solid-js": "1.9.12"
+		"@effect/platform-browser": "4.0.0-beta.97",
+		"effect": "4.0.0-beta.97",
+		"foldkit": "0.130.0"
 	},
 	"devDependencies": {
+		"@foldkit/vite-plugin": "0.11.0",
 		"@playwright/test": "1.59.1",
 		"@types/mocha": "10.0.10",
 		"@types/node": "25.6.0",
@@ -59,8 +62,7 @@
 		"playwright-bdd": "8.5.0",
 		"tsdown": "0.15.4",
 		"typescript": "6.0.2",
-		"vite": "8.0.8",
-		"vite-plugin-solid": "2.11.12"
+		"vite": "8.0.8"
 	},
 	"contributes": {
 		"commands": [

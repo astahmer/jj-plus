@@ -1,0 +1,284 @@
+import { html, type Html } from 'foldkit/html';
+import type { Message } from '../messages.ts';
+import {
+	ClickedCancelActiveRequest,
+	ClickedOpenCurrentFile,
+	ClickedOpenEditorDiff,
+	ClickedOpenSelectionDiffs,
+	ClickedRefreshTimeline,
+	ClickedResetPreferences,
+	ClickedToggleActionsMenu,
+	ClickedToggleHotkeys,
+	ClickedToggleSidebar,
+	ClickedToggleSidebarFromMenu,
+	ClickedToggleTimelinePane,
+	SelectedFileSwitcherMode,
+	SubmittedFileSwitcher,
+} from '../messages.ts';
+import type { Model } from '../model.ts';
+import {
+	getActiveRangeOverviewItems,
+	getRangeLabel,
+	getRangeOverviewLoading,
+	getRangeSubtitle,
+	getSelectionDiffCount,
+	getShowSnapshotStatus,
+	getSnapshotStatusLabel,
+	getStepStatus,
+	getVersion,
+} from '../selectors.ts';
+import { combobox, type ComboboxOption } from './combobox.ts';
+import { hotkeysPopover } from './hotkeys.ts';
+import { timelineControls } from './timeline-controls.ts';
+import { timelineRevisionPickers } from './timeline-revision-pickers.ts';
+import { timelineTrack } from './timeline-track.ts';
+
+function overviewSummary(model: Model): string {
+	if (model.fileSwitcherMode !== 'overview') {
+		return '';
+	}
+	if (getRangeOverviewLoading(model)) {
+		return 'Scanning selected revisions...';
+	}
+	const itemCount = getActiveRangeOverviewItems(model).length;
+	if (!itemCount) {
+		return 'No changed files in the current range';
+	}
+	return `${itemCount} ${itemCount === 1 ? 'file' : 'files'} in the current range`;
+}
+
+function fileOptions(model: Model): Array<ComboboxOption> {
+	if (model.fileSwitcherMode === 'overview') {
+		return getActiveRangeOverviewItems(model).map((item) => ({
+			value: item.relativePath,
+			description: `${item.changeCount} touched ${item.changeCount === 1 ? 'revision' : 'revisions'}${item.isCurrentFile ? ' · current file' : ''}`,
+		}));
+	}
+	const data = model.data as { workspaceFiles?: Array<string> } | null;
+	return (data?.workspaceFiles || []).map((value) => ({ value }));
+}
+
+export function timelinePane(model: Model): Html {
+	const h = html<Message>();
+	const stepStatus = getStepStatus(model);
+	const showSnapshot = getShowSnapshotStatus(model);
+	const showStepStatusRow = Boolean(stepStatus) || showSnapshot;
+	const selectionDiffCount = getSelectionDiffCount(model);
+	const openSelectionDiffsLabel = selectionDiffCount === null ? 'Open diffs' : `Open diffs (${selectionDiffCount})`;
+	const fileSwitcherPlaceholder =
+		model.fileSwitcherMode === 'overview' ? 'Jump to a top-changed file...' : 'Switch file...';
+	const collapseLabel = model.timelinePaneCollapsed ? 'Expand timeline' : 'Collapse timeline';
+
+	return h.div(
+		[h.Class(`timeline-pane${model.timelinePaneCollapsed ? ' is-collapsed' : ''}`), h.Id('timelinePane')],
+		[
+			h.div(
+				[h.Class('timeline-pane-head')],
+				[
+					h.button(
+						[
+							h.Class(`sidebar-toggle-button${model.sidebarCollapsed ? ' is-collapsed' : ''}`),
+							h.Id('sidebarToggleButton'),
+							h.Type('button'),
+							h.AriaLabel('Toggle sidebar'),
+							h.OnClick(ClickedToggleSidebar()),
+						],
+						[model.sidebarCollapsed ? '▸' : '◂'],
+					),
+					h.div(
+						[h.Class('timeline-pane-title')],
+						[
+							h.div([h.Class('eyebrow')], ['Revision Timeline']),
+							h.span([h.Class('version-badge')], [getVersion(model)]),
+						],
+					),
+					h.div(
+						[h.Class('timeline-head-summary')],
+						[
+							h.div([h.Class('range-label')], [getRangeLabel(model)]),
+							h.div([h.Class('range-subtitle')], [getRangeSubtitle(model)]),
+						],
+					),
+					h.button(
+						[
+							h.Class('collapse-button'),
+							h.Id('toggleTimelinePaneButton'),
+							h.Type('button'),
+							h.OnClick(ClickedToggleTimelinePane()),
+						],
+						[collapseLabel],
+					),
+				],
+			),
+			h.div(
+				[h.Class('diff-head'), h.Id('timelineChrome')],
+				[
+					h.div(
+						[h.Class('diff-head-top')],
+						[
+							h.div(
+								[h.Class('file-switcher-row')],
+								[
+									h.div(
+										[h.Class('file-switcher-toolbar')],
+										[
+											h.div(
+												[h.Class('file-switcher-modes'), h.Role('tablist'), h.AriaLabel('File switcher mode')],
+												[
+													h.button(
+														[
+															h.Class(`toggle-chip${model.fileSwitcherMode === 'workspace' ? ' active' : ''}`),
+															h.Type('button'),
+															h.OnClick(SelectedFileSwitcherMode({ value: 'workspace' })),
+														],
+														['All files'],
+													),
+													h.button(
+														[
+															h.Class(`toggle-chip${model.fileSwitcherMode === 'overview' ? ' active' : ''}`),
+															h.Type('button'),
+															h.OnClick(SelectedFileSwitcherMode({ value: 'overview' })),
+														],
+														['Top changed'],
+													),
+												],
+											),
+											model.fileSwitcherMode === 'overview'
+												? h.div(
+														[h.Class(`file-switcher-summary${getRangeOverviewLoading(model) ? ' is-loading' : ''}`)],
+														[overviewSummary(model)],
+													)
+												: h.empty,
+										],
+									),
+									combobox({
+										id: 'fileSwitcher',
+										inputClass: 'file-input',
+										value: model.fileInputValue,
+										placeholder: fileSwitcherPlaceholder,
+										options: fileOptions(model),
+										onSubmit: (value) => SubmittedFileSwitcher({ value }),
+									}),
+								],
+							),
+							h.div(
+								[h.Class('head-actions')],
+								[
+									h.button(
+										[
+											h.Class('menu-button'),
+											h.Id('toggleHotkeysButton'),
+											h.Type('button'),
+											h.AriaLabel('Show hotkeys'),
+											h.OnClick(ClickedToggleHotkeys()),
+										],
+										['?'],
+									),
+									h.div(
+										[h.Class('menu-wrap')],
+										[
+											h.button(
+												[
+													h.Class('menu-button'),
+													h.Id('actionsButton'),
+													h.Type('button'),
+													h.OnClick(ClickedToggleActionsMenu()),
+												],
+												['...'],
+											),
+											h.div(
+												[h.Class(`menu${model.actionsMenuOpen ? ' open' : ''}`), h.Id('actionsMenu')],
+												[
+													h.button(
+														[
+															h.Class('menu-item'),
+															h.Id('toggleSidebarAction'),
+															h.Type('button'),
+															h.OnClick(ClickedToggleSidebarFromMenu()),
+														],
+														[model.sidebarCollapsed ? 'Show Sidebar' : 'Hide Sidebar'],
+													),
+													h.button(
+														[
+															h.Class('menu-item'),
+															h.Id('openCurrentFileAction'),
+															h.Type('button'),
+															h.OnClick(ClickedOpenCurrentFile()),
+														],
+														['Open File'],
+													),
+													h.button(
+														[
+															h.Class('menu-item'),
+															h.Id('openEditorButton'),
+															h.Type('button'),
+															h.OnClick(ClickedOpenEditorDiff()),
+														],
+														['Open diff'],
+													),
+													h.button(
+														[
+															h.Class('menu-item'),
+															h.Id('openRangeFilesButton'),
+															h.Type('button'),
+															h.OnClick(ClickedOpenSelectionDiffs()),
+														],
+														[openSelectionDiffsLabel],
+													),
+													h.button(
+														[
+															h.Class('menu-item'),
+															h.Id('cancelActiveRequestAction'),
+															h.Type('button'),
+															h.OnClick(ClickedCancelActiveRequest()),
+														],
+														['Cancel request'],
+													),
+													h.button(
+														[
+															h.Class('menu-item'),
+															h.Id('refreshButton'),
+															h.Type('button'),
+															h.OnClick(ClickedRefreshTimeline()),
+														],
+														['Refresh'],
+													),
+													h.button(
+														[
+															h.Class('menu-item'),
+															h.Id('resetPreferencesAction'),
+															h.Type('button'),
+															h.OnClick(ClickedResetPreferences()),
+														],
+														['Reset preferences'],
+													),
+												],
+											),
+										],
+									),
+								],
+							),
+						],
+					),
+					h.div([h.Class('timeline-head')], [timelineRevisionPickers(model), timelineControls(model)]),
+					timelineTrack(model),
+					showStepStatusRow
+						? h.div(
+								[h.Class('step-status-row')],
+								[
+									stepStatus ? h.div([h.Class('step-status'), h.Id('stepStatus')], [stepStatus]) : h.empty,
+									showSnapshot
+										? h.div(
+												[h.Class('loading-indicator'), h.Id('snapshotLoadingIndicator')],
+												[getSnapshotStatusLabel(model)],
+											)
+										: h.empty,
+								],
+							)
+						: h.empty,
+				],
+			),
+			model.hotkeysOpen ? hotkeysPopover(model) : h.empty,
+		],
+	);
+}

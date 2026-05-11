@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { buildRangeOverviewKey, buildPreviewKey } from '../../webview/src/timeline-selection.ts';
-import { buildTimelineSyncPlan } from '../../webview/src/timeline-sync.ts';
+import { buildRangeOverviewKey, buildPreviewKey } from '../../webview/src/domain/timeline-selection.ts';
+import { buildTimelineSyncPlan } from '../../webview/src/domain/timeline-sync.ts';
 import type { FileRevisionEntry, TimelineData } from '../../webview/src/types.ts';
 
 function makeEntry(overrides: Partial<FileRevisionEntry> & Pick<FileRevisionEntry, 'index'>): FileRevisionEntry {
