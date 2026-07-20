@@ -54,6 +54,25 @@ When('I press the {string} key', async ({ page }, key: string) => {
 	await page.keyboard.press(normalizeKey(key));
 });
 
+When('I dispatch the timeline shortcut {string}', async ({ page }, key: string) => {
+	const normalized = normalizeKey(key);
+	await page.evaluate((combo) => {
+		const parts = combo.split('+');
+		const keyName = parts.at(-1) || '';
+		const event = new KeyboardEvent('keydown', {
+			key: keyName,
+			code: keyName,
+			metaKey: parts.includes('Meta'),
+			ctrlKey: parts.includes('Control') || parts.includes('Ctrl'),
+			altKey: parts.includes('Alt'),
+			shiftKey: parts.includes('Shift'),
+			bubbles: true,
+			cancelable: true,
+		});
+		window.dispatchEvent(event);
+	}, normalized);
+});
+
 When('I click the previous range button', async ({ page }) => {
 	await page.locator('#stepBackwardButton').click();
 });
@@ -256,6 +275,103 @@ When('I hover timeline anchor {int}', async ({ page }, index: number) => {
 
 Then('the range tooltip should contain {string}', async ({ page }, value: string) => {
 	await expect(page.locator('.anchor-tooltip')).toContainText(value);
+});
+
+When('I toggle the sidebar sort order', async ({ page }) => {
+	await page.locator('#toggleSidebarOrderButton').click();
+});
+
+Then('the first sidebar revision should contain {string}', async ({ page }, value: string) => {
+	await expect(page.locator('.history-list .history-item').first()).toContainText(value);
+});
+
+Then('the last sidebar revision should contain {string}', async ({ page }, value: string) => {
+	await expect(page.locator('.history-list .history-item').last()).toContainText(value);
+});
+
+Then('the from handle label should contain {string}', async ({ page }, value: string) => {
+	await expect(page.locator('#fromHandleLabel')).toContainText(value);
+});
+
+Then('the to handle label should contain {string}', async ({ page }, value: string) => {
+	await expect(page.locator('#toHandleLabel')).toContainText(value);
+});
+
+When('I click the fast forward range button', async ({ page }) => {
+	await page.locator('#stepFastForwardButton').click();
+});
+
+When('I click the fast backward range button', async ({ page }) => {
+	await page.locator('#stepFastBackwardButton').click();
+});
+
+When('I click the hotkeys button', async ({ page }) => {
+	await page.locator('#toggleHotkeysButton').click();
+});
+
+When('I click the close hotkeys button', async ({ page }) => {
+	await page.locator('#closeHotkeysButton').click();
+});
+
+Then('the actions menu should be visible', async ({ page }) => {
+	await expect(page.locator('#actionsMenu')).toBeVisible();
+});
+
+Then('the actions menu should be hidden', async ({ page }) => {
+	await expect(page.locator('#actionsMenu')).not.toBeVisible();
+});
+
+Then('I should see the sidebar revision {string}', async ({ page }, value: string) => {
+	await expect(sidebarRevision(page, value)).toBeVisible();
+});
+
+Then('the newest sidebar revision should show an introduced badge', async ({ page }) => {
+	await expect(
+		page.locator('.history-list .history-item').last().locator('.history-bottom .mini-badge.introduced'),
+	).toBeVisible();
+});
+
+When('I switch the file switcher mode to {string}', async ({ page }, value: string) => {
+	await page.getByRole('button', { name: value, exact: true }).click();
+});
+
+Then('the file switcher summary should be visible', async ({ page }) => {
+	await expect(page.locator('.file-switcher-summary')).toBeVisible();
+	await expect(page.locator('.file-switcher-summary')).not.toHaveText('');
+});
+
+Then('the file switcher summary should be hidden', async ({ page }) => {
+	await expect(page.locator('.file-switcher-summary')).toHaveCount(0);
+});
+
+Then('the diff panel should show addition stats', async ({ page }) => {
+	await expect(page.locator('.diff-summary .stat--plus').first()).toBeVisible();
+});
+
+Then('the diff panel should show deletion stats', async ({ page }) => {
+	await expect(page.locator('.diff-summary .stat--minus').first()).toBeVisible();
+});
+
+When('I click the sidebar toggle button', async ({ page }) => {
+	await page.locator('#sidebarToggleButton').click();
+});
+
+When('I drag the to marker toward the end of the track', async ({ page }) => {
+	const marker = page.locator('#toMarker');
+	const track = page.locator('#track');
+	const markerBox = await marker.boundingBox();
+	const trackBox = await track.boundingBox();
+	if (!markerBox || !trackBox) {
+		throw new Error('Missing bounding box for to-marker drag.');
+	}
+
+	const startX = markerBox.x + markerBox.width / 2;
+	const startY = markerBox.y + markerBox.height / 2;
+	const endX = trackBox.x + trackBox.width - 4;
+	await page.mouse.move(startX, startY);
+	await page.mouse.down();
+	await page.mouse.move(endX, startY, { steps: 6 });
+	await page.mouse.up();
 });
 
 function sidebarRevision(page: Page, value: string) {

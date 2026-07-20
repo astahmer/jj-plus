@@ -1,7 +1,13 @@
 {
 	"$schema": "https://unpkg.com/knip@6/schema.json",
-	"entry": ["tests/features/steps/**/*.ts", "tests/vscode/suite/**/*.ts", "tests/fixtures/**/*.ts"],
+	"entry": [
+		"tests/features/steps/**/*.ts",
+		"tests/vscode/suite/**/*.ts",
+		"tests/fixtures/**/*.ts",
+		"webview/src/**/*.test.ts"
+	],
 	"ignoreBinaries": ["tsgo"],
 	"project": ["*.ts", "src/**/*.ts", "tests/**/*.ts", "webview/**/*.{js,ts,tsx}"],
-	"ignore": ["tests/features/support/fixtures.ts"],
+	"ignore": ["tests/features/support/fixtures.ts", "webview/src/vitest-setup.ts"],
+	"ignoreUnresolved": ["./src/vitest-setup.ts"]
 }

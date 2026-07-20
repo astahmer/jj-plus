@@ -33,10 +33,11 @@
 		"lint:knip": "knip",
 		"lint:ox": "oxlint .",
 		"pkg": "bun build src/bin.ts --compile --outfile jjdiff ",
-		"test": "node --test tests/units/**/*.test.ts",
+		"test": "node --test tests/units/**/*.test.ts && pnpm test:webview",
 		"test:all": "pnpm test && pnpm test:e2e && pnpm test:integration",
 		"test:e2e": "pnpm build:extension && pnpm fixtures:e2e && pnpm bddgen && playwright test",
 		"test:integration": "pnpm build:extension && pnpm build:webview && pnpm build:integration && pnpm fixtures:e2e && node ./tests/vscode/run.ts",
+		"test:webview": "vitest run --config webview/vitest.config.ts",
 		"typecheck": "pnpm typecheck:web && pnpm typecheck:extension",
 		"typecheck:extension": "tsgo --noEmit -p tsconfig.node.json",
 		"typecheck:web": "tsgo --noEmit -p tsconfig.json",
@@ -62,7 +63,8 @@
 		"playwright-bdd": "8.5.0",
 		"tsdown": "0.15.4",
 		"typescript": "6.0.2",
-		"vite": "8.0.8"
+		"vite": "8.0.8",
+		"vitest": "^4.1.10"
 	},
 	"contributes": {
 		"commands": [
