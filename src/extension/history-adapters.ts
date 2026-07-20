@@ -363,8 +363,8 @@ function createJjHistoryAdapter(args: { runner: CommandRunner }): HistoryAdapter
 				});
 				return parseJjEvolutionSummaryEntries(stdout)
 					.filter((evolutionEntry) => parseJjSummaryChangedPaths(evolutionEntry.summaryLines).includes(relativePath))
-					.map((evolutionEntry) => ({
-						id: `snapshot:${evolutionEntry.operationId || evolutionEntry.changeKey || evolutionEntry.revision}`,
+					.map((evolutionEntry, evolutionIndex) => ({
+						id: `snapshot:${entry.changeId}:${evolutionEntry.operationId || evolutionEntry.changeKey || evolutionEntry.revision}:${evolutionIndex}`,
 						revision: evolutionEntry.revision,
 						shortRevision:
 							normalizeSnapshotOperationKey(evolutionEntry.changeKey) || evolutionEntry.revision.slice(0, 8),

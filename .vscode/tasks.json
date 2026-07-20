@@ -1,0 +1,60 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "build:extension",
+			"type": "shell",
+			"command": "pnpm build:extension",
+			"problemMatcher": [],
+			"presentation": {
+				"reveal": "silent",
+				"panel": "shared",
+				"showReuseMessage": false
+			}
+		},
+		{
+			"label": "build:webview",
+			"type": "shell",
+			"command": "pnpm build:webview",
+			"problemMatcher": [],
+			"presentation": {
+				"reveal": "silent",
+				"panel": "shared",
+				"showReuseMessage": false
+			}
+		},
+		{
+			"label": "build-extension-dev",
+			"detail": "Rebuild extension + webview before F5 (ensures Extension Host loads fresh dist/)",
+			"dependsOn": ["build:extension", "build:webview"],
+			"dependsOrder": "parallel",
+			"problemMatcher": [],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			}
+		},
+		{
+			"label": "seed-test-repo",
+			"detail": "Recreate test-repo/ with sample jj history for manual F5 testing",
+			"type": "shell",
+			"command": "pnpm seed:test-repo",
+			"problemMatcher": [],
+			"presentation": {
+				"reveal": "always",
+				"panel": "shared"
+			}
+		},
+		{
+			"label": "fixtures:e2e",
+			"detail": "Generate .e2e-runtime/repos/{git,jj}-basic for fixture launch configs",
+			"type": "shell",
+			"command": "pnpm fixtures:e2e",
+			"problemMatcher": [],
+			"presentation": {
+				"reveal": "always",
+				"panel": "shared"
+			}
+		}
+	]
+}

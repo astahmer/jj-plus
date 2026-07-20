@@ -6,6 +6,7 @@ memories/
 .vscode-test/
 playwright-report/
 test-results/
+test-repo/
 webview/public/e2e/
 webview-dist
 dist

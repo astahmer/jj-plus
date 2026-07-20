@@ -19,10 +19,14 @@ It also includes a custom revision timeline panel for the active file. The panel
 
 ## Run Locally
 
-1. Open this folder as a VS Code extension project, or add it to a multi-root workspace.
-2. Press `F5` to launch an Extension Development Host.
-3. Run `JJ: Open Range Multi Diff` from the command palette.
-4. Open a file and run `JJ: Open File Revision Timeline`.
+1. Open this folder as a VS Code / Cursor window (the extension project root).
+2. Once: `pnpm seed:test-repo` (creates `test-repo/` with sample jj history).
+3. Select launch config **Extension: test-repo**, then press `F5`.
+   - `preLaunchTask` rebuilds `dist/` + `webview-dist/` so the host always loads the current sources.
+   - `--extensionDevelopmentPath` loads this workspace; `--disable-extension=astahmer.jj-range-diff` blocks any installed VSIX of the same id.
+4. In the Extension Development Host window, open a file under `test-repo/` and run `JJ: Open File Revision Timeline` (or `JJ: Open Range Multi Diff`).
+
+For richer fixtures (same as e2e), run `pnpm fixtures:e2e` once, then F5 with **Extension: jj-basic fixture** or **Extension: git-basic fixture**.
 
 For the Vite-powered webview shell during UI work:
 

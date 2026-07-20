@@ -65,7 +65,7 @@ function renderEntry(model: Model, entry: FileRevisionEntry): Html {
 		.join(' ');
 
 	return h.keyed('article')(
-		entry.id,
+		`${entry.index}:${entry.id}`,
 		[
 			h.Class(classes),
 			h.DataAttribute('entry-index', String(entry.index)),

@@ -93,8 +93,8 @@ export function timelineTrack(model: Model): Html {
 							]
 								.filter(Boolean)
 								.join(' ');
-							return h.keyed('button')(
-								`anchor-${entry.id}`,
+                                                       return h.keyed('button')(
+                                                               `anchor-${entry.index}:${entry.id}`,
 								[
 									h.Class(classes),
 									h.Style({ left: `${percent}%` }),

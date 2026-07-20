@@ -1,7 +1,7 @@
 {
 	"name": "jj-range-diff",
 	"displayName": "JJ Range Diff",
-	"version": "0.0.9",
+	"version": "0.10.0",
 	"private": true,
 	"description": "Open JJ multi-diff views for revision ranges.",
 	"categories": [
@@ -33,6 +33,7 @@
 		"lint:knip": "knip",
 		"lint:ox": "oxlint .",
 		"pkg": "bun build src/bin.ts --compile --outfile jjdiff ",
+		"seed:test-repo": "node ./scripts/seed-test-repo.mjs",
 		"test": "node --test tests/units/**/*.test.ts && pnpm test:webview",
 		"test:all": "pnpm test && pnpm test:e2e && pnpm test:integration",
 		"test:e2e": "pnpm build:extension && pnpm fixtures:e2e && pnpm bddgen && playwright test",

@@ -2,11 +2,49 @@
 	"version": "0.2.0",
 	"configurations": [
 		{
-			"name": "Run JJ Range Diff Extension",
+			"name": "Extension: test-repo",
 			"type": "extensionHost",
 			"request": "launch",
 			"runtimeExecutable": "${execPath}",
-			"args": ["--extensionDevelopmentPath=${workspaceFolder}", "${workspaceFolder}/test-repo"]
+			"args": [
+				"--extensionDevelopmentPath=${workspaceFolder}",
+				"--disable-extension=astahmer.jj-range-diff",
+				"--disable-workspace-trust",
+				"${workspaceFolder}/test-repo"
+			],
+			"outFiles": ["${workspaceFolder}/dist/**/*.cjs", "${workspaceFolder}/webview-dist/**/*.js"],
+			"preLaunchTask": "build-extension-dev",
+			"sourceMaps": true
+		},
+		{
+			"name": "Extension: jj-basic fixture",
+			"type": "extensionHost",
+			"request": "launch",
+			"runtimeExecutable": "${execPath}",
+			"args": [
+				"--extensionDevelopmentPath=${workspaceFolder}",
+				"--disable-extension=astahmer.jj-range-diff",
+				"--disable-workspace-trust",
+				"${workspaceFolder}/.e2e-runtime/repos/jj-basic"
+			],
+			"outFiles": ["${workspaceFolder}/dist/**/*.cjs", "${workspaceFolder}/webview-dist/**/*.js"],
+			"preLaunchTask": "build-extension-dev",
+			"sourceMaps": true
+		},
+		{
+			"name": "Extension: git-basic fixture",
+			"type": "extensionHost",
+			"request": "launch",
+			"runtimeExecutable": "${execPath}",
+			"args": [
+				"--extensionDevelopmentPath=${workspaceFolder}",
+				"--disable-extension=astahmer.jj-range-diff",
+				"--disable-workspace-trust",
+				"${workspaceFolder}/.e2e-runtime/repos/git-basic"
+			],
+			"outFiles": ["${workspaceFolder}/dist/**/*.cjs", "${workspaceFolder}/webview-dist/**/*.js"],
+			"preLaunchTask": "build-extension-dev",
+			"sourceMaps": true
 		}
 	]
 }
