@@ -2,7 +2,7 @@ import { html, type Html } from 'foldkit/html';
 import type { Message } from '../messages.ts';
 import type { Model } from '../model.ts';
 import { queuePierreFileDiffSync } from '../pierre/file-diff-host.ts';
-import { diffPanel } from './diff-panel.ts';
+import { diffPanel, timelineResizeHandle } from './diff-panel.ts';
 import { sessionLoadingOverlay } from './session-loading.ts';
 import { sidebar } from './sidebar.ts';
 import { timelinePane } from './timeline-pane.ts';
@@ -38,7 +38,7 @@ export function view(model: Model): Html {
 				[
 					sidebar(model),
 					h.div([h.Class('resize-handle'), h.Id('resizeHandle')], []),
-					h.section([h.Class('panel diff-panel')], [timelinePane(model), diffPanel(model)]),
+					h.section([h.Class('panel diff-panel')], [timelinePane(model), timelineResizeHandle(), diffPanel(model)]),
 				],
 			),
 			trackTooltip(model),

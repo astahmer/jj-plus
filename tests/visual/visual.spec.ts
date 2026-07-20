@@ -20,8 +20,38 @@ test.describe('timeline visuals', () => {
 
 async function openFixture(page: Page, fixture: string) {
 	await page.goto(`/?fixture=${fixture}`);
+	await expect(page.locator('.session-loading-overlay')).toHaveCount(0, { timeout: 15000 });
 	await expect(page.getByText('Revision Timeline')).toBeVisible();
 	await expect(page.locator('#diffTitle')).not.toHaveText('No diff available');
+	await expect(page.locator('#pierre-diff-root')).not.toHaveClass(/is-pending/, { timeout: 10000 });
+	await expect(page.locator('diffs-container')).toBeVisible({ timeout: 10000 });
+	await expect
+		.poll(async () =>
+			page.locator('diffs-container').evaluate((el) => {
+				const root = el.shadowRoot;
+				if (!root) {
+					return 0;
+				}
+				return root.querySelectorAll('[data-line], .line, pre code span, pre span').length;
+			}),
+		)
+		.toBeGreaterThan(5);
+
+	const layout = await page.evaluate(() => {
+		const portal = document.getElementById('pierre-diff-root');
+		const rows = document.getElementById('diffRows');
+		const container = portal?.querySelector('diffs-container');
+		const lines = [...(container?.shadowRoot?.querySelectorAll('[data-line]') ?? [])] as HTMLElement[];
+		return {
+			portalH: portal ? Math.round(portal.getBoundingClientRect().height) : 0,
+			rowsH: rows ? Math.round(rows.getBoundingClientRect().height) : 0,
+			maxLineH: Math.max(0, ...lines.map((line) => Math.round(line.getBoundingClientRect().height))),
+		};
+	});
+	expect(layout.portalH).toBeGreaterThan(300);
+	expect(layout.rowsH).toBeGreaterThan(300);
+	expect(layout.maxLineH).toBeLessThan(40);
+
 	if (fixture === 'jj-basic') {
 		await expect(page.getByRole('button', { name: 'Snapshot', exact: true })).toBeVisible();
 	}

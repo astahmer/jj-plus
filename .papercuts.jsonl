@@ -1,0 +1,1 @@
+{"kind":"cut","id":"pc_m1kkjqn337za","ts":"2026-07-20T22:39:57.828Z","agent":"unknown","text":"foldkit empty VDOM children wipe externally-mounted DOM every paint — mount third-party widgets (Pierre) in a body portal, not inside reconciled nodes","tags":["webview"],"severity":"major"}

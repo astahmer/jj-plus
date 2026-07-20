@@ -24,8 +24,10 @@
 }
 
 html,
-body {
+body,
+#timelineApp {
 	height: 100%;
+	overflow: hidden;
 }
 
 * {
@@ -47,10 +49,18 @@ input {
 	font: inherit;
 }
 
+#timelineApp {
+	min-height: 0;
+	display: flex;
+	flex-direction: column;
+}
+
 .app {
 	position: relative;
-	height: calc(100vh - 16px);
+	flex: 1 1 auto;
+	height: 100%;
 	min-height: 0;
+	width: 100%;
 }
 
 .workspace {
@@ -1568,8 +1578,6 @@ kbd {
 	font-family: var(--code-font);
 	font-size: 11px;
 	line-height: 1.35;
-	display: flex;
-	flex-direction: column;
 }
 
 .diff-summary {
@@ -1577,26 +1585,39 @@ kbd {
 	flex: 0 0 auto;
 }
 
-.pierre-diff-root {
-	flex: 1 1 auto;
+/* Absolute fill so collapsed flex/grid chains cannot shrink the mount target. */
+.pierre-diff-slot {
+	position: absolute;
+	inset: 6px 0 0;
 	min-height: 0;
 	min-width: 0;
 	width: 100%;
-	height: 100%;
-	overflow: auto;
+}
+
+/* Outside foldkit so re-renders cannot wipe FileDiff (flicker + bad viewport). */
+.pierre-diff-root {
+	position: fixed;
+	z-index: 5;
+	margin: 0;
+	padding: 0;
+	overflow: hidden;
+	background: var(--bg);
 	display: flex;
 	flex-direction: column;
+	min-width: 0;
+	min-height: 0;
 }
 
 .pierre-diff-root > diffs-container,
 .pierre-diff-root > * {
 	flex: 1 1 auto;
-	min-height: 0 !important;
-	height: 100% !important;
+	min-height: 0;
 	width: 100%;
+	height: 100%;
 }
 
-.pierre-diff-root.is-pending {
+.pierre-diff-root.is-pending,
+.pierre-diff-root[hidden] {
 	visibility: hidden;
 	pointer-events: none;
 }

@@ -54,6 +54,9 @@ function shouldShowPierre(preview: DiffPreview | null, contentMode: ContentMode)
 	if (!preview) {
 		return false;
 	}
+	if (typeof preview.beforeText !== 'string' || typeof preview.afterText !== 'string') {
+		return false;
+	}
 	if (contentMode === 'full') {
 		return true;
 	}
@@ -98,10 +101,21 @@ function renderBodyOverlay(preview: DiffPreview | null, contentMode: ContentMode
 			],
 		);
 	}
+	if (typeof preview.beforeText !== 'string' || typeof preview.afterText !== 'string') {
+		return h.div(
+			[h.Class('diff-body-overlay')],
+			[h.div([h.Class('empty-diff')], ['Diff content is unavailable for this selection.'])],
+		);
+	}
 	return h.div(
 		[h.Class('diff-body-overlay')],
 		[h.div([h.Class('empty-diff')], ['The file has no content at this revision.'])],
 	);
+}
+
+export function timelineResizeHandle(): Html {
+	const h = html<Message>();
+	return h.div([h.Class('timeline-resize-handle'), h.Id('timelineResizeHandle')], []);
 }
 
 export function diffPanel(model: Model): Html {
@@ -112,75 +126,68 @@ export function diffPanel(model: Model): Html {
 	const showPierre = shouldShowPierre(preview, model.contentMode);
 
 	return h.div(
-		[],
+		[h.Class('diff-content')],
 		[
-			h.div([h.Class('timeline-resize-handle'), h.Id('timelineResizeHandle')], []),
 			h.div(
-				[h.Class('diff-content')],
+				[h.Class('diff-summary')],
 				[
 					h.div(
-						[h.Class('diff-summary')],
+						[h.Class('diff-title-row')],
 						[
 							h.div(
-								[h.Class('diff-title-row')],
+								[h.Class('diff-summary-left')],
 								[
 									h.div(
-										[h.Class('diff-summary-left')],
+										[h.Class('diff-title-block')],
 										[
-											h.div(
-												[h.Class('diff-title-block')],
-												[
-													h.h3([h.Class('diff-title'), h.Id('diffTitle')], renderTitle(model, preview)),
-													h.div([h.Class('diff-title-meta')], [preview?.subtitle || '']),
-												],
-											),
-											source === 'snapshot'
-												? h.div([h.Class('diff-subtitle')], [getCurrentToEntry(model)?.description || ''])
-												: h.empty,
+											h.h3([h.Class('diff-title'), h.Id('diffTitle')], renderTitle(model, preview)),
+											h.div([h.Class('diff-title-meta')], [preview?.subtitle || '']),
 										],
 									),
+									source === 'snapshot'
+										? h.div([h.Class('diff-subtitle')], [getCurrentToEntry(model)?.description || ''])
+										: h.empty,
+								],
+							),
+							h.div(
+								[h.Class('diff-actions')],
+								[
+									h.div([h.Class('eyebrow diff-mode-eyebrow'), h.Id('diffModeEyebrow')], [eyebrowLabel]),
 									h.div(
-										[h.Class('diff-actions')],
+										[h.Class('history-stats')],
 										[
-											h.div([h.Class('eyebrow diff-mode-eyebrow'), h.Id('diffModeEyebrow')], [eyebrowLabel]),
-											h.div(
-												[h.Class('history-stats')],
-												[
-													h.span([h.Class('stat stat--plus')], [preview ? `+${preview.additions}` : '+—']),
-													h.span([h.Class('stat stat--minus')], [preview ? `−${preview.deletions}` : '−—']),
-													h.span([h.Class('stat')], [preview ? `${preview.hunkCount} hunks` : '— hunks']),
-												],
-											),
-											h.button(
-												[
-													h.Class('collapse-button'),
-													h.Id('toggleDiffFocusButton'),
-													h.Type('button'),
-													h.OnClick(ClickedToggleDiffFocus()),
-												],
-												[model.diffFocusMode ? 'Exit focus' : 'Focus diff'],
-											),
+											h.span([h.Class('stat stat--plus')], [preview ? `+${preview.additions}` : '+—']),
+											h.span([h.Class('stat stat--minus')], [preview ? `−${preview.deletions}` : '−—']),
+											h.span([h.Class('stat')], [preview ? `${preview.hunkCount} hunks` : '— hunks']),
 										],
+									),
+									h.button(
+										[
+											h.Class('collapse-button'),
+											h.Id('toggleDiffFocusButton'),
+											h.Type('button'),
+											h.OnClick(ClickedToggleDiffFocus()),
+										],
+										[model.diffFocusMode ? 'Exit focus' : 'Focus diff'],
 									),
 								],
 							),
 						],
 					),
-					h.div(
-						[
-							h.Class('diff-rows'),
-							h.Id('diffRows'),
-							h.DataAttribute('layout-mode', model.layoutMode),
-							h.DataAttribute('content-mode', model.contentMode),
-						],
-						[
-							h.div(
-								[h.Class(showPierre ? 'pierre-diff-root' : 'pierre-diff-root is-pending'), h.Id('pierre-diff-root')],
-								[],
-							),
-							renderBodyOverlay(preview, model.contentMode, showPierre),
-						],
-					),
+				],
+			),
+			h.div(
+				[
+					h.Class('diff-rows'),
+					h.Id('diffRows'),
+					h.DataAttribute('layout-mode', model.layoutMode),
+					h.DataAttribute('content-mode', model.contentMode),
+				],
+				[
+					// Geometry target only — Pierre mounts in a body-level portal so
+					// foldkit re-renders cannot wipe the FileDiff DOM every frame.
+					h.div([h.Class('pierre-diff-slot'), h.Id('pierre-diff-slot')], []),
+					renderBodyOverlay(preview, model.contentMode, showPierre),
 				],
 			),
 		],
