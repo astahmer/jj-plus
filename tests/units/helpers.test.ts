@@ -316,13 +316,13 @@ test('resolveHistoryAdapter follows jj file renames back to file creation', asyn
 	const logCalls = jjCalls.filter((args) => args[0] === 'log');
 	assert.equal(logCalls.length, 2);
 	assert.ok(logCalls.every((args) => args.includes('--summary')));
-	assert.ok(logCalls.every((args) => !args.includes('--limit')));
+	assert.ok(logCalls.every((args) => args.includes('--limit')));
 	assert.ok(logCalls.every((args) => args.includes('-r')));
 	assert.ok(logCalls.some((args) => args.includes(`root-file:"${currentPath}"`)));
 	assert.ok(logCalls.some((args) => args.includes(`root-file:"${previousPath}"`)));
 });
 
-test('resolveHistoryAdapter keeps git file history uncapped', async () => {
+test('resolveHistoryAdapter caps git file history by default', async () => {
 	const gitCalls: string[][] = [];
 	const adapter = await resolveHistoryAdapter({
 		workspacePath: '/workspace/repos/git-basic',
@@ -354,7 +354,7 @@ test('resolveHistoryAdapter keeps git file history uncapped', async () => {
 	});
 
 	const logCalls = gitCalls.filter((args) => args[0] === 'log');
-	assert.ok(logCalls.every((args) => !args.includes('--max-count')));
+	assert.ok(logCalls.every((args) => args.some((arg) => arg.startsWith('--max-count='))));
 });
 
 test('createTimelineService keeps every jj revision that touched the file across renames', async () => {

@@ -50,8 +50,12 @@ export type MultiDiffPlan = {
 
 export type HistoryAdapter = {
 	backend: HistoryBackend;
-	getFileRevisionHistory(args: { workspacePath: string; relativePath: string }): Promise<FileRevisionEntry[]>;
-	getRepositoryRevisionHistory(args: { workspacePath: string }): Promise<FileRevisionEntry[]>;
+	getFileRevisionHistory(args: {
+		workspacePath: string;
+		relativePath: string;
+		limit?: number;
+	}): Promise<FileRevisionEntry[]>;
+	getRepositoryRevisionHistory(args: { workspacePath: string; limit?: number }): Promise<FileRevisionEntry[]>;
 	showFileAtRevision(args: { workspacePath: string; revset: string; filePath: string }): Promise<string>;
 	resolvePreviousPath(args: { workspacePath: string; revision: string; currentPath: string }): Promise<string>;
 	listRevisionFiles(args: { workspacePath: string; revision: string; signal?: AbortSignal }): Promise<string[]>;
@@ -89,6 +93,9 @@ export type CommandRunner = {
 
 export type ExtensionTimelineSession = TimelineSession & {
 	adapter: HistoryAdapter;
+	historyLimit: number;
+	workspaceFilesLoaded: boolean;
+	intermediateRevisionsLoaded: boolean;
 };
 
 export type TimelineDebugState = {

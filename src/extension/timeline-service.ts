@@ -10,7 +10,7 @@ import type {
 	TimelineData,
 	TimelinePreferences,
 } from '../shared/timeline-types.ts';
-import { MAX_SNAPSHOT_HYDRATION_CHANGES } from './constants.ts';
+import { MAX_SNAPSHOT_HYDRATION_CHANGES, INITIAL_TIMELINE_ENTRIES, MAX_TIMELINE_ENTRIES } from './constants.ts';
 import { resolveHistoryAdapter, resolveHistoryWorkspacePath } from './history-adapters.ts';
 import type {
 	CommandRunner,
@@ -63,6 +63,9 @@ function syncSession(request: { target: ExtensionTimelineSession; source: Extens
 	request.target.snapshotLoadedChangeIds = request.source.snapshotLoadedChangeIds;
 	request.target.snapshotPendingChangeIds = request.source.snapshotPendingChangeIds;
 	request.target.workspaceFiles = request.source.workspaceFiles;
+	request.target.workspaceFilesLoaded = request.source.workspaceFilesLoaded;
+	request.target.historyLimit = request.source.historyLimit;
+	request.target.intermediateRevisionsLoaded = request.source.intermediateRevisionsLoaded;
 	request.target.contentCache = request.source.contentCache;
 	request.target.previewCache = request.source.previewCache;
 	request.target.rangeOverviewCache = request.source.rangeOverviewCache;
@@ -117,6 +120,10 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 	return {
 		buildSession,
 		buildPayload,
+		mapEntriesForPayload,
+		ensureWorkspaceFiles,
+		ensureIntermediateRevisions,
+		expandFileHistory,
 		findNearestNonEmptyVisibleRange,
 		getComparisonEntries,
 		getDiffPreview,
@@ -132,14 +139,26 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 	async function buildSession(request: {
 		workspacePath: string;
 		absolutePath: string;
+		options?: {
+			includeWorkspaceFiles?: boolean;
+			includeIntermediateRevisions?: boolean;
+			entryLimit?: number;
+		};
 	}): Promise<ExtensionTimelineSession> {
 		const historyWorkspacePath = await resolveHistoryWorkspacePath({ workspacePath: request.workspacePath, runner });
 		const relativePath = path.relative(historyWorkspacePath, request.absolutePath).replace(/\\/g, '/');
 		const adapter = await resolveHistoryAdapter({ workspacePath: historyWorkspacePath, runner });
-		const workspaceFiles = await listWorkspaceFiles({ adapter, workspacePath: historyWorkspacePath });
+		const entryLimit = request.options?.entryLimit ?? INITIAL_TIMELINE_ENTRIES;
+		const includeWorkspaceFiles = request.options?.includeWorkspaceFiles === true;
+		const includeIntermediateRevisions = request.options?.includeIntermediateRevisions === true;
+
+		const workspaceFiles = includeWorkspaceFiles
+			? await listWorkspaceFiles({ adapter, workspacePath: historyWorkspacePath })
+			: [relativePath];
 		const fileEntries = await adapter.getFileRevisionHistory({
 			workspacePath: historyWorkspacePath,
 			relativePath,
+			limit: entryLimit,
 		});
 		const entries = await buildTimelineEntries({
 			adapter,
@@ -147,6 +166,8 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 			absolutePath: request.absolutePath,
 			relativePath,
 			fileEntries,
+			includeIntermediateRevisions,
+			entryLimit,
 		});
 		const snapshotEntries = adapter.backend === 'jj' ? [] : [...entries];
 		const remoteBaseUrl = await adapter.getRemoteBaseUrl({ workspacePath: historyWorkspacePath });
@@ -171,6 +192,9 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 			snapshotLoadedChangeIds: new Set(),
 			snapshotPendingChangeIds: new Set(),
 			workspaceFiles,
+			workspaceFilesLoaded: includeWorkspaceFiles,
+			historyLimit: entryLimit,
+			intermediateRevisionsLoaded: includeIntermediateRevisions,
 			contentCache: new Map(),
 			previewCache: new Map(),
 			rangeOverviewCache: new Map(),
@@ -180,17 +204,18 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 		};
 	}
 
-	function buildPayload(request: TimelinePayloadArgs): TimelineData {
-		const mapEntries = (entries: FileRevisionEntry[]) =>
-			entries.map((entry, index) => ({
-				...entry,
-				index,
-				hasPreviousEntry: index > 0,
-				monthLabel: formatEntryMonthLabel(entry.authorDate),
-				shortDate: formatEntryShortDate(entry.authorDate),
-				relativeDate: formatRelativeTime(entry.timestamp),
-			}));
+	function mapEntriesForPayload(entries: FileRevisionEntry[]): TimelineData['entries'] {
+		return entries.map((entry, index) => ({
+			...entry,
+			index,
+			hasPreviousEntry: index > 0,
+			monthLabel: formatEntryMonthLabel(entry.authorDate),
+			shortDate: formatEntryShortDate(entry.authorDate),
+			relativeDate: formatRelativeTime(entry.timestamp),
+		}));
+	}
 
+	function buildPayload(request: TimelinePayloadArgs): TimelineData {
 		return {
 			backend: request.session.backend,
 			workspacePath: request.session.workspacePath,
@@ -202,13 +227,101 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 			latestIndex: Math.max(0, request.session.entries.length - 1),
 			preferences: normalizeTimelinePreferences(request.preferences),
 			workspaceFiles: request.session.workspaceFiles,
+			workspaceFilesLoaded: request.session.workspaceFilesLoaded,
 			hasIntermediateRevisions: request.session.entries.some((entry) => !entry.touchesFile),
-			entries: mapEntries(request.session.entries),
-			snapshotEntries: mapEntries(request.session.snapshotEntries),
+			entries: mapEntriesForPayload(request.session.entries),
+			snapshotEntries: mapEntriesForPayload(request.session.snapshotEntries),
 			snapshotState: {
 				loadedChangeIds: [...request.session.snapshotLoadedChangeIds],
 			},
 		};
+	}
+
+	async function ensureWorkspaceFiles(request: { session: ExtensionTimelineSession }): Promise<boolean> {
+		if (request.session.workspaceFilesLoaded) {
+			return false;
+		}
+
+		const workspaceFiles = await listWorkspaceFiles({
+			adapter: request.session.adapter,
+			workspacePath: request.session.workspacePath,
+		});
+		request.session.workspaceFiles = workspaceFiles;
+		request.session.workspaceFilesLoaded = true;
+		request.session.rangeOverviewCache.clear();
+		return true;
+	}
+
+	async function ensureIntermediateRevisions(request: { session: ExtensionTimelineSession }): Promise<boolean> {
+		if (request.session.intermediateRevisionsLoaded) {
+			return false;
+		}
+
+		const touchingEntries = request.session.entries.filter((entry) => entry.touchesFile && !entry.isWorkingTree);
+		if (touchingEntries.length < 2) {
+			request.session.intermediateRevisionsLoaded = true;
+			return false;
+		}
+
+		try {
+			const repositoryEntries = await request.session.adapter.getRepositoryRevisionHistory({
+				workspacePath: request.session.workspacePath,
+				limit: MAX_TIMELINE_ENTRIES,
+			});
+			const workingTreeEntry = request.session.entries.find((entry) => entry.isWorkingTree);
+			let entries = mergeTimelineEntries({ repositoryEntries, fileEntries: touchingEntries });
+			if (request.session.backend === 'jj') {
+				entries = dedupeAdjacentTimelineEntries(entries);
+			}
+			if (workingTreeEntry) {
+				entries = [...entries, workingTreeEntry];
+			}
+			request.session.entries = entries;
+			request.session.intermediateRevisionsLoaded = true;
+			request.session.previewCache.clear();
+			request.session.rangeOverviewCache.clear();
+			request.session.entryDiffCountCache.clear();
+			return true;
+		} catch {
+			request.session.intermediateRevisionsLoaded = true;
+			return false;
+		}
+	}
+
+	async function expandFileHistory(request: { session: ExtensionTimelineSession }): Promise<boolean> {
+		if (request.session.historyLimit >= MAX_TIMELINE_ENTRIES) {
+			return false;
+		}
+
+		const previousTouchingCount = request.session.entries.filter(
+			(entry) => entry.touchesFile && !entry.isWorkingTree,
+		).length;
+		if (previousTouchingCount < request.session.historyLimit) {
+			request.session.historyLimit = MAX_TIMELINE_ENTRIES;
+			return false;
+		}
+
+		const fileEntries = await request.session.adapter.getFileRevisionHistory({
+			workspacePath: request.session.workspacePath,
+			relativePath: request.session.relativePath,
+			limit: MAX_TIMELINE_ENTRIES,
+		});
+		const entries = await buildTimelineEntries({
+			adapter: request.session.adapter,
+			workspacePath: request.session.workspacePath,
+			absolutePath: request.session.absolutePath,
+			relativePath: request.session.relativePath,
+			fileEntries,
+			includeIntermediateRevisions: request.session.intermediateRevisionsLoaded,
+			entryLimit: MAX_TIMELINE_ENTRIES,
+		});
+		const nextTouchingCount = entries.filter((entry) => entry.touchesFile && !entry.isWorkingTree).length;
+		request.session.entries = entries;
+		request.session.historyLimit = MAX_TIMELINE_ENTRIES;
+		request.session.previewCache.clear();
+		request.session.rangeOverviewCache.clear();
+		request.session.entryDiffCountCache.clear();
+		return nextTouchingCount > previousTouchingCount;
 	}
 
 	function getEntriesForSource(request: {
@@ -439,6 +552,9 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 			comparisonSource,
 		});
 		const countedPaths = new Map<string, number>();
+		if (!request.session.workspaceFilesLoaded) {
+			await ensureWorkspaceFiles({ session: request.session });
+		}
 		const workspaceFileSet = new Set(request.session.workspaceFiles);
 		const entryIndexesToScan = selectedEntryIndexes.length
 			? selectedEntryIndexes
@@ -589,6 +705,8 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 		absolutePath: string;
 		relativePath: string;
 		fileEntries: FileRevisionEntry[];
+		includeIntermediateRevisions: boolean;
+		entryLimit: number;
 	}): Promise<FileRevisionEntry[]> {
 		const touchingEntries = request.fileEntries.map((entry) => ({
 			...entry,
@@ -600,10 +718,11 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 		}
 
 		let entries = touchingEntries;
-		if (touchingEntries.length >= 2) {
+		if (request.includeIntermediateRevisions && touchingEntries.length >= 2) {
 			try {
 				const repositoryEntries = await request.adapter.getRepositoryRevisionHistory({
 					workspacePath: request.workspacePath,
+					limit: Math.max(request.entryLimit, MAX_TIMELINE_ENTRIES),
 				});
 				entries = mergeTimelineEntries({ repositoryEntries, fileEntries: touchingEntries });
 			} catch {

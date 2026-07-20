@@ -76,7 +76,7 @@ function createGitHistoryAdapter(args: { runner: CommandRunner }): HistoryAdapte
 
 	return {
 		backend: 'git',
-		async getFileRevisionHistory({ workspacePath, relativePath }) {
+		async getFileRevisionHistory({ workspacePath, relativePath, limit }) {
 			const { stdout } = await runner.runGit({
 				workspacePath,
 				args: [
@@ -85,6 +85,7 @@ function createGitHistoryAdapter(args: { runner: CommandRunner }): HistoryAdapte
 					'--decorate=short',
 					'--date=iso-strict',
 					'--format=%H%x09%ad%x09%an%x09%D%x09%s',
+					`--max-count=${limit ?? MAX_TIMELINE_ENTRIES}`,
 					'--',
 					relativePath,
 				],
@@ -97,7 +98,7 @@ function createGitHistoryAdapter(args: { runner: CommandRunner }): HistoryAdapte
 				.map(parseGitHistoryLine)
 				.toReversed();
 		},
-		async getRepositoryRevisionHistory({ workspacePath }) {
+		async getRepositoryRevisionHistory({ workspacePath, limit }) {
 			const { stdout } = await runner.runGit({
 				workspacePath,
 				args: [
@@ -105,7 +106,7 @@ function createGitHistoryAdapter(args: { runner: CommandRunner }): HistoryAdapte
 					'--decorate=short',
 					'--date=iso-strict',
 					'--format=%H%x09%ad%x09%an%x09%D%x09%s',
-					`--max-count=${MAX_TIMELINE_ENTRIES}`,
+					`--max-count=${limit ?? MAX_TIMELINE_ENTRIES}`,
 				],
 			});
 
@@ -242,14 +243,15 @@ function createJjHistoryAdapter(args: { runner: CommandRunner }): HistoryAdapter
 
 	return {
 		backend: 'jj',
-		async getFileRevisionHistory({ workspacePath, relativePath }) {
+		async getFileRevisionHistory({ workspacePath, relativePath, limit }) {
 			return collectJjFileRevisionHistory({
 				runner,
 				workspacePath,
 				relativePath,
+				limit: limit ?? MAX_TIMELINE_ENTRIES,
 			});
 		},
-		async getRepositoryRevisionHistory({ workspacePath }) {
+		async getRepositoryRevisionHistory({ workspacePath, limit }) {
 			const template = [
 				'commit_id.short()',
 				'"\\t"',
@@ -266,7 +268,16 @@ function createJjHistoryAdapter(args: { runner: CommandRunner }): HistoryAdapter
 			].join(' ++ ');
 			const { stdout } = await runner.runJj({
 				workspacePath,
-				args: ['log', '--no-graph', '--limit', String(MAX_TIMELINE_ENTRIES), '-r', 'ancestors(@)', '-T', template],
+				args: [
+					'log',
+					'--no-graph',
+					'--limit',
+					String(limit ?? MAX_TIMELINE_ENTRIES),
+					'-r',
+					'ancestors(@)',
+					'-T',
+					template,
+				],
 			});
 
 			return dedupeAdjacentEntriesByChangeId(
@@ -501,6 +512,7 @@ async function collectJjFileRevisionHistory(args: {
 	runner: CommandRunner;
 	workspacePath: string;
 	relativePath: string;
+	limit: number;
 	ancestorLimitRevset?: string;
 	seenSegments?: Set<string>;
 }): Promise<FileRevisionEntry[]> {
@@ -517,6 +529,7 @@ async function collectJjFileRevisionHistory(args: {
 		args.workspacePath,
 		args.relativePath,
 		ancestorLimitRevset,
+		args.limit,
 	);
 	const previousSource = await resolvePreviousJjPath({
 		runner: args.runner,
@@ -531,6 +544,7 @@ async function collectJjFileRevisionHistory(args: {
 				relativePath: previousSource.relativePath,
 				ancestorLimitRevset: previousSource.ancestorLimitRevset,
 				seenSegments,
+				limit: args.limit,
 			})
 		: [];
 
@@ -545,6 +559,7 @@ async function loadJjFileHistorySegment(
 	workspacePath: string,
 	relativePath: string,
 	ancestorLimitRevset: string,
+	limit: number,
 ): Promise<ParsedJjHistoryEntry[]> {
 	const template = [
 		'commit_id.short()',
@@ -567,6 +582,8 @@ async function loadJjFileHistorySegment(
 			'--no-graph',
 			'--reversed',
 			'--summary',
+			'--limit',
+			String(limit),
 			'-r',
 			buildJjAncestorHistoryRevset(ancestorLimitRevset),
 			'-T',

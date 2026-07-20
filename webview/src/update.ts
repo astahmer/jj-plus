@@ -63,7 +63,6 @@ import type {
 	ComparisonMode,
 	ComparisonSource,
 	DiffPreview,
-	FileRevisionEntry,
 	RangeOverviewItem,
 	TimelineCommand,
 	TimelineData,
@@ -765,10 +764,14 @@ function handleUpdatedComboboxDraft(model: Model, id: string, value: string): Up
 	return [model, []];
 }
 
-function handleSubmitFile(model: Model, value: string): UpdateReturn {
-	const relativePath = value.trim();
+function handleSubmitFile(model: Model, rawValue: string): UpdateReturn {
+	const relativePath = rawValue.trim();
 	const data = getData(model);
-	if (!data || !relativePath || relativePath === data.relativePath || !data.workspaceFiles.includes(relativePath)) {
+	if (!data || !relativePath || relativePath === data.relativePath) {
+		return [model, []];
+	}
+	const filesLoaded = data.workspaceFilesLoaded !== false;
+	if (filesLoaded && !data.workspaceFiles.includes(relativePath)) {
 		return [model, []];
 	}
 	const next = stepSelection(
@@ -776,7 +779,7 @@ function handleSubmitFile(model: Model, value: string): UpdateReturn {
 			actionsMenuOpen: () => false,
 			hotkeysOpen: () => false,
 			maybeHoveredSelectionIndex: () => Option.none(),
-			sessionKey: (value) => value + 1,
+			sessionKey: (current) => current + 1,
 		}),
 		CancelledSelection(),
 	);
@@ -846,6 +849,12 @@ function handleGotHostMessage(model: Model, payload: unknown): UpdateReturn {
 		),
 		M.when('snapshot-entries', () =>
 			handleSnapshotEntriesMessage(model, message as Extract<TimelineInboundMessage, { type: 'snapshot-entries' }>),
+		),
+		M.when('workspace-files', () =>
+			handleWorkspaceFilesMessage(model, message as Extract<TimelineInboundMessage, { type: 'workspace-files' }>),
+		),
+		M.when('entries-updated', () =>
+			handleEntriesUpdatedMessage(model, message as Extract<TimelineInboundMessage, { type: 'entries-updated' }>),
 		),
 		M.when('range-overview', () =>
 			handleRangeOverviewMessage(model, message as Extract<TimelineInboundMessage, { type: 'range-overview' }>),
@@ -972,6 +981,61 @@ function handleSnapshotEntriesMessage(
 		entryDiffCountLoadingKey: () => '',
 	});
 	return afterMutate(next);
+}
+
+function handleWorkspaceFilesMessage(
+	model: Model,
+	message: Extract<TimelineInboundMessage, { type: 'workspace-files' }>,
+): UpdateReturn {
+	const data = getData(model);
+	if (!data) {
+		return [model, []];
+	}
+
+	const next = evo(model, {
+		data: () =>
+			({
+				...data,
+				workspaceFiles: message.payload.workspaceFiles,
+				workspaceFilesLoaded: true,
+			}) satisfies TimelineData,
+	});
+	return afterMutate(next);
+}
+
+function handleEntriesUpdatedMessage(
+	model: Model,
+	message: Extract<TimelineInboundMessage, { type: 'entries-updated' }>,
+): UpdateReturn {
+	const data = getData(model);
+	if (!data || model.session._tag !== 'Ready') {
+		return [model, []];
+	}
+
+	const selectedSourceEntries = getSourceEntries(model);
+	const selectedFromEntryId = selectedSourceEntries.find((entry) => entry.index === model.fromIndex)?.id || null;
+	const selectedToEntryId = selectedSourceEntries.find((entry) => entry.index === model.toIndex)?.id || null;
+	const nextData = {
+		...data,
+		entries: message.payload.entries,
+		hasIntermediateRevisions: message.payload.hasIntermediateRevisions,
+	} satisfies TimelineData;
+	const nextSourceEntries = getEntriesForSource(nextData, getEffectiveComparisonSource(model));
+	const nextFromIndex = selectedFromEntryId
+		? (nextSourceEntries.find((entry) => entry.id === selectedFromEntryId)?.index ?? model.fromIndex)
+		: model.fromIndex;
+	const nextToIndex = selectedToEntryId
+		? (nextSourceEntries.find((entry) => entry.id === selectedToEntryId)?.index ?? model.toIndex)
+		: model.toIndex;
+
+	const next = clearCaches(
+		evo(model, {
+			data: () => nextData,
+			fromIndex: () => Math.min(nextFromIndex, Math.max(0, nextSourceEntries.length - 1)),
+			toIndex: () => Math.min(nextToIndex, Math.max(0, nextSourceEntries.length - 1)),
+		}),
+	);
+	return afterMutate(syncRevisionDrafts(next));
 }
 
 function handleRangeOverviewMessage(

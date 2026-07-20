@@ -43,6 +43,14 @@ export type TimelineInboundMessage =
 	| { type: 'timeline-data'; payload: TimelineData }
 	| { type: 'diff-preview'; payload: DiffPreview }
 	| { type: 'snapshot-entries'; payload: Pick<TimelineData, 'snapshotEntries' | 'snapshotState'> }
+	| { type: 'workspace-files'; payload: { workspaceFiles: Array<string> } }
+	| {
+			type: 'entries-updated';
+			payload: {
+				entries: Array<FileRevisionEntry>;
+				hasIntermediateRevisions: boolean;
+			};
+	  }
 	| {
 			type: 'range-overview';
 			payload: {

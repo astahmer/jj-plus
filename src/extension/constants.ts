@@ -11,8 +11,13 @@ export const TIMELINE_PREFERENCES_KEY = 'timelinePanelPreferences';
 export const CLI_SOURCE = 'cli';
 export const DEFAULT_FROM_REVSET = 'closest_bookmark(@)';
 export const DEFAULT_TO_REVSET = '@';
+/** First-paint history depth — keep cold open snappy; expand later if truncated. */
+export const INITIAL_TIMELINE_ENTRIES = 50;
+/** Cap for full history / intermediate-revision fetches. */
 export const MAX_TIMELINE_ENTRIES = 200;
 export const MAX_SNAPSHOT_HYDRATION_CHANGES = 8;
+/** Shared limit for concurrent `jj` / `git` spawns (avoids EAGAIN thrash). */
+export const COMMAND_CONCURRENCY_LIMIT = 6;
 
 export const TIMELINE_PRESET_DAYS = {
 	year: 365,

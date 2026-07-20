@@ -191,6 +191,8 @@ export function createTimelinePanelController(args: {
 	version: string;
 }): TimelinePanelController {
 	const timelineSessions = new Map<vscode.WebviewPanel, ExtensionTimelineSession>();
+	const panelViewReady = new WeakMap<vscode.WebviewPanel, boolean>();
+	const panelLoadGeneration = new WeakMap<vscode.WebviewPanel, number>();
 	let activeTimelinePanel: vscode.WebviewPanel | undefined;
 	let timelineDebugState = createEmptyTimelineDebugState();
 
@@ -225,36 +227,84 @@ export function createTimelinePanelController(args: {
 				return;
 			}
 
-			const session = await args.service.buildSession({
-				workspacePath: workspaceFolder.uri.fsPath,
-				absolutePath: documentUri.fsPath,
-			});
-			if (!session.entries.length) {
-				void vscode.window.showInformationMessage('No file revisions were found for the active file');
-				return;
-			}
-
+			const fileName = path.basename(documentUri.fsPath);
 			const hadExistingPanel = timelineSessions.size > 0;
-			const panel = createTimelinePanel({ fileName: session.fileName });
-			timelineSessions.set(panel, session);
+			const panel = createTimelinePanel({ fileName });
 			activeTimelinePanel = panel;
 			panel.webview.html = getTimelineWebviewHtml({
 				context: args.context,
 				webview: panel.webview,
 			});
-			panel.title = `Revision Timeline: ${session.fileName}`;
-			timelineDebugState = createDebugState({
-				panel,
-				session,
-				lastMessageCommand: '',
-				panelCount: timelineSessions.size,
-			});
+			panel.title = `Revision Timeline: ${fileName}`;
+			timelineDebugState = {
+				...createEmptyTimelineDebugState(),
+				panelOpen: true,
+				panelCount: timelineSessions.size + 1,
+				panelTitle: panel.title,
+				workspacePath: workspaceFolder.uri.fsPath,
+				relativePath: path.relative(workspaceFolder.uri.fsPath, documentUri.fsPath).replace(/\\/g, '/'),
+				fileName,
+				usesBundledWebview: hasBundledTimelineWebviewAssets({ context: args.context }),
+			};
 
 			if (!hadExistingPanel && shouldMaximizeTimelinePanel()) {
 				await maximizeTimelinePanel();
 			}
+
+			await loadSessionIntoPanel({
+				panel,
+				workspacePath: workspaceFolder.uri.fsPath,
+				absolutePath: documentUri.fsPath,
+			});
 		},
 	};
+
+	async function loadSessionIntoPanel(request: {
+		panel: vscode.WebviewPanel;
+		workspacePath: string;
+		absolutePath: string;
+	}): Promise<void> {
+		const generation = (panelLoadGeneration.get(request.panel) || 0) + 1;
+		panelLoadGeneration.set(request.panel, generation);
+
+		const session = await args.service.buildSession({
+			workspacePath: request.workspacePath,
+			absolutePath: request.absolutePath,
+		});
+
+		if (panelLoadGeneration.get(request.panel) !== generation || request.panel.webview.html === '') {
+			return;
+		}
+
+		if (!session.entries.length) {
+			void vscode.window.showInformationMessage('No file revisions were found for the active file');
+			if (!timelineSessions.has(request.panel)) {
+				request.panel.dispose();
+			}
+			return;
+		}
+
+		timelineSessions.set(request.panel, session);
+		activeTimelinePanel = request.panel;
+		request.panel.title = `Revision Timeline: ${session.fileName}`;
+		timelineDebugState = createDebugState({
+			panel: request.panel,
+			session,
+			lastMessageCommand: timelineDebugState.lastMessageCommand,
+			panelCount: timelineSessions.size,
+		});
+		timelineDebugState = {
+			...timelineDebugState,
+			viewReady: panelViewReady.get(request.panel) === true,
+		};
+
+		if (panelViewReady.get(request.panel)) {
+			await eagerlyBootstrapTimeline({
+				panel: request.panel,
+				session,
+			});
+		}
+	}
 
 	function createTimelinePanel(request: { fileName: string }): vscode.WebviewPanel {
 		const panel = vscode.window.createWebviewPanel(
@@ -306,13 +356,44 @@ export function createTimelinePanelController(args: {
 
 		panel.webview.onDidReceiveMessage(
 			async (message: TimelineCommand | unknown) => {
-				const session = timelineSessions.get(panel);
-				if (!session) {
-					return;
-				}
-
 				try {
 					activeTimelinePanel = panel;
+					const command = message && typeof message === 'object' ? Reflect.get(message, 'command') : undefined;
+
+					if (command === 'ready') {
+						panelViewReady.set(panel, true);
+						const session = timelineSessions.get(panel);
+						timelineDebugState = {
+							...(session
+								? createDebugState({
+										panel,
+										session,
+										lastMessageCommand: 'ready',
+										panelCount: timelineSessions.size,
+									})
+								: timelineDebugState),
+							viewReady: true,
+							readyCount: (timelineDebugState.readyCount || 0) + 1,
+							lastReadyAt: Date.now(),
+							lastMessageCommand: 'ready',
+							panelOpen: true,
+							panelTitle: panel.title,
+						};
+
+						if (session?.entries.length) {
+							await eagerlyBootstrapTimeline({
+								panel,
+								session,
+							});
+						}
+						return;
+					}
+
+					const session = timelineSessions.get(panel);
+					if (!session) {
+						return;
+					}
+
 					await handleTimelineMessage({
 						panel,
 						session,
@@ -345,22 +426,6 @@ export function createTimelinePanelController(args: {
 		}
 
 		if (command === 'ready') {
-			timelineDebugState = {
-				...createDebugState({
-					panel: request.panel,
-					session: request.session,
-					lastMessageCommand: 'ready',
-					panelCount: timelineSessions.size,
-				}),
-				viewReady: true,
-				readyCount: 1,
-				lastReadyAt: Date.now(),
-			};
-
-			await eagerlyBootstrapTimeline({
-				panel: request.panel,
-				session: request.session,
-			});
 			return;
 		}
 
@@ -569,27 +634,10 @@ export function createTimelinePanelController(args: {
 				return;
 			}
 
-			const nextSession = await args.service.buildSession({
+			await loadSessionIntoPanel({
+				panel: request.panel,
 				workspacePath: request.session.workspacePath,
 				absolutePath: path.join(request.session.workspacePath, relativePath),
-			});
-			if (!nextSession.entries.length) {
-				void vscode.window.showInformationMessage('No file revisions were found for the selected file');
-				return;
-			}
-
-			args.service.syncSession({ target: request.session, source: nextSession });
-			request.panel.title = `Revision Timeline: ${request.session.fileName}`;
-			timelineDebugState = createDebugState({
-				panel: request.panel,
-				session: request.session,
-				lastMessageCommand: 'switch-file',
-				panelCount: timelineSessions.size,
-			});
-
-			await eagerlyBootstrapTimeline({
-				panel: request.panel,
-				session: request.session,
 			});
 			return;
 		}
@@ -611,20 +659,10 @@ export function createTimelinePanelController(args: {
 		}
 
 		if (command === 'refresh') {
-			const nextSession = await args.service.buildSession({
+			await loadSessionIntoPanel({
+				panel: request.panel,
 				workspacePath: request.session.workspacePath,
 				absolutePath: request.session.absolutePath,
-			});
-			args.service.syncSession({ target: request.session, source: nextSession });
-			timelineDebugState = createDebugState({
-				panel: request.panel,
-				session: request.session,
-				lastMessageCommand: 'refresh',
-				panelCount: timelineSessions.size,
-			});
-			await eagerlyBootstrapTimeline({
-				panel: request.panel,
-				session: request.session,
 			});
 		}
 	}
@@ -662,6 +700,54 @@ export function createTimelinePanelController(args: {
 			toIndex: payload.defaultIndex,
 			comparisonSource,
 		});
+
+		void enrichSessionInBackground({
+			panel: request.panel,
+			session: request.session,
+		});
+	}
+
+	async function enrichSessionInBackground(request: {
+		panel: vscode.WebviewPanel;
+		session: ExtensionTimelineSession;
+	}): Promise<void> {
+		const generation = panelLoadGeneration.get(request.panel);
+		const isCurrent = () =>
+			panelLoadGeneration.get(request.panel) === generation && timelineSessions.get(request.panel) === request.session;
+
+		try {
+			if (await args.service.ensureWorkspaceFiles({ session: request.session })) {
+				if (!isCurrent()) {
+					return;
+				}
+				await postTimelineMessage({
+					panel: request.panel,
+					message: {
+						type: 'workspace-files',
+						payload: { workspaceFiles: request.session.workspaceFiles },
+					},
+				});
+			}
+
+			const expanded = await args.service.expandFileHistory({ session: request.session });
+			const intermediates = await args.service.ensureIntermediateRevisions({ session: request.session });
+			if (!isCurrent() || (!expanded && !intermediates)) {
+				return;
+			}
+
+			await postTimelineMessage({
+				panel: request.panel,
+				message: {
+					type: 'entries-updated',
+					payload: {
+						entries: args.service.mapEntriesForPayload(request.session.entries),
+						hasIntermediateRevisions: request.session.entries.some((entry) => !entry.touchesFile),
+					},
+				},
+			});
+		} catch {
+			// Background enrichment is best-effort; first paint already succeeded.
+		}
 	}
 
 	function collectPendingSnapshotHydrationIndexes(session: ExtensionTimelineSession): number[] {

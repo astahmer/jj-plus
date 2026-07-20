@@ -105,6 +105,8 @@ export type TimelineData = {
 	latestIndex: number;
 	preferences: TimelinePreferences;
 	workspaceFiles: string[];
+	/** False until host finishes lazy `jj file list` / `git ls-files` fill. */
+	workspaceFilesLoaded?: boolean;
 	hasIntermediateRevisions: boolean;
 	entries: FileRevisionEntry[];
 	snapshotEntries: FileRevisionEntry[];
@@ -117,6 +119,14 @@ export type TimelineInboundMessage =
 	| { type: 'timeline-data'; payload: TimelineData }
 	| { type: 'diff-preview'; payload: DiffPreview }
 	| { type: 'snapshot-entries'; payload: Pick<TimelineData, 'snapshotEntries' | 'snapshotState'> }
+	| { type: 'workspace-files'; payload: { workspaceFiles: string[] } }
+	| {
+			type: 'entries-updated';
+			payload: {
+				entries: FileRevisionEntry[];
+				hasIntermediateRevisions: boolean;
+			};
+	  }
 	| {
 			type: 'range-overview';
 			payload: {
