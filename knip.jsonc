@@ -4,10 +4,10 @@
 		"tests/features/steps/**/*.ts",
 		"tests/vscode/suite/**/*.ts",
 		"tests/fixtures/**/*.ts",
-		"webview/src/**/*.test.ts"
+		"webview/src/**/*.test.ts",
 	],
 	"ignoreBinaries": ["tsgo"],
 	"project": ["*.ts", "src/**/*.ts", "tests/**/*.ts", "webview/**/*.{js,ts,tsx}"],
 	"ignore": ["tests/features/support/fixtures.ts", "webview/src/vitest-setup.ts"],
-	"ignoreUnresolved": ["./src/vitest-setup.ts"]
+	"ignoreUnresolved": ["./src/vitest-setup.ts"],
 }

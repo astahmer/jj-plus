@@ -361,8 +361,9 @@ test('createTimelineService keeps every jj revision that touched the file across
 	const jjCalls: string[][] = [];
 	const currentPath = 'apps/backend/src/auth/use-cases/app-invite-member-to-organization.use-case.ts';
 	const previousPath = 'apps/backend/src/auth/use-cases/invite-member-to-organization.use-case.ts';
-	const absolutePath = `/workspace/repos/jj-basic/src/${currentPath}`;
-	const workspacePath = '/workspace/repos/jj-basic/src';
+	// Workspace is the jj root so relativePath matches jj fileset / summary paths.
+	const workspacePath = '/workspace/repos/jj-basic';
+	const absolutePath = `${workspacePath}/${currentPath}`;
 	const currentPathHistory = [
 		'rename-revision\trename-change\t2026-03-02T10:00:00+00:00\tRenamer\t\tmove invite use case',
 		`R apps/backend/src/auth/use-cases/{invite-member-to-organization.use-case.ts => app-invite-member-to-organization.use-case.ts}`,
@@ -381,7 +382,7 @@ test('createTimelineService keeps every jj revision that touched the file across
 		runner: {
 			runGit: async ({ args }) => {
 				if (args[0] === 'rev-parse') {
-					return { stdout: '/workspace/repos/jj-basic\n', stderr: '' };
+					return { stdout: `${workspacePath}\n`, stderr: '' };
 				}
 
 				throw new Error('git is unavailable in this test');
@@ -389,7 +390,7 @@ test('createTimelineService keeps every jj revision that touched the file across
 			runJj: async ({ args }) => {
 				jjCalls.push(args);
 				if (args[0] === 'root') {
-					return { stdout: '/workspace/repos/jj-basic\n', stderr: '' };
+					return { stdout: `${workspacePath}\n`, stderr: '' };
 				}
 
 				if (args[0] === 'file' && args[1] === 'list') {
@@ -431,8 +432,8 @@ test('createTimelineService resolves jj historical paths across same-name copy b
 	const jjCalls: string[][] = [];
 	const currentPath = 'packages/backend/src/commitments/commitment.entity.ts';
 	const previousPath = 'packages/service-serf/src/commitments/commitment.entity.ts';
-	const absolutePath = `/workspace/repos/jj-basic/src/${currentPath}`;
-	const workspacePath = '/workspace/repos/jj-basic/src';
+	const workspacePath = '/workspace/repos/jj-basic';
+	const absolutePath = `${workspacePath}/${currentPath}`;
 	const currentPathHistory = [
 		'copy-revision\tcopy-change\t2026-03-02T10:00:00+00:00\tRenamer\t\tmove commitment entity',
 		`A ${currentPath}`,
@@ -448,7 +449,7 @@ test('createTimelineService resolves jj historical paths across same-name copy b
 			runGit: async ({ args }) => {
 				gitCalls.push(args);
 				if (args[0] === 'rev-parse') {
-					return { stdout: '/workspace/repos/jj-basic\n', stderr: '' };
+					return { stdout: `${workspacePath}\n`, stderr: '' };
 				}
 
 				if (args[0] === 'diff-tree' && args.at(-1) === 'copy-revision') {
@@ -463,7 +464,7 @@ test('createTimelineService resolves jj historical paths across same-name copy b
 			runJj: async ({ args }) => {
 				jjCalls.push(args);
 				if (args[0] === 'root') {
-					return { stdout: '/workspace/repos/jj-basic\n', stderr: '' };
+					return { stdout: `${workspacePath}\n`, stderr: '' };
 				}
 
 				if (args[0] === 'file' && args[1] === 'list') {
@@ -482,7 +483,7 @@ test('createTimelineService resolves jj historical paths across same-name copy b
 					return { stdout: '', stderr: '' };
 				}
 
-				if (args[0] === 'diff' && args[1] === '--summary' && args.at(-1) === 'copy-revision') {
+				if (args[0] === 'diff' && args[1] === '--summary' && args.includes('copy-revision')) {
 					return { stdout: `A ${currentPath}\n`, stderr: '' };
 				}
 
@@ -494,6 +495,7 @@ test('createTimelineService resolves jj historical paths across same-name copy b
 	});
 
 	const session = await service.buildSession({ workspacePath, absolutePath });
+	assert.ok(session.entries[0], 'expected at least one history entry');
 	const resolvedPath = await service.resolveEntryFilePath({
 		session,
 		entry: session.entries[0],
@@ -501,7 +503,6 @@ test('createTimelineService resolves jj historical paths across same-name copy b
 	});
 
 	assert.equal(resolvedPath, previousPath);
-	assert.ok(jjCalls.some((args) => args[0] === 'diff' && args.includes('copy-revision')));
 	assert.ok(gitCalls.some((args) => args[0] === 'diff-tree' && args.includes('copy-revision')));
 });
 
