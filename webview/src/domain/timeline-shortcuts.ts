@@ -22,6 +22,7 @@ export type TimelineShortcutEvent = {
 	altKey: boolean;
 	hotkeysOpen: boolean;
 	actionsMenuOpen: boolean;
+	viewMenuOpen: boolean;
 	diffFocusMode: boolean;
 };
 
@@ -33,7 +34,7 @@ export function resolveTimelineShortcut(event: TimelineShortcutEvent): TimelineS
 		return { type: 'toggleHotkeys' };
 	}
 
-	if (event.key === 'Escape' && (event.hotkeysOpen || event.actionsMenuOpen)) {
+	if (event.key === 'Escape' && (event.hotkeysOpen || event.actionsMenuOpen || event.viewMenuOpen)) {
 		return { type: 'closeOverlays' };
 	}
 

@@ -123,20 +123,29 @@ export function timelinePane(model: Model): Html {
 										[h.Class('file-switcher-toolbar')],
 										[
 											h.div(
-												[h.Class('file-switcher-modes'), h.Role('tablist'), h.AriaLabel('File switcher mode')],
+												[
+													h.Class('segmented'),
+													h.Id('fileSwitcherModes'),
+													h.Role('tablist'),
+													h.AriaLabel('File switcher mode'),
+												],
 												[
 													h.button(
 														[
-															h.Class(`toggle-chip${model.fileSwitcherMode === 'workspace' ? ' active' : ''}`),
+															h.Class(`segment${model.fileSwitcherMode === 'workspace' ? ' active' : ''}`),
 															h.Type('button'),
+															h.Role('tab'),
+															h.AriaSelected(model.fileSwitcherMode === 'workspace'),
 															h.OnClick(SelectedFileSwitcherMode({ value: 'workspace' })),
 														],
 														['All files'],
 													),
 													h.button(
 														[
-															h.Class(`toggle-chip${model.fileSwitcherMode === 'overview' ? ' active' : ''}`),
+															h.Class(`segment${model.fileSwitcherMode === 'overview' ? ' active' : ''}`),
 															h.Type('button'),
+															h.Role('tab'),
+															h.AriaSelected(model.fileSwitcherMode === 'overview'),
 															h.OnClick(SelectedFileSwitcherMode({ value: 'overview' })),
 														],
 														['Top changed'],

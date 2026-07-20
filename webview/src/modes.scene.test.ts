@@ -35,6 +35,8 @@ test('layout and content mode toggles update pressed segment state', () => {
 	Scene.scene(
 		program,
 		Scene.with(ready),
+		Scene.click(Scene.role('button', { name: 'View options' })),
+		Scene.Command.resolveAll(...hostCommandResolvers()),
 		Scene.click(Scene.role('button', { name: 'Unified' })),
 		Scene.Command.resolveAll(...hostCommandResolvers()),
 		Scene.expect(Scene.role('button', { name: 'Unified', pressed: true })).toExist(),

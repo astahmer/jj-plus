@@ -12,6 +12,7 @@ function makeShortcutEvent(
 		altKey: boolean;
 		hotkeysOpen: boolean;
 		actionsMenuOpen: boolean;
+		viewMenuOpen: boolean;
 		diffFocusMode: boolean;
 	}> = {},
 ) {
@@ -23,6 +24,7 @@ function makeShortcutEvent(
 		altKey: false,
 		hotkeysOpen: false,
 		actionsMenuOpen: false,
+		viewMenuOpen: false,
 		diffFocusMode: false,
 		...overrides,
 	};

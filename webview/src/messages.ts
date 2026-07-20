@@ -31,6 +31,7 @@ export const ClickedToggleSidebar = m('ClickedToggleSidebar');
 export const ClickedToggleSidebarFromMenu = m('ClickedToggleSidebarFromMenu');
 export const ClickedToggleTimelinePane = m('ClickedToggleTimelinePane');
 export const ClickedToggleActionsMenu = m('ClickedToggleActionsMenu');
+export const ClickedToggleViewMenu = m('ClickedToggleViewMenu');
 export const ClickedToggleHotkeys = m('ClickedToggleHotkeys');
 export const ClickedOpenCurrentFile = m('ClickedOpenCurrentFile');
 export const ClickedCancelActiveRequest = m('ClickedCancelActiveRequest');
@@ -140,6 +141,7 @@ export const Message = S.Union([
 	ClickedToggleSidebarFromMenu,
 	ClickedToggleTimelinePane,
 	ClickedToggleActionsMenu,
+	ClickedToggleViewMenu,
 	ClickedToggleHotkeys,
 	ClickedOpenCurrentFile,
 	ClickedCancelActiveRequest,

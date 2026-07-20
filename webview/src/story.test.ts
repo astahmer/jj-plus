@@ -10,6 +10,7 @@ import {
 	ClickedToggleActionsMenu,
 	ClickedToggleDiffFocus,
 	ClickedToggleHotkeys,
+	ClickedToggleViewMenu,
 	ClickedToggleSidebar,
 	CompletedPersistState,
 	CompletedSendHost,
@@ -238,12 +239,21 @@ test('diff focus and menu toggles are mutually exclusive', () => {
 		Story.model((model) => {
 			expect(model.hotkeysOpen).toBe(true);
 			expect(model.actionsMenuOpen).toBe(false);
+			expect(model.viewMenuOpen).toBe(false);
+		}),
+		Story.message(ClickedToggleViewMenu()),
+		Story.Command.expectNone(),
+		Story.model((model) => {
+			expect(model.viewMenuOpen).toBe(true);
+			expect(model.hotkeysOpen).toBe(false);
+			expect(model.actionsMenuOpen).toBe(false);
 		}),
 		Story.message(ClickedToggleActionsMenu()),
 		Story.Command.expectNone(),
 		Story.model((model) => {
 			expect(model.actionsMenuOpen).toBe(true);
 			expect(model.hotkeysOpen).toBe(false);
+			expect(model.viewMenuOpen).toBe(false);
 		}),
 		Story.message(ClickedToggleDiffFocus()),
 		Story.Command.expectNone(),
@@ -254,6 +264,7 @@ test('diff focus and menu toggles are mutually exclusive', () => {
 		Story.model((model) => {
 			expect(model.hotkeysOpen).toBe(true);
 			expect(model.actionsMenuOpen).toBe(false);
+			expect(model.viewMenuOpen).toBe(false);
 		}),
 	);
 });

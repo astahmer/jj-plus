@@ -83,10 +83,10 @@ test('file switcher mode tabs switch workspace and overview', () => {
 		program,
 		Scene.with(ready),
 		Scene.expect(Scene.role('tablist', { name: 'File switcher mode' })).toExist(),
-		Scene.click(Scene.role('button', { name: 'Top changed' })),
+		Scene.click(Scene.role('tab', { name: 'Top changed' })),
 		Scene.Command.resolveAll(...hostCommandResolvers()),
 		Scene.expect(Scene.selector('.file-switcher-summary')).toExist(),
-		Scene.click(Scene.role('button', { name: 'All files' })),
+		Scene.click(Scene.role('tab', { name: 'All files' })),
 		Scene.Command.resolveAll(...hostCommandResolvers()),
 		Scene.expect(Scene.selector('.file-switcher-summary')).toBeAbsent(),
 	);

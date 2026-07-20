@@ -280,6 +280,7 @@ function handleTrackAnchorClick(model: Model, entryIndex: number): UpdateReturn 
 				toIndex: () => entries[visibleIndex].index,
 				maybeHoveredSelectionIndex: () => Option.none(),
 				actionsMenuOpen: () => false,
+				viewMenuOpen: () => false,
 			}),
 			CancelledSelection(),
 		);
@@ -291,6 +292,7 @@ function handleTrackAnchorClick(model: Model, entryIndex: number): UpdateReturn 
 		const next = stepSelection(
 			evo(model, {
 				actionsMenuOpen: () => false,
+				viewMenuOpen: () => false,
 				maybeHoveredSelectionIndex: () => Option.none(),
 			}),
 			SelectionClickedEntry({ entryIndex }),
@@ -307,6 +309,7 @@ function handleTrackAnchorClick(model: Model, entryIndex: number): UpdateReturn 
 			fromIndex: () => Math.min(pending, entryIndex),
 			toIndex: () => Math.max(pending, entryIndex),
 			actionsMenuOpen: () => false,
+			viewMenuOpen: () => false,
 			maybeHoveredSelectionIndex: () => Option.none(),
 		}),
 		CommittedSelection(),
@@ -777,6 +780,7 @@ function handleSubmitFile(model: Model, rawValue: string): UpdateReturn {
 	const next = stepSelection(
 		evo(model, {
 			actionsMenuOpen: () => false,
+			viewMenuOpen: () => false,
 			hotkeysOpen: () => false,
 			maybeHoveredSelectionIndex: () => Option.none(),
 			sessionKey: (current) => current + 1,
@@ -791,6 +795,7 @@ function handleRefresh(model: Model): UpdateReturn {
 	const next = stepSelection(
 		evo(model, {
 			actionsMenuOpen: () => false,
+			viewMenuOpen: () => false,
 			hotkeysOpen: () => false,
 			maybeHoveredSelectionIndex: () => Option.none(),
 			sessionKey: (value) => value + 1,
@@ -825,6 +830,7 @@ function handleReset(model: Model): UpdateReturn {
 		sidebarCollapsed: () => false as boolean,
 		diffFocusMode: () => false as boolean,
 		actionsMenuOpen: () => false as boolean,
+		viewMenuOpen: () => false as boolean,
 		hotkeysOpen: () => false as boolean,
 		oldestFirst: () => false as boolean,
 		maybeHoveredSelectionIndex: () => Option.none(),
@@ -903,6 +909,7 @@ function handleTimelineDataMessage(
 		toIndex,
 		sidebarCollapsed: false,
 		actionsMenuOpen: false,
+		viewMenuOpen: false,
 		hotkeysOpen: false,
 		oldestFirst: false,
 		fileInputValue: data.relativePath,
@@ -1112,6 +1119,7 @@ function handleShortcut(
 		altKey: event.altKey,
 		hotkeysOpen: model.hotkeysOpen,
 		actionsMenuOpen: model.actionsMenuOpen,
+		viewMenuOpen: model.viewMenuOpen,
 		diffFocusMode: model.diffFocusMode,
 	});
 	const behavior = getEditableShortcutBehavior({
@@ -1137,6 +1145,7 @@ function handleShortcut(
 			evo(model, {
 				hotkeysOpen: (value) => !value,
 				actionsMenuOpen: () => false,
+				viewMenuOpen: () => false,
 			}),
 			[],
 		]),
@@ -1160,6 +1169,7 @@ function handleShortcut(
 				evo(model, {
 					hotkeysOpen: () => false,
 					actionsMenuOpen: () => false,
+					viewMenuOpen: () => false,
 					maybeHoveredSelectionIndex: () => Option.none(),
 				}),
 				CancelledSelection(),
@@ -1203,6 +1213,7 @@ function sendRangeCommand(model: Model, command: 'open-editor-diff' | 'open-rang
 				};
 	const next = evo(model, {
 		actionsMenuOpen: () => false,
+		viewMenuOpen: () => false,
 		hotkeysOpen: () => false,
 	});
 	return [next, [SendHostCommand({ command: hostCommand })]];
@@ -1352,7 +1363,13 @@ export function update(model: Model, message: Message): UpdateReturn {
 			ClickedOpenEditorDiff: () => sendRangeCommand(model, 'open-editor-diff'),
 			ClickedToggleSidebar: () => withPersist(evo(model, { sidebarCollapsed: (v) => !v })),
 			ClickedToggleSidebarFromMenu: () =>
-				withPersist(evo(model, { sidebarCollapsed: (v) => !v, actionsMenuOpen: () => false })),
+				withPersist(
+					evo(model, {
+						sidebarCollapsed: (v) => !v,
+						actionsMenuOpen: () => false,
+						viewMenuOpen: () => false,
+					}),
+				),
 			ClickedToggleTimelinePane: () => {
 				if (model.timelinePaneCollapsed) {
 					return withPersist(
@@ -1366,18 +1383,47 @@ export function update(model: Model, message: Message): UpdateReturn {
 					evo(model, {
 						timelinePaneCollapsed: () => true,
 						actionsMenuOpen: () => false,
+						viewMenuOpen: () => false,
 						hotkeysOpen: () => false,
 					}),
 				);
 			},
-			ClickedToggleActionsMenu: () => [evo(model, { actionsMenuOpen: (v) => !v, hotkeysOpen: () => false }), []],
-			ClickedToggleHotkeys: () => [evo(model, { hotkeysOpen: (v) => !v, actionsMenuOpen: () => false }), []],
+			ClickedToggleActionsMenu: () => [
+				evo(model, {
+					actionsMenuOpen: (v) => !v,
+					viewMenuOpen: () => false,
+					hotkeysOpen: () => false,
+				}),
+				[],
+			],
+			ClickedToggleViewMenu: () => [
+				evo(model, {
+					viewMenuOpen: (v) => !v,
+					actionsMenuOpen: () => false,
+					hotkeysOpen: () => false,
+				}),
+				[],
+			],
+			ClickedToggleHotkeys: () => [
+				evo(model, {
+					hotkeysOpen: (v) => !v,
+					actionsMenuOpen: () => false,
+					viewMenuOpen: () => false,
+				}),
+				[],
+			],
 			ClickedOpenCurrentFile: () => [
-				evo(model, { actionsMenuOpen: () => false }),
+				evo(model, {
+					actionsMenuOpen: () => false,
+					viewMenuOpen: () => false,
+				}),
 				[SendHostCommand({ command: { command: 'open-current-file' } })],
 			],
 			ClickedCancelActiveRequest: () => [
-				evo(model, { actionsMenuOpen: () => false }),
+				evo(model, {
+					actionsMenuOpen: () => false,
+					viewMenuOpen: () => false,
+				}),
 				[SendHostCommand({ command: { command: 'cancel-active-request' } })],
 			],
 			ClickedRefreshTimeline: () => handleRefresh(model),
