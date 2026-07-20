@@ -31,7 +31,7 @@ export function makeEntry(overrides: Partial<FileRevisionEntry> & Pick<FileRevis
 	};
 }
 
-export function makeTimelineData(entries: FileRevisionEntry[]): TimelineData {
+export function makeTimelineData(entries: FileRevisionEntry[], overrides: Partial<TimelineData> = {}): TimelineData {
 	return {
 		backend: 'git',
 		workspacePath: '/tmp/repo',
@@ -47,6 +47,7 @@ export function makeTimelineData(entries: FileRevisionEntry[]): TimelineData {
 		entries,
 		snapshotEntries: [],
 		snapshotState: undefined,
+		...overrides,
 	};
 }
 
@@ -73,7 +74,53 @@ export function defaultTimelineData(): TimelineData {
 	]);
 }
 
-export function makeDiffPreview(fromIndex: number, toIndex: number): DiffPreview {
+/** JJ fixture with change ids so snapshot hydration can request work. */
+export function jjTimelineData(): TimelineData {
+	return makeTimelineData(
+		[
+			makeEntry({
+				index: 0,
+				shortRevision: 'aaaa0000',
+				revision: 'aaaa0000'.padEnd(40, '0'),
+				changeId: 'change-a',
+			}),
+			makeEntry({
+				index: 1,
+				shortRevision: 'bbbb0001',
+				revision: 'bbbb0001'.padEnd(40, '0'),
+				changeId: 'change-b',
+				touchesFile: false,
+			}),
+			makeEntry({
+				index: 2,
+				shortRevision: 'cccc0002',
+				revision: 'cccc0002'.padEnd(40, '0'),
+				changeId: 'change-c',
+			}),
+			makeEntry({
+				index: 3,
+				shortRevision: 'dddd0003',
+				revision: 'dddd0003'.padEnd(40, '0'),
+				changeId: 'change-d',
+			}),
+			makeEntry({
+				index: 4,
+				shortRevision: 'Current',
+				revision: 'eeee0004'.padEnd(40, '0'),
+				isWorkingTree: true,
+				relativeDate: 'now',
+				shortDate: 'Today',
+			}),
+		],
+		{
+			backend: 'jj',
+			snapshotEntries: [],
+			snapshotState: { loadedChangeIds: [] },
+		},
+	);
+}
+
+export function makeDiffPreview(fromIndex: number, toIndex: number, overrides: Partial<DiffPreview> = {}): DiffPreview {
 	return {
 		index: toIndex,
 		title: `r${fromIndex} → r${toIndex}`,
@@ -101,6 +148,7 @@ export function makeDiffPreview(fromIndex: number, toIndex: number): DiffPreview
 			},
 		],
 		nonTextualDetails: [],
+		...overrides,
 	};
 }
 
