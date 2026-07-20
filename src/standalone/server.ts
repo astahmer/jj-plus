@@ -764,28 +764,28 @@ async function getJjSnapshotEntries(args: {
 			continue;
 		}
 
-               const evolutionEntries = parseJjEvolutionSummaryEntries(stdout)
-                       .filter((evolutionEntry) => parseJjSummaryChangedPaths(evolutionEntry.summaryLines).includes(args.relativePath))
-                       .map((evolutionEntry, evolutionIndex) =>
-                               makeEntry({
-                                       id: `snapshot:${entry.changeId}:${evolutionEntry.operationId || evolutionEntry.changeKey || evolutionEntry.revision}:${evolutionIndex}`,
-                                       index: 0,
-                                       revision: evolutionEntry.revision,
-                                       shortRevision: normalizeSnapshotOperationKey(evolutionEntry.changeKey) || evolutionEntry.revision.slice(0, 8),
-                                       changeId: entry.changeId,
-                                       bookmarkNames: evolutionEntry.bookmarkNames,
-                                       authorDate: normalizeSnapshotAuthorDate(evolutionEntry.authorDate, entry.authorDate),
-                                       authorName: evolutionEntry.authorName || entry.authorName,
-                                       description: normalizeSnapshotDescription(evolutionEntry.description, evolutionEntry.operationDescription),
-                                       touchesFile: true,
-                                       isWorkingTree: false,
-                                       filePath: args.relativePath,
-                                       operationId: evolutionEntry.operationId,
-                                       operationIndex: evolutionEntry.operationIndex,
-                                       operationKey: evolutionEntry.changeKey,
-                                       remoteBaseUrl: args.remoteBaseUrl,
-                               }),
-                       );
+		const evolutionEntries = parseJjEvolutionSummaryEntries(stdout)
+			.filter((evolutionEntry) => parseJjSummaryChangedPaths(evolutionEntry.summaryLines).includes(args.relativePath))
+			.map((evolutionEntry, evolutionIndex) =>
+				makeEntry({
+					id: `snapshot:${entry.changeId}:${evolutionEntry.operationId || evolutionEntry.changeKey || evolutionEntry.revision}:${evolutionIndex}`,
+					index: 0,
+					revision: evolutionEntry.revision,
+					shortRevision: normalizeSnapshotOperationKey(evolutionEntry.changeKey) || evolutionEntry.revision.slice(0, 8),
+					changeId: entry.changeId,
+					bookmarkNames: evolutionEntry.bookmarkNames,
+					authorDate: normalizeSnapshotAuthorDate(evolutionEntry.authorDate, entry.authorDate),
+					authorName: evolutionEntry.authorName || entry.authorName,
+					description: normalizeSnapshotDescription(evolutionEntry.description, evolutionEntry.operationDescription),
+					touchesFile: true,
+					isWorkingTree: false,
+					filePath: args.relativePath,
+					operationId: evolutionEntry.operationId,
+					operationIndex: evolutionEntry.operationIndex,
+					operationKey: evolutionEntry.changeKey,
+					remoteBaseUrl: args.remoteBaseUrl,
+				}),
+			);
 
 		snapshotEntries.push(...evolutionEntries);
 	}

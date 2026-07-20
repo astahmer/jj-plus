@@ -1,4 +1,4 @@
-import { test } from 'vitest';
+import { expect, test } from 'vitest';
 import { Scene } from 'foldkit';
 import { hostCommandResolvers, hydratedModel, makeEntry, makeTimelineData } from './test/fixture-model.ts';
 import { update } from './update.ts';
@@ -6,7 +6,40 @@ import { view } from './view/app.ts';
 
 const program = { update, view };
 
-test('timeline track survives re-render when sibling entry ids collide', () => {
+type VNodeLike = {
+	key?: string | number | null;
+	children?: Array<VNodeLike | string | null | undefined>;
+};
+
+function collectSiblingKeyGroups(node: VNodeLike | string | null | undefined, groups: string[][] = []): string[][] {
+	if (!node || typeof node === 'string') {
+		return groups;
+	}
+
+	const children = Array.isArray(node.children) ? node.children : [];
+	const siblingKeys = children
+		.map((child) => (child && typeof child === 'object' ? child.key : undefined))
+		.filter((key): key is string | number => key !== undefined && key !== null)
+		.map(String);
+
+	if (siblingKeys.length > 1) {
+		groups.push(siblingKeys);
+	}
+
+	for (const child of children) {
+		collectSiblingKeyGroups(child, groups);
+	}
+
+	return groups;
+}
+
+function expectUniqueSiblingKeys(root: VNodeLike): void {
+	for (const siblingKeys of collectSiblingKeyGroups(root)) {
+		expect(new Set(siblingKeys).size, `duplicate sibling keys: ${siblingKeys.join(', ')}`).toBe(siblingKeys.length);
+	}
+}
+
+test('keyed timeline siblings stay unique when entry ids collide', () => {
 	const ready = hydratedModel(
 		makeTimelineData([
 			makeEntry({ index: 0, id: 'dup-id', shortRevision: 'aaaa0000', revision: 'aaaa0000'.padEnd(40, '0') }),
@@ -22,6 +55,8 @@ test('timeline track survives re-render when sibling entry ids collide', () => {
 			}),
 		]),
 	);
+
+	expectUniqueSiblingKeys(view(ready) as VNodeLike);
 
 	Scene.scene(
 		program,
