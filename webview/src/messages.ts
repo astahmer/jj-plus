@@ -75,13 +75,24 @@ export const PointerMovedDuringDrag = m('PointerMovedDuringDrag', {
 });
 export const ReleasedPointerDuringDrag = m('ReleasedPointerDuringDrag');
 
+// Track hover tooltip
+export const MovedOverTrack = m('MovedOverTrack', {
+	clientX: S.Number,
+	clientY: S.Number,
+	anchorEntryIndex: S.NullOr(S.Number),
+});
+export const LeftTrack = m('LeftTrack');
+
 // File switcher
 export const SelectedFileSwitcherMode = m('SelectedFileSwitcherMode', { value: S.Literals(['workspace', 'overview']) });
 export const SubmittedFileSwitcher = m('SubmittedFileSwitcher', { value: S.String });
 
-// Revision pickers
+// Revision pickers / combobox drafts
 export const SubmittedFromRevision = m('SubmittedFromRevision', { value: S.String });
 export const SubmittedToRevision = m('SubmittedToRevision', { value: S.String });
+export const OpenedCombobox = m('OpenedCombobox', { id: S.String });
+export const ClosedCombobox = m('ClosedCombobox', { id: S.String });
+export const UpdatedComboboxDraft = m('UpdatedComboboxDraft', { id: S.String, value: S.String });
 
 // Keyboard shortcut
 export const PressedShortcut = m('PressedShortcut', {
@@ -152,10 +163,15 @@ export const Message = S.Union([
 	PressedTrack,
 	PointerMovedDuringDrag,
 	ReleasedPointerDuringDrag,
+	MovedOverTrack,
+	LeftTrack,
 	SelectedFileSwitcherMode,
 	SubmittedFileSwitcher,
 	SubmittedFromRevision,
 	SubmittedToRevision,
+	OpenedCombobox,
+	ClosedCombobox,
+	UpdatedComboboxDraft,
 	PressedShortcut,
 	SettledPreview,
 	SettledRangeOverview,

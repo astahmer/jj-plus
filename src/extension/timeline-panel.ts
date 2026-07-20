@@ -357,27 +357,9 @@ export function createTimelinePanelController(args: {
 				lastReadyAt: Date.now(),
 			};
 
-			const comparisonSource = normalizeComparisonSource(args.getPreferences().comparisonSource);
-			if (
-				comparisonSource === 'snapshot' &&
-				request.session.backend === 'jj' &&
-				request.session.snapshotLoadedChangeIds.size === 0
-			) {
-				await args.service.hydrateSnapshotEntries({
-					session: request.session,
-					revisionIndexes: [
-						Math.max(0, request.session.entries.length - 2),
-						Math.max(0, request.session.entries.length - 1),
-					],
-				});
-			}
-
-			await postTimelineMessage({
+			await eagerlyBootstrapTimeline({
 				panel: request.panel,
-				message: {
-					type: 'timeline-data',
-					payload: buildPayload(request.session),
-				},
+				session: request.session,
 			});
 			return;
 		}
@@ -605,12 +587,9 @@ export function createTimelinePanelController(args: {
 				panelCount: timelineSessions.size,
 			});
 
-			await postTimelineMessage({
+			await eagerlyBootstrapTimeline({
 				panel: request.panel,
-				message: {
-					type: 'timeline-data',
-					payload: buildPayload(request.session),
-				},
+				session: request.session,
 			});
 			return;
 		}
@@ -643,14 +622,61 @@ export function createTimelinePanelController(args: {
 				lastMessageCommand: 'refresh',
 				panelCount: timelineSessions.size,
 			});
-			await postTimelineMessage({
+			await eagerlyBootstrapTimeline({
 				panel: request.panel,
-				message: {
-					type: 'timeline-data',
-					payload: buildPayload(request.session),
-				},
+				session: request.session,
 			});
 		}
+	}
+
+	async function eagerlyBootstrapTimeline(request: {
+		panel: vscode.WebviewPanel;
+		session: ExtensionTimelineSession;
+	}): Promise<void> {
+		const comparisonSource = normalizeComparisonSource(args.getPreferences().comparisonSource);
+		if (
+			comparisonSource === 'snapshot' &&
+			request.session.backend === 'jj' &&
+			request.session.snapshotLoadedChangeIds.size === 0
+		) {
+			await args.service.hydrateSnapshotEntries({
+				session: request.session,
+				revisionIndexes: collectPendingSnapshotHydrationIndexes(request.session),
+			});
+		}
+
+		const payload = buildPayload(request.session);
+		await postTimelineMessage({
+			panel: request.panel,
+			message: {
+				type: 'timeline-data',
+				payload,
+			},
+		});
+
+		const defaultFromIndex = Math.max(0, payload.defaultIndex - 1);
+		await sendTimelinePreview({
+			panel: request.panel,
+			session: request.session,
+			fromIndex: defaultFromIndex,
+			toIndex: payload.defaultIndex,
+			comparisonSource,
+		});
+	}
+
+	function collectPendingSnapshotHydrationIndexes(session: ExtensionTimelineSession): number[] {
+		return session.entries.reduce<number[]>((indexes, entry, index) => {
+			if (
+				entry &&
+				!entry.isWorkingTree &&
+				entry.touchesFile &&
+				entry.changeId &&
+				!session.snapshotLoadedChangeIds.has(entry.changeId)
+			) {
+				indexes.push(index);
+			}
+			return indexes;
+		}, []);
 	}
 
 	function buildPayload(session: ExtensionTimelineSession) {

@@ -142,6 +142,10 @@ Then('the selection meta should contain {string}', async ({ page }, value: strin
 	await expect(page.locator('#selectionMeta')).toContainText(value);
 });
 
+Then('the selection meta should not contain {string}', async ({ page }, value: string) => {
+	await expect(page.locator('#selectionMeta')).not.toContainText(value);
+});
+
 Then('the diff mode eyebrow should contain {string}', async ({ page }, value: string) => {
 	await expect
 		.poll(async () => {

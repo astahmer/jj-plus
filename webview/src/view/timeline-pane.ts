@@ -155,6 +155,7 @@ export function timelinePane(model: Model): Html {
 										id: 'fileSwitcher',
 										inputClass: 'file-input',
 										value: model.fileInputValue,
+										open: model.openComboboxId._tag === 'Some' && model.openComboboxId.value === 'fileSwitcher',
 										placeholder: fileSwitcherPlaceholder,
 										options: fileOptions(model),
 										onSubmit: (value) => SubmittedFileSwitcher({ value }),

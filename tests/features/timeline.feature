@@ -167,3 +167,11 @@ Feature: Revision timeline app
     And the button "Unified" should be active
     And the button "Whole file" should be active
     And the button "All" should be active
+
+  Scenario: Rapid sidebar selection settles on the last chosen range without a pending glitch
+    Given I open the standalone revision timeline app for fixture "git-basic"
+    When I select the revision "Current" from the sidebar
+    And I select the revision "b671cdd4" from the sidebar
+    Then the selection meta should not contain "Pick another revision to complete the range."
+    And the diff title should contain "b671cdd4"
+    And the diff title should contain "Current"

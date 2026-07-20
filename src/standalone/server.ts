@@ -332,7 +332,7 @@ async function createStandaloneRuntime(args: { workspacePath: string; filePath: 
 		const fileFixture = await getActiveFileFixture();
 		const timelineData = withPersistedPreferences(fileFixture.timelineData);
 		const defaultFromIndex = Math.max(0, timelineData.defaultIndex - 1);
-		return [
+		const messages: TimelineInboundMessage[] = [
 			{ type: 'timeline-data', payload: timelineData },
 			{
 				type: 'diff-preview',
@@ -344,6 +344,18 @@ async function createStandaloneRuntime(args: { workspacePath: string; filePath: 
 				}),
 			},
 		];
+
+		if (timelineData.backend === 'jj') {
+			messages.push({
+				type: 'snapshot-entries',
+				payload: {
+					snapshotEntries: clone(fileFixture.timelineData.snapshotEntries || []),
+					snapshotState: clone(fileFixture.timelineData.snapshotState || { loadedChangeIds: [] }),
+				},
+			});
+		}
+
+		return messages;
 	}
 
 	async function getActiveFileFixture(): Promise<TimelineFixtureFile> {

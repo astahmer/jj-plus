@@ -908,6 +908,10 @@ kbd {
 	gap: 4px;
 }
 
+.combobox-menu--hidden {
+	display: none;
+}
+
 .combobox-menu--wide {
 	left: 0;
 	right: auto;

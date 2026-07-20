@@ -1,8 +1,16 @@
 import { Effect, Option, Queue, Schema as S, Stream } from 'effect';
 import { Subscription } from 'foldkit';
+import { readAnchorEntryIndex } from './domain/timeline-tooltips.ts';
 import { subscribeHost } from './host-singleton.ts';
 import type { Message } from './messages.ts';
-import { GotHostMessage, PressedShortcut } from './messages.ts';
+import {
+	GotHostMessage,
+	LeftTrack,
+	MovedOverTrack,
+	PointerMovedDuringDrag,
+	PressedShortcut,
+	ReleasedPointerDuringDrag,
+} from './messages.ts';
 import type { Model } from './model.ts';
 
 const EDITABLE_INPUT_TYPES = new Set(['text', 'search', 'email', 'password', 'tel', 'url', 'number']);
@@ -55,6 +63,54 @@ const keyboardStream: Stream.Stream<Message> = Subscription.fromEventFilterMap<K
 	},
 });
 
+const pointerMoveStream: Stream.Stream<Message> = Subscription.fromEventFilterMap<PointerEvent, Message>({
+	target: () => window,
+	type: 'pointermove',
+	toMessage: (event) => Option.some(PointerMovedDuringDrag({ clientX: event.clientX, clientY: event.clientY })),
+});
+
+const pointerUpStream: Stream.Stream<Message> = Subscription.fromEventFilterMap<PointerEvent, Message>({
+	target: () => window,
+	type: 'pointerup',
+	toMessage: () => Option.some(ReleasedPointerDuringDrag()),
+});
+
+function targetInsideTrack(target: EventTarget | null): boolean {
+	return target instanceof HTMLElement && target.closest('#track') !== null;
+}
+
+const trackMouseMoveStream: Stream.Stream<Message> = Subscription.fromEventFilterMap<MouseEvent, Message>({
+	target: () => window,
+	type: 'mousemove',
+	toMessage: (event) => {
+		if (!targetInsideTrack(event.target)) {
+			return Option.none();
+		}
+
+		return Option.some(
+			MovedOverTrack({
+				clientX: event.clientX,
+				clientY: event.clientY,
+				anchorEntryIndex: readAnchorEntryIndex(event.target as HTMLElement | null),
+			}),
+		);
+	},
+});
+
+const trackMouseOutStream: Stream.Stream<Message> = Subscription.fromEventFilterMap<MouseEvent, Message>({
+	target: () => window,
+	type: 'mouseout',
+	toMessage: (event) => {
+		if (!targetInsideTrack(event.target)) {
+			return Option.none();
+		}
+		if (targetInsideTrack(event.relatedTarget)) {
+			return Option.none();
+		}
+		return Option.some(LeftTrack());
+	},
+});
+
 export const subscriptions = Subscription.make<Model, Message>()((entry) => ({
 	host: Subscription.persistent(hostStream),
 	keyboard: entry(
@@ -64,4 +120,20 @@ export const subscriptions = Subscription.make<Model, Message>()((entry) => ({
 			dependenciesToStream: () => keyboardStream,
 		},
 	),
+	pointerMove: entry(
+		{ isDragging: S.Boolean },
+		{
+			modelToDependencies: (model) => ({ isDragging: model.dragState._tag !== 'DragIdle' }),
+			dependenciesToStream: ({ isDragging }) => (isDragging ? pointerMoveStream : Stream.empty),
+		},
+	),
+	pointerUp: entry(
+		{ isDragging: S.Boolean },
+		{
+			modelToDependencies: (model) => ({ isDragging: model.dragState._tag !== 'DragIdle' }),
+			dependenciesToStream: ({ isDragging }) => (isDragging ? pointerUpStream : Stream.empty),
+		},
+	),
+	trackMouseMove: Subscription.persistent(trackMouseMoveStream),
+	trackMouseOut: Subscription.persistent(trackMouseOutStream),
 }));

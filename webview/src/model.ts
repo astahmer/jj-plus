@@ -10,6 +10,18 @@ export const ContentMode = S.Literals(['diffs', 'full']);
 export const Preset = S.Literals(['year', '7d', '30d', '90d', 'all']);
 export const FileSwitcherMode = S.Literals(['workspace', 'overview']);
 
+// Range tooltip payload — only fields the view needs to lay out and label the tooltip.
+// Entries/preview are looked up from `data`/`previewByRange` at view time.
+export const TrackTooltipState = S.Struct({
+	left: S.Number,
+	top: S.Number,
+	fromIndex: S.Number,
+	toIndex: S.Number,
+	pending: S.Boolean,
+	selectedCount: S.Number,
+});
+export type TrackTooltipState = typeof TrackTooltipState.Type;
+
 // Complex host-shaped values. We keep Model Schema-based but treat these payloads as opaque
 // because their nested arrays and maps are validated at the host boundary.
 export const Model = S.Struct({
@@ -35,6 +47,9 @@ export const Model = S.Struct({
 	hotkeysOpen: S.Boolean,
 	oldestFirst: S.Boolean,
 	fileInputValue: S.String,
+	fromRevisionDraft: S.String,
+	toRevisionDraft: S.String,
+	openComboboxId: S.Option(S.String),
 	fileSwitcherMode: FileSwitcherMode,
 	rangeOverviewByRange: S.Record(S.String, S.Unknown),
 	rangeOverviewLoadingKey: S.String,
@@ -44,6 +59,7 @@ export const Model = S.Struct({
 	sidebarPreviewInFlightKey: S.String,
 	pendingRangeResolutionKey: S.String,
 	maybeHoveredSelectionIndex: S.Option(S.Number),
+	maybeTrackTooltip: S.Option(TrackTooltipState),
 	shortcutFocusedInputId: S.Option(S.String),
 	sessionKey: S.Number,
 	previewRequestId: S.Number,
@@ -75,6 +91,9 @@ export const initialModel: Model = {
 	hotkeysOpen: false,
 	oldestFirst: false,
 	fileInputValue: '',
+	fromRevisionDraft: '',
+	toRevisionDraft: '',
+	openComboboxId: Option.none(),
 	fileSwitcherMode: 'workspace',
 	rangeOverviewByRange: {},
 	rangeOverviewLoadingKey: '',
@@ -84,6 +103,7 @@ export const initialModel: Model = {
 	sidebarPreviewInFlightKey: '',
 	pendingRangeResolutionKey: '',
 	maybeHoveredSelectionIndex: Option.none(),
+	maybeTrackTooltip: Option.none(),
 	shortcutFocusedInputId: Option.none(),
 	sessionKey: 0,
 	previewRequestId: 0,

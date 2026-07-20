@@ -33,7 +33,8 @@ export function timelineRevisionPickers(model: Model): Html {
 					combobox({
 						id: 'fromRevisionInput',
 						inputClass: 'revision-input',
-						value: from?.shortRevision || '',
+						value: model.fromRevisionDraft,
+						open: model.openComboboxId._tag === 'Some' && model.openComboboxId.value === 'fromRevisionInput',
 						options: revisionOptions,
 						menuClass: 'combobox-menu--wide',
 						onSubmit: (value) => SubmittedFromRevision({ value }),
@@ -69,7 +70,8 @@ export function timelineRevisionPickers(model: Model): Html {
 					combobox({
 						id: 'toRevisionInput',
 						inputClass: 'revision-input',
-						value: to?.shortRevision || '',
+						value: model.toRevisionDraft,
+						open: model.openComboboxId._tag === 'Some' && model.openComboboxId.value === 'toRevisionInput',
 						options: revisionOptions,
 						menuClass: 'combobox-menu--wide',
 						onSubmit: (value) => SubmittedToRevision({ value }),

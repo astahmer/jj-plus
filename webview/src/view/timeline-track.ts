@@ -1,3 +1,4 @@
+import { Option } from 'effect';
 import { html, type Html } from 'foldkit/html';
 import { getTimelineAnchorPercent } from '../domain/timeline-model.ts';
 import type { Message } from '../messages.ts';
@@ -8,6 +9,10 @@ import {
 	ClickedStepForward,
 	ClickedTrackAnchor,
 	HoveredEntry,
+	PressedMarker,
+	PressedRangeFill,
+	PressedTrack,
+	PressedTrackAnchor,
 	UnhoveredEntry,
 } from '../messages.ts';
 import type { Model } from '../model.ts';
@@ -58,7 +63,13 @@ export function timelineTrack(model: Model): Html {
 					h.div([h.Class('timeline-hover-axis')], []),
 					h.div([h.Class('selection-meta'), h.Id('selectionMeta')], [getSelectionMeta(model)]),
 					h.div(
-						[h.Class('track'), h.Id('track')],
+						[
+							h.Class('track'),
+							h.Id('track'),
+							h.OnPointerDown((_pointerType, button, _sx, _sy, _ts, clientX) =>
+								Option.some(PressedTrack({ clientX, button })),
+							),
+						],
 						visible.map((entry, index) => {
 							const percent = getTimelineAnchorPercent(visible, index);
 							const isFrom = showCommittedSelection && entry.index === model.fromIndex;
@@ -90,6 +101,16 @@ export function timelineTrack(model: Model): Html {
 									h.DataAttribute('entry-index', String(entry.index)),
 									h.Type('button'),
 									h.OnClick(ClickedTrackAnchor({ entryIndex: entry.index })),
+									h.OnPointerDown((_pointerType, button, _sx, _sy, _ts, clientX, clientY) =>
+										Option.some(
+											PressedTrackAnchor({
+												entryIndex: entry.index,
+												clientX,
+												clientY,
+												button,
+											}),
+										),
+									),
 									h.OnMouseEnter(HoveredEntry({ entryIndex: entry.index })),
 									h.OnMouseLeave(UnhoveredEntry()),
 								],
@@ -105,6 +126,9 @@ export function timelineTrack(model: Model): Html {
 								left: `${fromPercent}%`,
 								width: `${Math.max(0, toPercent - fromPercent)}%`,
 							}),
+							h.OnPointerDown((_pointerType, button, _sx, _sy, _ts, clientX) =>
+								Option.some(PressedRangeFill({ clientX, button })),
+							),
 						],
 						[],
 					),
@@ -115,6 +139,9 @@ export function timelineTrack(model: Model): Html {
 							h.Type('button'),
 							h.AriaLabel('Adjust from revision'),
 							h.Style({ left: `${fromPercent}%` }),
+							h.OnPointerDown((_pointerType, button, _sx, _sy, _ts, clientX) =>
+								Option.some(PressedMarker({ side: 'from', clientX, button })),
+							),
 						],
 						[],
 					),
@@ -125,6 +152,9 @@ export function timelineTrack(model: Model): Html {
 							h.Type('button'),
 							h.AriaLabel('Adjust to revision'),
 							h.Style({ left: `${toPercent}%` }),
+							h.OnPointerDown((_pointerType, button, _sx, _sy, _ts, clientX) =>
+								Option.some(PressedMarker({ side: 'to', clientX, button })),
+							),
 						],
 						[],
 					),

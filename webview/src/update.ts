@@ -15,7 +15,17 @@ import {
 	shiftRangeSelection,
 	shiftStepSelection,
 } from './domain/timeline-selection.ts';
-import { getEntriesForSource, findRevisionEntryMatch, getVisibleIndexFromClientX } from './domain/timeline-model.ts';
+import {
+	getEntriesForSource,
+	findRevisionEntryMatch,
+	getUnitPreviewRange,
+	getVisibleIndexFromClientX,
+} from './domain/timeline-model.ts';
+import {
+	buildPendingRangeTooltipPayload,
+	buildRangeTooltipPayload,
+	buildSegmentTooltipPayload,
+} from './domain/timeline-tooltips.ts';
 import {
 	DragAnchorIntent,
 	DragIdle,
@@ -238,13 +248,14 @@ function applySyncPlan(model: Model): UpdateReturn {
 }
 
 function afterMutate(model: Model, extraCommands: ReadonlyArray<Command.Command<Message>> = []): UpdateReturn {
-	const [syncedModel, syncCommands] = applySyncPlan(model);
-	if (syncedModel !== model && syncCommands.length === 0) {
+	const withDrafts = syncRevisionDrafts(model);
+	const [syncedModel, syncCommands] = applySyncPlan(withDrafts);
+	if (syncedModel !== withDrafts && syncCommands.length === 0) {
 		// Normalized selection changed; run sync again once.
-		const [next, cmds] = applySyncPlan(syncedModel);
+		const [next, cmds] = applySyncPlan(syncRevisionDrafts(syncedModel));
 		return [next, [...extraCommands, ...cmds]];
 	}
-	return [syncedModel, [...extraCommands, ...syncCommands]];
+	return [syncRevisionDrafts(syncedModel), [...extraCommands, ...syncCommands]];
 }
 
 function stepSession(model: Model, message: Parameters<typeof sessionMachine.transition>[1]): Model {
@@ -352,6 +363,229 @@ function handleDock(model: Model, edge: 'start' | 'end'): UpdateReturn {
 		});
 	}
 	return afterMutate(next, [persistCommand(next)]);
+}
+
+function getTrackWidth(): number {
+	const track = typeof document === 'undefined' ? null : document.getElementById('track');
+	return Math.max(1, track?.getBoundingClientRect().width || 1);
+}
+
+function applyRangeShift(model: Model, drag: typeof DragRange.Type, clientX: number): UpdateReturn {
+	const entries = getVisibleEntries(model);
+	if (!entries.length) {
+		return [model, []];
+	}
+	const trackWidth = getTrackWidth();
+	const denominator = Math.max(1, entries.length - 1);
+	const width = Math.max(1, drag.startToVisibleIndex - drag.startFromVisibleIndex);
+	const deltaRatio = (clientX - drag.startClientX) / trackWidth;
+	const deltaSteps = Math.round(deltaRatio * denominator);
+	const nextFromVisibleIndex = Math.min(
+		Math.max(drag.startFromVisibleIndex + deltaSteps, 0),
+		Math.max(0, entries.length - 1 - width),
+	);
+	const nextToVisibleIndex = nextFromVisibleIndex + width;
+	const next = evo(model, {
+		fromIndex: () => entries[nextFromVisibleIndex].index,
+		toIndex: () => entries[nextToVisibleIndex].index,
+	});
+	return [next, []];
+}
+
+function applyMarkerShift(model: Model, side: 'from' | 'to', clientX: number): UpdateReturn {
+	const entries = getVisibleEntries(model);
+	if (!entries.length) {
+		return [model, []];
+	}
+	const nextVisibleIndex = getVisibleIndexFromClientX(entries, clientX);
+	if (nextVisibleIndex < 0) {
+		return [model, []];
+	}
+	const fromVisibleIndex = getVisibleIndexForAbsoluteIndex(entries, model.fromIndex);
+	const toVisibleIndex = getVisibleIndexForAbsoluteIndex(entries, model.toIndex);
+	if (fromVisibleIndex < 0 || toVisibleIndex < 0) {
+		return [model, []];
+	}
+
+	let nextFrom = model.fromIndex;
+	let nextTo = model.toIndex;
+
+	if (side === 'from') {
+		const clampedVisibleIndex = Math.min(nextVisibleIndex, Math.max(0, toVisibleIndex - 1));
+		nextFrom = entries[clampedVisibleIndex].index;
+	} else {
+		const clampedVisibleIndex = Math.max(nextVisibleIndex, Math.min(entries.length - 1, fromVisibleIndex + 1));
+		nextTo = entries[clampedVisibleIndex].index;
+	}
+
+	// Ensure minimum width of 1 visible step.
+	let nextFromVisible = entries.findIndex((entry) => entry.index === nextFrom);
+	let nextToVisible = entries.findIndex((entry) => entry.index === nextTo);
+	if (nextFromVisible === nextToVisible && entries.length >= 2) {
+		if (side === 'from') {
+			nextFromVisible = Math.max(0, nextToVisible - 1);
+		} else {
+			nextToVisible = Math.min(entries.length - 1, nextFromVisible + 1);
+		}
+		if (nextFromVisible === nextToVisible) {
+			nextFromVisible = Math.max(0, nextToVisible - 1);
+			nextToVisible = Math.min(entries.length - 1, nextFromVisible + 1);
+		}
+		nextFrom = entries[nextFromVisible].index;
+		nextTo = entries[nextToVisible].index;
+	}
+
+	const next = evo(model, {
+		fromIndex: () => nextFrom,
+		toIndex: () => nextTo,
+	});
+	return [next, []];
+}
+
+function handlePressedTrackAnchor(
+	model: Model,
+	entryIndex: number,
+	clientX: number,
+	clientY: number,
+	button: number,
+): UpdateReturn {
+	if (button !== 0 || !getVisibleEntries(model).length) {
+		return [model, []];
+	}
+	const next = evo(model, {
+		dragState: (): DragState => DragAnchorIntent({ entryIndex, startClientX: clientX, startClientY: clientY }),
+	});
+	return [next, []];
+}
+
+function handlePressedRangeFill(model: Model, clientX: number, button: number): UpdateReturn {
+	if (button !== 0) {
+		return [model, []];
+	}
+	return beginRangeDrag(model, clientX);
+}
+
+function handlePressedMarker(model: Model, side: 'from' | 'to', clientX: number, button: number): UpdateReturn {
+	if (button !== 0) {
+		return [model, []];
+	}
+	let next = stepSelection(
+		evo(model, {
+			comparisonMode: () => 'range' as ComparisonMode,
+			maybeHoveredSelectionIndex: () => Option.none(),
+			dragState: (): DragState => DragMarker({ side }),
+		}),
+		CancelledSelection(),
+	);
+	const [applied] = applyMarkerShift(next, side, clientX);
+	next = applied;
+	return [next, []];
+}
+
+function handlePressedTrack(model: Model, clientX: number, button: number): UpdateReturn {
+	if (button !== 0 || model.dragState._tag !== 'DragIdle') {
+		return [model, []];
+	}
+	const entries = getVisibleEntries(model);
+	if (!entries.length) {
+		return [model, []];
+	}
+	const visibleIndex = getVisibleIndexFromClientX(entries, clientX);
+	if (visibleIndex < 0) {
+		return [model, []];
+	}
+	const fromVisibleIndex = getVisibleIndexForAbsoluteIndex(entries, model.fromIndex);
+	const toVisibleIndex = getVisibleIndexForAbsoluteIndex(entries, model.toIndex);
+	if (fromVisibleIndex < 0 || toVisibleIndex < 0) {
+		return [model, []];
+	}
+	if (
+		visibleIndex < Math.min(fromVisibleIndex, toVisibleIndex) ||
+		visibleIndex > Math.max(fromVisibleIndex, toVisibleIndex)
+	) {
+		return [model, []];
+	}
+	return beginRangeDrag(model, clientX);
+}
+
+function beginRangeDrag(model: Model, clientX: number): UpdateReturn {
+	const entries = getVisibleEntries(model);
+	if (!entries.length) {
+		return [model, []];
+	}
+	const startFromVisibleIndex = getVisibleIndexForAbsoluteIndex(entries, model.fromIndex);
+	const startToVisibleIndex = getVisibleIndexForAbsoluteIndex(entries, model.toIndex);
+	if (startFromVisibleIndex < 0 || startToVisibleIndex < 0) {
+		return [model, []];
+	}
+	const dragRange = DragRange({
+		startClientX: clientX,
+		startFromVisibleIndex,
+		startToVisibleIndex,
+	});
+	const nextSelection = stepSelection(
+		evo(model, {
+			maybeHoveredSelectionIndex: () => Option.none(),
+			dragState: (): DragState => dragRange,
+		}),
+		CancelledSelection(),
+	);
+	return [nextSelection, []];
+}
+
+function handlePointerMovedDuringDrag(model: Model, clientX: number, clientY: number): UpdateReturn {
+	return M.value(model.dragState).pipe(
+		M.withReturnType<UpdateReturn>(),
+		M.tagsExhaustive({
+			DragIdle: () => [model, []],
+			DragAnchorIntent: (intent) => {
+				const dx = Math.abs(clientX - intent.startClientX);
+				const dy = Math.abs(clientY - intent.startClientY);
+				if (Math.max(dx, dy) < TRACK_ANCHOR_DRAG_START_DISTANCE) {
+					return [model, []];
+				}
+				const entries = getVisibleEntries(model);
+				if (!entries.length) {
+					return [evo(model, { dragState: (): DragState => DragIdle() }), []];
+				}
+				const startFromVisibleIndex = getVisibleIndexForAbsoluteIndex(entries, model.fromIndex);
+				const startToVisibleIndex = getVisibleIndexForAbsoluteIndex(entries, model.toIndex);
+				if (startFromVisibleIndex < 0 || startToVisibleIndex < 0) {
+					return [evo(model, { dragState: (): DragState => DragIdle() }), []];
+				}
+				const dragRange = DragRange({
+					startClientX: intent.startClientX,
+					startFromVisibleIndex,
+					startToVisibleIndex,
+				});
+				const promoted = stepSelection(
+					evo(model, {
+						maybeHoveredSelectionIndex: () => Option.none(),
+						dragState: (): DragState => dragRange,
+						suppressAnchorClick: () => true,
+					}),
+					CancelledSelection(),
+				);
+				return applyRangeShift(promoted, dragRange, clientX);
+			},
+			DragRange: (drag) => applyRangeShift(model, drag, clientX),
+			DragMarker: (drag) => applyMarkerShift(model, drag.side, clientX),
+		}),
+	);
+}
+
+function handleReleasedPointerDuringDrag(model: Model): UpdateReturn {
+	if (model.dragState._tag === 'DragIdle') {
+		return [model, []];
+	}
+	const wasRangeOrMarker = model.dragState._tag === 'DragRange' || model.dragState._tag === 'DragMarker';
+	const next = evo(model, {
+		dragState: (): DragState => DragIdle(),
+	});
+	if (wasRangeOrMarker) {
+		return afterMutate(next, [persistCommand(next)]);
+	}
+	return [next, []];
 }
 
 function handleAdjustBoundary(model: Model, side: 'from' | 'to', amount: number): UpdateReturn {
@@ -462,6 +696,16 @@ function handleToggleIntermediate(model: Model): UpdateReturn {
 	return afterMutate(next, [persistCommand(next)]);
 }
 
+function syncRevisionDrafts(model: Model): Model {
+	const from = getVisibleEntries(model).find((entry) => entry.index === model.fromIndex);
+	const to = getVisibleEntries(model).find((entry) => entry.index === model.toIndex);
+	const openId = model.openComboboxId._tag === 'Some' ? model.openComboboxId.value : null;
+	return evo(model, {
+		fromRevisionDraft: (current) => (openId === 'fromRevisionInput' ? current : from?.shortRevision || ''),
+		toRevisionDraft: (current) => (openId === 'toRevisionInput' ? current : to?.shortRevision || ''),
+	});
+}
+
 function handleSubmitRevision(model: Model, side: 'from' | 'to', value: string): UpdateReturn {
 	const match = findRevisionEntryMatch(getVisibleEntries(model), value);
 	if (!match) {
@@ -478,19 +722,47 @@ function handleSubmitRevision(model: Model, side: 'from' | 'to', value: string):
 			fromIndex: () => entries[visibleIndex - 1].index,
 			toIndex: () => entries[visibleIndex].index,
 			maybeHoveredSelectionIndex: () => Option.none(),
+			openComboboxId: () => Option.none(),
 		});
 	} else if (side === 'from') {
 		next = evo(next, {
 			fromIndex: () => Math.min(match.index, next.toIndex),
 			maybeHoveredSelectionIndex: () => Option.none(),
+			openComboboxId: () => Option.none(),
 		});
 	} else {
 		next = evo(next, {
 			toIndex: () => Math.max(match.index, next.fromIndex),
 			maybeHoveredSelectionIndex: () => Option.none(),
+			openComboboxId: () => Option.none(),
 		});
 	}
+	next = syncRevisionDrafts(next);
 	return afterMutate(next, [persistCommand(next)]);
+}
+
+function handleOpenedCombobox(model: Model, id: string): UpdateReturn {
+	return [evo(model, { openComboboxId: () => Option.some(id) }), []];
+}
+
+function handleClosedCombobox(model: Model, id: string): UpdateReturn {
+	if (model.openComboboxId._tag !== 'Some' || model.openComboboxId.value !== id) {
+		return [model, []];
+	}
+	return [syncRevisionDrafts(evo(model, { openComboboxId: () => Option.none() })), []];
+}
+
+function handleUpdatedComboboxDraft(model: Model, id: string, value: string): UpdateReturn {
+	if (id === 'fromRevisionInput') {
+		return [evo(model, { fromRevisionDraft: () => value, openComboboxId: () => Option.some(id) }), []];
+	}
+	if (id === 'toRevisionInput') {
+		return [evo(model, { toRevisionDraft: () => value, openComboboxId: () => Option.some(id) }), []];
+	}
+	if (id === 'fileSwitcher') {
+		return [evo(model, { fileInputValue: () => value, openComboboxId: () => Option.some(id) }), []];
+	}
+	return [model, []];
 }
 
 function handleSubmitFile(model: Model, value: string): UpdateReturn {
@@ -618,6 +890,7 @@ function handleTimelineDataMessage(
 	};
 	next = stepSelection(next, CancelledSelection());
 	next = stepSession(next, ReceivedTimelineData());
+	next = syncRevisionDrafts(next);
 	return afterMutate(next);
 }
 
@@ -882,6 +1155,83 @@ function sendRangeCommand(model: Model, command: 'open-editor-diff' | 'open-rang
 	return [next, [SendHostCommand({ command: hostCommand })]];
 }
 
+function handleMovedOverTrack(
+	model: Model,
+	clientX: number,
+	clientY: number,
+	anchorEntryIndex: number | null,
+): UpdateReturn {
+	if (model.dragState._tag !== 'DragIdle') {
+		return [model, []];
+	}
+
+	const entries = getVisibleEntries(model);
+	if (!entries.length) {
+		return [model, []];
+	}
+
+	const pending = model.selection._tag === 'PendingAnchor' ? model.selection.entryIndex : null;
+
+	if (pending !== null) {
+		const visibleIndex = getVisibleIndexFromClientX(entries, clientX);
+		const hoveredIndex =
+			anchorEntryIndex !== null && Number.isInteger(anchorEntryIndex)
+				? anchorEntryIndex
+				: (entries[visibleIndex]?.index ?? null);
+		const tooltip = buildPendingRangeTooltipPayload(entries, pending, hoveredIndex, clientX, clientY);
+		const nextHover = hoveredIndex === null ? Option.none<number>() : Option.some(hoveredIndex);
+		const next = evo(model, {
+			maybeHoveredSelectionIndex: () => nextHover,
+			maybeTrackTooltip: () => (tooltip ? Option.some(tooltip) : Option.none()),
+		});
+		return [next, []];
+	}
+
+	// Committed selection — show the segment tooltip for the anchor closest to the cursor.
+	const anchorRange = anchorEntryIndex !== null ? getUnitPreviewRange(entries, anchorEntryIndex) : null;
+	const tooltip = anchorRange
+		? buildRangeTooltipPayload(entries, anchorRange.fromIndex, anchorRange.toIndex, clientX, clientY, false)
+		: buildSegmentTooltipPayload(entries, clientX, clientY);
+
+	if (!tooltip) {
+		return [model, []];
+	}
+
+	const next = evo(model, {
+		maybeTrackTooltip: () => Option.some(tooltip),
+	});
+	return [next, []];
+}
+
+function handleLeftTrack(model: Model): UpdateReturn {
+	if (model.maybeTrackTooltip._tag === 'None' && model.maybeHoveredSelectionIndex._tag === 'None') {
+		return [model, []];
+	}
+	const next = evo(model, {
+		maybeTrackTooltip: () => Option.none(),
+		maybeHoveredSelectionIndex: () => Option.none(),
+	});
+	return [next, []];
+}
+
+function handleHoveredEntry(model: Model, entryIndex: number): UpdateReturn {
+	let next = evo(model, { maybeHoveredSelectionIndex: () => Option.some(entryIndex) });
+
+	// If a pending range is being drawn, keep the tooltip in sync when the user
+	// warps focus/hover onto an anchor via keyboard/dispatchEvent without moving the mouse.
+	const pending = next.selection._tag === 'PendingAnchor' ? next.selection.entryIndex : null;
+	if (pending !== null && next.maybeTrackTooltip._tag === 'Some') {
+		const entries = getVisibleEntries(next);
+		const existing = next.maybeTrackTooltip.value;
+		const tooltip = buildPendingRangeTooltipPayload(entries, pending, entryIndex, existing.left, existing.top);
+		if (tooltip) {
+			next = evo(next, { maybeTrackTooltip: () => Option.some(tooltip) });
+		}
+	}
+
+	return [next, []];
+}
+
 export function init(): UpdateReturn {
 	const boot = stepSession(initialModel, BootedSession());
 	return [boot, [BootSession()]];
@@ -901,9 +1251,17 @@ export function update(model: Model, message: Message): UpdateReturn {
 			IgnoredMouseClick: () => [model, []],
 			GotHostMessage: ({ payload }) => handleGotHostMessage(model, payload),
 			ClickedHistoryEntry: ({ entryIndex }) => handleTrackAnchorClick(model, entryIndex),
-			ClickedTrackAnchor: ({ entryIndex }) => handleTrackAnchorClick(model, entryIndex),
-			HoveredEntry: ({ entryIndex }) => [evo(model, { maybeHoveredSelectionIndex: () => Option.some(entryIndex) }), []],
+			ClickedTrackAnchor: ({ entryIndex }) => {
+				if (model.suppressAnchorClick) {
+					return [evo(model, { suppressAnchorClick: () => false }), []];
+				}
+				return handleTrackAnchorClick(model, entryIndex);
+			},
+			HoveredEntry: ({ entryIndex }) => handleHoveredEntry(model, entryIndex),
 			UnhoveredEntry: () => [evo(model, { maybeHoveredSelectionIndex: () => Option.none() }), []],
+			MovedOverTrack: ({ clientX, clientY, anchorEntryIndex }) =>
+				handleMovedOverTrack(model, clientX, clientY, anchorEntryIndex),
+			LeftTrack: () => handleLeftTrack(model),
 			ClickedOpenRevisionRemote: ({ entryIndex }) => [
 				model,
 				[
@@ -982,10 +1340,20 @@ export function update(model: Model, message: Message): UpdateReturn {
 			ClickedStepFastBackward: () => handleStep(model, -5),
 			ClickedStepForward: () => handleStep(model, 1),
 			ClickedStepFastForward: () => handleStep(model, 5),
+			PressedTrackAnchor: ({ entryIndex, clientX, clientY, button }) =>
+				handlePressedTrackAnchor(model, entryIndex, clientX, clientY, button),
+			PressedRangeFill: ({ clientX, button }) => handlePressedRangeFill(model, clientX, button),
+			PressedMarker: ({ side, clientX, button }) => handlePressedMarker(model, side, clientX, button),
+			PressedTrack: ({ clientX, button }) => handlePressedTrack(model, clientX, button),
+			PointerMovedDuringDrag: ({ clientX, clientY }) => handlePointerMovedDuringDrag(model, clientX, clientY),
+			ReleasedPointerDuringDrag: () => handleReleasedPointerDuringDrag(model),
 			SelectedFileSwitcherMode: ({ value }) => afterMutate(evo(model, { fileSwitcherMode: () => value })),
 			SubmittedFileSwitcher: ({ value }) => handleSubmitFile(model, value),
 			SubmittedFromRevision: ({ value }) => handleSubmitRevision(model, 'from', value),
 			SubmittedToRevision: ({ value }) => handleSubmitRevision(model, 'to', value),
+			OpenedCombobox: ({ id }) => handleOpenedCombobox(model, id),
+			ClosedCombobox: ({ id }) => handleClosedCombobox(model, id),
+			UpdatedComboboxDraft: ({ id, value }) => handleUpdatedComboboxDraft(model, id, value),
 			PressedShortcut: (payload) => handleShortcut(model, payload),
 			SettledPreview: () => [model, []],
 			SettledRangeOverview: () => [model, []],

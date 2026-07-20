@@ -1,4 +1,5 @@
 import { Runtime } from 'foldkit';
+import '../timeline.css';
 import { init, update } from './update.ts';
 import { Model } from './model.ts';
 import { subscriptions } from './subscriptions.ts';
