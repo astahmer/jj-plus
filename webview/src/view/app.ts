@@ -1,7 +1,9 @@
 import { html, type Html } from 'foldkit/html';
 import type { Message } from '../messages.ts';
 import type { Model } from '../model.ts';
+import { queuePierreFileDiffSync } from '../pierre/file-diff-host.ts';
 import { diffPanel } from './diff-panel.ts';
+import { sessionLoadingOverlay } from './session-loading.ts';
 import { sidebar } from './sidebar.ts';
 import { timelinePane } from './timeline-pane.ts';
 import { trackTooltip } from './tooltip.ts';
@@ -9,6 +11,10 @@ import { trackTooltip } from './tooltip.ts';
 const TIMELINE_COLLAPSED_HEIGHT = 128;
 
 export function view(model: Model): Html {
+	if (typeof window !== 'undefined') {
+		queuePierreFileDiffSync(model);
+	}
+
 	const h = html<Message>();
 	const workspaceClasses = [
 		'workspace',
@@ -36,6 +42,7 @@ export function view(model: Model): Html {
 				],
 			),
 			trackTooltip(model),
+			sessionLoadingOverlay(model),
 		],
 	);
 }

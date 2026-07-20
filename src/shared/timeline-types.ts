@@ -50,13 +50,6 @@ export type TimelinePreferences = {
 	preset?: TimelinePreset;
 };
 
-export type DiffRow = {
-	type: 'context' | 'add' | 'remove' | 'skip';
-	leftNumber: number | null;
-	rightNumber: number | null;
-	text: string;
-};
-
 export type DiffPreview = {
 	index: number;
 	title: string;
@@ -69,7 +62,10 @@ export type DiffPreview = {
 	fromIndex: number;
 	toIndex: number;
 	comparisonSource: ComparisonSource;
-	rows: DiffRow[];
+	beforePath: string;
+	afterPath: string;
+	beforeText: string;
+	afterText: string;
 	nonTextualDetails: string[];
 };
 

@@ -1,10 +1,10 @@
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { textsMatchIgnoringLineEndings } from '../shared/diff-helpers.ts';
+import { computeDiffStats } from '../shared/diff-stats.ts';
 import type {
 	ComparisonSource,
 	DiffPreview,
-	DiffRow,
 	FileRevisionEntry,
 	RangeOverviewItem,
 	TimelineData,
@@ -983,7 +983,10 @@ function createEmptyPreview(args: {
 		fromIndex: args.fromIndex,
 		toIndex: args.toIndex,
 		comparisonSource: args.comparisonSource,
-		rows: [],
+		beforePath: '',
+		afterPath: '',
+		beforeText: '',
+		afterText: '',
 		nonTextualDetails: [],
 	};
 }
@@ -1000,7 +1003,7 @@ function buildDiffPreview(args: {
 	afterPath: string;
 	comparisonSource: ComparisonSource;
 }): DiffPreview {
-	const textsMatch = textsMatchIgnoringLineEndings(args.beforeText, args.afterText);
+	const stats = computeDiffStats(args.beforeText, args.afterText);
 	const title = args.previousEntry
 		? `${args.previousEntry.shortRevision} -> ${args.currentEntry.shortRevision}`
 		: `Initial revision -> ${args.currentEntry.shortRevision}`;
@@ -1008,47 +1011,23 @@ function buildDiffPreview(args: {
 		? 'Working tree'
 		: `${formatEntryDateTime(args.currentEntry.authorDate)} · ${args.currentEntry.description}`;
 
-	if (textsMatch) {
-		return {
-			index: args.index,
-			title,
-			subtitle,
-			diffCount: 0,
-			additions: 0,
-			deletions: 0,
-			hunkCount: 0,
-			hasChanges: false,
-			fromIndex: args.fromIndex,
-			toIndex: args.toIndex,
-			comparisonSource: args.comparisonSource,
-			rows: buildNoChangeRows(splitIntoLines(args.afterText)),
-			nonTextualDetails: buildNonTextualDetails(args),
-		};
-	}
-
-	const beforeLines = splitIntoLines(args.beforeText);
-	const afterLines = splitIntoLines(args.afterText);
-	const operations = diffLineOperations({ beforeLines, afterLines });
-	const rows = materializeDiffRows(operations);
-	const additions = rows.filter((row) => row.type === 'add').length;
-	const deletions = rows.filter((row) => row.type === 'remove').length;
-	const hunkCount = countDiffHunks(rows);
-	const hasChanges = additions > 0 || deletions > 0;
-
 	return {
 		index: args.index,
 		title,
 		subtitle,
 		diffCount: 0,
-		additions,
-		deletions,
-		hunkCount,
-		hasChanges,
+		additions: stats.additions,
+		deletions: stats.deletions,
+		hunkCount: stats.hunkCount,
+		hasChanges: stats.hasChanges,
 		fromIndex: args.fromIndex,
 		toIndex: args.toIndex,
 		comparisonSource: args.comparisonSource,
-		rows,
-		nonTextualDetails: hasChanges ? [] : buildNonTextualDetails(args),
+		beforePath: args.beforePath,
+		afterPath: args.afterPath,
+		beforeText: args.beforeText,
+		afterText: args.afterText,
+		nonTextualDetails: stats.hasChanges ? [] : buildNonTextualDetails(args),
 	};
 }
 
@@ -1132,192 +1111,6 @@ function dedupeAdjacentTimelineEntries(entries: FileRevisionEntry[]): FileRevisi
 
 		return deduped;
 	}, []);
-}
-
-function countDiffHunks(rows: DiffRow[]): number {
-	let hunks = 0;
-	let inChange = false;
-
-	for (const row of rows) {
-		const isChange = row.type === 'add' || row.type === 'remove';
-		if (isChange && !inChange) {
-			hunks += 1;
-			inChange = true;
-			continue;
-		}
-
-		if (!isChange) {
-			inChange = false;
-		}
-	}
-
-	return hunks;
-}
-
-function splitIntoLines(value: string): string[] {
-	if (!value) {
-		return [];
-	}
-
-	const normalized = value.replace(/\r\n/g, '\n');
-	const lines = normalized.split('\n');
-	if (lines.at(-1) === '') {
-		lines.pop();
-	}
-	return lines;
-}
-
-function diffLineOperations(args: {
-	beforeLines: string[];
-	afterLines: string[];
-}): Array<{ type: 'context' | 'add' | 'remove'; text: string }> {
-	if (!args.beforeLines.length) {
-		return args.afterLines.map((text) => ({ type: 'add' as const, text }));
-	}
-
-	if (!args.afterLines.length) {
-		return args.beforeLines.map((text) => ({ type: 'remove' as const, text }));
-	}
-
-	if (args.beforeLines.length * args.afterLines.length > 1_200_000) {
-		return buildFallbackOperations(args);
-	}
-
-	const matrix = Array.from({ length: args.beforeLines.length + 1 }, () => new Uint32Array(args.afterLines.length + 1));
-
-	for (let leftIndex = args.beforeLines.length - 1; leftIndex >= 0; leftIndex -= 1) {
-		for (let rightIndex = args.afterLines.length - 1; rightIndex >= 0; rightIndex -= 1) {
-			matrix[leftIndex][rightIndex] =
-				args.beforeLines[leftIndex] === args.afterLines[rightIndex]
-					? matrix[leftIndex + 1][rightIndex + 1] + 1
-					: Math.max(matrix[leftIndex + 1][rightIndex], matrix[leftIndex][rightIndex + 1]);
-		}
-	}
-
-	const operations: Array<{ type: 'context' | 'add' | 'remove'; text: string }> = [];
-	let leftIndex = 0;
-	let rightIndex = 0;
-
-	while (leftIndex < args.beforeLines.length && rightIndex < args.afterLines.length) {
-		if (args.beforeLines[leftIndex] === args.afterLines[rightIndex]) {
-			operations.push({ type: 'context', text: args.beforeLines[leftIndex] });
-			leftIndex += 1;
-			rightIndex += 1;
-			continue;
-		}
-
-		if (matrix[leftIndex + 1][rightIndex] >= matrix[leftIndex][rightIndex + 1]) {
-			operations.push({ type: 'remove', text: args.beforeLines[leftIndex] });
-			leftIndex += 1;
-			continue;
-		}
-
-		operations.push({ type: 'add', text: args.afterLines[rightIndex] });
-		rightIndex += 1;
-	}
-
-	while (leftIndex < args.beforeLines.length) {
-		operations.push({ type: 'remove', text: args.beforeLines[leftIndex] });
-		leftIndex += 1;
-	}
-
-	while (rightIndex < args.afterLines.length) {
-		operations.push({ type: 'add', text: args.afterLines[rightIndex] });
-		rightIndex += 1;
-	}
-
-	return operations;
-}
-
-function buildFallbackOperations(args: {
-	beforeLines: string[];
-	afterLines: string[];
-}): Array<{ type: 'context' | 'add' | 'remove'; text: string }> {
-	const operations: Array<{ type: 'context' | 'add' | 'remove'; text: string }> = [];
-	let prefix = 0;
-	while (
-		prefix < args.beforeLines.length &&
-		prefix < args.afterLines.length &&
-		args.beforeLines[prefix] === args.afterLines[prefix]
-	) {
-		prefix += 1;
-	}
-
-	let beforeSuffix = args.beforeLines.length - 1;
-	let afterSuffix = args.afterLines.length - 1;
-	while (
-		beforeSuffix >= prefix &&
-		afterSuffix >= prefix &&
-		args.beforeLines[beforeSuffix] === args.afterLines[afterSuffix]
-	) {
-		beforeSuffix -= 1;
-		afterSuffix -= 1;
-	}
-
-	for (const text of args.beforeLines.slice(0, prefix)) {
-		operations.push({ type: 'context', text });
-	}
-	for (const text of args.beforeLines.slice(prefix, beforeSuffix + 1)) {
-		operations.push({ type: 'remove', text });
-	}
-	for (const text of args.afterLines.slice(prefix, afterSuffix + 1)) {
-		operations.push({ type: 'add', text });
-	}
-	for (const text of args.beforeLines.slice(beforeSuffix + 1)) {
-		operations.push({ type: 'context', text });
-	}
-
-	return operations;
-}
-
-function materializeDiffRows(operations: Array<{ type: 'context' | 'add' | 'remove'; text: string }>): DiffRow[] {
-	const rows: DiffRow[] = [];
-	let leftNumber = 1;
-	let rightNumber = 1;
-
-	for (const operation of operations) {
-		if (operation.type === 'context') {
-			rows.push({
-				type: 'context',
-				leftNumber,
-				rightNumber,
-				text: operation.text,
-			});
-			leftNumber += 1;
-			rightNumber += 1;
-			continue;
-		}
-
-		if (operation.type === 'remove') {
-			rows.push({
-				type: 'remove',
-				leftNumber,
-				rightNumber: null,
-				text: operation.text,
-			});
-			leftNumber += 1;
-			continue;
-		}
-
-		rows.push({
-			type: 'add',
-			leftNumber: null,
-			rightNumber,
-			text: operation.text,
-		});
-		rightNumber += 1;
-	}
-
-	return rows;
-}
-
-function buildNoChangeRows(afterLines: string[]): DiffRow[] {
-	return afterLines.slice(0, 80).map((text, index) => ({
-		type: 'context',
-		leftNumber: index + 1,
-		rightNumber: index + 1,
-		text,
-	}));
 }
 
 function formatEntryMonthLabel(authorDate: string): string {

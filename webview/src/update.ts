@@ -866,6 +866,17 @@ function handleTimelineDataMessage(
 ): UpdateReturn {
 	const data = message.payload;
 	const preferences = data.preferences || {};
+	const comparisonSource = data.backend === 'jj' ? preferences.comparisonSource || 'revision' : 'revision';
+	const showIntermediateRevisions = preferences.showIntermediateRevisions === true;
+	const preset = preferences.preset || 'year';
+	const visibleEntries = filterEntries(
+		getEntriesForSource(data, comparisonSource),
+		data,
+		preset,
+		showIntermediateRevisions,
+	);
+	const { fromIndex, toIndex } = getDefaultSelection(visibleEntries);
+
 	let next: Model = {
 		...clearCaches(model),
 		data,
@@ -876,11 +887,11 @@ function handleTimelineDataMessage(
 		layoutMode: preferences.layoutMode || 'split',
 		contentMode: preferences.contentMode || 'diffs',
 		comparisonMode: preferences.comparisonMode || 'range',
-		comparisonSource: data.backend === 'jj' ? preferences.comparisonSource || 'revision' : 'revision',
-		showIntermediateRevisions: preferences.showIntermediateRevisions === true,
-		preset: preferences.preset || 'year',
-		fromIndex: Math.max(0, data.defaultIndex - 1),
-		toIndex: data.defaultIndex,
+		comparisonSource,
+		showIntermediateRevisions,
+		preset,
+		fromIndex,
+		toIndex,
 		sidebarCollapsed: false,
 		actionsMenuOpen: false,
 		hotkeysOpen: false,
@@ -891,7 +902,11 @@ function handleTimelineDataMessage(
 	next = stepSelection(next, CancelledSelection());
 	next = stepSession(next, ReceivedTimelineData());
 	next = syncRevisionDrafts(next);
-	return afterMutate(next);
+	const commands: Array<Command.Command<Message>> = [];
+	if (visibleEntries.length) {
+		commands.push(ScrollToEntry({ entryIndex: visibleEntries[visibleEntries.length - 1].index }));
+	}
+	return afterMutate(next, commands);
 }
 
 function handleDiffPreviewMessage(
@@ -909,32 +924,6 @@ function handleDiffPreviewMessage(
 
 	if (previewKey !== getActivePreviewKey(next)) {
 		return [next, []];
-	}
-
-	if (
-		!next.showIntermediateRevisions &&
-		next.comparisonMode === 'range' &&
-		!payload.hasChanges &&
-		payload.fromIndex !== payload.toIndex
-	) {
-		const candidateIndexes = getVisibleEntries(next)
-			.filter(
-				(entry) =>
-					entry.index >= Math.min(payload.fromIndex, payload.toIndex) &&
-					entry.index <= Math.max(payload.fromIndex, payload.toIndex),
-			)
-			.map((entry) => entry.index);
-
-		if (candidateIndexes.length < 2) {
-			return afterMutate(next);
-		}
-
-		const resolutionKey = candidateIndexes.join(':');
-		if (next.pendingRangeResolutionKey === resolutionKey) {
-			return afterMutate(next);
-		}
-		next = evo(next, { pendingRangeResolutionKey: () => resolutionKey });
-		return [next, [SendHostCommand({ command: { command: 'resolve-nonempty-range', candidateIndexes } })]];
 	}
 
 	next = evo(next, { pendingRangeResolutionKey: () => '' });

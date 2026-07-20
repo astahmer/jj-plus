@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import { Story } from 'foldkit';
-import { PersistState, SendHostCommand } from './commands.ts';
+import { PersistState, ScrollToEntry, SendHostCommand } from './commands.ts';
 import {
 	BootedApp,
 	ClickedOpenEditorDiff,
@@ -54,7 +54,7 @@ test('timeline hydrate sets tip selection and requests host preview', () => {
 				payload: { type: 'timeline-data', payload: data },
 			}),
 		),
-		Story.Command.expectHas(SendHostCommand),
+		Story.Command.expectHas(SendHostCommand, ScrollToEntry),
 		Story.model((model) => {
 			expect(model.session._tag).toBe('Ready');
 			expect(model.fromIndex).toBe(3);

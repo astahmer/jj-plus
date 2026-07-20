@@ -2,8 +2,7 @@ import type {
 	ComparisonMode,
 	ComparisonSource,
 	ContentMode,
-	DiffPreview as SharedDiffPreview,
-	DiffRow as SharedDiffRow,
+	DiffPreview,
 	FileRevisionEntry as SharedFileRevisionEntry,
 	FileSwitcherMode,
 	HistoryBackend,
@@ -21,6 +20,7 @@ export type {
 	ComparisonMode,
 	ComparisonSource,
 	ContentMode,
+	DiffPreview,
 	FileSwitcherMode,
 	HistoryBackend,
 	LayoutMode,
@@ -28,15 +28,6 @@ export type {
 	TimelineCommand,
 	TimelinePreferences,
 	TimelinePreset,
-};
-
-export type DiffRow = SharedDiffRow & {
-	previewKey?: string;
-	rangeKey?: string;
-};
-
-export type DiffPreview = Omit<SharedDiffPreview, 'rows'> & {
-	rows: Array<DiffRow>;
 };
 
 export type FileRevisionEntry = Omit<SharedFileRevisionEntry, 'index'> & {

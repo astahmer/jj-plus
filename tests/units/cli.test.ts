@@ -49,7 +49,7 @@ test('parseTimelineArgs rejects invalid ports', () => {
 	assert.throws(() => parseTimelineArgs(['--port', '90000', 'README.md']), /Invalid port/);
 });
 
-test('renderPreviewText prints the preview header and line rows in a readable export format', () => {
+test('renderPreviewText prints the preview header and file sides in a readable export format', () => {
 	const rendered = renderPreviewText(
 		{
 			index: 1,
@@ -64,12 +64,10 @@ test('renderPreviewText prints the preview header and line rows in a readable ex
 			toIndex: 1,
 			comparisonSource: 'revision',
 			nonTextualDetails: ['Binary file changed'],
-			rows: [
-				{ type: 'context', leftNumber: 1, rightNumber: 1, text: 'const value = 1;' },
-				{ type: 'remove', leftNumber: 2, rightNumber: null, text: 'old line' },
-				{ type: 'add', leftNumber: null, rightNumber: 2, text: 'new line' },
-				{ type: 'skip', leftNumber: null, rightNumber: null, text: 'Show 8 unchanged lines' },
-			],
+			beforePath: 'src/example.ts',
+			afterPath: 'src/example.ts',
+			beforeText: 'const value = 1;\nold line\n',
+			afterText: 'const value = 1;\nnew line\n',
 		},
 		'src/example.ts',
 	);
@@ -77,7 +75,8 @@ test('renderPreviewText prints the preview header and line rows in a readable ex
 	assert.match(rendered, /src\/example\.ts/);
 	assert.match(rendered, /abc123 -> def456/);
 	assert.match(rendered, /Binary file changed/);
-	assert.match(rendered, /\+   \s+2 new line/);
-	assert.match(rendered, /-    2\s+ old line/);
-	assert.match(rendered, /@@ Show 8 unchanged lines @@/);
+	assert.match(rendered, /===== before =====/);
+	assert.match(rendered, /old line/);
+	assert.match(rendered, /===== after =====/);
+	assert.match(rendered, /new line/);
 });

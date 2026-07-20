@@ -256,7 +256,7 @@ Then('the file switcher value should be {string}', async ({ page }, value: strin
 });
 
 Then('the diff rows should contain {string}', async ({ page }, value: string) => {
-	await expect(page.locator('#diffRows')).toContainText(value);
+	await expect(page.locator('#pierre-diff-root')).toContainText(value);
 });
 
 When('I click timeline anchor {int}', async ({ page }, index: number) => {

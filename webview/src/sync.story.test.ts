@@ -2,7 +2,7 @@ import { expect, test } from 'vitest';
 import { Story } from 'foldkit';
 import { evo } from 'foldkit/struct';
 import { PersistState, SendHostCommand } from './commands.ts';
-import { CompletedSendHost, GotHostMessage, SelectedComparisonSource, SelectedFileSwitcherMode } from './messages.ts';
+import { GotHostMessage, SelectedComparisonSource, SelectedFileSwitcherMode } from './messages.ts';
 import {
 	hostCommandResolvers,
 	hydratedModel,
@@ -13,7 +13,7 @@ import {
 import { update } from './update.ts';
 import { buildEntryDiffCountKey, buildRangeOverviewKey } from './domain/timeline-selection.ts';
 
-test('empty preview asks host to resolve a non-empty range', () => {
+test('empty tip preview stays on the newest selection instead of jumping older', () => {
 	const ready = hydratedModel();
 
 	Story.story(
@@ -23,35 +23,17 @@ test('empty preview asks host to resolve a non-empty range', () => {
 			GotHostMessage({
 				payload: {
 					type: 'diff-preview',
-					payload: makeDiffPreview(3, 4, { hasChanges: false, rows: [], diffCount: 0, additions: 0 }),
-				},
-			}),
-		),
-		Story.Command.expectExact(
-			SendHostCommand({
-				command: {
-					command: 'resolve-nonempty-range',
-					candidateIndexes: [3, 4],
-				},
-			}),
-		),
-		Story.Command.resolve(SendHostCommand, CompletedSendHost()),
-		Story.model((model) => {
-			expect(model.pendingRangeResolutionKey).toBe('3:4');
-		}),
-		Story.message(
-			GotHostMessage({
-				payload: {
-					type: 'resolved-range',
-					payload: { fromIndex: 2, toIndex: 4 },
+					payload: makeDiffPreview(3, 4, { hasChanges: false, diffCount: 0, additions: 0 }),
 				},
 			}),
 		),
 		Story.Command.resolveAll(...hostCommandResolvers()),
 		Story.model((model) => {
-			expect(model.fromIndex).toBe(2);
+			expect(model.fromIndex).toBe(3);
 			expect(model.toIndex).toBe(4);
 			expect(model.pendingRangeResolutionKey).toBe('');
+			const preview = model.previewByRange['revision:3:4'] as { hasChanges?: boolean } | undefined;
+			expect(preview?.hasChanges).toBe(false);
 		}),
 	);
 });

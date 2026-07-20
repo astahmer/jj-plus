@@ -3,7 +3,7 @@ import type { Message } from '../messages.ts';
 import { ClickedToggleDiffFocus } from '../messages.ts';
 import type { Model } from '../model.ts';
 import { getCurrentFromEntry, getCurrentToEntry, getEffectiveComparisonSource, getPreview } from '../selectors.ts';
-import type { ComparisonMode, ComparisonSource, ContentMode, DiffPreview, DiffRow } from '../types.ts';
+import type { ComparisonMode, ComparisonSource, ContentMode, DiffPreview } from '../types.ts';
 import { getRevisionIdentifierValue, revisionIdentifier } from './revision-identifier.ts';
 
 const COMPARISON_MODE_LABELS: Record<ComparisonMode, string> = {
@@ -50,120 +50,39 @@ function renderTitle(model: Model, preview: DiffPreview | null): Array<Html | st
 	];
 }
 
-function renderUnifiedRow(row: DiffRow): Html {
-	const h = html<Message>();
-	if (row.type === 'skip') {
-		return h.div(
-			[h.Class('diff-row diff-row--skip')],
-			[h.button([h.Class('skip-button'), h.Type('button')], [row.text])],
-		);
+function shouldShowPierre(preview: DiffPreview | null, contentMode: ContentMode): boolean {
+	if (!preview) {
+		return false;
 	}
-	const marker = row.type === 'add' ? '+' : row.type === 'remove' ? '-' : ' ';
-	return h.div(
-		[h.Class(`diff-row diff-row--${row.type}`)],
-		[
-			h.div([h.Class('cell marker')], [marker]),
-			h.div([h.Class('cell line-number')], [row.leftNumber === null ? '' : String(row.leftNumber)]),
-			h.div([h.Class('cell line-number')], [row.rightNumber === null ? '' : String(row.rightNumber)]),
-			h.div([h.Class('cell code')], [row.text || ' ']),
-		],
-	);
+	if (contentMode === 'full') {
+		return true;
+	}
+	return preview.hasChanges;
 }
 
-type SplitRow =
-	| { type: 'skip'; skip: DiffRow }
-	| { type: 'context'; left: DiffRow; right: DiffRow }
-	| { type: 'change'; left: DiffRow | null; right: DiffRow | null };
-
-function buildSplitRows(rows: ReadonlyArray<DiffRow>): Array<SplitRow> {
-	const splitRows: Array<SplitRow> = [];
-	for (let index = 0; index < rows.length; index += 1) {
-		const row = rows[index];
-		if (row.type === 'skip') {
-			splitRows.push({ type: 'skip', skip: row });
-			continue;
-		}
-		if (row.type === 'context') {
-			splitRows.push({ type: 'context', left: row, right: row });
-			continue;
-		}
-		const leftRows: Array<DiffRow> = [];
-		const rightRows: Array<DiffRow> = [];
-		while (index < rows.length && rows[index].type === 'remove') {
-			leftRows.push(rows[index]);
-			index += 1;
-		}
-		while (index < rows.length && rows[index].type === 'add') {
-			rightRows.push(rows[index]);
-			index += 1;
-		}
-		index -= 1;
-		const pairCount = Math.max(leftRows.length, rightRows.length);
-		for (let pairIndex = 0; pairIndex < pairCount; pairIndex += 1) {
-			splitRows.push({
-				type: 'change',
-				left: leftRows[pairIndex] || null,
-				right: rightRows[pairIndex] || null,
-			});
-		}
-	}
-	return splitRows;
-}
-
-function renderSplitRow(row: SplitRow): Html {
+function renderBodyOverlay(preview: DiffPreview | null, contentMode: ContentMode, showPierre: boolean): Html {
 	const h = html<Message>();
-	if (row.type === 'skip') {
-		return h.div(
-			[h.Class('split-row split-row--skip')],
-			[h.button([h.Class('skip-button'), h.Type('button')], [row.skip.text])],
-		);
+	if (showPierre) {
+		return h.empty;
 	}
-	if (row.type === 'context') {
+	if (!preview) {
 		return h.div(
-			[h.Class('split-row')],
+			[h.Class('diff-body-overlay')],
 			[
-				h.div([h.Class('split-cell split-number')], [row.left.leftNumber === null ? '' : String(row.left.leftNumber)]),
-				h.div([h.Class('split-cell split-code')], [row.left.text || ' ']),
 				h.div(
-					[h.Class('split-cell split-number')],
-					[row.right.rightNumber === null ? '' : String(row.right.rightNumber)],
+					[h.Class('diff-body-overlay-card')],
+					[
+						h.div([h.Class('diff-progress-track'), h.AriaHidden(true)], [h.div([h.Class('diff-progress-bar')], [])]),
+						h.div([h.Class('empty-diff')], ['Loading diff…']),
+					],
 				),
-				h.div([h.Class('split-cell split-code')], [row.right.text || ' ']),
 			],
 		);
 	}
-	return h.div(
-		[h.Class('split-row split-row--change')],
-		[
-			h.div(
-				[h.Class('split-cell split-number')],
-				[row.left?.leftNumber === null || row.left?.leftNumber === undefined ? '' : String(row.left.leftNumber)],
-			),
-			h.div([h.Class('split-cell split-code split-code--left')], [row.left?.text || ' ']),
-			h.div(
-				[h.Class('split-cell split-number')],
-				[row.right?.rightNumber === null || row.right?.rightNumber === undefined ? '' : String(row.right.rightNumber)],
-			),
-			h.div([h.Class('split-cell split-code split-code--right')], [row.right?.text || ' ']),
-		],
-	);
-}
-
-export function diffPanel(model: Model): Html {
-	const h = html<Message>();
-	const preview = getPreview(model);
-	const source = preview?.comparisonSource || getEffectiveComparisonSource(model);
-	const eyebrowLabel = `${model.layoutMode} · ${CONTENT_MODE_LABELS[model.contentMode]} · ${COMPARISON_MODE_LABELS[model.comparisonMode]} · ${COMPARISON_SOURCE_LABELS[source]}`;
-
-	const displayRows =
-		preview && model.contentMode === 'full' ? preview.rows : preview && preview.hasChanges ? preview.rows : [];
-
-	let rowsContent: Array<Html> = [];
-	if (displayRows.length === 0) {
-		if (!preview) {
-			rowsContent = [h.div([h.Class('empty-diff')], ['Loading diff…'])];
-		} else if (model.contentMode === 'diffs' && !preview.hasChanges) {
-			rowsContent = [
+	if (contentMode === 'diffs' && !preview.hasChanges) {
+		return h.div(
+			[h.Class('diff-body-overlay')],
+			[
 				h.div(
 					[h.Class('empty-diff')],
 					[
@@ -176,15 +95,21 @@ export function diffPanel(model: Model): Html {
 							: h.empty,
 					],
 				),
-			];
-		} else {
-			rowsContent = [h.div([h.Class('empty-diff')], ['The file has no content at this revision.'])];
-		}
-	} else if (model.layoutMode === 'split') {
-		rowsContent = buildSplitRows(displayRows).map(renderSplitRow);
-	} else {
-		rowsContent = displayRows.map(renderUnifiedRow);
+			],
+		);
 	}
+	return h.div(
+		[h.Class('diff-body-overlay')],
+		[h.div([h.Class('empty-diff')], ['The file has no content at this revision.'])],
+	);
+}
+
+export function diffPanel(model: Model): Html {
+	const h = html<Message>();
+	const preview = getPreview(model);
+	const source = preview?.comparisonSource || getEffectiveComparisonSource(model);
+	const eyebrowLabel = `${model.layoutMode} · ${CONTENT_MODE_LABELS[model.contentMode]} · ${COMPARISON_MODE_LABELS[model.comparisonMode]} · ${COMPARISON_SOURCE_LABELS[source]}`;
+	const showPierre = shouldShowPierre(preview, model.contentMode);
 
 	return h.div(
 		[],
@@ -220,13 +145,11 @@ export function diffPanel(model: Model): Html {
 											h.div([h.Class('eyebrow diff-mode-eyebrow'), h.Id('diffModeEyebrow')], [eyebrowLabel]),
 											h.div(
 												[h.Class('history-stats')],
-												preview
-													? [
-															h.span([h.Class('stat stat--plus')], [`+${preview.additions}`]),
-															h.span([h.Class('stat stat--minus')], [`−${preview.deletions}`]),
-															h.span([h.Class('stat')], [`${preview.hunkCount} hunks`]),
-														]
-													: [],
+												[
+													h.span([h.Class('stat stat--plus')], [preview ? `+${preview.additions}` : '+—']),
+													h.span([h.Class('stat stat--minus')], [preview ? `−${preview.deletions}` : '−—']),
+													h.span([h.Class('stat')], [preview ? `${preview.hunkCount} hunks` : '— hunks']),
+												],
 											),
 											h.button(
 												[
@@ -250,7 +173,13 @@ export function diffPanel(model: Model): Html {
 							h.DataAttribute('layout-mode', model.layoutMode),
 							h.DataAttribute('content-mode', model.contentMode),
 						],
-						rowsContent,
+						[
+							h.div(
+								[h.Class(showPierre ? 'pierre-diff-root' : 'pierre-diff-root is-pending'), h.Id('pierre-diff-root')],
+								[],
+							),
+							renderBodyOverlay(preview, model.contentMode, showPierre),
+						],
 					),
 				],
 			),

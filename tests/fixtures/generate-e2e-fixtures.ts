@@ -14,13 +14,13 @@ import {
 import type {
 	ComparisonSource,
 	DiffPreview,
-	DiffRow,
 	FileRevisionEntry,
 	HistoryBackend,
 	TimelineFixture,
 	TimelineFixtureFile,
 	TimelinePreferences,
 } from '../../src/shared/timeline-types.ts';
+import { computeDiffStats } from '../../src/shared/diff-stats.ts';
 
 type EvolutionSummaryEntry = ReturnType<typeof parseJjEvolutionSummaryEntries>[number];
 
@@ -570,10 +570,7 @@ function buildPreview(
 	const toEntry = entries[toIndex];
 	const beforeText = entryContents[fromIndex] || '';
 	const afterText = entryContents[toIndex] || '';
-	const rows = buildRows(beforeText, afterText);
-	const additions = rows.filter((row) => row.type === 'add').length;
-	const deletions = rows.filter((row) => row.type === 'remove').length;
-	const hunkCount = rows.some((row) => row.type === 'add' || row.type === 'remove') ? 1 : 0;
+	const stats = computeDiffStats(beforeText, afterText);
 
 	return {
 		index: toIndex,
@@ -582,14 +579,17 @@ function buildPreview(
 			? 'Working tree'
 			: `${subtitleDateFormatter.format(new Date(toEntry.authorDate))} · ${toEntry.description}`,
 		diffCount: 0,
-		additions,
-		deletions,
-		hunkCount,
-		hasChanges: additions > 0 || deletions > 0,
+		additions: stats.additions,
+		deletions: stats.deletions,
+		hunkCount: stats.hunkCount,
+		hasChanges: stats.hasChanges,
 		fromIndex,
 		toIndex,
 		comparisonSource,
-		rows,
+		beforePath: fromEntry.filePath || '',
+		afterPath: toEntry.filePath || '',
+		beforeText,
+		afterText,
 		nonTextualDetails: [],
 	};
 }
@@ -644,78 +644,6 @@ async function showJjFileAtRevision(repoDir: string, revision: string, relativeP
 		}
 		throw error;
 	}
-}
-
-function buildRows(beforeText: string, afterText: string): DiffRow[] {
-	const beforeLines = splitLines(beforeText);
-	const afterLines = splitLines(afterText);
-	if (beforeText === afterText) {
-		return buildContextRows(afterLines);
-	}
-
-	let start = 0;
-	while (start < beforeLines.length && start < afterLines.length && beforeLines[start] === afterLines[start]) {
-		start += 1;
-	}
-
-	let endBefore = beforeLines.length - 1;
-	let endAfter = afterLines.length - 1;
-	while (endBefore >= start && endAfter >= start && beforeLines[endBefore] === afterLines[endAfter]) {
-		endBefore -= 1;
-		endAfter -= 1;
-	}
-
-	const rows: DiffRow[] = [];
-	rows.push(...buildContextRows(beforeLines.slice(0, start), 0, 0));
-	for (let index = start; index <= endBefore; index += 1) {
-		rows.push({ type: 'remove', leftNumber: index + 1, rightNumber: null, text: beforeLines[index] });
-	}
-	for (let index = start; index <= endAfter; index += 1) {
-		rows.push({ type: 'add', leftNumber: null, rightNumber: index + 1, text: afterLines[index] });
-	}
-
-	const trailingContext = afterLines.slice(endAfter + 1);
-	rows.push(...buildContextRows(trailingContext, endBefore + 1, endAfter + 1));
-	return rows;
-}
-
-function buildContextRows(lines: string[], leftOffset = 0, rightOffset = 0): DiffRow[] {
-	if (lines.length <= 6) {
-		return lines.map((line, index) => ({
-			type: 'context' as const,
-			leftNumber: leftOffset + index + 1,
-			rightNumber: rightOffset + index + 1,
-			text: line,
-		}));
-	}
-
-	const head: DiffRow[] = lines.slice(0, 3).map((line, index) => ({
-		type: 'context',
-		leftNumber: leftOffset + index + 1,
-		rightNumber: rightOffset + index + 1,
-		text: line,
-	}));
-	const tail: DiffRow[] = lines.slice(-3).map((line, index) => ({
-		type: 'context',
-		leftNumber: leftOffset + lines.length - 3 + index + 1,
-		rightNumber: rightOffset + lines.length - 3 + index + 1,
-		text: line,
-	}));
-
-	return [
-		...head,
-		{ type: 'skip', leftNumber: null, rightNumber: null, text: `Show ${lines.length - 6} unchanged lines` },
-		...tail,
-	];
-}
-
-function splitLines(value: string): string[] {
-	const normalized = value.replace(/\r\n/g, '\n');
-	if (!normalized) {
-		return [];
-	}
-
-	return normalized.endsWith('\n') ? normalized.slice(0, -1).split('\n') : normalized.split('\n');
 }
 
 async function gitTouchesFile(repoDir: string, revision: string, relativePath: string): Promise<boolean> {

@@ -46,6 +46,7 @@
 	},
 	"dependencies": {
 		"@effect/platform-browser": "4.0.0-beta.97",
+		"@pierre/diffs": "^1.2.12",
 		"effect": "4.0.0-beta.97",
 		"foldkit": "0.130.0"
 	},

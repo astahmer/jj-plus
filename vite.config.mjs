@@ -4,6 +4,7 @@ import { foldkit } from '@foldkit/vite-plugin';
 
 export default defineConfig({
 	root: resolve(process.cwd(), 'webview'),
+	base: './',
 	plugins: [foldkit()],
 	server: {
 		port: 4173,
@@ -13,11 +14,12 @@ export default defineConfig({
 		emptyOutDir: true,
 		cssCodeSplit: false,
 		target: 'es2020',
+		chunkSizeWarningLimit: 2000,
 		rollupOptions: {
 			input: resolve(process.cwd(), 'webview', 'index.html'),
 			output: {
 				entryFileNames: 'timeline-app.js',
-				chunkFileNames: 'timeline-app.js',
+				chunkFileNames: 'chunks/[name]-[hash].js',
 				assetFileNames(assetInfo) {
 					if (assetInfo.name && assetInfo.name.endsWith('.css')) {
 						return 'timeline-app.css';

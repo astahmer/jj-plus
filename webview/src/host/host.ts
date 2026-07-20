@@ -267,7 +267,10 @@ export function createTimelineHost(): TimelineHost {
 			fromIndex: Math.min(fromIndex, toIndex),
 			toIndex: Math.max(fromIndex, toIndex),
 			comparisonSource,
-			rows: [],
+			beforePath: '',
+			afterPath: '',
+			beforeText: '',
+			afterText: '',
 			nonTextualDetails: [],
 		};
 	}

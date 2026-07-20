@@ -22,7 +22,6 @@ import {
 import type {
 	ComparisonSource,
 	DiffPreview,
-	DiffRow,
 	FileRevisionEntry,
 	HistoryBackend,
 	RangeOverviewItem,
@@ -32,6 +31,7 @@ import type {
 	TimelineInboundMessage,
 	TimelinePreferences,
 } from '../shared/timeline-types.ts';
+import { computeDiffStats } from '../shared/diff-stats.ts';
 
 const execFileAsync = promisify(execFile);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -966,10 +966,7 @@ async function buildPreview(args: {
 		pathCache: args.pathCache,
 		contentCache: args.contentCache,
 	});
-	const rows = buildRows({ beforeText, afterText });
-	const additions = rows.filter((row) => row.type === 'add').length;
-	const deletions = rows.filter((row) => row.type === 'remove').length;
-	const hunkCount = rows.some((row) => row.type === 'add' || row.type === 'remove') ? 1 : 0;
+	const stats = computeDiffStats(beforeText, afterText);
 
 	return {
 		index: args.toIndex,
@@ -978,14 +975,17 @@ async function buildPreview(args: {
 			? 'Working tree'
 			: `${subtitleDateFormatter.format(new Date(toEntry?.authorDate || 0))} · ${toEntry?.description || ''}`,
 		diffCount: 0,
-		additions,
-		deletions,
-		hunkCount,
-		hasChanges: additions > 0 || deletions > 0,
+		additions: stats.additions,
+		deletions: stats.deletions,
+		hunkCount: stats.hunkCount,
+		hasChanges: stats.hasChanges,
 		fromIndex: args.fromIndex,
 		toIndex: args.toIndex,
 		comparisonSource: args.comparisonSource,
-		rows,
+		beforePath,
+		afterPath,
+		beforeText,
+		afterText,
 		nonTextualDetails: beforePath !== afterPath ? [`Path moved: ${beforePath} -> ${afterPath}`] : [],
 	};
 }
@@ -1211,84 +1211,6 @@ async function showJjFileAtRevision(args: {
 		}
 		throw error;
 	}
-}
-
-function buildRows(args: { beforeText: string; afterText: string }): DiffRow[] {
-	const beforeLines = splitLines(args.beforeText);
-	const afterLines = splitLines(args.afterText);
-	if (args.beforeText === args.afterText) {
-		return buildContextRows({ lines: afterLines });
-	}
-
-	let start = 0;
-	while (start < beforeLines.length && start < afterLines.length && beforeLines[start] === afterLines[start]) {
-		start += 1;
-	}
-
-	let endBefore = beforeLines.length - 1;
-	let endAfter = afterLines.length - 1;
-	while (endBefore >= start && endAfter >= start && beforeLines[endBefore] === afterLines[endAfter]) {
-		endBefore -= 1;
-		endAfter -= 1;
-	}
-
-	const rows: DiffRow[] = [];
-	rows.push(...buildContextRows({ lines: beforeLines.slice(0, start), leftOffset: 0, rightOffset: 0 }));
-	for (let index = start; index <= endBefore; index += 1) {
-		rows.push({ type: 'remove', leftNumber: index + 1, rightNumber: null, text: beforeLines[index] || '' });
-	}
-	for (let index = start; index <= endAfter; index += 1) {
-		rows.push({ type: 'add', leftNumber: null, rightNumber: index + 1, text: afterLines[index] || '' });
-	}
-	rows.push(
-		...buildContextRows({
-			lines: afterLines.slice(endAfter + 1),
-			leftOffset: endBefore + 1,
-			rightOffset: endAfter + 1,
-		}),
-	);
-	return rows;
-}
-
-function buildContextRows(args: { lines: string[]; leftOffset?: number; rightOffset?: number }): DiffRow[] {
-	const leftOffset = args.leftOffset || 0;
-	const rightOffset = args.rightOffset || 0;
-	if (args.lines.length <= 6) {
-		return args.lines.map((line, index) => ({
-			type: 'context',
-			leftNumber: leftOffset + index + 1,
-			rightNumber: rightOffset + index + 1,
-			text: line,
-		}));
-	}
-
-	const head = args.lines.slice(0, 3).map((line, index) => ({
-		type: 'context' as const,
-		leftNumber: leftOffset + index + 1,
-		rightNumber: rightOffset + index + 1,
-		text: line,
-	}));
-	const tail = args.lines.slice(-3).map((line, index) => ({
-		type: 'context' as const,
-		leftNumber: leftOffset + args.lines.length - 3 + index + 1,
-		rightNumber: rightOffset + args.lines.length - 3 + index + 1,
-		text: line,
-	}));
-
-	return [
-		...head,
-		{ type: 'skip', leftNumber: null, rightNumber: null, text: `Show ${args.lines.length - 6} unchanged lines` },
-		...tail,
-	];
-}
-
-function splitLines(value: string): string[] {
-	const normalized = value.replace(/\r\n/g, '\n');
-	if (!normalized) {
-		return [];
-	}
-
-	return normalized.endsWith('\n') ? normalized.slice(0, -1).split('\n') : normalized.split('\n');
 }
 
 async function jjTouchesFile(args: { repoRoot: string; revision: string; relativePath: string }): Promise<boolean> {
@@ -1926,7 +1848,10 @@ function getFixturePreview(args: {
 		fromIndex: normalizedFromIndex,
 		toIndex: normalizedToIndex,
 		comparisonSource: args.comparisonSource,
-		rows: [],
+		beforePath: '',
+		afterPath: '',
+		beforeText: '',
+		afterText: '',
 		nonTextualDetails: [],
 	};
 }
@@ -1979,18 +1904,20 @@ async function openPreviewDocument(args: { preview: DiffPreview; relativePath: s
 export function renderPreviewText(preview: DiffPreview, relativePath: string): string {
 	const summary = `+${preview.additions} -${preview.deletions} ${preview.hunkCount} hunks`;
 	const detailLines = preview.nonTextualDetails?.length ? [...preview.nonTextualDetails, ''] : [];
-	const rowLines = preview.rows.map((row) => {
-		if (row.type === 'skip') {
-			return `@@ ${row.text} @@`;
-		}
+	const pathLines = [`--- ${preview.beforePath || relativePath}`, `+++ ${preview.afterPath || relativePath}`, ''];
+	const contentLines = ['===== before =====', preview.beforeText, '===== after =====', preview.afterText];
 
-		const left = row.leftNumber == null ? '' : String(row.leftNumber);
-		const right = row.rightNumber == null ? '' : String(row.rightNumber);
-		const prefix = row.type === 'add' ? '+' : row.type === 'remove' ? '-' : ' ';
-		return `${prefix} ${left.padStart(4, ' ')} ${right.padStart(4, ' ')} ${row.text}`;
-	});
-
-	return [relativePath, preview.title, preview.subtitle, summary, '', ...detailLines, ...rowLines, ''].join('\n');
+	return [
+		relativePath,
+		preview.title,
+		preview.subtitle,
+		summary,
+		'',
+		...detailLines,
+		...pathLines,
+		...contentLines,
+		'',
+	].join('\n');
 }
 
 async function openTarget(target: string): Promise<void> {

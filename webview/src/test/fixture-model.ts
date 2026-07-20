@@ -1,7 +1,13 @@
 import { Array } from 'effect';
 import { Story } from 'foldkit';
-import { PersistState, SendHostCommand } from '../commands.ts';
-import { BootedApp, CompletedPersistState, CompletedSendHost, GotHostMessage } from '../messages.ts';
+import { PersistState, ScrollToEntry, SendHostCommand } from '../commands.ts';
+import {
+	BootedApp,
+	CompletedPersistState,
+	CompletedScrollToEntry,
+	CompletedSendHost,
+	GotHostMessage,
+} from '../messages.ts';
 import type { Model } from '../model.ts';
 import type { DiffPreview, FileRevisionEntry, TimelineData } from '../types.ts';
 import { init, update } from '../update.ts';
@@ -133,20 +139,10 @@ export function makeDiffPreview(fromIndex: number, toIndex: number, overrides: P
 		fromIndex,
 		toIndex,
 		comparisonSource: 'revision',
-		rows: [
-			{
-				type: 'context',
-				text: 'line one',
-				leftNumber: 1,
-				rightNumber: 1,
-			},
-			{
-				type: 'add',
-				text: 'line two',
-				leftNumber: null,
-				rightNumber: 2,
-			},
-		],
+		beforePath: 'example.ts',
+		afterPath: 'example.ts',
+		beforeText: 'line one\n',
+		afterText: 'line one\nline two\n',
 		nonTextualDetails: [],
 		...overrides,
 	};
@@ -157,6 +153,7 @@ export function hostCommandResolvers(count = 8) {
 	return [
 		...Array.makeBy(count, () => [SendHostCommand, CompletedSendHost()] as const),
 		...Array.makeBy(2, () => [PersistState, CompletedPersistState()] as const),
+		...Array.makeBy(2, () => [ScrollToEntry, CompletedScrollToEntry()] as const),
 	];
 }
 
