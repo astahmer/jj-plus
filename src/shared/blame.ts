@@ -152,17 +152,34 @@ export function formatBlameAuthorDate(timestampSeconds: number, nowMs = Date.now
 export function formatBlameGutterLabel(entry: BlameLine): string {
 	const author = entry.author?.trim().split(/\s+/u)[0] || '';
 	const date = entry.authorDate || '';
-	const rev = shortBlameRevision(entry.revision);
+	const summary = truncateBlameSummaryForDecoration(entry.summary || '', 42);
+	if (author && date && summary) {
+		return `${author}, ${date} • ${summary}`;
+	}
 	if (author && date) {
 		return `${author}, ${date}`;
 	}
-	if (author) {
-		return `${author} · ${rev}`;
+	if (author && summary) {
+		return `${author} • ${summary}`;
 	}
-	if (date) {
-		return `${rev} · ${date}`;
+	if (date && summary) {
+		return `${date} • ${summary}`;
 	}
-	return rev;
+	return author || date || summary || shortBlameRevision(entry.revision);
+}
+
+export function truncateBlameSummaryForDecoration(value: string, maxLength: number): string {
+	const trimmed = value.trim().replace(/\s+/gu, ' ');
+	// Guard against corrupt annotate glue (hash/author fragments leaking into summary).
+	const cleaned = trimmed
+		.replace(/[0-9a-f]{7,40}/giu, ' ')
+		.replace(/\b\d{9,12}\b/gu, ' ')
+		.replace(/\s+/gu, ' ')
+		.trim();
+	if (cleaned.length <= maxLength) {
+		return cleaned;
+	}
+	return `${cleaned.slice(0, Math.max(1, maxLength - 1))}…`;
 }
 
 export function formatBlameHoverTooltip(entry: BlameLine): string {
@@ -191,9 +208,10 @@ export function buildGitBlameFileArgs(args: { relativePath: string; revision?: s
 	return ['blame', '--porcelain', '--', args.relativePath];
 }
 
-/** Tab-separated: commit id, author name, author unix seconds, first-line description. */
+/** Tab-separated: commit id, author name, author unix seconds, first-line description.
+ * Trailing newline is required — without it jj concatenates adjacent annotate rows. */
 export const JJ_FILE_ANNOTATE_TEMPLATE =
-	'commit.commit_id().short() ++ "\\t" ++ commit.author().name() ++ "\\t" ++ commit.author().timestamp().format("%s") ++ "\\t" ++ commit.description().first_line()';
+	'commit.commit_id().short() ++ "\\t" ++ commit.author().name() ++ "\\t" ++ commit.author().timestamp().format("%s") ++ "\\t" ++ commit.description().first_line() ++ "\\n"';
 
 export function buildJjAnnotateArgs(args: { relativePath: string; revision?: string }): string[] {
 	const templateArgs = ['-T', JJ_FILE_ANNOTATE_TEMPLATE];

@@ -1,6 +1,11 @@
 import { OPEN_TIMELINE_AT_LINE_COMMAND } from './constants.ts';
 import type { BlameLine } from '../shared/blame.ts';
-import { formatBlameHoverTooltip, shortBlameRevision } from '../shared/blame.ts';
+import {
+	formatBlameGutterLabel,
+	formatBlameHoverTooltip,
+	shortBlameRevision,
+	truncateBlameSummaryForDecoration,
+} from '../shared/blame.ts';
 
 export function formatTimelineAtLineCodeLensTitle(line: number): string {
 	return `jjplus: Open revision timeline · line ${line}`;
@@ -35,22 +40,11 @@ export function buildTimelineAtLineCodeLens(args: { absolutePath: string; line: 
 
 /** End-of-line decoration text — GitLens-style, no layout shift. */
 export function formatCurrentLineBlameDecoration(entry: BlameLine): string {
-	const author = entry.author?.trim().split(/\s+/u)[0] || '';
-	const when = entry.authorDate || '';
-	const summary = truncateBlameSummary(entry.summary || '', 48);
-	const bits = [author, when, summary].filter(Boolean);
-	if (!bits.length) {
-		return `  ${shortBlameRevision(entry.revision)}`;
-	}
-	return `  ${bits.join(' · ')}`;
+	return `  ${formatBlameGutterLabel(entry)}`;
 }
 
 export function truncateBlameSummary(value: string, maxLength: number): string {
-	const trimmed = value.trim().replace(/\s+/gu, ' ');
-	if (trimmed.length <= maxLength) {
-		return trimmed;
-	}
-	return `${trimmed.slice(0, Math.max(1, maxLength - 1))}…`;
+	return truncateBlameSummaryForDecoration(value, maxLength);
 }
 
 export function buildCurrentLineBlameHoverMarkdown(args: {

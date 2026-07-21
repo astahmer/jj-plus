@@ -15,6 +15,7 @@ import {
 	parseJjFileAnnotate,
 	revisionMatchesBlame,
 	shortBlameRevision,
+	truncateBlameSummaryForDecoration,
 } from '../../src/shared/blame.ts';
 
 test('parseGitBlamePorcelain maps porcelain hunks to final lines with author dates', () => {
@@ -47,8 +48,20 @@ test('parseJjFileAnnotate keeps line order and templated author fields', () => {
 	const templated = parseJjFileAnnotate('abc1234\tAda\t1700000000\thello\ndef5678\tBea\t1700003600\tworld\n');
 	assert.equal(templated[0]?.author, 'Ada');
 	assert.equal(templated[1]?.authorTimestamp, 1700003600);
-	assert.equal(formatBlameGutterLabel(templated[0]!), `Ada, ${templated[0]!.authorDate}`);
+	assert.equal(formatBlameGutterLabel(templated[0]!), `Ada, ${templated[0]!.authorDate} • hello`);
 	assert.match(formatBlameHoverTooltip(templated[0]!), /Author: Ada/);
+});
+
+test('parseJjFileAnnotate keeps separate rows when template emits newlines', () => {
+	// Without trailing \\n in the jj template, annotate rows glue into one line.
+	const glued = parseJjFileAnnotate('abc1234\tAda\t1700000000\thello' + 'def5678\tBea\t1700003600\tworld\n');
+	assert.equal(glued.length, 1);
+	assert.match(glued[0]?.summary || '', /hello/);
+
+	const proper = parseJjFileAnnotate('abc1234\tAda\t1700000000\thello\ndef5678\tBea\t1700003600\tworld\n');
+	assert.equal(proper.length, 2);
+	assert.equal(proper[0]?.summary, 'hello');
+	assert.equal(proper[1]?.author, 'Bea');
 });
 
 test('parseJjFileAnnotate accepts ISO jj timestamps', () => {
@@ -66,7 +79,14 @@ test('buildJjAnnotateArgs uses AnnotationLine commit.* template', () => {
 	const template = jjArgs[jjArgs.indexOf('-T') + 1];
 	assert.match(template, /commit\.commit_id\(\)/);
 	assert.match(template, /timestamp\(\)\.format\("%s"\)/);
+	assert.match(template, /\\n/);
 	assert.equal(template.includes('commit_id.short()'), false);
+});
+
+test('truncateBlameSummaryForDecoration strips glued hash fragments', () => {
+	const cleaned = truncateBlameSummaryForDecoration('init planbe2ffee31788 Alexandre Stahmer 1783174181', 42);
+	assert.equal(cleaned.includes('be2ffee31788'), false);
+	assert.match(cleaned, /init/);
 });
 
 test('formatBlameAuthorDate uses relative buckets', () => {

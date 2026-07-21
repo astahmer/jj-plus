@@ -24,7 +24,7 @@ test('formatCurrentLineBlameDecoration puts author date and summary on the right
 		authorDate: 'last week',
 		summary: 'polish timeline tooltips',
 	});
-	assert.match(text, /^ {2}Ada · last week · polish timeline tooltips$/);
+	assert.match(text, /^ {2}Ada, last week • polish timeline tooltips$/);
 });
 
 test('hover title includes author relative time and short desc', () => {
