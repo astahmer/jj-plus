@@ -121,8 +121,7 @@ function createFileDiff(
 }
 
 function syncFromModel(model: Model): void {
-	blameLinesCache =
-		model.blameOverlayOpen || model.heatmapOpen ? (model.blameLines as BlameLine[]) : [];
+	blameLinesCache = model.blameOverlayOpen || model.heatmapOpen ? (model.blameLines as BlameLine[]) : [];
 
 	if (model.rangeStackOpen) {
 		const items = getRangeStackItems(model);
@@ -228,7 +227,7 @@ function syncRangeStack(args: RangeStackSyncArgs): void {
 			section.append(header, mount);
 			portal.append(section);
 			entry = {
-				fileDiff: createFileDiff(args.layoutMode, args.contentMode, themeType, false),
+				fileDiff: createFileDiff(args.layoutMode, args.contentMode, themeType, false, false, 'word-alt'),
 				section,
 				mount,
 			};
@@ -254,7 +253,9 @@ function syncRangeStack(args: RangeStackSyncArgs): void {
 		const optionsChanged =
 			lastLayoutMode !== args.layoutMode || lastContentMode !== args.contentMode || lastThemeType !== themeType;
 		if (optionsChanged) {
-			stackEntry.fileDiff.setOptions(buildOptions(args.layoutMode, args.contentMode, themeType, false) as never);
+			stackEntry.fileDiff.setOptions(
+				buildOptions(args.layoutMode, args.contentMode, themeType, false, false, 'word-alt') as never,
+			);
 		}
 		if (
 			nextOldFile !== stackEntry.oldFile ||
@@ -745,7 +746,10 @@ function applyBlameAnnotations(
 ): void {
 	const heat = heatmapOpen ? computeBlameHeatLevels(blameLines) : null;
 	const signature = `${blameOverlayOpen ? 'on' : 'off'}:${heatmapOpen ? 'heat' : 'noheat'}:${blameLines
-		.map((line) => `${line.line}:${line.revision}:${line.author || ''}:${line.authorDate || ''}:${heat?.get(line.line) ?? ''}`)
+		.map(
+			(line) =>
+				`${line.line}:${line.revision}:${line.author || ''}:${line.authorDate || ''}:${heat?.get(line.line) ?? ''}`,
+		)
 		.join('|')}`;
 	if (signature === lastBlameSignature) {
 		return;

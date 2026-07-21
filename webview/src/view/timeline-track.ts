@@ -106,11 +106,7 @@ export function timelineTrack(model: Model): Html {
 								.join(' ');
 							const heightPx = 4 + Math.round((churn?.heightFactor ?? 0.2) * 14);
 							const stopMarkers = getEntryTimelineMarkers(entry);
-							const stopTitle = [
-								entry.shortRevision,
-								entry.description,
-								...stopMarkers.map((marker) => marker.title),
-							]
+							const stopTitle = [entry.shortRevision, entry.description, ...stopMarkers.map((marker) => marker.title)]
 								.filter(Boolean)
 								.join(' · ');
 							return h.keyed('button')(

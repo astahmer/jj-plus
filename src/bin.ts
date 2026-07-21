@@ -115,7 +115,7 @@ async function launchStandaloneTimeline(options: ReturnType<typeof parseTimeline
 		const { createCommandRunner } = await import('./extension/command-runner.ts');
 		const { createTimelineService } = await import('./extension/timeline-service.ts');
 		const { buildTimelineJsonSummary } = await import('./cli/timeline-json.ts');
-		const runner = createCommandRunner();
+		const runner = createCommandRunner({});
 		const service = createTimelineService({ runner });
 		const session = await service.buildSession({
 			workspacePath,

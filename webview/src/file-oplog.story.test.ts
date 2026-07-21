@@ -8,8 +8,18 @@ import { update } from './update.ts';
 test('file op-log strip click jumps to linked snapshot entry', () => {
 	const data = makeTimelineData(
 		[
-			makeEntry({ index: 0, revision: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', shortRevision: 'aaaa', changeId: 'c1' }),
-			makeEntry({ index: 1, revision: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', shortRevision: 'bbbb', changeId: 'c1' }),
+			makeEntry({
+				index: 0,
+				revision: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+				shortRevision: 'aaaa',
+				changeId: 'c1',
+			}),
+			makeEntry({
+				index: 1,
+				revision: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+				shortRevision: 'bbbb',
+				changeId: 'c1',
+			}),
 		],
 		{
 			backend: 'jj',
@@ -39,9 +49,7 @@ test('file op-log strip click jumps to linked snapshot entry', () => {
 		update,
 		Story.with({
 			...ready,
-			fileOpLogEntries: [
-				{ operationId: 'opbbbb2222', description: 'second snap', entryIndex: 1, changeId: 'c1' },
-			],
+			fileOpLogEntries: [{ operationId: 'opbbbb2222', description: 'second snap', entryIndex: 1, changeId: 'c1' }],
 		}),
 		Story.message(ClickedFileOpLogEntry({ operationId: 'opbbbb2222' })),
 		Story.Command.expectHas(PersistState, ScrollToEntry),

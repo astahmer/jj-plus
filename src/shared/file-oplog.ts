@@ -83,7 +83,8 @@ export function filterFileOpLogPeek(args: {
 	for (const op of args.opLog) {
 		const linked = findEntryForOperation(args.fileEntries, op.operationId);
 		const desc = op.description.toLowerCase();
-		const pathHit = Boolean(pathNeedle) && (desc.includes(pathNeedle) || (fileName.length > 2 && desc.includes(fileName)));
+		const pathHit =
+			Boolean(pathNeedle) && (desc.includes(pathNeedle) || (fileName.length > 2 && desc.includes(fileName)));
 		if (!linked && !pathHit) {
 			continue;
 		}

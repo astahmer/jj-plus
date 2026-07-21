@@ -225,9 +225,7 @@ test('parseJjHistoryLine reads empty conflict immutable flags', () => {
 });
 
 test('parseJjHistoryLine keeps legacy bookmark-description format', () => {
-	const entry = parseJjHistoryLine(
-		'abcd1234\tkqppukkm\t2026-04-09T12:32:35+02:00\talex\tmain\tlegacy description',
-	);
+	const entry = parseJjHistoryLine('abcd1234\tkqppukkm\t2026-04-09T12:32:35+02:00\talex\tmain\tlegacy description');
 	assert.equal(entry.description, 'legacy description');
 	assert.equal(entry.isEmpty, undefined);
 	assert.equal(entry.hasConflict, undefined);

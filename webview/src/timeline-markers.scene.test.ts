@@ -12,12 +12,7 @@ test('getEntryTimelineMarkers adds empty conflict immutable badges', () => {
 			bookmarkNames: ['main'],
 		}),
 	);
-	expect(markers.map((marker) => marker.kind)).toEqual([
-		'bookmark',
-		'empty',
-		'conflict',
-		'immutable',
-	]);
+	expect(markers.map((marker) => marker.kind)).toEqual(['bookmark', 'empty', 'conflict', 'immutable']);
 	expect(getTimelineMarkerPrefix('empty')).toBe('∅');
 	expect(getTimelineMarkerPrefix('conflict')).toBe('!');
 	expect(getTimelineMarkerPrefix('immutable')).toBe('IM');

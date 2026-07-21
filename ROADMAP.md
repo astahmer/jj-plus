@@ -22,6 +22,25 @@ Related: [TODO.md](./TODO.md) (engineering backlog). This doc is product ideas +
 | 7   | **Search in history**       | Find when a string was introduced / last removed across file revs    | done   |
 | 8   | **Time-lapse play**         | Auto-step the scrubber through the selected/visible range with pause | done   |
 
+## Wave 3 sharp bets
+
+| #   | Bet                                     | Intent                                                          | Status |
+| --- | --------------------------------------- | --------------------------------------------------------------- | ------ |
+| 1   | **Blame-recency heatmap gutter**        | After-side heat by authorTimestamp; View toggle                 | done   |
+| 5   | **Richer empty-diff details**           | Whitespace / mode / empty sides / rename reasons in empty state | done   |
+| 6   | **File op-log peek strip**              | Recent ops for session file under sidebar search; click jumps   | done   |
+| 7   | **Empty / conflict / immutable badges** | JJ stop markers on sidebar + track tooltips                     | done   |
+| 9   | **Word / char line-diff preference**    | Pierre `lineDiffType` in View menu                              | done   |
+| 10  | **Line-history status bar chip**        | `JJ Timeline L#–#` while line filter active; click clears       | done   |
+| 11  | **Timeline-at-line editor glue**        | Stronger CodeLens + gutter + editor menus                       | done   |
+| 12  | **CLI `timeline --json`**               | Machine-readable session summary; no browser                    | done   |
+
+Skipped this wave: open-at-rev / folder timeline / bookmark compare (#2–4), soft bridge (#8).
+
+## Wave 4 idea (parked)
+
+**Repo-wide “op-log on steroids”** — not file-scoped. Display TBD (swimlane / stacked events / day buckets). Design pass after Wave 3 ships; do not build UI yet.
+
 ## Idea inventory (from competitors)
 
 ### Stay in lane (high fit)
@@ -35,26 +54,26 @@ Related: [TODO.md](./TODO.md) (engineering backlog). This doc is product ideas +
 - Search in history — string introduced / removed across revs
 - Time-lapse play — auto-step range with pause (Perforce)
 - Folder / glob timeline (not only one file)
-- Deep-link + CLI JSON timeline metadata (TODO)
-- Gutter / CodeLens “open timeline here”
+- Deep-link + CLI JSON timeline metadata (**done** Wave 3)
+- Gutter / CodeLens “open timeline here” (**done** Wave 3)
 - Compare two bookmarks / branches for one file in-panel
 - Open file at revision (read-only buffer)
-- Heatmap gutter for recent touch density
+- Heatmap gutter for recent touch density (**done** Wave 3)
 - Path breadcrumb when `filePath` changes across entries
 
 ### jj-native differentiators
 
 - Evolog strip beside timeline (`jj evolog`)
-- Op-log peek — “what did last ops do to this file?”
-- Conflict / empty / immutable badges on stops (Open JJ / JJ View)
+- Op-log peek — “what did last ops do to this file?” (**done** Wave 3 file strip; repo-wide → Wave 4)
+- Conflict / empty / immutable badges on stops (**done** Wave 3)
 - Revset filter box + keep date presets for normals
-- Color-words vs git diff toggle (lazyjj)
-- Soft bridge: open selected change in Open JJ / JJ View (don’t rebuild SCM)
+- Color-words vs git diff toggle (**done** Wave 3 via Pierre lineDiffType)
+- Soft bridge: open selected change in Open JJ / JJ View (don’t rebuild SCM) — skipped Wave 3
 
 ### Editor glue
 
-- Command: open timeline for current selection / cursor line
-- Status-bar chip when line-history filter active
+- Command: open timeline for current selection / cursor line (**done**)
+- Status-bar chip when line-history filter active (**done** Wave 3)
 - Preserve line filter across file switch only when path follows rename
 
 ### Explicitly out of scope (partner / skip)

@@ -569,18 +569,22 @@ export function createTimelineHost(): TimelineHost {
 					const fileFixture = getActiveFileFixture(fixture);
 					const snapshots = fileFixture.timelineData.snapshotEntries || [];
 					const withOps = snapshots.filter((entry) => entry.operationId);
-					const source = withOps.length > 0 ? withOps : fileFixture.timelineData.entries.filter((entry) => entry.operationId);
+					const source =
+						withOps.length > 0 ? withOps : fileFixture.timelineData.entries.filter((entry) => entry.operationId);
 					emit({
 						type: 'file-oplog',
 						payload: {
 							relativePath: fileFixture.timelineData.relativePath,
-							entries: source.slice(-8).reverse().map((entry) => ({
-								operationId: entry.operationId || entry.id,
-								description: entry.description || 'Operation',
-								entryIndex: entry.index,
-								changeId: entry.changeId,
-								operationIndex: entry.operationIndex,
-							})),
+							entries: source
+								.slice(-8)
+								.reverse()
+								.map((entry) => ({
+									operationId: entry.operationId || entry.id,
+									description: entry.description || 'Operation',
+									entryIndex: entry.index,
+									changeId: entry.changeId,
+									operationIndex: entry.operationIndex,
+								})),
 						},
 					});
 				});

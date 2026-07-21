@@ -922,8 +922,12 @@ function handleFileOpLogEntryClick(model: Model, operationId: string): UpdateRet
 			: undefined;
 	const byOpId =
 		byIndex ||
-		snapshotEntries.find((entry) => (entry.operationId || '').startsWith(operationId) || operationId.startsWith(entry.operationId || '')) ||
-		revisionEntries.find((entry) => (entry.operationId || '').startsWith(operationId) || operationId.startsWith(entry.operationId || ''));
+		snapshotEntries.find(
+			(entry) => (entry.operationId || '').startsWith(operationId) || operationId.startsWith(entry.operationId || ''),
+		) ||
+		revisionEntries.find(
+			(entry) => (entry.operationId || '').startsWith(operationId) || operationId.startsWith(entry.operationId || ''),
+		);
 	if (!byOpId || typeof byOpId.index !== 'number') {
 		return [model, []];
 	}
@@ -1415,10 +1419,7 @@ function handleSnapshotEntriesMessage(
 		entryDiffCountByKey: () => ({}),
 		entryDiffCountLoadingKey: () => '',
 	});
-	return afterMutate(
-		next,
-		data.backend === 'jj' ? [SendHostCommand({ command: { command: 'load-file-oplog' } })] : [],
-	);
+	return afterMutate(next, data.backend === 'jj' ? [SendHostCommand({ command: { command: 'load-file-oplog' } })] : []);
 }
 
 function handleWorkspaceFilesMessage(

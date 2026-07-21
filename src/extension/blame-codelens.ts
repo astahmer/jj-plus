@@ -114,4 +114,3 @@ export function createTimelineAtLineGutterDecoration(): vscode.Disposable {
 		}),
 	);
 }
-
