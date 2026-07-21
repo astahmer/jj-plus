@@ -270,6 +270,18 @@ async function createStandaloneRuntime(args: { workspacePath: string; filePath: 
 					};
 					return [message];
 				}
+				case 'load-revision-tree-files': {
+					const fileFixture = await getActiveFileFixture();
+					return [
+						{
+							type: 'revision-tree-files',
+							payload: {
+								revision: command.revision,
+								files: fileFixture.timelineData.workspaceFiles || [],
+							},
+						},
+					];
+				}
 				case 'load-file-oplog': {
 					const fileFixture = await getActiveFileFixture();
 					if (fileFixture.timelineData.backend !== 'jj') {

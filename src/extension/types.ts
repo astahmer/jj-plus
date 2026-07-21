@@ -62,6 +62,8 @@ export type HistoryAdapter = {
 	showFileAtRevision(args: { workspacePath: string; revset: string; filePath: string }): Promise<string>;
 	resolvePreviousPath(args: { workspacePath: string; revision: string; currentPath: string }): Promise<string>;
 	listRevisionFiles(args: { workspacePath: string; revision: string; signal?: AbortSignal }): Promise<string[]>;
+	/** All files present in the revision tree (not just files changed by that commit). */
+	listRevisionTreeFiles(args: { workspacePath: string; revision: string; signal?: AbortSignal }): Promise<string[]>;
 	listWorkingTreeFiles(args: { workspacePath: string; signal?: AbortSignal }): Promise<string[]>;
 	getRemoteBaseUrl(args: { workspacePath: string }): Promise<string | undefined>;
 	getSnapshotEntriesForFile(args: {

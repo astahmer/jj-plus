@@ -85,6 +85,7 @@ import {
 	getActivePreviewKey,
 	getActiveRangeOverviewKey,
 	getActiveRangeOverviewItems,
+	getCurrentToEntry,
 	getData,
 	getEffectiveComparisonSource,
 	getFilteredSidebarEntries,
@@ -323,7 +324,14 @@ function applySyncPlan(model: Model): UpdateReturn {
 		}
 	}
 
-	if (nextModel.blameOverlayOpen || nextModel.heatmapOpen) {
+	if (nextModel.blameOverlayOpen) {
+		nextModel = evo(nextModel, {
+			blameOverlayOpen: () => false as boolean,
+			blameLines: () => (nextModel.heatmapOpen ? nextModel.blameLines : initialModel.blameLines),
+		});
+	}
+
+	if (nextModel.heatmapOpen) {
 		const blameKey = getActivePreviewKey(nextModel);
 		const blameStale = nextModel.blameRangeKey !== blameKey;
 		if (blameStale) {
@@ -346,6 +354,10 @@ function applySyncPlan(model: Model): UpdateReturn {
 				}),
 			);
 		}
+	}
+
+	if (nextModel.fileSwitcherMode === 'workspace') {
+		commands.push(...revisionTreeLoadCommands(nextModel));
 	}
 
 	return [nextModel, commands];
@@ -1216,6 +1228,12 @@ function handleGotHostMessage(model: Model, payload: unknown): UpdateReturn {
 		M.when('workspace-files', () =>
 			handleWorkspaceFilesMessage(model, message as Extract<TimelineInboundMessage, { type: 'workspace-files' }>),
 		),
+		M.when('revision-tree-files', () =>
+			handleRevisionTreeFilesMessage(
+				model,
+				message as Extract<TimelineInboundMessage, { type: 'revision-tree-files' }>,
+			),
+		),
 		M.when('entries-updated', () =>
 			handleEntriesUpdatedMessage(model, message as Extract<TimelineInboundMessage, { type: 'entries-updated' }>),
 		),
@@ -1450,6 +1468,43 @@ function handleWorkspaceFilesMessage(
 			}) satisfies TimelineData,
 	});
 	return afterMutate(next);
+}
+
+function handleRevisionTreeFilesMessage(
+	model: Model,
+	message: Extract<TimelineInboundMessage, { type: 'revision-tree-files' }>,
+): UpdateReturn {
+	const data = getData(model);
+	if (!data) {
+		return [model, []];
+	}
+	const next = evo(model, {
+		data: () =>
+			({
+				...data,
+				revisionTreeFiles: message.payload.files,
+				revisionTreeFilesRevision: message.payload.revision,
+				revisionTreeFilesLoaded: true,
+			}) satisfies TimelineData,
+	});
+	return afterMutate(next);
+}
+
+function revisionTreeLoadCommands(model: Model): Array<Command.Command<Message>> {
+	const tip = getCurrentToEntry(model);
+	if (!tip) {
+		return [];
+	}
+	const revision = tip.isWorkingTree ? '@' : tip.revision;
+	const data = getData(model);
+	if (
+		data?.revisionTreeFilesLoaded &&
+		data.revisionTreeFilesRevision === revision &&
+		(data.revisionTreeFiles?.length ?? 0) > 0
+	) {
+		return [];
+	}
+	return [SendHostCommand({ command: { command: 'load-revision-tree-files', revision } })];
 }
 
 function handleEntriesUpdatedMessage(
@@ -2083,7 +2138,11 @@ export function update(model: Model, message: Message): UpdateReturn {
 			PressedTimelineResize: ({ clientY, button }) => handlePressedTimelineResize(model, clientY, button),
 			PointerMovedDuringDrag: ({ clientX, clientY }) => handlePointerMovedDuringDrag(model, clientX, clientY),
 			ReleasedPointerDuringDrag: () => handleReleasedPointerDuringDrag(model),
-			SelectedFileSwitcherMode: ({ value }) => afterMutate(evo(model, { fileSwitcherMode: () => value })),
+			SelectedFileSwitcherMode: ({ value }) => {
+				const next = evo(model, { fileSwitcherMode: () => value });
+				const extra = value === 'workspace' ? revisionTreeLoadCommands(next) : [];
+				return afterMutate(next, extra);
+			},
 			SubmittedFileSwitcher: ({ value }) => handleSubmitFile(model, value),
 			SubmittedFromRevision: ({ value }) => handleSubmitRevision(model, 'from', value),
 			SubmittedToRevision: ({ value }) => handleSubmitRevision(model, 'to', value),

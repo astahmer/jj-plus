@@ -580,6 +580,20 @@ export function createTimelineHost(): TimelineHost {
 				return;
 			}
 
+			if (command.command === 'load-revision-tree-files') {
+				void getFixture().then((fixture) => {
+					const fileFixture = getActiveFileFixture(fixture);
+					emit({
+						type: 'revision-tree-files',
+						payload: {
+							revision: command.revision,
+							files: fileFixture.timelineData.workspaceFiles || [],
+						},
+					});
+				});
+				return;
+			}
+
 			if (command.command === 'load-file-oplog') {
 				void getFixture().then((fixture) => {
 					const fileFixture = getActiveFileFixture(fixture);

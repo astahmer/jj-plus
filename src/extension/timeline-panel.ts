@@ -716,12 +716,29 @@ export function createTimelinePanelController(args: {
 			return;
 		}
 
+		if (command === 'load-revision-tree-files') {
+			const revision = String(Reflect.get(request.message, 'revision') || '@');
+			const files = await args.service.loadRevisionTreeFiles({
+				session: request.session,
+				revision,
+			});
+			await postTimelineMessage({
+				panel: request.panel,
+				message: {
+					type: 'revision-tree-files',
+					payload: { revision, files },
+				},
+			});
+			return;
+		}
+
 		if (command === 'search-history') {
 			const query = String(Reflect.get(request.message, 'query') || '');
 			const purpose = Reflect.get(request.message, 'purpose') === 'sidebar' ? 'sidebar' : 'history';
 			const result = await args.service.searchFileHistory({
 				session: request.session,
 				query,
+				purpose,
 			});
 			await postTimelineMessage({
 				panel: request.panel,

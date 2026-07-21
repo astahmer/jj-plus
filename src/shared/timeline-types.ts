@@ -123,6 +123,10 @@ export type TimelineData = {
 	workspaceFiles: string[];
 	/** False until host finishes lazy `jj file list` / `git ls-files` fill. */
 	workspaceFilesLoaded?: boolean;
+	/** All files in the tip revision tree (file switcher “All files in revision”). */
+	revisionTreeFiles?: string[];
+	revisionTreeFilesRevision?: string;
+	revisionTreeFilesLoaded?: boolean;
 	hasIntermediateRevisions: boolean;
 	entries: FileRevisionEntry[];
 	snapshotEntries: FileRevisionEntry[];
@@ -181,6 +185,10 @@ export type TimelineInboundMessage =
 	| { type: 'diff-preview'; payload: DiffPreview }
 	| { type: 'snapshot-entries'; payload: Pick<TimelineData, 'snapshotEntries' | 'snapshotState'> }
 	| { type: 'workspace-files'; payload: { workspaceFiles: string[] } }
+	| {
+			type: 'revision-tree-files';
+			payload: { revision: string; files: string[] };
+	  }
 	| {
 			type: 'entries-updated';
 			payload: {
@@ -293,6 +301,7 @@ export type TimelineCommand =
 			comparisonSource: ComparisonSource;
 	  }
 	| { command: 'load-file-oplog' }
+	| { command: 'load-revision-tree-files'; revision: string }
 	| { command: 'search-history'; query: string; purpose?: 'history' | 'sidebar' }
 	| {
 			command: 'persist-state';

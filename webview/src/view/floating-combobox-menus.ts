@@ -29,8 +29,12 @@ function fileOptions(model: Model): Array<ComboboxOption> {
 			description: `${item.changeCount} touched ${item.changeCount === 1 ? 'revision' : 'revisions'}${item.isCurrentFile ? ' · current file' : ''}`,
 		}));
 	}
-	const data = model.data as { workspaceFiles?: Array<string> } | null;
-	return (data?.workspaceFiles || []).map((value) => ({ value }));
+	const data = model.data as {
+		revisionTreeFiles?: Array<string>;
+		workspaceFiles?: Array<string>;
+	} | null;
+	const files = data?.revisionTreeFiles?.length ? data.revisionTreeFiles : data?.workspaceFiles || [];
+	return files.map((value) => ({ value }));
 }
 
 /**

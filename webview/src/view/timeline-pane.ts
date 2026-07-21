@@ -59,8 +59,12 @@ function fileOptions(model: Model): Array<ComboboxOption> {
 			description: `${item.changeCount} touched ${item.changeCount === 1 ? 'revision' : 'revisions'}${item.isCurrentFile ? ' · current file' : ''}`,
 		}));
 	}
-	const data = model.data as { workspaceFiles?: Array<string> } | null;
-	return (data?.workspaceFiles || []).map((value) => ({ value }));
+	const data = model.data as {
+		revisionTreeFiles?: Array<string>;
+		workspaceFiles?: Array<string>;
+	} | null;
+	const files = data?.revisionTreeFiles?.length ? data.revisionTreeFiles : data?.workspaceFiles || [];
+	return files.map((value) => ({ value }));
 }
 
 export function timelinePane(model: Model): Html {
@@ -72,7 +76,7 @@ export function timelinePane(model: Model): Html {
 	const openSelectionDiffsLabel =
 		selectionDiffCount === null ? 'Open multi-file diffs' : `Open multi-file diffs (${selectionDiffCount})`;
 	const fileSwitcherPlaceholder =
-		model.fileSwitcherMode === 'overview' ? 'Jump to a top-changed file...' : 'Switch file...';
+		model.fileSwitcherMode === 'overview' ? 'Jump to a changed file...' : 'Switch to any file in tip revision...';
 	const collapseLabel = model.timelinePaneCollapsed ? 'Expand timeline' : 'Collapse timeline';
 	const lineHistory = (model.data as { lineHistory?: { startLine: number; endLine: number } } | null)?.lineHistory;
 	const pathTrail = getFilePathTrailLabel(model);
@@ -171,7 +175,7 @@ export function timelinePane(model: Model): Html {
 															h.AriaSelected(model.fileSwitcherMode === 'workspace'),
 															h.OnClick(SelectedFileSwitcherMode({ value: 'workspace' })),
 														],
-														['All files'],
+														['All files in revision'],
 													),
 													h.button(
 														[
@@ -181,7 +185,7 @@ export function timelinePane(model: Model): Html {
 															h.AriaSelected(model.fileSwitcherMode === 'overview'),
 															h.OnClick(SelectedFileSwitcherMode({ value: 'overview' })),
 														],
-														['Top changed'],
+														['Changed files'],
 													),
 												],
 											),

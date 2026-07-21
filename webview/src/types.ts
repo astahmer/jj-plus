@@ -54,6 +54,7 @@ export type TimelineInboundMessage =
 	| { type: 'diff-preview'; payload: DiffPreview }
 	| { type: 'snapshot-entries'; payload: Pick<TimelineData, 'snapshotEntries' | 'snapshotState'> }
 	| { type: 'workspace-files'; payload: { workspaceFiles: Array<string> } }
+	| { type: 'revision-tree-files'; payload: { revision: string; files: Array<string> } }
 	| {
 			type: 'entries-updated';
 			payload: {

@@ -18,7 +18,7 @@ import {
 	parseGitLineHistoryRevisions,
 	type LineHistoryRange,
 } from '../shared/line-history.ts';
-import { searchHistoryContents } from '../shared/history-search.ts';
+import { searchHistoryContents, searchHistoryDiffContents } from '../shared/history-search.ts';
 import { filterFileOpLogPeek, JJ_OP_LOG_TEMPLATE, parseJjOpLogOutput } from '../shared/file-oplog.ts';
 import type {
 	ComparisonSource,
@@ -245,6 +245,7 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 		buildPayload,
 		mapEntriesForPayload,
 		ensureWorkspaceFiles,
+		loadRevisionTreeFiles,
 		ensureIntermediateRevisions,
 		expandFileHistory,
 		findNearestNonEmptyVisibleRange,
@@ -407,6 +408,21 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 		request.session.workspaceFilesLoaded = true;
 		request.session.rangeOverviewCache.clear();
 		return true;
+	}
+
+	async function loadRevisionTreeFiles(request: {
+		session: ExtensionTimelineSession;
+		revision: string;
+	}): Promise<string[]> {
+		const revision = request.revision.trim() || '@';
+		try {
+			return await request.session.adapter.listRevisionTreeFiles({
+				workspacePath: request.session.workspacePath,
+				revision,
+			});
+		} catch {
+			return [];
+		}
 	}
 
 	async function ensureIntermediateRevisions(request: { session: ExtensionTimelineSession }): Promise<boolean> {
@@ -1058,6 +1074,7 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 		session: ExtensionTimelineSession;
 		query: string;
 		maxEntries?: number;
+		purpose?: 'history' | 'sidebar';
 	}): Promise<ReturnType<typeof searchHistoryContents>> {
 		const maxEntries = request.maxEntries ?? 40;
 		const touching = request.session.entries
@@ -1077,9 +1094,17 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 				contentsByIndex.set(index, '');
 			}
 		}
+		const orderedEntryIndexes = touching.map(({ index }) => index);
+		if (request.purpose === 'sidebar') {
+			return searchHistoryDiffContents({
+				query: request.query,
+				orderedEntryIndexes,
+				contentsByIndex,
+			});
+		}
 		return searchHistoryContents({
 			query: request.query,
-			orderedEntryIndexes: touching.map(({ index }) => index),
+			orderedEntryIndexes,
 			contentsByIndex,
 		});
 	}

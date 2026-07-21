@@ -160,6 +160,14 @@ function createGitHistoryAdapter(args: { runner: CommandRunner }): HistoryAdapte
 
 			return parseOutputLines(stdout);
 		},
+		async listRevisionTreeFiles({ workspacePath, revision, signal }) {
+			const { stdout } = await runner.runGit({
+				workspacePath,
+				args: ['ls-tree', '-r', '--name-only', revision],
+				options: { signal },
+			});
+			return parseOutputLines(stdout).toSorted((left, right) => left.localeCompare(right));
+		},
 		async listWorkingTreeFiles({ workspacePath, signal }) {
 			const files = new Set<string>();
 
@@ -331,6 +339,14 @@ function createJjHistoryAdapter(args: { runner: CommandRunner }): HistoryAdapter
 			});
 
 			return parseOutputLines(stdout);
+		},
+		async listRevisionTreeFiles({ workspacePath, revision, signal }) {
+			const { stdout } = await runner.runJj({
+				workspacePath,
+				args: ['file', 'list', '-r', revision],
+				options: { signal },
+			});
+			return parseOutputLines(stdout).toSorted((left, right) => left.localeCompare(right));
 		},
 		async listWorkingTreeFiles({ workspacePath, signal }) {
 			const { stdout } = await runner.runJj({
