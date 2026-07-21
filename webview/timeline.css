@@ -1653,7 +1653,7 @@ kbd {
 	height: 7px;
 	border-radius: 999px;
 	border: 1px solid var(--border);
-	background: var(--input-bg);
+	background: color-mix(in srgb, var(--input-bg) 80%, var(--muted));
 	overflow: visible;
 	z-index: 2;
 	cursor: grab;
@@ -1724,15 +1724,18 @@ kbd {
 
 .range-fill {
 	position: absolute;
-	top: 28px;
-	height: 7px;
+	top: 26px;
+	height: 11px;
 	border-radius: 999px;
-	border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+	border: 1px solid color-mix(in srgb, var(--accent) 70%, var(--text));
 	background: linear-gradient(
 		90deg,
-		color-mix(in srgb, var(--accent-alt) 35%, transparent),
-		color-mix(in srgb, var(--accent) 62%, transparent)
+		color-mix(in srgb, var(--accent-alt) 55%, transparent),
+		color-mix(in srgb, var(--accent) 78%, transparent)
 	);
+	box-shadow:
+		0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent),
+		0 0 12px color-mix(in srgb, var(--accent) 28%, transparent);
 	cursor: grab;
 	z-index: 1;
 }
@@ -1744,8 +1747,8 @@ kbd {
 .handle-marker {
 	position: absolute;
 	top: 31.5px;
-	width: 14px;
-	height: 14px;
+	width: 16px;
+	height: 16px;
 	transform: translate(-50%, -50%);
 	border-radius: 999px;
 	border: 2px solid var(--bg);
@@ -1754,7 +1757,7 @@ kbd {
 	padding: 0;
 	appearance: none;
 	-webkit-appearance: none;
-	box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+	box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent);
 }
 
 .handle-marker.from {

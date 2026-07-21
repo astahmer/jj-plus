@@ -20,13 +20,18 @@ export type TimelineSyncPlan = {
 	};
 	entryDiffCountsRequest?: { entryIndexes: Array<number>; comparisonSource: ComparisonSource };
 	snapshotHydrationRequest?: { revisionIndexes: Array<number> };
-	sidebarPreviewRequest?: {
+	sidebarPreviewRequests?: Array<{
 		key: string;
 		fromIndex: number;
 		toIndex: number;
 		comparisonSource: ComparisonSource;
-	};
+	}>;
 };
+
+/** Prefetch this many step neighbors on each side of the current tip. */
+export const NEIGHBOR_PREFETCH_RADIUS = 2;
+/** Cap concurrent neighbor preview fetches per sync tick. */
+export const NEIGHBOR_PREFETCH_BATCH = 4;
 
 export function buildTimelineSyncPlan(args: {
 	ready: boolean;
@@ -46,7 +51,7 @@ export function buildTimelineSyncPlan(args: {
 	entryDiffCountByKey: Record<string, number>;
 	entryDiffCountLoadingKey: string;
 	pendingSnapshotRevisionIndexes: Array<number>;
-	sidebarPreviewInFlightKey: string;
+	sidebarPreviewInFlightKeys: Record<string, boolean>;
 }): TimelineSyncPlan {
 	const plan: TimelineSyncPlan = {};
 	if (!args.ready || !args.data) {
@@ -118,18 +123,32 @@ export function buildTimelineSyncPlan(args: {
 		}
 	}
 
-	if (!pauseBackgroundRequests && args.visibleEntries.length >= 2 && !args.sidebarPreviewInFlightKey) {
-		const [nextRequest] = getSidebarPreviewRequests(
+	if (!pauseBackgroundRequests && args.visibleEntries.length >= 2) {
+		const currentVisibleIndex = args.visibleEntries.findIndex((entry) => entry.index === args.toIndex);
+		const requests = getSidebarPreviewRequests(
 			args.visibleEntries,
 			args.comparisonSource,
 			args.previewByRange,
 			args.activePreviewKey,
 			(fromIndex, toIndex, comparisonSource) =>
 				`${comparisonSource}:${Math.min(fromIndex, toIndex)}:${Math.max(fromIndex, toIndex)}`,
-		).toSorted((left, right) => Math.abs(left.toIndex - args.toIndex) - Math.abs(right.toIndex - args.toIndex));
+		)
+			.filter((request) => !args.sidebarPreviewInFlightKeys[request.key])
+			.map((request) => {
+				const visibleIndex = args.visibleEntries.findIndex((entry) => entry.index === request.toIndex);
+				const distance =
+					currentVisibleIndex < 0 || visibleIndex < 0
+						? Number.POSITIVE_INFINITY
+						: Math.abs(visibleIndex - currentVisibleIndex);
+				return { request, distance };
+			})
+			.filter(({ distance }) => distance <= NEIGHBOR_PREFETCH_RADIUS)
+			.toSorted((left, right) => left.distance - right.distance)
+			.slice(0, NEIGHBOR_PREFETCH_BATCH)
+			.map(({ request }) => request);
 
-		if (nextRequest) {
-			plan.sidebarPreviewRequest = nextRequest;
+		if (requests.length) {
+			plan.sidebarPreviewRequests = requests;
 		}
 	}
 

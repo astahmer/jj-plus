@@ -49,6 +49,12 @@ import {
 	TRACK_ANCHOR_DRAG_START_DISTANCE,
 	type DragState,
 } from './machine/drag.ts';
+import {
+	mergePreviewCaches,
+	readCachedFileSession,
+	rememberFileSession,
+	type FileSessionSnapshot,
+} from './domain/file-session-cache.ts';
 import { getEditableShortcutBehavior, resolveTimelineShortcut } from './domain/timeline-shortcuts.ts';
 import { buildTimelineSyncPlan } from './domain/timeline-sync.ts';
 import {
@@ -158,6 +164,7 @@ function clearCaches(model: Model): Model {
 		rangeOverviewLoadingKey: () => '',
 		entryDiffCountLoadingKey: () => '',
 		sidebarPreviewInFlightKey: () => '',
+		sidebarPreviewInFlightKeys: () => ({}),
 		pendingRangeResolutionKey: () => '',
 	});
 }
@@ -214,7 +221,7 @@ function applySyncPlan(model: Model): UpdateReturn {
 		entryDiffCountByKey: model.entryDiffCountByKey as Record<string, number>,
 		entryDiffCountLoadingKey: model.entryDiffCountLoadingKey,
 		pendingSnapshotRevisionIndexes: getPendingSnapshotRevisionIndexesSelector(model),
-		sidebarPreviewInFlightKey: model.sidebarPreviewInFlightKey,
+		sidebarPreviewInFlightKeys: model.sidebarPreviewInFlightKeys as Record<string, boolean>,
 	});
 
 	let nextModel = model;
@@ -284,20 +291,25 @@ function applySyncPlan(model: Model): UpdateReturn {
 		);
 	}
 
-	if (plan.sidebarPreviewRequest) {
+	if (plan.sidebarPreviewRequests?.length) {
+		const nextInFlight = { ...(nextModel.sidebarPreviewInFlightKeys as Record<string, boolean>) };
+		for (const request of plan.sidebarPreviewRequests) {
+			nextInFlight[request.key] = true;
+			commands.push(
+				SendHostCommand({
+					command: {
+						command: 'select-entry',
+						fromIndex: request.fromIndex,
+						toIndex: request.toIndex,
+						comparisonSource: request.comparisonSource,
+					},
+				}),
+			);
+		}
 		nextModel = evo(nextModel, {
-			sidebarPreviewInFlightKey: () => plan.sidebarPreviewRequest!.key,
+			sidebarPreviewInFlightKeys: () => nextInFlight,
+			sidebarPreviewInFlightKey: () => plan.sidebarPreviewRequests![0]!.key,
 		});
-		commands.push(
-			SendHostCommand({
-				command: {
-					command: 'select-entry',
-					fromIndex: plan.sidebarPreviewRequest.fromIndex,
-					toIndex: plan.sidebarPreviewRequest.toIndex,
-					comparisonSource: plan.sidebarPreviewRequest.comparisonSource,
-				},
-			}),
-		);
 	}
 
 	if (nextModel.rangeStackOpen && Object.keys(nextModel.rangeStackByPath).length === 0) {
@@ -1014,15 +1026,57 @@ function handleSubmitFile(model: Model, rawValue: string): UpdateReturn {
 	if (filesLoaded && !data.workspaceFiles.includes(relativePath)) {
 		return [model, []];
 	}
+
+	const cache = rememberFileSession(model.fileSessionByPath as Record<string, FileSessionSnapshot>, model);
+	const cached = readCachedFileSession(cache, relativePath);
+	const hostCommand = SendHostCommand({ command: { command: 'switch-file', relativePath } });
+
+	if (cached) {
+		let next = evo(model, {
+			fileSessionByPath: () => cache,
+			data: () => cached.data as never,
+			previewByRange: () => cached.previewByRange,
+			rangeOverviewByRange: () => cached.rangeOverviewByRange,
+			entryDiffCountByKey: () => cached.entryDiffCountByKey,
+			fromIndex: () => cached.fromIndex,
+			toIndex: () => cached.toIndex,
+			comparisonMode: () => cached.comparisonMode,
+			comparisonSource: () => cached.comparisonSource,
+			layoutMode: () => cached.layoutMode,
+			contentMode: () => cached.contentMode,
+			preset: () => cached.preset,
+			showIntermediateRevisions: () => cached.showIntermediateRevisions,
+			customRevset: () => cached.customRevset,
+			fileInputValue: () => relativePath,
+			oldestFirst: () => cached.oldestFirst,
+			maybeHoveredSelectionIndex: () => Option.none(),
+			rangeStackOpen: () => false as boolean,
+			rangeStackByPath: () => ({}),
+			blameOverlayOpen: () => false as boolean,
+			blameLines: () => initialModel.blameLines,
+			blameLoading: () => false as boolean,
+			sidebarPreviewInFlightKey: () => '',
+			sidebarPreviewInFlightKeys: () => ({}),
+			sessionKey: (current) => current + 1,
+		}) as Model;
+		next = stepOverlay(next, ClosedOverlays());
+		next = stepSelection(next, CancelledSelection());
+		next = stepSession(next, ReceivedTimelineData());
+		next = syncRevisionDrafts(next);
+		return afterMutate(next, [hostCommand]);
+	}
+
 	const next = stepSelection(
 		evo(stepOverlay(model, ClosedOverlays()), {
+			fileSessionByPath: () => cache,
+			fileInputValue: () => relativePath,
 			maybeHoveredSelectionIndex: () => Option.none(),
 			sessionKey: (current) => current + 1,
 		}),
 		CancelledSelection(),
 	);
 	const sessionModel = stepSession(next, SwitchedFile());
-	return [sessionModel, [SendHostCommand({ command: { command: 'switch-file', relativePath } })]];
+	return [sessionModel, [hostCommand]];
 }
 
 function handleRefresh(model: Model): UpdateReturn {
@@ -1146,11 +1200,42 @@ function handleTimelineDataMessage(
 		preset,
 		showIntermediateRevisions,
 	);
-	const { fromIndex, toIndex } = getDefaultSelection(visibleEntries);
+	const cache = model.fileSessionByPath as Record<string, FileSessionSnapshot>;
+	const cached = readCachedFileSession(cache, data.relativePath);
+	const samePath = getData(model)?.relativePath === data.relativePath;
+	const defaultSelection = getDefaultSelection(visibleEntries);
+	const fromIndex =
+		samePath && visibleEntries.some((entry) => entry.index === model.fromIndex)
+			? model.fromIndex
+			: cached && visibleEntries.some((entry) => entry.index === cached.fromIndex)
+				? cached.fromIndex
+				: defaultSelection.fromIndex;
+	const toIndex =
+		samePath && visibleEntries.some((entry) => entry.index === model.toIndex)
+			? model.toIndex
+			: cached && visibleEntries.some((entry) => entry.index === cached.toIndex)
+				? cached.toIndex
+				: defaultSelection.toIndex;
+
+	const restoredPreviews = mergePreviewCaches(
+		cached?.previewByRange,
+		samePath ? (model.previewByRange as Record<string, DiffPreview>) : undefined,
+	);
+	const restoredOverviews = {
+		...(cached?.rangeOverviewByRange || {}),
+		...(samePath ? (model.rangeOverviewByRange as Record<string, Array<RangeOverviewItem>>) : {}),
+	};
+	const restoredDiffCounts = {
+		...(cached?.entryDiffCountByKey || {}),
+		...(samePath ? (model.entryDiffCountByKey as Record<string, number>) : {}),
+	};
 
 	let next: Model = {
 		...clearCaches(model),
 		data,
+		previewByRange: restoredPreviews,
+		rangeOverviewByRange: restoredOverviews,
+		entryDiffCountByKey: restoredDiffCounts,
 		sidebarWidth: clampSidebarWidth(preferences.sidebarWidth || 280),
 		timelinePaneHeight: preferences.timelinePaneHeight || 220,
 		timelinePaneCollapsed: preferences.timelinePaneCollapsed === true,
@@ -1159,34 +1244,39 @@ function handleTimelineDataMessage(
 				? preferences.themePreference
 				: 'auto',
 		responsiveSidebarHeight: clampResponsiveSidebarHeight(model.responsiveSidebarHeight || 248),
-		layoutMode: preferences.layoutMode || 'split',
-		contentMode: preferences.contentMode || 'diffs',
-		comparisonMode: preferences.comparisonMode || 'range',
-		comparisonSource,
+		layoutMode: preferences.layoutMode || cached?.layoutMode || 'split',
+		contentMode: preferences.contentMode || cached?.contentMode || 'diffs',
+		comparisonMode: preferences.comparisonMode || cached?.comparisonMode || 'range',
+		comparisonSource:
+			data.backend === 'jj' ? preferences.comparisonSource || cached?.comparisonSource || 'revision' : 'revision',
 		showIntermediateRevisions,
 		preset,
 		fromIndex,
 		toIndex,
-		sidebarCollapsed: false,
+		sidebarCollapsed: model.sidebarCollapsed,
 		overlay: Closed(),
 		actionsMenuOpen: false,
 		viewMenuOpen: false,
 		hotkeysOpen: false,
-		oldestFirst: false,
+		oldestFirst: cached?.oldestFirst ?? model.oldestFirst,
 		customRevset:
 			typeof preferences.customRevset === 'string'
 				? preferences.customRevset
 				: typeof data.customRevset === 'string'
 					? data.customRevset
-					: '',
+					: cached?.customRevset || '',
 		fileInputValue: data.relativePath,
 		maybeHoveredSelectionIndex: Option.none(),
+		fileSessionByPath: cache,
 	};
 	next = stepSelection(next, CancelledSelection());
 	next = stepSession(next, ReceivedTimelineData());
 	next = syncRevisionDrafts(next);
+	next = evo(next, {
+		fileSessionByPath: () => rememberFileSession(cache, next),
+	});
 	const commands: Array<Command.Command<Message>> = [];
-	if (visibleEntries.length) {
+	if (visibleEntries.length && !samePath && !cached) {
 		commands.push(ScrollToEntry({ entryIndex: visibleEntries[visibleEntries.length - 1].index }));
 	}
 	return afterMutate(next, commands);
@@ -1203,6 +1293,14 @@ function handleDiffPreviewMessage(
 	let next = evo(model, {
 		previewByRange: (byRange) => ({ ...byRange, [previewKey]: payload }),
 		sidebarPreviewInFlightKey: (current) => (current === previewKey ? '' : current),
+		sidebarPreviewInFlightKeys: (keys) => {
+			if (!(previewKey in keys)) {
+				return keys;
+			}
+			const nextKeys = { ...keys };
+			delete nextKeys[previewKey];
+			return nextKeys;
+		},
 	});
 
 	if (previewKey !== getActivePreviewKey(next)) {

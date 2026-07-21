@@ -72,7 +72,7 @@ test('buildTimelineSyncPlan normalizes the selection before requesting host data
 			entryDiffCountByKey: {},
 			entryDiffCountLoadingKey: '',
 			pendingSnapshotRevisionIndexes: [],
-			sidebarPreviewInFlightKey: '',
+			sidebarPreviewInFlightKeys: {},
 		}).normalizedSelection,
 		{ fromIndex: 2, toIndex: 4 },
 	);
@@ -100,7 +100,7 @@ test('buildTimelineSyncPlan requests missing preview, overview, and entry counts
 		entryDiffCountByKey: { 'revision:2': 1 },
 		entryDiffCountLoadingKey: '',
 		pendingSnapshotRevisionIndexes: [],
-		sidebarPreviewInFlightKey: '',
+		sidebarPreviewInFlightKeys: {},
 	});
 
 	assert.deepEqual(plan.previewRequest, {
@@ -141,16 +141,16 @@ test('buildTimelineSyncPlan pauses background requests while snapshot hydration 
 		entryDiffCountByKey: {},
 		entryDiffCountLoadingKey: '',
 		pendingSnapshotRevisionIndexes: [4, 5],
-		sidebarPreviewInFlightKey: '',
+		sidebarPreviewInFlightKeys: {},
 	});
 
 	assert.deepEqual(plan.snapshotHydrationRequest, { revisionIndexes: [4, 5] });
 	assert.equal(plan.entryDiffCountsRequest, undefined);
-	assert.equal(plan.sidebarPreviewRequest, undefined);
+	assert.equal(plan.sidebarPreviewRequests, undefined);
 });
 
-test('buildTimelineSyncPlan prefetches the nearest uncached sidebar preview', () => {
-	const visibleEntries = [1, 2, 3, 4].map((index) => makeEntry({ index }));
+test('buildTimelineSyncPlan prefetches neighboring uncached sidebar previews within radius', () => {
+	const visibleEntries = [1, 2, 3, 4, 5].map((index) => makeEntry({ index }));
 	const data = makeTimelineData(visibleEntries);
 	const activePreviewKey = buildPreviewKey(3, 4, 'revision');
 	const plan = buildTimelineSyncPlan({
@@ -168,16 +168,19 @@ test('buildTimelineSyncPlan prefetches the nearest uncached sidebar preview', ()
 		rangeOverviewByRange: { [buildRangeOverviewKey(3, 4, 'revision', [4])]: [] },
 		rangeOverviewLoadingKey: '',
 		selectedEntryIndexes: [4],
-		entryDiffCountByKey: { 'revision:2': 1, 'revision:3': 1, 'revision:4': 1 },
+		entryDiffCountByKey: {
+			'revision:2': 1,
+			'revision:3': 1,
+			'revision:4': 1,
+			'revision:5': 1,
+		},
 		entryDiffCountLoadingKey: '',
 		pendingSnapshotRevisionIndexes: [],
-		sidebarPreviewInFlightKey: '',
+		sidebarPreviewInFlightKeys: {},
 	});
 
-	assert.deepEqual(plan.sidebarPreviewRequest, {
-		key: buildPreviewKey(2, 3, 'revision'),
-		fromIndex: 2,
-		toIndex: 3,
-		comparisonSource: 'revision',
-	});
+	assert.deepEqual(
+		plan.sidebarPreviewRequests?.map((request) => request.key),
+		[buildPreviewKey(2, 3, 'revision'), buildPreviewKey(4, 5, 'revision'), buildPreviewKey(1, 2, 'revision')],
+	);
 });
