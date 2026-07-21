@@ -67,7 +67,10 @@ const reposDir = path.join(runtimeDir, 'repos');
 const outputDir = path.join(rootDir, 'webview', 'public', 'e2e');
 const defaultRelativeFilePath = 'apps/backend/instructions/lazy-di-rollout-plan.md';
 const secondaryRelativeFilePath = 'apps/backend/src/service.ts';
-const trackedFilePaths = [defaultRelativeFilePath, secondaryRelativeFilePath];
+const largeMainRelativeFilePath = 'apps/web/src/main.ts';
+const trackedFilePaths = [defaultRelativeFilePath, secondaryRelativeFilePath, largeMainRelativeFilePath];
+const largeMainBeforePath = path.join(rootDir, 'tests/fixtures/assets/main-before.ts');
+const largeMainAfterPath = path.join(rootDir, 'tests/fixtures/assets/main-after.ts');
 const remoteBaseUrl = 'https://github.com/astahmer/visualjj-range-diff-helper';
 const stableJjMutableChangeId = 'xooxvqzo';
 const stableJjMutableShortRevisions = ['xooxvqzo/1', 'xooxvqzo/3'];
@@ -133,6 +136,15 @@ async function generateGitFixture(): Promise<RepositoryFixture> {
 		[secondaryRelativeFilePath]: buildServiceContent('beta', 'Extract the service helper into its own file.'),
 	});
 
+	const largeMainBefore = await fs.readFile(largeMainBeforePath, 'utf8');
+	const largeMainAfter = await fs.readFile(largeMainAfterPath, 'utf8');
+	await commit(repoDir, '2026-04-09T17:00:00Z', 'componentize stuff', {
+		[largeMainRelativeFilePath]: largeMainBefore,
+	});
+	await commit(repoDir, '2026-04-09T18:00:00Z', 'implement vector search + plan stuff', {
+		[largeMainRelativeFilePath]: largeMainAfter,
+	});
+
 	await commit(repoDir, '2026-04-10T10:00:00Z', 'finalized rollout', {
 		[defaultRelativeFilePath]: buildPlanContent('Third revision', 'gamma line', 'Finalize the rollout checklist.'),
 	});
@@ -167,6 +179,15 @@ async function generateJjFixture(): Promise<RepositoryFixture> {
 
 	await commit(repoDir, '2026-04-09T16:00:00Z', 'service extraction', {
 		[secondaryRelativeFilePath]: buildServiceContent('beta', 'Extract the service helper into its own file.'),
+	});
+
+	const largeMainBefore = await fs.readFile(largeMainBeforePath, 'utf8');
+	const largeMainAfter = await fs.readFile(largeMainAfterPath, 'utf8');
+	await commit(repoDir, '2026-04-09T17:00:00Z', 'componentize stuff', {
+		[largeMainRelativeFilePath]: largeMainBefore,
+	});
+	await commit(repoDir, '2026-04-09T18:00:00Z', 'implement vector search + plan stuff', {
+		[largeMainRelativeFilePath]: largeMainAfter,
 	});
 
 	await writeFiles(repoDir, {

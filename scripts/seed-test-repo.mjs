@@ -14,6 +14,9 @@ const repoDir = path.join(rootDir, 'test-repo');
 
 const planPath = 'apps/backend/instructions/lazy-di-rollout-plan.md';
 const servicePath = 'apps/backend/src/service.ts';
+const largeMainPath = 'apps/web/src/main.ts';
+const largeMainBeforePath = path.join(rootDir, 'tests/fixtures/assets/main-before.ts');
+const largeMainAfterPath = path.join(rootDir, 'tests/fixtures/assets/main-after.ts');
 
 async function run(command, args, cwd = repoDir) {
 	await execFileAsync(command, args, { cwd });
@@ -73,6 +76,15 @@ await commit('service extraction', {
 	[servicePath]: service('beta', 'Extract the service helper into its own file.'),
 });
 
+const largeMainBefore = await fs.readFile(largeMainBeforePath, 'utf8');
+const largeMainAfter = await fs.readFile(largeMainAfterPath, 'utf8');
+await commit('componentize stuff', {
+	[largeMainPath]: largeMainBefore,
+});
+await commit('implement vector search + plan stuff', {
+	[largeMainPath]: largeMainAfter,
+});
+
 await writeFiles({
 	[planPath]: plan('Rollout plan', 'gamma line', 'Working-tree draft for timeline testing.'),
 	[servicePath]: service('gamma', 'Uncommitted JJ working tree service changes.'),
@@ -80,4 +92,5 @@ await writeFiles({
 await run('jj', ['describe', '-m', 'working tree draft']);
 
 console.log(`Seeded ${repoDir}`);
-console.log('Open apps/backend/instructions/lazy-di-rollout-plan.md and run JJ: Open File Revision Timeline');
+console.log('Open apps/web/src/main.ts and run JJ: Open File Revision Timeline for the large-diff case');
+console.log('Open apps/backend/instructions/lazy-di-rollout-plan.md for the small-diff case');

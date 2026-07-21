@@ -13,9 +13,30 @@ type TimelineDebugState = {
 	panelTitle?: string;
 	usesBundledWebview?: boolean;
 	entryCount?: number;
+	entries?: Array<{ index: number; description: string; shortRevision: string }>;
+};
+
+type DiffLayoutMetrics = {
+	viewportH: number;
+	portalH: number;
+	hostH: number;
+	hostScrollH: number;
+	rowsH: number;
+	timelineH: number;
+	maxLineH: number;
+	minLineH: number;
+	lineCount: number;
+	maxCodeScrollH: number;
+	minCodeClientH: number;
+	portalFillRatio: number;
+	lineTopSpan: number;
+	uniqueLineTops: number;
+	isCrushed: boolean;
 };
 
 const DEBUG_COMMAND = 'jj-range-diff._debug.getTimelineState';
+const LAYOUT_COMMAND = 'jj-range-diff._debug.getDiffLayoutMetrics';
+const SELECT_COMMAND = 'jj-range-diff._debug.selectTimelineRange';
 const OPEN_FILE_DIFF_COMMAND = 'jj-range-diff.openFileRangeDiff';
 const OPEN_TIMELINE_COMMAND = 'jj-range-diff.openFileRevisionTimeline';
 const TARGET_RELATIVE_PATH = 'apps/backend/instructions/lazy-di-rollout-plan.md';
@@ -48,6 +69,82 @@ suite('Revision Timeline integration', () => {
 		equal(state.usesBundledWebview, true);
 		ok(state.entryCount && state.entryCount >= 2, `expected at least 2 timeline entries, got ${state.entryCount}`);
 		match(state.panelTitle || '', /^Revision Timeline: lazy-di-rollout-plan\.md$/u);
+	});
+
+	test('diff portal fills vertical space inside the real VS Code webview', async () => {
+		const workspaceFolder = workspace.workspaceFolders?.[0];
+		if (!workspaceFolder) {
+			throw new Error('expected the integration test workspace to be open');
+		}
+
+		await openWorkspaceFile(workspaceFolder.uri.fsPath, TARGET_RELATIVE_PATH);
+		await commands.executeCommand(OPEN_TIMELINE_COMMAND);
+		await waitForTimelineReady();
+
+		const layout = await waitForDiffLayout((metrics) => {
+			return (
+				metrics.portalH > 200 &&
+				metrics.lineCount > 3 &&
+				metrics.hostH >= metrics.portalH - 16 &&
+				!metrics.isCrushed &&
+				metrics.minLineH > 8 &&
+				metrics.maxLineH < 40
+			);
+		});
+
+		ok(layout.portalFillRatio > 0.25, `portal should own vertical space, got ${JSON.stringify(layout)}`);
+		ok(layout.hostH >= layout.portalH - 16, `host must fill portal: ${JSON.stringify(layout)}`);
+		ok(!layout.isCrushed, `pierre content crushed inside VS Code webview: ${JSON.stringify(layout)}`);
+		ok(layout.minLineH > 8, `lines crushed: ${JSON.stringify(layout)}`);
+		ok(
+			Math.max(layout.maxCodeScrollH, layout.hostScrollH, layout.minCodeClientH, layout.lineCount * layout.minLineH) >
+				40,
+			`diff content missing: ${JSON.stringify(layout)}`,
+		);
+	});
+
+	test('large main.ts rewrite is not crushed inside the real VS Code webview', async () => {
+		const workspaceFolder = workspace.workspaceFolders?.[0];
+		if (!workspaceFolder) {
+			throw new Error('expected the integration test workspace to be open');
+		}
+
+		const largePath = 'apps/web/src/main.ts';
+		await openWorkspaceFile(workspaceFolder.uri.fsPath, largePath);
+		await commands.executeCommand(OPEN_TIMELINE_COMMAND);
+		const state = await waitForTimelineState(
+			(candidate) => candidate?.viewReady === true && candidate.relativePath === largePath,
+		);
+		ok((state.entryCount || 0) >= 2, `expected main.ts history, got ${JSON.stringify(state)}`);
+
+		const entries = state.entries || [];
+		const toEntry = entries.find((entry) => /vector search/i.test(entry.description));
+		const fromEntry =
+			entries.find((entry) => /componentize/i.test(entry.description)) ||
+			(toEntry ? entries.find((entry) => entry.index < toEntry.index) : undefined);
+		ok(toEntry && fromEntry, `missing rewrite endpoints: ${JSON.stringify(entries)}`);
+
+		await commands.executeCommand(SELECT_COMMAND, {
+			fromIndex: fromEntry!.index,
+			toIndex: toEntry!.index,
+			comparisonSource: 'revision',
+		});
+
+		const layout = await waitForDiffLayout(
+			(metrics) =>
+				metrics.lineCount > 40 &&
+				metrics.portalH > 200 &&
+				!metrics.isCrushed &&
+				metrics.uniqueLineTops > 10 &&
+				metrics.hostScrollH > metrics.portalH + 40 &&
+				metrics.minLineH > 8 &&
+				metrics.minLineH < 40,
+		);
+		ok(layout.hostH >= layout.portalH - 16, `host must fill portal: ${JSON.stringify(layout)}`);
+		ok(layout.minLineH > 8 && layout.minLineH < 40, `line height weird: ${JSON.stringify(layout)}`);
+		ok(layout.lineTopSpan > layout.portalH * 0.8, `line tops clustered/crushed: ${JSON.stringify(layout)}`);
+		ok(layout.hostScrollH > layout.portalH + 40, `wrap content not scrolling: ${JSON.stringify(layout)}`);
+		ok(!layout.isCrushed, `pierre crushed on large rewrite: ${JSON.stringify(layout)}`);
 	});
 
 	test('opens a new timeline panel when opening a different workspace file', async () => {
@@ -212,6 +309,28 @@ async function waitForTimelineState(
 	}
 
 	throw new Error(`timeline webview did not initialize in time; last state: ${JSON.stringify(lastState)}`);
+}
+
+async function waitForDiffLayout(predicate: (metrics: DiffLayoutMetrics) => boolean): Promise<DiffLayoutMetrics> {
+	const deadline = Date.now() + 20000;
+	let lastError: unknown;
+	let lastMetrics: DiffLayoutMetrics | undefined;
+
+	while (Date.now() < deadline) {
+		try {
+			lastMetrics = (await commands.executeCommand(LAYOUT_COMMAND)) as DiffLayoutMetrics;
+			if (predicate(lastMetrics)) {
+				return lastMetrics;
+			}
+		} catch (error) {
+			lastError = error;
+		}
+		await delay(250);
+	}
+
+	throw new Error(
+		`diff layout metrics never became healthy; last=${JSON.stringify(lastMetrics)}; error=${String(lastError)}`,
+	);
 }
 
 function delay(milliseconds: number): Promise<void> {
