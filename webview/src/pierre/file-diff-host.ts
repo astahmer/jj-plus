@@ -832,9 +832,12 @@ function buildOptions(
 					if (heatmapOpen && typeof meta.heatLevel === 'number') {
 						const heat = document.createElement('span');
 						heat.className = `pierre-heat-bar ${heatLevelClass(meta.heatLevel)}`;
-						heat.title = `Recency heat ${meta.heatLevel}/4`;
+						heat.title = `Recency heat ${meta.heatLevel}/4 — newer lines glow hotter`;
 						heat.setAttribute('aria-hidden', 'true');
+						heat.dataset.heat = String(meta.heatLevel);
 						wrap.appendChild(heat);
+						wrap.dataset.heat = String(meta.heatLevel);
+						wrap.classList.add(`pierre-heat-wrap`, `pierre-heat-wrap--${meta.heatLevel}`);
 					}
 
 					if (blameOverlayOpen && meta.revision) {
@@ -881,19 +884,30 @@ function buildOptions(
 				margin-left: 2px;
 				vertical-align: middle;
 			}
+			.pierre-heat-wrap {
+				padding-left: 2px;
+				border-left: 3px solid transparent;
+				margin-left: 0;
+			}
+			.pierre-heat-wrap--0 { border-left-color: color-mix(in srgb, #58a6ff 35%, transparent); background: color-mix(in srgb, #58a6ff 8%, transparent); }
+			.pierre-heat-wrap--1 { border-left-color: color-mix(in srgb, #58a6ff 55%, transparent); background: color-mix(in srgb, #58a6ff 14%, transparent); }
+			.pierre-heat-wrap--2 { border-left-color: color-mix(in srgb, #3fb950 70%, transparent); background: color-mix(in srgb, #3fb950 16%, transparent); }
+			.pierre-heat-wrap--3 { border-left-color: color-mix(in srgb, #d29922 80%, transparent); background: color-mix(in srgb, #d29922 18%, transparent); }
+			.pierre-heat-wrap--4 { border-left-color: color-mix(in srgb, #f85149 90%, transparent); background: color-mix(in srgb, #f85149 22%, transparent); }
 			.pierre-heat-bar {
 				display: inline-block;
-				width: 3px;
-				min-height: 12px;
+				width: 6px;
+				min-height: 14px;
+				height: 1.1em;
 				align-self: stretch;
-				border-radius: 1px;
+				border-radius: 2px;
 				flex: 0 0 auto;
 			}
-			.pierre-heat--0 { background: color-mix(in srgb, #58a6ff 12%, transparent); }
-			.pierre-heat--1 { background: color-mix(in srgb, #58a6ff 28%, transparent); }
-			.pierre-heat--2 { background: color-mix(in srgb, #3fb950 45%, transparent); }
-			.pierre-heat--3 { background: color-mix(in srgb, #d29922 65%, transparent); }
-			.pierre-heat--4 { background: color-mix(in srgb, #f85149 85%, transparent); }
+			.pierre-heat--0 { background: color-mix(in srgb, #58a6ff 35%, transparent); }
+			.pierre-heat--1 { background: color-mix(in srgb, #58a6ff 55%, transparent); }
+			.pierre-heat--2 { background: color-mix(in srgb, #3fb950 70%, transparent); }
+			.pierre-heat--3 { background: color-mix(in srgb, #d29922 85%, transparent); }
+			.pierre-heat--4 { background: color-mix(in srgb, #f85149 95%, transparent); }
 			.pierre-blame-annotation {
 				display: inline-flex;
 				align-items: center;

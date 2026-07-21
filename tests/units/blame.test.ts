@@ -51,6 +51,24 @@ test('parseJjFileAnnotate keeps line order and templated author fields', () => {
 	assert.match(formatBlameHoverTooltip(templated[0]!), /Author: Ada/);
 });
 
+test('parseJjFileAnnotate accepts ISO jj timestamps', () => {
+	const lines = parseJjFileAnnotate(
+		'abc1234\tAda\t2026-04-08 15:39:22.000 +02:00\tinit\ndef5678\tBea\t2026-04-08 17:52:07.000 +02:00\trename\n',
+	);
+	assert.equal(lines[0]?.author, 'Ada');
+	assert.ok(typeof lines[0]?.authorTimestamp === 'number');
+	assert.equal(lines[0]?.summary, 'init');
+	assert.ok((lines[1]?.authorTimestamp ?? 0) > (lines[0]?.authorTimestamp ?? 0));
+});
+
+test('buildJjAnnotateArgs uses AnnotationLine commit.* template', () => {
+	const jjArgs = buildJjAnnotateArgs({ relativePath: 'a.ts', revision: 'xyz' });
+	const template = jjArgs[jjArgs.indexOf('-T') + 1];
+	assert.match(template, /commit\.commit_id\(\)/);
+	assert.match(template, /timestamp\(\)\.format\("%s"\)/);
+	assert.equal(template.includes('commit_id.short()'), false);
+});
+
 test('formatBlameAuthorDate uses relative buckets', () => {
 	const now = 1_700_003_600_000;
 	assert.equal(formatBlameAuthorDate(1_700_003_590, now), 'just now');

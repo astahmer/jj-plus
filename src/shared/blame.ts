@@ -60,8 +60,9 @@ function finalizeBlamePending(pending: Partial<BlameLine> & { revision?: string 
 
 /**
  * Default / templated jj annotate lines.
- * Preferred template (see buildJjAnnotateArgs): `REV\tAUTHOR\tTIMESTAMP\tCONTENT`
- * Also accepts legacy `REV PATH:LINE: content` / `REV content`.
+ * Preferred template (see buildJjAnnotateArgs):
+ * `REV\tAUTHOR\tEPOCH_SECONDS\tSUMMARY`
+ * Also accepts legacy `REV PATH:LINE: content` / `REV content`, and ISO timestamps.
  */
 export function parseJjFileAnnotate(stdout: string): BlameLine[] {
 	const lines: BlameLine[] = [];
@@ -72,13 +73,13 @@ export function parseJjFileAnnotate(stdout: string): BlameLine[] {
 		}
 		const tabulated = /^([0-9a-f]{7,40}|[a-z0-9]+)\t([^\t]*)\t([^\t]*)\t?(.*)$/iu.exec(raw);
 		if (tabulated) {
-			const timestamp = Number(tabulated[3]);
+			const parsedTime = parseBlameTimestamp(tabulated[3] ?? '');
 			lines.push({
 				line,
 				revision: tabulated[1]!,
 				author: tabulated[2]?.trim() || undefined,
-				authorTimestamp: Number.isFinite(timestamp) ? timestamp : undefined,
-				authorDate: Number.isFinite(timestamp) ? formatBlameAuthorDate(timestamp) : tabulated[3]?.trim() || undefined,
+				authorTimestamp: parsedTime?.timestamp,
+				authorDate: parsedTime?.authorDate || tabulated[3]?.trim() || undefined,
 				summary: tabulated[4]?.trim() || undefined,
 			});
 			line += 1;
@@ -97,6 +98,31 @@ export function parseJjFileAnnotate(stdout: string): BlameLine[] {
 		line += 1;
 	}
 	return lines;
+}
+
+/** Parse unix seconds or jj timestamp strings like `2026-04-08 15:39:22.000 +02:00`. */
+export function parseBlameTimestamp(
+	raw: string,
+	nowMs = Date.now(),
+): { timestamp: number; authorDate: string } | undefined {
+	const trimmed = raw.trim();
+	if (!trimmed) {
+		return undefined;
+	}
+	if (/^\d{9,12}$/u.test(trimmed)) {
+		const timestamp = Number(trimmed);
+		if (!Number.isFinite(timestamp)) {
+			return undefined;
+		}
+		return { timestamp, authorDate: formatBlameAuthorDate(timestamp, nowMs) };
+	}
+	const isoish = trimmed.replace(/^(\d{4}-\d{2}-\d{2}) /u, '$1T').replace(/ ([+-]\d{2}:\d{2})$/u, '$1');
+	const ms = Date.parse(isoish);
+	if (!Number.isFinite(ms)) {
+		return undefined;
+	}
+	const timestamp = Math.floor(ms / 1000);
+	return { timestamp, authorDate: formatBlameAuthorDate(timestamp, nowMs) };
 }
 
 export function formatBlameAuthorDate(timestampSeconds: number, nowMs = Date.now()): string {
@@ -165,9 +191,9 @@ export function buildGitBlameFileArgs(args: { relativePath: string; revision?: s
 	return ['blame', '--porcelain', '--', args.relativePath];
 }
 
-/** Tab-separated: commit, author name, author timestamp, content. */
+/** Tab-separated: commit id, author name, author unix seconds, first-line description. */
 export const JJ_FILE_ANNOTATE_TEMPLATE =
-	'commit_id.short() ++ "\\t" ++ author.name() ++ "\\t" ++ author.timestamp() ++ "\\t" ++ content';
+	'commit.commit_id().short() ++ "\\t" ++ commit.author().name() ++ "\\t" ++ commit.author().timestamp().format("%s") ++ "\\t" ++ commit.description().first_line()';
 
 export function buildJjAnnotateArgs(args: { relativePath: string; revision?: string }): string[] {
 	const templateArgs = ['-T', JJ_FILE_ANNOTATE_TEMPLATE];

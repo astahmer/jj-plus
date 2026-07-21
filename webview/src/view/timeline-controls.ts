@@ -238,8 +238,8 @@ export function timelineControls(model: Model): Html {
 													h.AriaPressed(String(model.heatmapOpen)),
 													h.Title(
 														model.heatmapOpen
-															? 'Heatmap on — newer blame ages glow hotter on the after side'
-															: 'Heatmap off — turn on to color after-side lines by blame recency',
+															? 'Heatmap on — after-side gutter bars glow by blame age (hotter = newer)'
+															: 'Heatmap — color after-side gutter by how recently each line was last touched',
 													),
 													h.OnClick(ToggledHeatmap()),
 												],

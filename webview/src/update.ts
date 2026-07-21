@@ -163,6 +163,7 @@ function clearCaches(model: Model): Model {
 		rangeStackByPath: () => ({}),
 		blameLines: () => initialModel.blameLines,
 		blameLoading: () => false,
+		blameRangeKey: () => '',
 		entryDiffCountByKey: () => ({}),
 		rangeOverviewLoadingKey: () => '',
 		entryDiffCountLoadingKey: () => '',
@@ -322,22 +323,30 @@ function applySyncPlan(model: Model): UpdateReturn {
 		}
 	}
 
-	if (
-		(nextModel.blameOverlayOpen || nextModel.heatmapOpen) &&
-		!(Array.isArray(nextModel.blameLines) && nextModel.blameLines.length > 0) &&
-		!nextModel.blameLoading
-	) {
-		nextModel = evo(nextModel, { blameLoading: () => true });
-		commands.push(
-			SendHostCommand({
-				command: {
-					command: 'load-diff-blame',
-					fromIndex: nextModel.fromIndex,
-					toIndex: nextModel.toIndex,
-					comparisonSource: getEffectiveComparisonSource(nextModel),
-				},
-			}),
-		);
+	if (nextModel.blameOverlayOpen || nextModel.heatmapOpen) {
+		const blameKey = getActivePreviewKey(nextModel);
+		const blameStale = nextModel.blameRangeKey !== blameKey;
+		if (blameStale) {
+			nextModel = evo(nextModel, {
+				blameLines: () => initialModel.blameLines,
+				blameRangeKey: () => '',
+			});
+		}
+		const needsBlameLoad =
+			blameStale || !(Array.isArray(nextModel.blameLines) && nextModel.blameLines.length > 0);
+		if (needsBlameLoad && !nextModel.blameLoading) {
+			nextModel = evo(nextModel, { blameLoading: () => true });
+			commands.push(
+				SendHostCommand({
+					command: {
+						command: 'load-diff-blame',
+						fromIndex: nextModel.fromIndex,
+						toIndex: nextModel.toIndex,
+						comparisonSource: getEffectiveComparisonSource(nextModel),
+					},
+				}),
+			);
+		}
 	}
 
 	return [nextModel, commands];
@@ -1102,6 +1111,7 @@ function handleSubmitFile(model: Model, rawValue: string): UpdateReturn {
 			heatmapOpen: () => false as boolean,
 			blameLines: () => initialModel.blameLines,
 			blameLoading: () => false as boolean,
+			blameRangeKey: () => '',
 			fileOpLogEntries: () => initialModel.fileOpLogEntries,
 			sidebarPreviewInFlightKey: () => '',
 			sidebarPreviewInFlightKeys: () => ({}),
@@ -1162,6 +1172,7 @@ function handleReset(model: Model): UpdateReturn {
 		heatmapOpen: () => false as boolean,
 		blameLines: () => initialModel.blameLines,
 		blameLoading: () => false as boolean,
+		blameRangeKey: () => '',
 		fileOpLogEntries: () => initialModel.fileOpLogEntries,
 		historySearchQuery: () => '',
 		historySearchLoading: () => false as boolean,
@@ -1532,6 +1543,8 @@ function handleDiffBlameMessage(
 		evo(model, {
 			blameLines: () => payload.lines,
 			blameLoading: () => false,
+			blameRangeKey: () =>
+				buildPreviewKey(payload.fromIndex, payload.toIndex, payload.comparisonSource || 'revision'),
 		}),
 		[],
 	];

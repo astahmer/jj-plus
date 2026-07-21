@@ -65,6 +65,11 @@ export function Sidebar() {
 						class="sidebar-icon-button"
 						id="toggleSidebarOrderButton"
 						type="button"
+						title={
+							state.oldestFirst()
+								? 'Oldest first — click to show newest revisions at the top'
+								: 'Newest first — click to show oldest revisions at the top'
+						}
 						aria-label={state.oldestFirst() ? 'Show newest revisions first' : 'Show oldest revisions first'}
 						onClick={actions.toggleSortOrder}
 					>
