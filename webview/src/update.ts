@@ -12,6 +12,8 @@ import {
 	filterEntries,
 	getDefaultSelection,
 	getVisibleIndexForAbsoluteIndex,
+	mapSelectionAcrossSources,
+	normalizeSelection,
 	shiftRangeSelection,
 	shiftStepSelection,
 } from './domain/timeline-selection.ts';
@@ -836,19 +838,33 @@ function handleSetComparisonSource(model: Model, value: ComparisonSource): Updat
 		return [model, []];
 	}
 	const data = getData(model);
+	const previousEntries = filterEntries(
+		getEntriesForSource(data, model.comparisonSource),
+		data,
+		model.preset,
+		model.showIntermediateRevisions,
+	);
 	const nextVisibleEntries = filterEntries(
 		getEntriesForSource(data, value),
 		data,
 		model.preset,
 		model.showIntermediateRevisions,
 	);
-	const { fromIndex, toIndex } = getDefaultSelection(nextVisibleEntries);
+	const mapped = mapSelectionAcrossSources({
+		previousEntries,
+		nextEntries: nextVisibleEntries,
+		fromIndex: model.fromIndex,
+		toIndex: model.toIndex,
+		comparisonMode: model.comparisonMode,
+	});
 	let next = evo(clearCaches(model), {
 		comparisonSource: () => value,
-		fromIndex: () => fromIndex,
-		toIndex: () => toIndex,
+		fromIndex: () => mapped.fromIndex,
+		toIndex: () => mapped.toIndex,
 		maybeHoveredSelectionIndex: () => Option.none(),
+		timeLapsePlaying: () => false as boolean,
 	});
+	next = stepOverlay(next, ClosedOverlays());
 	next = stepSelection(next, CancelledSelection());
 	return afterMutate(next, [persistCommand(next)]);
 }
@@ -1366,18 +1382,28 @@ function handleHistorySearchMessage(
 		historySearchResult: () => result,
 	}) as Model;
 	if (result.introducedAt !== null && Number.isInteger(result.introducedAt)) {
-		const entryIndex = result.introducedAt;
-		const fromIndex = Math.max(0, entryIndex - 1);
-		next = evo(next, {
-			comparisonMode: () => 'step' as ComparisonMode,
-			fromIndex: () => fromIndex,
-			toIndex: () => entryIndex,
-			maybeHoveredSelectionIndex: () => Option.none(),
-		}) as Model;
-		next = stepSelection(next, CancelledSelection());
-		return afterMutate(next, [persistCommand(next), ScrollToEntry({ entryIndex })]);
+		return jumpToRevisionEntry(next, result.introducedAt);
 	}
 	return [next, []];
+}
+
+function jumpToRevisionEntry(model: Model, entryIndex: number): UpdateReturn {
+	const data = getData(model);
+	const revisionEntries = filterEntries(getEntriesForSource(data, 'revision'), data, model.preset, true);
+	const [fromIndex, toIndex] = normalizeSelection(revisionEntries, Math.max(0, entryIndex - 1), entryIndex, 'step');
+	let next = clearCaches(model);
+	next = evo(next, {
+		comparisonSource: () => 'revision' as ComparisonSource,
+		comparisonMode: () => 'step' as ComparisonMode,
+		fromIndex: () => fromIndex,
+		toIndex: () => toIndex,
+		maybeHoveredSelectionIndex: () => Option.none(),
+		timeLapsePlaying: () => false as boolean,
+		showIntermediateRevisions: () => true as boolean,
+	});
+	next = stepOverlay(next, ClosedOverlays());
+	next = stepSelection(next, CancelledSelection());
+	return afterMutate(next, [persistCommand(next), ScrollToEntry({ entryIndex: toIndex })]);
 }
 
 function handleToggleRangeStack(model: Model): UpdateReturn {
@@ -1437,16 +1463,7 @@ function handleSubmitHistorySearch(model: Model): UpdateReturn {
 }
 
 function handleHistorySearchHitClick(model: Model, entryIndex: number): UpdateReturn {
-	const fromIndex = Math.max(0, entryIndex - 1);
-	let next = clearCaches(model);
-	next = evo(next, {
-		comparisonMode: () => 'step' as ComparisonMode,
-		fromIndex: () => fromIndex,
-		toIndex: () => entryIndex,
-		maybeHoveredSelectionIndex: () => Option.none(),
-	});
-	next = stepSelection(next, CancelledSelection());
-	return afterMutate(next, [persistCommand(next), ScrollToEntry({ entryIndex })]);
+	return jumpToRevisionEntry(model, entryIndex);
 }
 
 function handleEntryDiffCountsMessage(

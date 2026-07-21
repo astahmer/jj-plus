@@ -1,5 +1,24 @@
 import type { FileRevisionEntry } from './timeline-types.ts';
 
+export type SidebarSearchableEntry = Pick<
+	FileRevisionEntry,
+	| 'shortRevision'
+	| 'revision'
+	| 'changeId'
+	| 'description'
+	| 'authorName'
+	| 'authorDate'
+	| 'shortDate'
+	| 'relativeDate'
+	| 'monthLabel'
+	| 'filePath'
+	| 'operationId'
+	| 'operationIndex'
+	| 'operationKey'
+	| 'bookmarkNames'
+	| 'branchNames'
+>;
+
 export type SidebarSearchField = 'path' | 'author' | 'desc' | 'date' | 'revset' | 'text';
 
 export type SidebarSearchAtom = {
@@ -149,7 +168,7 @@ function includesInsensitive(haystack: string | number | undefined | null, needl
 	return String(haystack).toLowerCase().includes(needle.toLowerCase());
 }
 
-function entryFields(entry: FileRevisionEntry): Record<SidebarSearchField, string[]> {
+function entryFields(entry: SidebarSearchableEntry): Record<SidebarSearchField, string[]> {
 	return {
 		path: [entry.filePath || ''].filter(Boolean),
 		author: [entry.authorName || ''].filter(Boolean),
@@ -186,7 +205,7 @@ function entryFields(entry: FileRevisionEntry): Record<SidebarSearchField, strin
 	};
 }
 
-function matchAtom(entry: FileRevisionEntry, atom: SidebarSearchAtom): boolean {
+function matchAtom(entry: SidebarSearchableEntry, atom: SidebarSearchAtom): boolean {
 	if (!atom.value) {
 		return !atom.negated;
 	}
@@ -195,7 +214,7 @@ function matchAtom(entry: FileRevisionEntry, atom: SidebarSearchAtom): boolean {
 	return atom.negated ? !matched : matched;
 }
 
-export function matchSidebarSearchNode(entry: FileRevisionEntry, node: SidebarSearchNode): boolean {
+export function matchSidebarSearchNode(entry: SidebarSearchableEntry, node: SidebarSearchNode): boolean {
 	if (node.kind === 'atom') {
 		return matchAtom(entry, node);
 	}
@@ -205,10 +224,10 @@ export function matchSidebarSearchNode(entry: FileRevisionEntry, node: SidebarSe
 	return node.children.some((child) => matchSidebarSearchNode(entry, child));
 }
 
-export function filterEntriesBySidebarSearch(
-	entries: Array<FileRevisionEntry>,
+export function filterEntriesBySidebarSearch<T extends SidebarSearchableEntry>(
+	entries: Array<T>,
 	query: string,
-): Array<FileRevisionEntry> {
+): Array<T> {
 	const node = parseSidebarSearchQuery(query);
 	if (!node) {
 		return entries;

@@ -82,6 +82,49 @@ export function normalizeSelection(
 	return [entries[safeToVisibleIndex - 1].index, entries[safeToVisibleIndex].index];
 }
 
+/**
+ * Prefer keeping the same changeIds when jumping revision ↔ snapshot lists.
+ * Falls back to default tip selection when the change cannot be found.
+ */
+export function mapSelectionAcrossSources(args: {
+	previousEntries: Array<FileRevisionEntry>;
+	nextEntries: Array<FileRevisionEntry>;
+	fromIndex: number;
+	toIndex: number;
+	comparisonMode: ComparisonMode;
+}): { fromIndex: number; toIndex: number } {
+	const previousFrom = args.previousEntries.find((entry) => entry.index === args.fromIndex);
+	const previousTo = args.previousEntries.find((entry) => entry.index === args.toIndex);
+
+	const matchesChange = (entry: FileRevisionEntry, previous?: FileRevisionEntry) => {
+		if (!previous) {
+			return false;
+		}
+		if (previous.changeId && entry.changeId === previous.changeId) {
+			return true;
+		}
+		return entry.shortRevision === previous.shortRevision || entry.revision === previous.revision;
+	};
+
+	const mappedToCandidates = args.nextEntries.filter((entry) => matchesChange(entry, previousTo));
+	const mappedTo = mappedToCandidates.at(-1);
+	const mappedFromCandidates = args.nextEntries.filter((entry) => matchesChange(entry, previousFrom));
+	const mappedFrom =
+		mappedFromCandidates.findLast((entry) => !mappedTo || entry.index < mappedTo.index) || mappedFromCandidates.at(-1);
+
+	if (mappedTo) {
+		const [fromIndex, toIndex] = normalizeSelection(
+			args.nextEntries,
+			mappedFrom?.index ?? mappedTo.index,
+			mappedTo.index,
+			args.comparisonMode,
+		);
+		return { fromIndex, toIndex };
+	}
+
+	return getDefaultSelection(args.nextEntries);
+}
+
 export function alignStepSelection(entries: Array<FileRevisionEntry>, toIndex: number): [number, number] {
 	if (entries.length < 2) {
 		return [entries[0]?.index || 0, entries[0]?.index || 0];
