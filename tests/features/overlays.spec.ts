@@ -33,7 +33,7 @@ test.describe('overlay popovers', () => {
 		const viewButton = page.locator('#viewMenuButton');
 		const viewYBefore = await viewButton.evaluate((el) => el.getBoundingClientRect().y);
 
-		await page.getByRole('button', { name: 'Show hotkeys' }).click();
+		await page.getByRole('button', { name: 'Show hotkeys (?)' }).click();
 		const popover = page.locator('#hotkeysPopover');
 		const card = page.locator('.hotkeys-card');
 		await expect(popover).toBeVisible();
@@ -57,6 +57,15 @@ test.describe('overlay popovers', () => {
 		const clientHeight = await card.evaluate((el) => el.clientHeight);
 		expect(clientHeight).toBeGreaterThan(0);
 		expect(scrollHeight).toBeGreaterThanOrEqual(clientHeight);
+	});
+
+	test('toggle buttons expose shortcut tooltips', async ({ page }) => {
+		await openFixture(page);
+		await expect(page.locator('#toggleHotkeysButton')).toHaveAttribute('title', /Show hotkeys \(\?\)/);
+		await expect(page.locator('#sidebarToggleButton')).toHaveAttribute('title', /Toggle sidebar \(B\)/);
+		await expect(page.locator('#toggleDiffFocusButton')).toHaveAttribute('title', /Focus diff \(D\)/);
+		await page.locator('#toggleDiffFocusButton').click();
+		await expect(page.locator('#toggleDiffFocusButton')).toHaveAttribute('title', /Exit focus \(D\)/);
 	});
 });
 

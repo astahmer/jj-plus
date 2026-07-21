@@ -26,6 +26,19 @@ export type TimelineShortcutEvent = {
 	diffFocusMode: boolean;
 };
 
+const TOGGLE_SHORTCUT_TOOLTIPS = {
+	toggleHotkeys: 'Show hotkeys (?)',
+	toggleSidebar: 'Toggle sidebar (B)',
+	toggleDiffFocus: 'Focus diff (D)',
+	exitDiffFocus: 'Exit focus (D)',
+} as const;
+
+export type ToggleShortcutId = keyof typeof TOGGLE_SHORTCUT_TOOLTIPS;
+
+export function shortcutTooltip(id: ToggleShortcutId): string {
+	return TOGGLE_SHORTCUT_TOOLTIPS[id];
+}
+
 export function resolveTimelineShortcut(event: TimelineShortcutEvent): TimelineShortcutCommand | null {
 	const lowerKey = event.key.toLowerCase();
 	const jumpAmount = event.shiftKey ? 5 : 1;

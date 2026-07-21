@@ -16,6 +16,7 @@ import {
 	SubmittedFileSwitcher,
 } from '../messages.ts';
 import type { Model } from '../model.ts';
+import { shortcutTooltip } from '../domain/timeline-shortcuts.ts';
 import {
 	getActiveRangeOverviewItems,
 	getRangeLabel,
@@ -79,7 +80,8 @@ export function timelinePane(model: Model): Html {
 							h.Class(`sidebar-toggle-button${model.sidebarCollapsed ? ' is-collapsed' : ''}`),
 							h.Id('sidebarToggleButton'),
 							h.Type('button'),
-							h.AriaLabel('Toggle sidebar'),
+							h.Title(shortcutTooltip('toggleSidebar')),
+							h.AriaLabel(shortcutTooltip('toggleSidebar')),
 							h.OnClick(ClickedToggleSidebar()),
 						],
 						[model.sidebarCollapsed ? '▸' : '◂'],
@@ -178,7 +180,8 @@ export function timelinePane(model: Model): Html {
 											h.Class('menu-button'),
 											h.Id('toggleHotkeysButton'),
 											h.Type('button'),
-											h.AriaLabel('Show hotkeys'),
+											h.Title(shortcutTooltip('toggleHotkeys')),
+											h.AriaLabel(shortcutTooltip('toggleHotkeys')),
 											h.OnClick(ClickedToggleHotkeys()),
 										],
 										['?'],

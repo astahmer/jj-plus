@@ -2,6 +2,7 @@ import { html, type Html } from 'foldkit/html';
 import type { Message } from '../messages.ts';
 import { ClickedToggleDiffFocus } from '../messages.ts';
 import type { Model } from '../model.ts';
+import { shortcutTooltip } from '../domain/timeline-shortcuts.ts';
 import { getCurrentFromEntry, getCurrentToEntry, getEffectiveComparisonSource, getPreview } from '../selectors.ts';
 import type { ComparisonMode, ComparisonSource, ContentMode, DiffPreview } from '../types.ts';
 import { getRevisionIdentifierValue, revisionIdentifier } from './revision-identifier.ts';
@@ -166,6 +167,8 @@ export function diffPanel(model: Model): Html {
 											h.Class('collapse-button'),
 											h.Id('toggleDiffFocusButton'),
 											h.Type('button'),
+											h.Title(shortcutTooltip(model.diffFocusMode ? 'exitDiffFocus' : 'toggleDiffFocus')),
+											h.AriaLabel(shortcutTooltip(model.diffFocusMode ? 'exitDiffFocus' : 'toggleDiffFocus')),
 											h.OnClick(ClickedToggleDiffFocus()),
 										],
 										[model.diffFocusMode ? 'Exit focus' : 'Focus diff'],
