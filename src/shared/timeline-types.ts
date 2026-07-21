@@ -131,6 +131,19 @@ export type RangeStackPreviewPayload = {
 	items: Array<{ relativePath: string; preview: DiffPreview }>;
 };
 
+export type DiffBlamePayload = {
+	fromIndex: number;
+	toIndex: number;
+	comparisonSource: ComparisonSource;
+	relativePath: string;
+	lines: Array<{
+		line: number;
+		revision: string;
+		author?: string;
+		summary?: string;
+	}>;
+};
+
 export type TimelineInboundMessage =
 	| { type: 'timeline-data'; payload: TimelineData }
 	| { type: 'diff-preview'; payload: DiffPreview }
@@ -166,7 +179,8 @@ export type TimelineInboundMessage =
 	| { type: 'resolved-range'; payload: { fromIndex: number; toIndex: number } | null }
 	| { type: 'debug-measure-layout' }
 	| { type: 'debug-set-layout-mode'; layoutMode: LayoutMode }
-	| { type: 'range-stack-previews'; payload: RangeStackPreviewPayload };
+	| { type: 'range-stack-previews'; payload: RangeStackPreviewPayload }
+	| { type: 'diff-blame'; payload: DiffBlamePayload };
 
 export type DiffLayoutMetrics = {
 	viewportH: number;
@@ -237,6 +251,12 @@ export type TimelineCommand =
 			toIndex: number;
 			comparisonSource: ComparisonSource;
 			relativePaths: string[];
+	  }
+	| {
+			command: 'load-diff-blame';
+			fromIndex: number;
+			toIndex: number;
+			comparisonSource: ComparisonSource;
 	  }
 	| {
 			command: 'persist-state';

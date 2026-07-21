@@ -1,6 +1,6 @@
 import { html, type Html } from 'foldkit/html';
 import type { Message } from '../messages.ts';
-import { ClickedToggleDiffFocus, SubmittedFileSwitcher, ToggledRangeStack } from '../messages.ts';
+import { ClickedToggleDiffFocus, SubmittedFileSwitcher, ToggledBlameOverlay, ToggledRangeStack } from '../messages.ts';
 import type { Model } from '../model.ts';
 import { shortcutTooltip } from '../domain/timeline-shortcuts.ts';
 import {
@@ -227,6 +227,23 @@ export function diffPanel(model: Model): Html {
 													h.span([h.Class('stat')], [preview ? `${preview.hunkCount} hunks` : '— hunks']),
 												],
 											),
+									!model.rangeStackOpen
+										? h.button(
+												[
+													h.Class(`collapse-button${model.blameOverlayOpen ? ' is-active' : ''}`),
+													h.Id('toggleBlameOverlayButton'),
+													h.Type('button'),
+													h.Title(
+														model.blameOverlayOpen
+															? 'Hide blame annotations on the after side'
+															: 'Show blame annotations; click a line to jump the timeline',
+													),
+													h.AriaPressed(String(model.blameOverlayOpen)),
+													h.OnClick(ToggledBlameOverlay()),
+												],
+												[model.blameLoading ? 'Blame…' : model.blameOverlayOpen ? 'Blame on' : 'Blame'],
+											)
+										: h.empty,
 									h.button(
 										[
 											h.Class('collapse-button'),

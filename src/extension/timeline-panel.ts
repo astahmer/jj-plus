@@ -626,6 +626,37 @@ export function createTimelinePanelController(args: {
 			return;
 		}
 
+		if (command === 'load-diff-blame') {
+			const fromIndex = Number(Reflect.get(request.message, 'fromIndex'));
+			const toIndex = Number(Reflect.get(request.message, 'toIndex'));
+			const comparisonSource = normalizeComparisonSource(Reflect.get(request.message, 'comparisonSource'));
+			if (!Number.isInteger(fromIndex) || !Number.isInteger(toIndex)) {
+				return;
+			}
+			const normalizedFromIndex = Math.max(0, Math.min(fromIndex, toIndex));
+			const normalizedToIndex = Math.max(normalizedFromIndex, Math.max(fromIndex, toIndex));
+			const blame = await args.service.getDiffBlame({
+				session: request.session,
+				fromIndex: normalizedFromIndex,
+				toIndex: normalizedToIndex,
+				comparisonSource,
+			});
+			await postTimelineMessage({
+				panel: request.panel,
+				message: {
+					type: 'diff-blame',
+					payload: {
+						fromIndex: normalizedFromIndex,
+						toIndex: normalizedToIndex,
+						comparisonSource,
+						relativePath: blame.relativePath,
+						lines: blame.lines,
+					},
+				},
+			});
+			return;
+		}
+
 		if (command === 'load-entry-diff-counts') {
 			const comparisonSource = normalizeComparisonSource(Reflect.get(request.message, 'comparisonSource'));
 			const entryIndexes = Array.isArray(Reflect.get(request.message, 'entryIndexes'))

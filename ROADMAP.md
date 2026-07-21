@@ -16,11 +16,11 @@ Related: [TODO.md](./TODO.md) (engineering backlog). This doc is product ideas +
 
 ## Wave 2 sharp bets
 
-| #   | Bet                              | Intent                                                              | Status |
-| --- | -------------------------------- | ------------------------------------------------------------------- | ------ |
-| 6   | **Blame overlay on Pierre**      | Annotate after-side lines; click jumps timeline to that blame rev   | next   |
-| 7   | **Search in history**            | Find when a string was introduced / last removed across file revs   | queued |
-| 8   | **Time-lapse play**              | Auto-step the scrubber through the selected/visible range with pause | queued |
+| #   | Bet                         | Intent                                                               | Status |
+| --- | --------------------------- | -------------------------------------------------------------------- | ------ |
+| 6   | **Blame overlay on Pierre** | Annotate after-side lines; click jumps timeline to that blame rev    | done   |
+| 7   | **Search in history**       | Find when a string was introduced / last removed across file revs    | next   |
+| 8   | **Time-lapse play**         | Auto-step the scrubber through the selected/visible range with pause | queued |
 
 ## Idea inventory (from competitors)
 

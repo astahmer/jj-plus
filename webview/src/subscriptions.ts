@@ -10,8 +10,10 @@ import {
 	PointerMovedDuringDrag,
 	PressedShortcut,
 	ReleasedPointerDuringDrag,
+	ClickedPierreBlameLine,
 } from './messages.ts';
 import type { Model } from './model.ts';
+import { PIERRE_BLAME_LINE_EVENT } from './pierre/file-diff-host.ts';
 
 const EDITABLE_INPUT_TYPES = new Set(['text', 'search', 'email', 'password', 'tel', 'url', 'number']);
 
@@ -111,6 +113,22 @@ const trackMouseOutStream: Stream.Stream<Message> = Subscription.fromEventFilter
 	},
 });
 
+const pierreBlameClickStream: Stream.Stream<Message> = Subscription.fromEventFilterMap<
+	CustomEvent<{ line: number; revision: string }>,
+	Message
+>({
+	target: () => window,
+	type: PIERRE_BLAME_LINE_EVENT,
+	toMessage: (event) => {
+		const revision = String(event.detail?.revision || '').trim();
+		const line = Number(event.detail?.line);
+		if (!revision || !Number.isInteger(line) || line < 1) {
+			return Option.none();
+		}
+		return Option.some(ClickedPierreBlameLine({ line, revision }));
+	},
+});
+
 export const subscriptions = Subscription.make<Model, Message>()((entry) => ({
 	host: Subscription.persistent(hostStream),
 	keyboard: entry(
@@ -136,4 +154,5 @@ export const subscriptions = Subscription.make<Model, Message>()((entry) => ({
 	),
 	trackMouseMove: Subscription.persistent(trackMouseMoveStream),
 	trackMouseOut: Subscription.persistent(trackMouseOutStream),
+	pierreBlameClick: Subscription.persistent(pierreBlameClickStream),
 }));

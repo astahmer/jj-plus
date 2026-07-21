@@ -1,4 +1,4 @@
-import { Match as M, Option, Number as N } from 'effect';
+import { Match as M, Option } from 'effect';
 import type { Command } from 'foldkit';
 import { evo } from 'foldkit/struct';
 import {
@@ -58,6 +58,7 @@ import { initialModel } from './model.ts';
 import { BootSession, FocusElement, PersistState, ScrollToEntry, SendHostCommand } from './commands.ts';
 import type { Message } from './messages.ts';
 import { pickRangeStackPaths } from '../../src/shared/range-stack.ts';
+import { findEntryIndexForBlameRevision } from '../../src/shared/blame.ts';
 import {
 	getActivePreviewKey,
 	getActiveRangeOverviewKey,
@@ -135,6 +136,8 @@ function clearCaches(model: Model): Model {
 		previewByRange: () => ({}),
 		rangeOverviewByRange: () => ({}),
 		rangeStackByPath: () => ({}),
+		blameLines: () => initialModel.blameLines,
+		blameLoading: () => false,
 		entryDiffCountByKey: () => ({}),
 		rangeOverviewLoadingKey: () => '',
 		entryDiffCountLoadingKey: () => '',
@@ -286,6 +289,24 @@ function applySyncPlan(model: Model): UpdateReturn {
 		if (stackCommand) {
 			commands.push(stackCommand);
 		}
+	}
+
+	if (
+		nextModel.blameOverlayOpen &&
+		!(Array.isArray(nextModel.blameLines) && nextModel.blameLines.length > 0) &&
+		!nextModel.blameLoading
+	) {
+		nextModel = evo(nextModel, { blameLoading: () => true });
+		commands.push(
+			SendHostCommand({
+				command: {
+					command: 'load-diff-blame',
+					fromIndex: nextModel.fromIndex,
+					toIndex: nextModel.toIndex,
+					comparisonSource: getEffectiveComparisonSource(nextModel),
+				},
+			}),
+		);
 	}
 
 	return [nextModel, commands];
@@ -896,6 +917,9 @@ function handleReset(model: Model): UpdateReturn {
 		customRevset: () => '',
 		rangeStackOpen: () => false as boolean,
 		rangeStackByPath: () => ({}),
+		blameOverlayOpen: () => false as boolean,
+		blameLines: () => initialModel.blameLines,
+		blameLoading: () => false as boolean,
 		sidebarSearchQuery: () => '',
 		sidebarWidth: () => clampSidebarWidth(280),
 		timelinePaneHeight: () => 220,
@@ -905,7 +929,7 @@ function handleReset(model: Model): UpdateReturn {
 		diffFocusMode: () => false as boolean,
 		oldestFirst: () => false as boolean,
 		maybeHoveredSelectionIndex: () => Option.none(),
-	});
+	}) as Model;
 	next = stepOverlay(next, ClosedOverlays());
 	next = stepSelection(next, CancelledSelection());
 	return afterMutate(next, [persistCommand(next)]);
@@ -942,6 +966,9 @@ function handleGotHostMessage(model: Model, payload: unknown): UpdateReturn {
 				model,
 				message as Extract<TimelineInboundMessage, { type: 'range-stack-previews' }>,
 			),
+		),
+		M.when('diff-blame', () =>
+			handleDiffBlameMessage(model, message as Extract<TimelineInboundMessage, { type: 'diff-blame' }>),
 		),
 		M.when('entry-diff-counts', () =>
 			handleEntryDiffCountsMessage(model, message as Extract<TimelineInboundMessage, { type: 'entry-diff-counts' }>),
@@ -1172,6 +1199,28 @@ function handleRangeStackPreviewsMessage(
 	return [evo(model, { rangeStackByPath: () => byPath }), []];
 }
 
+function handleDiffBlameMessage(
+	model: Model,
+	message: Extract<TimelineInboundMessage, { type: 'diff-blame' }>,
+): UpdateReturn {
+	const payload = message.payload;
+	if (
+		!model.blameOverlayOpen ||
+		payload.fromIndex !== Math.min(model.fromIndex, model.toIndex) ||
+		payload.toIndex !== Math.max(model.fromIndex, model.toIndex) ||
+		payload.comparisonSource !== getEffectiveComparisonSource(model)
+	) {
+		return [evo(model, { blameLoading: () => false }), []];
+	}
+	return [
+		evo(model, {
+			blameLines: () => payload.lines,
+			blameLoading: () => false,
+		}),
+		[],
+	];
+}
+
 function handleToggleRangeStack(model: Model): UpdateReturn {
 	const nextOpen = !model.rangeStackOpen;
 	return afterMutate(
@@ -1180,6 +1229,35 @@ function handleToggleRangeStack(model: Model): UpdateReturn {
 			rangeStackByPath: () => ({}),
 		}),
 	);
+}
+
+function handleToggleBlameOverlay(model: Model): UpdateReturn {
+	const nextOpen = !model.blameOverlayOpen;
+	return afterMutate(
+		evo(model, {
+			blameOverlayOpen: () => nextOpen,
+			blameLines: () => initialModel.blameLines,
+			blameLoading: () => false,
+		}),
+	);
+}
+
+function handlePierreBlameLineClick(model: Model, revision: string): UpdateReturn {
+	const entries = getSourceEntries(model);
+	const entryIndex = findEntryIndexForBlameRevision(entries, revision);
+	if (entryIndex < 0) {
+		return [model, []];
+	}
+	const fromIndex = Math.max(0, entryIndex - 1);
+	let next = clearCaches(model);
+	next = evo(next, {
+		comparisonMode: () => 'step' as ComparisonMode,
+		fromIndex: () => fromIndex,
+		toIndex: () => entryIndex,
+		maybeHoveredSelectionIndex: () => Option.none(),
+	});
+	next = stepSelection(next, CancelledSelection());
+	return afterMutate(next, [persistCommand(next), ScrollToEntry({ entryIndex })]);
 }
 
 function handleEntryDiffCountsMessage(
@@ -1519,6 +1597,8 @@ export function update(model: Model, message: Message): UpdateReturn {
 				],
 			],
 			ToggledRangeStack: () => handleToggleRangeStack(model),
+			ToggledBlameOverlay: () => handleToggleBlameOverlay(model),
+			ClickedPierreBlameLine: ({ revision }) => handlePierreBlameLineClick(model, revision),
 			ToggledIntermediate: () => handleToggleIntermediate(model),
 			ClickedStepBackward: () => handleStep(model, -1),
 			ClickedStepFastBackward: () => handleStep(model, -5),
@@ -1555,6 +1635,3 @@ export function canStepBackward(model: Model): boolean {
 export function canStepForward(model: Model): boolean {
 	return canNavigateSelection(getVisibleEntries(model), model.fromIndex, model.toIndex, model.comparisonMode, 1);
 }
-
-// Placeholder to silence unused imports when helpers are elided.
-export { getVisibleIndexForAbsoluteIndex, N as _NumberModule };

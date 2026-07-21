@@ -9,6 +9,7 @@ import type {
 	LayoutMode,
 	RangeOverviewItem,
 	RangeStackPreviewPayload,
+	DiffBlamePayload,
 	TimelineCommand,
 	TimelineData as SharedTimelineData,
 	TimelineFixture as SharedTimelineFixture,
@@ -22,6 +23,7 @@ export type {
 	ComparisonSource,
 	ContentMode,
 	DiffPreview,
+	DiffBlamePayload,
 	FileSwitcherMode,
 	HistoryBackend,
 	LayoutMode,
@@ -76,7 +78,8 @@ export type TimelineInboundMessage =
 	| { type: 'resolved-range'; payload: { fromIndex: number; toIndex: number } | null }
 	| { type: 'debug-measure-layout' }
 	| { type: 'debug-set-layout-mode'; layoutMode: LayoutMode }
-	| { type: 'range-stack-previews'; payload: RangeStackPreviewPayload };
+	| { type: 'range-stack-previews'; payload: RangeStackPreviewPayload }
+	| { type: 'diff-blame'; payload: DiffBlamePayload };
 
 export type TimelineFixtureFile = Omit<SharedTimelineFixtureFile, 'timelineData' | 'previews'> & {
 	timelineData: TimelineData;

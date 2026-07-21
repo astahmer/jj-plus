@@ -4,11 +4,13 @@ import { textsMatchIgnoringLineEndings } from '../shared/diff-helpers.ts';
 import { computeDiffStats } from '../shared/diff-stats.ts';
 import {
 	buildGitBlameArgs,
+	buildGitBlameFileArgs,
 	buildJjAnnotateArgs,
 	findBlameForLine,
 	parseGitBlamePorcelain,
 	parseJjFileAnnotate,
 } from '../shared/blame.ts';
+import type { BlameLine } from '../shared/blame.ts';
 import {
 	buildGitLineHistoryArgs,
 	filterEntriesTouchingLineRange,
@@ -243,6 +245,7 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 		findNearestNonEmptyVisibleRange,
 		getComparisonEntries,
 		getDiffPreview,
+		getDiffBlame,
 		getEntryDiffCounts,
 		getEntriesForSource,
 		getRangeOverview,
@@ -967,6 +970,50 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 			return findBlameForLine(parseJjFileAnnotate(stdout), request.line)?.revision;
 		} catch {
 			return undefined;
+		}
+	}
+
+	async function getDiffBlame(request: {
+		session: ExtensionTimelineSession;
+		fromIndex: number;
+		toIndex: number;
+		comparisonSource?: ComparisonSource;
+	}): Promise<{ relativePath: string; lines: BlameLine[] }> {
+		const comparisonSource = request.comparisonSource || 'revision';
+		const normalizedFromIndex = Math.max(0, Math.min(request.fromIndex, request.toIndex));
+		const normalizedToIndex = Math.max(normalizedFromIndex, Math.max(request.fromIndex, request.toIndex));
+		const sourceEntries = getEntriesForSource({
+			session: request.session,
+			comparisonSource,
+		});
+		const toEntry = sourceEntries[normalizedToIndex];
+		const relativePath = toEntry?.filePath || request.session.relativePath;
+		if (!toEntry) {
+			return { relativePath, lines: [] };
+		}
+
+		try {
+			if (request.session.backend === 'git') {
+				const { stdout } = await runner.runGit({
+					workspacePath: request.session.workspacePath,
+					args: buildGitBlameFileArgs({
+						relativePath,
+						revision: toEntry.isWorkingTree ? undefined : toEntry.revision,
+					}),
+				});
+				return { relativePath, lines: parseGitBlamePorcelain(stdout) };
+			}
+
+			const { stdout } = await runner.runJj({
+				workspacePath: request.session.workspacePath,
+				args: buildJjAnnotateArgs({
+					relativePath,
+					revision: toEntry.isWorkingTree ? undefined : toEntry.revision,
+				}),
+			});
+			return { relativePath, lines: parseJjFileAnnotate(stdout) };
+		} catch {
+			return { relativePath, lines: [] };
 		}
 	}
 

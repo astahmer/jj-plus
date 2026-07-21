@@ -52,6 +52,11 @@ export const SelectedPreset = m('SelectedPreset', { value: S.Literals(['year', '
 export const UpdatedCustomRevset = m('UpdatedCustomRevset', { value: S.String });
 export const AppliedCustomRevset = m('AppliedCustomRevset');
 export const ToggledRangeStack = m('ToggledRangeStack');
+export const ToggledBlameOverlay = m('ToggledBlameOverlay');
+export const ClickedPierreBlameLine = m('ClickedPierreBlameLine', {
+	line: S.Number,
+	revision: S.String,
+});
 export const ToggledIntermediate = m('ToggledIntermediate');
 
 // Track
@@ -163,6 +168,8 @@ export const Message = S.Union([
 	UpdatedCustomRevset,
 	AppliedCustomRevset,
 	ToggledRangeStack,
+	ToggledBlameOverlay,
+	ClickedPierreBlameLine,
 	ToggledIntermediate,
 	ClickedTrackAnchor,
 	ClickedStepBackward,

@@ -1,7 +1,15 @@
-import { FileDiff, type FileContents } from '@pierre/diffs';
+import { FileDiff, type DiffLineAnnotation, type FileContents } from '@pierre/diffs';
+import {
+	collapseBlameToHunkStarts,
+	findBlameForLine,
+	shortBlameRevision,
+	type BlameLine,
+} from '../../../src/shared/blame.ts';
 import type { Model } from '../model.ts';
 import { getPreview, getRangeStackItems } from '../selectors.ts';
 import type { ContentMode, DiffPreview, LayoutMode } from '../types.ts';
+
+export const PIERRE_BLAME_LINE_EVENT = 'jj-timeline-blame-line';
 
 const PIERRE_SLOT_ID = 'pierre-diff-slot';
 const PIERRE_ROOT_ID = 'pierre-diff-root';
@@ -13,6 +21,9 @@ let lastLayoutMode: LayoutMode | undefined;
 let lastContentMode: ContentMode | undefined;
 let lastThemeType: 'dark' | 'light' | undefined;
 let lastShowPierre = false;
+let lastBlameOverlayOpen = false;
+let lastBlameSignature = '';
+let blameLinesCache: BlameLine[] = [];
 let stackMode = false;
 const stackByPath = new Map<
 	string,
@@ -70,6 +81,8 @@ export function queuePierreFileDiffSync(model: Model): void {
 }
 
 function syncFromModel(model: Model): void {
+	blameLinesCache = model.blameOverlayOpen ? (model.blameLines as BlameLine[]) : [];
+
 	if (model.rangeStackOpen) {
 		const items = getRangeStackItems(model);
 		const showStack = items.length > 0;
@@ -105,6 +118,8 @@ function syncFromModel(model: Model): void {
 		layoutMode: model.layoutMode,
 		contentMode: model.contentMode,
 		showPierre,
+		blameOverlayOpen: model.blameOverlayOpen,
+		blameLines: blameLinesCache,
 	});
 }
 
@@ -113,6 +128,8 @@ type PierreDiffSyncArgs = {
 	layoutMode: LayoutMode;
 	contentMode: ContentMode;
 	showPierre: boolean;
+	blameOverlayOpen: boolean;
+	blameLines: BlameLine[];
 };
 
 type RangeStackSyncArgs = {
@@ -162,24 +179,25 @@ function syncRangeStack(args: RangeStackSyncArgs): void {
 			section.append(header, mount);
 			portal.append(section);
 			entry = {
-				fileDiff: new FileDiff(buildOptions(args.layoutMode, args.contentMode, themeType)),
+				fileDiff: new FileDiff(buildOptions(args.layoutMode, args.contentMode, themeType, false) as never),
 				section,
 				mount,
 			};
 			stackByPath.set(item.relativePath, entry);
 		}
 
-		const header = entry.section.querySelector('.pierre-stack-header');
+		const stackEntry = entry!;
+		const header = stackEntry.section.querySelector('.pierre-stack-header');
 		if (header) {
 			header.textContent = `${item.relativePath}  +${item.preview.additions}/−${item.preview.deletions}`;
 		}
 
-		const nextOldFile = stableFileContents(entry.oldFile, {
+		const nextOldFile = stableFileContents(stackEntry.oldFile, {
 			name: item.preview.beforePath || item.relativePath,
 			contents: item.preview.beforeText ?? '',
 			cacheKey: `old:${item.relativePath}:${hashText(item.preview.beforeText ?? '')}`,
 		});
-		const nextNewFile = stableFileContents(entry.newFile, {
+		const nextNewFile = stableFileContents(stackEntry.newFile, {
 			name: item.preview.afterPath || item.relativePath,
 			contents: item.preview.afterText ?? '',
 			cacheKey: `new:${item.relativePath}:${hashText(item.preview.afterText ?? '')}`,
@@ -187,23 +205,23 @@ function syncRangeStack(args: RangeStackSyncArgs): void {
 		const optionsChanged =
 			lastLayoutMode !== args.layoutMode || lastContentMode !== args.contentMode || lastThemeType !== themeType;
 		if (optionsChanged) {
-			entry.fileDiff.setOptions(buildOptions(args.layoutMode, args.contentMode, themeType));
+			stackEntry.fileDiff.setOptions(buildOptions(args.layoutMode, args.contentMode, themeType, false) as never);
 		}
 		if (
-			nextOldFile !== entry.oldFile ||
-			nextNewFile !== entry.newFile ||
+			nextOldFile !== stackEntry.oldFile ||
+			nextNewFile !== stackEntry.newFile ||
 			optionsChanged ||
-			entry.mount.childElementCount === 0
+			stackEntry.mount.childElementCount === 0
 		) {
-			entry.fileDiff.render({
+			stackEntry.fileDiff.render({
 				oldFile: nextOldFile,
 				newFile: nextNewFile,
-				containerWrapper: entry.mount,
+				containerWrapper: stackEntry.mount,
 				forceRender: optionsChanged,
 			});
 		}
-		entry.oldFile = nextOldFile;
-		entry.newFile = nextNewFile;
+		stackEntry.oldFile = nextOldFile;
+		stackEntry.newFile = nextNewFile;
 	}
 
 	lastLayoutMode = args.layoutMode;
@@ -251,6 +269,7 @@ function syncPierreFileDiff(args: PierreDiffSyncArgs): void {
 		lastLayoutMode !== args.layoutMode ||
 		lastContentMode !== args.contentMode ||
 		lastThemeType !== themeType ||
+		lastBlameOverlayOpen !== args.blameOverlayOpen ||
 		!lastShowPierre;
 
 	const nextOldFile = stableFileContents(lastOldFile, {
@@ -270,10 +289,11 @@ function syncPierreFileDiff(args: PierreDiffSyncArgs): void {
 	// on first shadow stylesheet application (avoids height:100% collapse).
 	syncPortalGeometry(true);
 
+	const options = buildOptions(args.layoutMode, args.contentMode, themeType, args.blameOverlayOpen) as never;
 	if (!fileDiff) {
-		fileDiff = new FileDiff(buildOptions(args.layoutMode, args.contentMode, themeType));
+		fileDiff = new FileDiff(options);
 	} else if (optionsChanged) {
-		fileDiff.setOptions(buildOptions(args.layoutMode, args.contentMode, themeType));
+		fileDiff.setOptions(options);
 	}
 
 	if (filesChanged || optionsChanged || portal.childElementCount === 0) {
@@ -285,11 +305,16 @@ function syncPierreFileDiff(args: PierreDiffSyncArgs): void {
 		});
 	}
 
+	if (fileDiff) {
+		applyBlameAnnotations(fileDiff, args.blameOverlayOpen, args.blameLines);
+	}
+
 	lastOldFile = nextOldFile;
 	lastNewFile = nextNewFile;
 	lastLayoutMode = args.layoutMode;
 	lastContentMode = args.contentMode;
 	lastThemeType = themeType;
+	lastBlameOverlayOpen = args.blameOverlayOpen;
 	lastShowPierre = true;
 	syncPortalGeometry(true);
 	window.requestAnimationFrame(() => {
@@ -309,6 +334,8 @@ function clearPierreFileDiff(): void {
 	lastContentMode = undefined;
 	lastThemeType = undefined;
 	lastShowPierre = false;
+	lastBlameOverlayOpen = false;
+	lastBlameSignature = '';
 	lastForcedHeight = -1;
 
 	const portal = document.getElementById(PIERRE_ROOT_ID);
@@ -609,7 +636,46 @@ function repairPierreWrapRowSpans(portal: HTMLElement): void {
 	}
 }
 
-function buildOptions(layoutMode: LayoutMode, contentMode: ContentMode, themeType: 'dark' | 'light') {
+function applyBlameAnnotations(diff: FileDiff, blameOverlayOpen: boolean, blameLines: BlameLine[]): void {
+	const signature = blameOverlayOpen ? blameLines.map((line) => `${line.line}:${line.revision}`).join('|') : '';
+	if (signature === lastBlameSignature) {
+		return;
+	}
+	lastBlameSignature = signature;
+	if (!blameOverlayOpen || blameLines.length === 0) {
+		diff.setLineAnnotations([]);
+		return;
+	}
+	const annotations: DiffLineAnnotation<BlameLine>[] = collapseBlameToHunkStarts(blameLines).map((entry) => ({
+		side: 'additions' as const,
+		lineNumber: entry.line,
+		metadata: entry,
+	}));
+	diff.setLineAnnotations(annotations as never);
+}
+
+function emitBlameLineClick(lineNumber: number, revisionHint?: string): void {
+	const blame = findBlameForLine(blameLinesCache, lineNumber);
+	const revision = revisionHint || blame?.revision;
+	if (!revision) {
+		return;
+	}
+	window.dispatchEvent(
+		new CustomEvent(PIERRE_BLAME_LINE_EVENT, {
+			detail: {
+				line: lineNumber,
+				revision,
+			},
+		}),
+	);
+}
+
+function buildOptions(
+	layoutMode: LayoutMode,
+	contentMode: ContentMode,
+	themeType: 'dark' | 'light',
+	blameOverlayOpen = false,
+) {
 	return {
 		theme: { dark: 'pierre-dark' as const, light: 'pierre-light' as const },
 		themeType,
@@ -621,6 +687,32 @@ function buildOptions(layoutMode: LayoutMode, contentMode: ContentMode, themeTyp
 		// Wrap: content defines height; our host scrolls. Avoids Pierre's default
 		// overflow:scroll + align-self:flex-start fighting a height:100% override.
 		overflow: 'wrap' as const,
+		onLineClick: blameOverlayOpen
+			? (props: { lineNumber: number; annotationSide?: 'additions' | 'deletions' }) => {
+					if (props.annotationSide && props.annotationSide !== 'additions') {
+						return;
+					}
+					emitBlameLineClick(props.lineNumber);
+				}
+			: undefined,
+		renderAnnotation: blameOverlayOpen
+			? (annotation: DiffLineAnnotation<BlameLine>) => {
+					const button = document.createElement('button');
+					button.type = 'button';
+					button.className = 'pierre-blame-annotation';
+					const revision = annotation.metadata?.revision || '';
+					button.textContent = shortBlameRevision(revision);
+					button.title = [revision, annotation.metadata?.author, annotation.metadata?.summary]
+						.filter(Boolean)
+						.join(' · ');
+					button.addEventListener('click', (event) => {
+						event.preventDefault();
+						event.stopPropagation();
+						emitBlameLineClick(annotation.lineNumber, revision);
+					});
+					return button;
+				}
+			: undefined,
 		unsafeCSS: `
 			:host {
 				display: block !important;
@@ -639,6 +731,18 @@ function buildOptions(layoutMode: LayoutMode, contentMode: ContentMode, themeTyp
 			[data-diff-type="single"][data-overflow="wrap"] code[data-unified],
 			[data-diff-type="single"][data-overflow="wrap"] [data-code] {
 				grid-auto-rows: max-content !important;
+			}
+			.pierre-blame-annotation {
+				display: inline-flex;
+				align-items: center;
+				margin-left: 6px;
+				padding: 0 5px;
+				border: 1px solid color-mix(in srgb, var(--vscode-foreground, #ccc) 28%, transparent);
+				border-radius: 4px;
+				background: color-mix(in srgb, var(--vscode-editor-background, #1e1e1e) 70%, transparent);
+				color: color-mix(in srgb, var(--vscode-foreground, #ccc) 80%, transparent);
+				font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+				cursor: pointer;
 			}
 		`,
 	};

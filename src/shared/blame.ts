@@ -76,7 +76,17 @@ export function buildGitBlameArgs(args: { relativePath: string; line: number }):
 	return ['blame', '-L', `${args.line},${args.line}`, '--porcelain', '--', args.relativePath];
 }
 
-export function buildJjAnnotateArgs(args: { relativePath: string }): string[] {
+export function buildGitBlameFileArgs(args: { relativePath: string; revision?: string }): string[] {
+	if (args.revision) {
+		return ['blame', '--porcelain', args.revision, '--', args.relativePath];
+	}
+	return ['blame', '--porcelain', '--', args.relativePath];
+}
+
+export function buildJjAnnotateArgs(args: { relativePath: string; revision?: string }): string[] {
+	if (args.revision) {
+		return ['file', 'annotate', '-r', args.revision, args.relativePath];
+	}
 	return ['file', 'annotate', args.relativePath];
 }
 
@@ -84,4 +94,29 @@ export function revisionMatchesBlame(entryRevision: string, blameRevision: strin
 	const left = entryRevision.toLowerCase();
 	const right = blameRevision.toLowerCase();
 	return left === right || left.startsWith(right) || right.startsWith(left);
+}
+
+/** Keep first line of each contiguous same-revision run — sparse Pierre annotations. */
+export function collapseBlameToHunkStarts(blame: BlameLine[]): BlameLine[] {
+	const starts: BlameLine[] = [];
+	let previousRevision = '';
+	for (const entry of blame) {
+		if (entry.revision === previousRevision) {
+			continue;
+		}
+		starts.push(entry);
+		previousRevision = entry.revision;
+	}
+	return starts;
+}
+
+export function shortBlameRevision(revision: string, maxLength = 7): string {
+	return revision.length <= maxLength ? revision : revision.slice(0, maxLength);
+}
+
+export function findEntryIndexForBlameRevision(
+	entries: Array<{ revision: string; isWorkingTree?: boolean }>,
+	blameRevision: string,
+): number {
+	return entries.findIndex((entry) => !entry.isWorkingTree && revisionMatchesBlame(entry.revision, blameRevision));
 }

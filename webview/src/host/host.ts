@@ -531,6 +531,36 @@ export function createTimelineHost(): TimelineHost {
 				return;
 			}
 
+			if (command.command === 'load-diff-blame') {
+				void getFixture().then((fixture) => {
+					const fileFixture = getActiveFileFixture(fixture);
+					const fromIndex = Math.min(command.fromIndex, command.toIndex);
+					const toIndex = Math.max(command.fromIndex, command.toIndex);
+					const entries = getEntriesForSource(fileFixture.timelineData, command.comparisonSource);
+					const tip = entries[toIndex] || entries[entries.length - 1];
+					emit({
+						type: 'diff-blame',
+						payload: {
+							fromIndex,
+							toIndex,
+							comparisonSource: command.comparisonSource,
+							relativePath: fileFixture.timelineData.relativePath,
+							lines: [
+								{ line: 1, revision: tip?.revision || 'aaaaaaa', author: tip?.authorName, summary: tip?.description },
+								{ line: 2, revision: tip?.revision || 'aaaaaaa', author: tip?.authorName },
+								{
+									line: 3,
+									revision: entries[Math.max(0, toIndex - 1)]?.revision || 'bbbbbbb',
+									author: 'Earlier',
+									summary: 'prior change',
+								},
+							],
+						},
+					});
+				});
+				return;
+			}
+
 			if (command.command === 'load-entry-diff-counts') {
 				void getFixture().then((fixture) => {
 					const fileFixture = getActiveFileFixture(fixture);
