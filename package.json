@@ -89,6 +89,10 @@
 			{
 				"command": "jj-range-diff.openTimelineAtLine",
 				"title": "JJ: Open Timeline at Cursor Line"
+			},
+			{
+				"command": "jj-range-diff.clearLineHistory",
+				"title": "JJ: Clear Line History Filter"
 			}
 		],
 		"menus": {

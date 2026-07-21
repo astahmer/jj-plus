@@ -5,13 +5,15 @@ import { renderTimelineDocumentHtml } from '../webview/timeline-template.ts';
 import type {
 	ComparisonSource,
 	FileRevisionEntry,
+	LineDiffType,
 	ThemePreference,
 	TimelineCommand,
 	TimelineInboundMessage,
 	TimelinePreferences,
 } from '../shared/timeline-types.ts';
 import { revisionMatchesBlame } from '../shared/blame.ts';
-import { OPEN_MULTI_DIFF_COMMAND, TIMELINE_PRESET_DAYS } from './constants.ts';
+import { formatStatusBarLineHistoryChip } from '../shared/line-history.ts';
+import { CLEAR_LINE_HISTORY_COMMAND, OPEN_MULTI_DIFF_COMMAND, TIMELINE_PRESET_DAYS } from './constants.ts';
 import { createTimelineService } from './timeline-service.ts';
 import { createSnapshotUri } from './uri-utils.ts';
 import type { ExtensionTimelineSession, TimelineDebugState, TimelinePanelController } from './types.ts';
@@ -211,6 +213,19 @@ export function createTimelinePanelController(args: {
 	const panelLoadGeneration = new WeakMap<vscode.WebviewPanel, number>();
 	let activeTimelinePanel: vscode.WebviewPanel | undefined;
 	let timelineDebugState = createEmptyTimelineDebugState();
+	const lineHistoryStatusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 90);
+	lineHistoryStatusBar.command = CLEAR_LINE_HISTORY_COMMAND;
+	lineHistoryStatusBar.tooltip = 'Clear line-history filter (show full file timeline)';
+	args.context.subscriptions.push(lineHistoryStatusBar);
+
+	function syncLineHistoryStatusBar(lineHistory: { startLine: number; endLine: number } | null | undefined): void {
+		if (!lineHistory) {
+			lineHistoryStatusBar.hide();
+			return;
+		}
+		lineHistoryStatusBar.text = `$(git-commit) ${formatStatusBarLineHistoryChip(lineHistory)}`;
+		lineHistoryStatusBar.show();
+	}
 
 	return {
 		dispose() {
@@ -220,6 +235,23 @@ export function createTimelinePanelController(args: {
 			timelineSessions.clear();
 			activeTimelinePanel = undefined;
 			timelineDebugState = createEmptyTimelineDebugState();
+			syncLineHistoryStatusBar(null);
+		},
+		async clearLineHistoryFilter() {
+			const panel = activeTimelinePanel;
+			const session = panel ? timelineSessions.get(panel) : undefined;
+			if (!panel || !session?.lineHistory) {
+				if (panel) {
+					panel.reveal(undefined, true);
+				}
+				return;
+			}
+			await loadSessionIntoPanel({
+				panel,
+				workspacePath: session.workspacePath,
+				absolutePath: session.absolutePath,
+				customRevset: session.customRevset,
+			});
 		},
 		getDebugState() {
 			return { ...timelineDebugState };
@@ -344,6 +376,7 @@ export function createTimelinePanelController(args: {
 				customRevset: args.getPreferences().customRevset || undefined,
 				focusRevision,
 			});
+			syncLineHistoryStatusBar(lineHistory);
 		},
 	};
 
@@ -381,7 +414,12 @@ export function createTimelinePanelController(args: {
 
 		timelineSessions.set(request.panel, session);
 		activeTimelinePanel = request.panel;
-		request.panel.title = `Revision Timeline: ${session.fileName}`;
+		request.panel.title = session.lineHistory
+			? `Revision Timeline: ${session.fileName} (L${session.lineHistory.startLine}${
+					session.lineHistory.endLine === session.lineHistory.startLine ? '' : `–${session.lineHistory.endLine}`
+				})`
+			: `Revision Timeline: ${session.fileName}`;
+		syncLineHistoryStatusBar(session.lineHistory);
 		timelineDebugState = createDebugState({
 			panel: request.panel,
 			session,
@@ -447,6 +485,7 @@ export function createTimelinePanelController(args: {
 					if (!fallback) {
 						activeTimelinePanel = undefined;
 						timelineDebugState = createEmptyTimelineDebugState();
+						syncLineHistoryStatusBar(null);
 						return;
 					}
 
@@ -457,6 +496,7 @@ export function createTimelinePanelController(args: {
 						lastMessageCommand: timelineDebugState.lastMessageCommand,
 						panelCount: timelineSessions.size,
 					});
+					syncLineHistoryStatusBar(fallback[1].lineHistory);
 					return;
 				}
 
@@ -870,6 +910,7 @@ export function createTimelinePanelController(args: {
 				absolutePath: request.session.absolutePath,
 				customRevset: request.session.customRevset,
 			});
+			syncLineHistoryStatusBar(null);
 			return;
 		}
 
@@ -1453,6 +1494,10 @@ function normalizeComparisonSource(value: unknown): ComparisonSource {
 
 function normalizeThemePreference(value: unknown): ThemePreference {
 	return value === 'light' || value === 'dark' ? value : 'auto';
+}
+
+function normalizeLineDiffType(value: unknown): LineDiffType {
+	return value === 'word' || value === 'char' || value === 'none' || value === 'word-alt' ? value : 'word-alt';
 }
 
 function normalizeTimelinePreset(value: unknown): keyof typeof TIMELINE_PRESET_DAYS {

@@ -137,6 +137,7 @@ export type TimelinePanelController = {
 		comparisonSource?: 'revision' | 'snapshot';
 	}): Promise<void>;
 	setLayoutMode(layoutMode: 'split' | 'unified'): Promise<void>;
+	clearLineHistoryFilter(): Promise<void>;
 	dispose(): void;
 };
 

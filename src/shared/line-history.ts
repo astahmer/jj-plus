@@ -21,6 +21,13 @@ export function formatLineHistoryLabel(range: LineHistoryRange): string {
 	return `Lines ${range.startLine}–${range.endLine}`;
 }
 
+export function formatStatusBarLineHistoryChip(range: LineHistoryRange): string {
+	if (range.startLine === range.endLine) {
+		return `JJ Timeline L${range.startLine}`;
+	}
+	return `JJ Timeline L${range.startLine}–${range.endLine}`;
+}
+
 export function splitTextIntoLines(value: string): string[] {
 	if (!value) {
 		return [];

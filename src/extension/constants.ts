@@ -4,6 +4,7 @@ export const OPEN_FILE_RANGE_DIFF_COMMAND = 'jj-range-diff.openFileRangeDiff';
 export const OPEN_FILE_TIMELINE_COMMAND = 'jj-range-diff.openFileRevisionTimeline';
 export const OPEN_FILE_LINE_TIMELINE_COMMAND = 'jj-range-diff.openFileLineTimeline';
 export const OPEN_TIMELINE_AT_LINE_COMMAND = 'jj-range-diff.openTimelineAtLine';
+export const CLEAR_LINE_HISTORY_COMMAND = 'jj-range-diff.clearLineHistory';
 export const GET_TIMELINE_DEBUG_STATE_COMMAND = 'jj-range-diff._debug.getTimelineState';
 export const GET_DIFF_LAYOUT_METRICS_COMMAND = 'jj-range-diff._debug.getDiffLayoutMetrics';
 export const DEBUG_SELECT_TIMELINE_RANGE_COMMAND = 'jj-range-diff._debug.selectTimelineRange';

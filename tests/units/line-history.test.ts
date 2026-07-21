@@ -21,6 +21,12 @@ test('formatLineHistoryLabel distinguishes single vs range', () => {
 	assert.equal(formatLineHistoryLabel({ startLine: 2, endLine: 9 }), 'Lines 2–9');
 });
 
+test('formatStatusBarLineHistoryChip formats chip label', async () => {
+	const { formatStatusBarLineHistoryChip } = await import('../../src/shared/line-history.ts');
+	assert.equal(formatStatusBarLineHistoryChip({ startLine: 12, endLine: 12 }), 'JJ Timeline L12');
+	assert.equal(formatStatusBarLineHistoryChip({ startLine: 12, endLine: 18 }), 'JJ Timeline L12–18');
+});
+
 test('diffTouchesLineRange detects edits inside the window and ignores distant edits', () => {
 	const before = ['a', 'b', 'c', 'd', 'e'].join('\n');
 	const afterNear = ['a', 'b', 'X', 'd', 'e'].join('\n');
