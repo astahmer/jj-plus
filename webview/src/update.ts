@@ -869,6 +869,10 @@ function handleGotHostMessage(model: Model, payload: unknown): UpdateReturn {
 		M.when('resolved-range', () =>
 			handleResolvedRangeMessage(model, message as Extract<TimelineInboundMessage, { type: 'resolved-range' }>),
 		),
+		M.when('debug-set-layout-mode', () => {
+			const layoutMode = Reflect.get(message, 'layoutMode') === 'unified' ? ('unified' as const) : ('split' as const);
+			return withPersist(evo(model, { layoutMode: () => layoutMode }));
+		}),
 		M.orElse(() => [model, []]),
 	);
 }

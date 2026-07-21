@@ -5,6 +5,7 @@ export const OPEN_FILE_TIMELINE_COMMAND = 'jj-range-diff.openFileRevisionTimelin
 export const GET_TIMELINE_DEBUG_STATE_COMMAND = 'jj-range-diff._debug.getTimelineState';
 export const GET_DIFF_LAYOUT_METRICS_COMMAND = 'jj-range-diff._debug.getDiffLayoutMetrics';
 export const DEBUG_SELECT_TIMELINE_RANGE_COMMAND = 'jj-range-diff._debug.selectTimelineRange';
+export const DEBUG_SET_LAYOUT_MODE_COMMAND = 'jj-range-diff._debug.setLayoutMode';
 export const OPEN_RANGE_DIFF_URI_PATH = '/open-range-multi-diff';
 export const OPEN_MULTI_DIFF_COMMAND = '_workbench.openMultiDiffEditor';
 export const SNAPSHOT_SCHEME = 'jj-range-diff';

@@ -14,6 +14,8 @@ type DiffLayoutMetrics = {
 	maxCodeScrollH: number;
 	minCodeClientH: number;
 	portalFillRatio: number;
+	lineTopSpan: number;
+	uniqueLineTops: number;
 	isCrushed: boolean;
 };
 
@@ -75,8 +77,46 @@ test.describe('diff vertical layout', () => {
 			})
 			.toBe(true);
 	});
+
+	test('large main.ts rewrite stays scrollable in unified layout', async ({ page }) => {
+		await openFixture(page, 'jj-basic');
+		await switchToFile(page, 'apps/web/src/main.ts');
+		await page.locator('.history-list .history-item').filter({ hasText: 'componentize stuff' }).first().click();
+		await page.locator('.history-list .history-item').filter({ hasText: 'implement vector search' }).first().click();
+		await page.getByRole('button', { name: 'View options' }).click();
+		await page.locator('#layoutModes .segment', { hasText: 'Unified' }).click();
+		await expect(page.locator('#layoutModes .segment.active')).toHaveText('Unified');
+
+		await expect
+			.poll(
+				async () => {
+					const layout = await measureDiffLayout(page);
+					return (
+						layout.lineCount > 40 &&
+						!layout.isCrushed &&
+						layout.hostScrollH > layout.portalH + 40 &&
+						layout.uniqueLineTops > 10
+					);
+				},
+				{ timeout: 30000 },
+			)
+			.toBe(true);
+	});
 });
 
+async function switchToFile(page: Page, relativePath: string) {
+	const switcher = page.locator('#fileSwitcher');
+	await switcher.click();
+	await switcher.fill('');
+	await switcher.type(relativePath);
+	await switcher.press('Enter');
+	await page.waitForFunction((path) => window.__TIMELINE_TEST_STATE__?.activeRelativePath === path, relativePath, {
+		timeout: 15000,
+	});
+	await expect(page.locator('.history-list .history-item').filter({ hasText: 'implement vector search' })).toBeVisible({
+		timeout: 15000,
+	});
+}
 async function openFixture(page: Page, fixture: string) {
 	await page.goto(`/?fixture=${fixture}`);
 	await expect(page.locator('.session-loading-overlay')).toHaveCount(0, { timeout: 15000 });
@@ -104,7 +144,9 @@ async function measureDiffLayout(page: Page): Promise<DiffLayoutMetrics> {
 		const content = document.querySelector('.diff-content');
 		const timeline = document.querySelector('.timeline-pane');
 		const host = portal?.querySelector('diffs-container') as HTMLElement | null;
-		const codes = [...(host?.shadowRoot?.querySelectorAll('[data-code]') ?? [])] as HTMLElement[];
+		const codes = [
+			...(host?.shadowRoot?.querySelectorAll('[data-code], [data-overflow] > code, pre > code') ?? []),
+		] as HTMLElement[];
 		const lines = [...(host?.shadowRoot?.querySelectorAll('[data-line]') ?? [])] as HTMLElement[];
 		const viewportH = Math.round(window.visualViewport?.height ?? window.innerHeight);
 		const portalH = portal ? Math.round(portal.getBoundingClientRect().height) : 0;
@@ -121,12 +163,14 @@ async function measureDiffLayout(page: Page): Promise<DiffLayoutMetrics> {
 		const maxLineH = lineHeights.length ? Math.max(...lineHeights) : 0;
 		const minLineH = lineHeights.length ? Math.min(...lineHeights) : 0;
 		const lineCount = lines.length;
+		const lineTops = lines.map((line) => line.getBoundingClientRect().top);
+		const lineTopSpan = lineTops.length > 0 ? Math.round(Math.max(...lineTops) - Math.min(...lineTops)) : 0;
+		const uniqueLineTops = new Set(lineTops.map((top) => Math.round(top / 2) * 2)).size;
 		const isCrushed =
-			portalH > 280 &&
-			lineCount > 8 &&
-			minCodeClientH > 0 &&
-			minCodeClientH < Math.min(80, portalH * 0.15) &&
-			maxCodeScrollH < Math.min(120, portalH * 0.2);
+			portalH > 200 &&
+			lineCount > 40 &&
+			((hostScrollH <= portalH + 24 && lineTopSpan < Math.max(120, portalH * 0.45)) ||
+				(uniqueLineTops < Math.max(8, Math.floor(lineCount * 0.2)) && lineTopSpan < portalH * 0.5));
 		return {
 			viewportH,
 			portalH,
@@ -141,6 +185,8 @@ async function measureDiffLayout(page: Page): Promise<DiffLayoutMetrics> {
 			maxCodeScrollH,
 			minCodeClientH,
 			portalFillRatio: viewportH > 0 ? portalH / viewportH : 0,
+			lineTopSpan,
+			uniqueLineTops,
 			isCrushed,
 		};
 	});

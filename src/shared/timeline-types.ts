@@ -148,7 +148,8 @@ export type TimelineInboundMessage =
 			};
 	  }
 	| { type: 'resolved-range'; payload: { fromIndex: number; toIndex: number } | null }
-	| { type: 'debug-measure-layout' };
+	| { type: 'debug-measure-layout' }
+	| { type: 'debug-set-layout-mode'; layoutMode: LayoutMode };
 
 export type DiffLayoutMetrics = {
 	viewportH: number;

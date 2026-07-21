@@ -145,7 +145,7 @@ function syncPierreFileDiff(args: PierreDiffSyncArgs): void {
 	window.requestAnimationFrame(() => {
 		if (lastShowPierre) {
 			syncPortalGeometry(true);
-			repairPierreSplitWrapRowSpans(portal);
+			repairPierreWrapRowSpans(portal);
 		}
 	});
 }
@@ -172,7 +172,7 @@ function clearPierreFileDiff(): void {
 export function measureDiffLayoutMetrics(): DiffLayoutMetrics {
 	const portal = document.getElementById(PIERRE_ROOT_ID);
 	if (portal instanceof HTMLElement) {
-		repairPierreSplitWrapRowSpans(portal);
+		repairPierreWrapRowSpans(portal);
 	}
 	const rows = document.getElementById('diffRows');
 	const content = document.querySelector('.diff-content');
@@ -347,7 +347,7 @@ function syncPortalGeometry(visible: boolean): void {
 	portal.style.height = `${height}px`;
 	portal.style.setProperty('--pierre-portal-height', `${height}px`);
 	forcePierreHostScrollport(portal, height);
-	repairPierreSplitWrapRowSpans(portal);
+	repairPierreWrapRowSpans(portal);
 }
 
 /**
@@ -377,48 +377,57 @@ function forcePierreHostScrollport(portal: HTMLElement, height: number): void {
 	}
 }
 
+function parseGridRowSpan(value: string): number {
+	const matched = value.match(/span\s+(\d+)/u)?.[1];
+	const parsed = Number.parseInt(matched ?? '', 10);
+	return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function repairWrapGridColumns(container: HTMLElement): void {
+	const columns = [...container.querySelectorAll(':scope > [data-gutter], :scope > [data-content]')] as HTMLElement[];
+	const nestedColumns =
+		columns.length > 0 ? columns : ([...container.querySelectorAll('[data-gutter], [data-content]')] as HTMLElement[]);
+	if (nestedColumns.length === 0) {
+		return;
+	}
+	const rowCount = Math.max(
+		1,
+		...nestedColumns.map((column) => {
+			const fromStyle = parseGridRowSpan(column.style.gridRow);
+			const fromCode = parseGridRowSpan((column.parentElement as HTMLElement | null)?.style.gridRow ?? '');
+			return Math.max(column.childElementCount, fromStyle, fromCode);
+		}),
+	);
+	for (const column of nestedColumns) {
+		column.style.setProperty('grid-row', `span ${rowCount}`);
+	}
+	container.style.setProperty('grid-auto-rows', 'max-content');
+}
+
 /**
- * Split+wrap uses `display: contents` on [data-code] so gutter/content become
- * items of the outer pre grid and must carry `grid-row: span N`. In VS Code's
- * Electron webview those spans sometimes never stick (or get dropped), leaving
- * `grid-template-rows: <one track>` — every [data-line] stacks on the same top.
+ * Wrap mode needs `grid-row: span N` on gutter/content so subgrid lines stack into
+ * distinct tracks. In VS Code Electron those spans often never stick (especially
+ * split+wrap with `display: contents` on [data-code]), collapsing every line onto
+ * one top. Re-apply spans for both split and unified wrap roots.
  */
-function repairPierreSplitWrapRowSpans(portal: HTMLElement): void {
+function repairPierreWrapRowSpans(portal: HTMLElement): void {
 	const hosts = portal.querySelectorAll('diffs-container');
 	for (const host of hosts) {
 		const root = host.shadowRoot;
 		if (!root) {
 			continue;
 		}
-		const wraps = root.querySelectorAll('[data-diff-type="split"][data-overflow="wrap"]');
-		for (const wrap of wraps) {
-			if (!(wrap instanceof HTMLElement)) {
-				continue;
+		for (const wrap of root.querySelectorAll('[data-diff-type="split"][data-overflow="wrap"]')) {
+			if (wrap instanceof HTMLElement) {
+				repairWrapGridColumns(wrap);
 			}
-			const columns = [...wrap.querySelectorAll('[data-gutter], [data-content]')] as HTMLElement[];
-			if (columns.length === 0) {
-				continue;
+		}
+		for (const code of root.querySelectorAll(
+			'[data-diff-type="single"][data-overflow="wrap"] code[data-unified], [data-diff-type="single"][data-overflow="wrap"] [data-code]',
+		)) {
+			if (code instanceof HTMLElement) {
+				repairWrapGridColumns(code);
 			}
-			const rowCount = Math.max(
-				1,
-				...columns.map((column) => {
-					const fromStyle = Number.parseInt(column.style.gridRow.match(/span\s+(\d+)/u)?.[1] ?? '', 10);
-					const fromCode = Number.parseInt(
-						(column.parentElement as HTMLElement | null)?.style.gridRow.match(/span\s+(\d+)/u)?.[1] ?? '',
-						10,
-					);
-					return Math.max(
-						column.childElementCount,
-						Number.isFinite(fromStyle) ? fromStyle : 0,
-						Number.isFinite(fromCode) ? fromCode : 0,
-					);
-				}),
-			);
-			for (const column of columns) {
-				column.style.setProperty('grid-row', `span ${rowCount}`);
-			}
-			// Ensure the wrap parent can grow past a single collapsed track.
-			wrap.style.setProperty('grid-auto-rows', 'max-content');
 		}
 	}
 }
@@ -444,12 +453,14 @@ function buildOptions(layoutMode: LayoutMode, contentMode: ContentMode, themeTyp
 				overflow: auto !important;
 				box-sizing: border-box !important;
 			}
-			/* contain:content + display:contents on [data-code] collapses split+wrap
+			/* contain:content + display:contents on [data-code] collapses wrap
 			   row tracks in VS Code Electron (all lines share one grid row). */
 			code[data-code] {
 				contain: none !important;
 			}
-			[data-diff-type="split"][data-overflow="wrap"] {
+			[data-diff-type="split"][data-overflow="wrap"],
+			[data-diff-type="single"][data-overflow="wrap"] code[data-unified],
+			[data-diff-type="single"][data-overflow="wrap"] [data-code] {
 				grid-auto-rows: max-content !important;
 			}
 		`,

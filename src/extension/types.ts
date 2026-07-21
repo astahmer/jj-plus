@@ -125,6 +125,7 @@ export type TimelinePanelController = {
 		toIndex: number;
 		comparisonSource?: 'revision' | 'snapshot';
 	}): Promise<void>;
+	setLayoutMode(layoutMode: 'split' | 'unified'): Promise<void>;
 	dispose(): void;
 };
 

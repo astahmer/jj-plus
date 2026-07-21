@@ -273,6 +273,21 @@ export function createTimelinePanelController(args: {
 				},
 			});
 		},
+		async setLayoutMode(layoutMode) {
+			const panel = activeTimelinePanel;
+			if (!panel) {
+				throw new Error('no active timeline panel');
+			}
+			const nextPreferences = {
+				...args.getPreferences(),
+				layoutMode: layoutMode === 'unified' ? ('unified' as const) : ('split' as const),
+			};
+			await args.savePreferences(nextPreferences);
+			await postTimelineMessage({
+				panel,
+				message: { type: 'debug-set-layout-mode', layoutMode: nextPreferences.layoutMode },
+			});
+		},
 		async openFileRevisionTimeline({ absolutePath }) {
 			const initialPath = await resolveTimelineSourcePath({ absolutePath });
 			if (!initialPath) {
