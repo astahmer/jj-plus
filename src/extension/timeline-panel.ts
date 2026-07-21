@@ -213,6 +213,7 @@ export function createTimelinePanelController(args: {
 	const panelLoadGeneration = new WeakMap<vscode.WebviewPanel, number>();
 	let activeTimelinePanel: vscode.WebviewPanel | undefined;
 	let timelineDebugState = createEmptyTimelineDebugState();
+	let timelinePreviewGeneration = 0;
 	const lineHistoryStatusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 90);
 	lineHistoryStatusBar.command = CLEAR_LINE_HISTORY_COMMAND;
 	lineHistoryStatusBar.tooltip = 'Clear line-history filter (show full file timeline)';
@@ -1062,11 +1063,16 @@ export function createTimelinePanelController(args: {
 		toIndex: number;
 		comparisonSource: ComparisonSource;
 	}): Promise<void> {
+		const generation = ++timelinePreviewGeneration;
+		const preview = await args.service.getDiffPreview(request);
+		if (generation !== timelinePreviewGeneration) {
+			return;
+		}
 		await postTimelineMessage({
 			panel: request.panel,
 			message: {
 				type: 'diff-preview',
-				payload: await args.service.getDiffPreview(request),
+				payload: preview,
 			},
 		});
 	}

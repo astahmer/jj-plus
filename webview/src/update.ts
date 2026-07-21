@@ -395,7 +395,7 @@ function handleTrackAnchorClick(model: Model, entryIndex: number): UpdateReturn 
 			}),
 			CancelledSelection(),
 		);
-		return afterMutate(next, [persistCommand(next)]);
+		return afterMutate(next);
 	}
 
 	const pending = model.selection._tag === 'PendingAnchor' ? model.selection.entryIndex : null;
@@ -421,7 +421,7 @@ function handleTrackAnchorClick(model: Model, entryIndex: number): UpdateReturn 
 		}),
 		CommittedSelection(),
 	);
-	return afterMutate(next, [persistCommand(next)]);
+	return afterMutate(next);
 }
 
 function handleStep(model: Model, amount: number): UpdateReturn {
@@ -446,7 +446,7 @@ function handleStep(model: Model, amount: number): UpdateReturn {
 			maybeHoveredSelectionIndex: () => Option.none(),
 		});
 	}
-	return afterMutate(next, [persistCommand(next)]);
+	return afterMutate(next);
 }
 
 function handleDock(model: Model, edge: 'start' | 'end'): UpdateReturn {
@@ -471,7 +471,7 @@ function handleDock(model: Model, edge: 'start' | 'end'): UpdateReturn {
 			maybeHoveredSelectionIndex: () => Option.none(),
 		});
 	}
-	return afterMutate(next, [persistCommand(next)]);
+	return afterMutate(next);
 }
 
 function getTrackWidth(): number {

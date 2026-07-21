@@ -114,10 +114,38 @@ test('buildTimelineSyncPlan requests missing preview, overview, and entry counts
 		comparisonSource: 'revision',
 		selectedEntryIndexes,
 	});
-	assert.deepEqual(plan.entryDiffCountsRequest, {
-		entryIndexes: [4, 5],
+	// Background work waits until the active preview exists so navigation stays snappy.
+	assert.equal(plan.entryDiffCountsRequest, undefined);
+	assert.equal(plan.sidebarPreviewRequests, undefined);
+});
+
+test('buildTimelineSyncPlan pauses background requests while active preview is missing', () => {
+	const visibleEntries = [0, 1, 2].map((index) => makeEntry({ index }));
+	const data = makeTimelineData(visibleEntries);
+	const plan = buildTimelineSyncPlan({
+		ready: true,
+		data,
+		visibleEntries,
+		filteredSidebarEntries: visibleEntries,
+		fromIndex: 1,
+		toIndex: 2,
+		comparisonMode: 'range',
 		comparisonSource: 'revision',
+		activePreviewKey: buildPreviewKey(1, 2, 'revision'),
+		previewByRange: {},
+		activeRangeOverviewKey: buildRangeOverviewKey(1, 2, 'revision', [2]),
+		rangeOverviewByRange: {},
+		rangeOverviewLoadingKey: '',
+		selectedEntryIndexes: [2],
+		entryDiffCountByKey: {},
+		entryDiffCountLoadingKey: '',
+		pendingSnapshotRevisionIndexes: [],
+		sidebarPreviewInFlightKeys: {},
 	});
+
+	assert.ok(plan.previewRequest);
+	assert.equal(plan.entryDiffCountsRequest, undefined);
+	assert.equal(plan.sidebarPreviewRequests, undefined);
 });
 
 test('buildTimelineSyncPlan pauses background requests while snapshot hydration is pending', () => {

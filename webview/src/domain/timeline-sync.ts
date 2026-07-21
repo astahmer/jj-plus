@@ -30,8 +30,8 @@ export type TimelineSyncPlan = {
 
 /** Prefetch this many step neighbors on each side of the current tip. */
 export const NEIGHBOR_PREFETCH_RADIUS = 2;
-/** Cap concurrent neighbor preview fetches per sync tick. */
-export const NEIGHBOR_PREFETCH_BATCH = 4;
+/** Cap concurrent neighbor preview fetches per sync tick. Keep low so nav stays snappy. */
+export const NEIGHBOR_PREFETCH_BATCH = 1;
 
 export function buildTimelineSyncPlan(args: {
 	ready: boolean;
@@ -101,9 +101,10 @@ export function buildTimelineSyncPlan(args: {
 	}
 
 	const pauseBackgroundRequests =
-		args.data.backend === 'jj' &&
-		args.comparisonSource === 'snapshot' &&
-		args.pendingSnapshotRevisionIndexes.length > 0;
+		!args.previewByRange[args.activePreviewKey] ||
+		(args.data.backend === 'jj' &&
+			args.comparisonSource === 'snapshot' &&
+			args.pendingSnapshotRevisionIndexes.length > 0);
 
 	if (!pauseBackgroundRequests && !args.entryDiffCountLoadingKey && args.filteredSidebarEntries.length) {
 		const entryIndexes = args.filteredSidebarEntries
