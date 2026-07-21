@@ -52,6 +52,9 @@ export const SelectedContentMode = m('SelectedContentMode', { value: S.Literals(
 export const SelectedThemePreference = m('SelectedThemePreference', {
 	value: S.Literals(['auto', 'light', 'dark']),
 });
+export const SelectedLineDiffType = m('SelectedLineDiffType', {
+	value: S.Literals(['word-alt', 'word', 'char', 'none']),
+});
 export const SelectedPreset = m('SelectedPreset', { value: S.Literals(['year', '7d', '30d', '90d', 'all']) });
 export const UpdatedCustomRevset = m('UpdatedCustomRevset', { value: S.String });
 export const AppliedCustomRevset = m('AppliedCustomRevset');
@@ -185,6 +188,7 @@ export const Message = S.Union([
 	SelectedLayoutMode,
 	SelectedContentMode,
 	SelectedThemePreference,
+	SelectedLineDiffType,
 	SelectedPreset,
 	UpdatedCustomRevset,
 	AppliedCustomRevset,

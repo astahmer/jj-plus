@@ -8,6 +8,7 @@ import {
 	SelectedLayoutMode,
 	SelectedPreset,
 	SelectedThemePreference,
+	SelectedLineDiffType,
 	AppliedCustomRevset,
 	UpdatedCustomRevset,
 	ToggledIntermediate,
@@ -193,6 +194,33 @@ export function timelineControls(model: Model): Html {
 														['Whole file'],
 													),
 												],
+											),
+										],
+									),
+									h.div(
+										[h.Class('view-menu-section')],
+										[
+											h.div([h.Class('view-menu-label')], ['Line diff']),
+											h.div(
+												[h.Class('segmented segmented--wrap'), h.Id('lineDiffTypes')],
+												(
+													[
+														['word-alt', 'Word+'],
+														['word', 'Word'],
+														['char', 'Char'],
+														['none', 'None'],
+													] as const
+												).map(([value, label]) =>
+													h.button(
+														[
+															h.Class(`segment${model.lineDiffType === value ? ' active' : ''}`),
+															h.Type('button'),
+															h.AriaPressed(String(model.lineDiffType === value)),
+															h.OnClick(SelectedLineDiffType({ value })),
+														],
+														[label],
+													),
+												),
 											),
 										],
 									),

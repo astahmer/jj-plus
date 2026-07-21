@@ -905,6 +905,7 @@ export function createTimelinePanelController(args: {
 				customRevset: String(Reflect.get(request.message, 'customRevset') || args.getPreferences().customRevset || ''),
 				themePreference: normalizeThemePreference(Reflect.get(request.message, 'themePreference')),
 				heatmapOpen: Boolean(Reflect.get(request.message, 'heatmapOpen')),
+				lineDiffType: normalizeLineDiffType(Reflect.get(request.message, 'lineDiffType')),
 			});
 			return;
 		}

@@ -1917,6 +1917,7 @@ function extractPersistedPreferences(
 		preset: command.preset,
 		themePreference: command.themePreference,
 		heatmapOpen: command.heatmapOpen === true,
+		lineDiffType: command.lineDiffType,
 	};
 }
 

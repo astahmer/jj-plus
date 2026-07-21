@@ -52,6 +52,7 @@ const DEFAULT_TIMELINE_PREFERENCES: Required<TimelinePreferences> = {
 	customRevset: '',
 	themePreference: 'auto',
 	heatmapOpen: false,
+	lineDiffType: 'word-alt',
 };
 
 const IGNORED_WORKSPACE_DIRECTORIES = new Set(['.git', '.jj', 'node_modules', 'dist', 'build', 'out', 'coverage']);
@@ -1474,6 +1475,13 @@ export function normalizeTimelinePreferences(
 				? preferences.themePreference
 				: DEFAULT_TIMELINE_PREFERENCES.themePreference,
 		heatmapOpen: preferences.heatmapOpen === true,
+		lineDiffType:
+			preferences.lineDiffType === 'word' ||
+			preferences.lineDiffType === 'char' ||
+			preferences.lineDiffType === 'none' ||
+			preferences.lineDiffType === 'word-alt'
+				? preferences.lineDiffType
+				: DEFAULT_TIMELINE_PREFERENCES.lineDiffType,
 	};
 }
 

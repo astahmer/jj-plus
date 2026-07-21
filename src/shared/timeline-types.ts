@@ -47,6 +47,8 @@ export type FileRevisionEntry = {
 
 export type ThemePreference = 'auto' | 'light' | 'dark';
 
+export type LineDiffType = 'word-alt' | 'word' | 'char' | 'none';
+
 export type TimelinePreferences = {
 	sidebarWidth?: number;
 	sidebarCollapsed?: boolean;
@@ -61,6 +63,7 @@ export type TimelinePreferences = {
 	customRevset?: string;
 	themePreference?: ThemePreference;
 	heatmapOpen?: boolean;
+	lineDiffType?: LineDiffType;
 };
 
 export type DiffPreview = {
@@ -304,6 +307,7 @@ export type TimelineCommand =
 			customRevset?: string;
 			themePreference?: ThemePreference;
 			heatmapOpen?: boolean;
+			lineDiffType?: LineDiffType;
 	  };
 
 export type TimelineFixtureFile = {

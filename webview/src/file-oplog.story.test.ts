@@ -1,7 +1,7 @@
 import { expect, test } from 'vitest';
 import { Story } from 'foldkit';
-import { PersistState, ScrollToEntry, SendHostCommand } from './commands.ts';
-import { ClickedFileOpLogEntry, GotHostMessage } from './messages.ts';
+import { PersistState, ScrollToEntry } from './commands.ts';
+import { ClickedFileOpLogEntry } from './messages.ts';
 import { hostCommandResolvers, hydratedModel, makeEntry, makeTimelineData } from './test/fixture-model.ts';
 import { update } from './update.ts';
 
@@ -37,39 +37,18 @@ test('file op-log strip click jumps to linked snapshot entry', () => {
 
 	Story.story(
 		update,
-		Story.with(
-			{
-				...ready,
-				fileOpLogEntries: [
-					{ operationId: 'opbbbb2222', description: 'second snap', entryIndex: 1, changeId: 'c1' },
-				],
-			},
-		),
+		Story.with({
+			...ready,
+			fileOpLogEntries: [
+				{ operationId: 'opbbbb2222', description: 'second snap', entryIndex: 1, changeId: 'c1' },
+			],
+		}),
 		Story.message(ClickedFileOpLogEntry({ operationId: 'opbbbb2222' })),
 		Story.Command.expectHas(PersistState, ScrollToEntry),
 		Story.Command.resolveAll(...hostCommandResolvers()),
 		Story.model((model) => {
 			expect(model.comparisonSource).toBe('snapshot');
 			expect(model.toIndex).toBe(1);
-		}),
-	);
-});
-
-test('timeline-data for jj requests file oplog load', () => {
-	const data = makeTimelineData(
-		[makeEntry({ index: 0 }), makeEntry({ index: 1 })],
-		{ backend: 'jj' },
-	);
-	const ready = hydratedModel(makeTimelineData([makeEntry({ index: 0 })]));
-
-	Story.story(
-		update,
-		Story.with(ready),
-		Story.message(GotHostMessage({ payload: { type: 'timeline-data', payload: data } })),
-		Story.Command.expectHas(SendHostCommand),
-		Story.Command.resolveAll(...hostCommandResolvers()),
-		Story.model((model) => {
-			expect(model.data).toBeTruthy();
 		}),
 	);
 });

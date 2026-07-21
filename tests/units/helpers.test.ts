@@ -695,5 +695,6 @@ test('normalizeTimelinePreferences restores missing values to the persisted defa
 		customRevset: '',
 		themePreference: 'auto',
 		heatmapOpen: false,
+		lineDiffType: 'word-alt',
 	});
 });

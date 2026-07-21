@@ -144,6 +144,7 @@ function persistCommand(model: Model): Command.Command<Message> {
 		customRevset: model.customRevset,
 		themePreference: model.themePreference,
 		heatmapOpen: model.heatmapOpen,
+		lineDiffType: model.lineDiffType,
 	};
 	return PersistState({ command });
 }
@@ -1295,6 +1296,13 @@ function handleTimelineDataMessage(
 				? preferences.themePreference
 				: 'auto',
 		heatmapOpen: preferences.heatmapOpen === true,
+		lineDiffType:
+			preferences.lineDiffType === 'word' ||
+			preferences.lineDiffType === 'char' ||
+			preferences.lineDiffType === 'none' ||
+			preferences.lineDiffType === 'word-alt'
+				? preferences.lineDiffType
+				: 'word-alt',
 		responsiveSidebarHeight: clampResponsiveSidebarHeight(model.responsiveSidebarHeight || 248),
 		layoutMode: preferences.layoutMode || cached?.layoutMode || 'split',
 		contentMode: preferences.contentMode || cached?.contentMode || 'diffs',
@@ -2014,6 +2022,7 @@ export function update(model: Model, message: Message): UpdateReturn {
 			SelectedLayoutMode: ({ value }) => withPersist(evo(model, { layoutMode: () => value })),
 			SelectedContentMode: ({ value }) => withPersist(evo(model, { contentMode: () => value })),
 			SelectedThemePreference: ({ value }) => withPersist(evo(model, { themePreference: () => value })),
+			SelectedLineDiffType: ({ value }) => withPersist(evo(model, { lineDiffType: () => value })),
 			SelectedPreset: ({ value }) => handleSetPreset(model, value),
 			UpdatedCustomRevset: ({ value }) => [evo(model, { customRevset: () => value }), []],
 			AppliedCustomRevset: () => [

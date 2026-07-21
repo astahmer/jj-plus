@@ -27,6 +27,7 @@ let lastThemeType: 'dark' | 'light' | undefined;
 let lastShowPierre = false;
 let lastBlameOverlayOpen = false;
 let lastHeatmapOpen = false;
+let lastLineDiffType: 'word-alt' | 'word' | 'char' | 'none' | undefined;
 let lastBlameSignature = '';
 let blameLinesCache: BlameLine[] = [];
 let stackMode = false;
@@ -111,9 +112,10 @@ function createFileDiff(
 	themeType: 'dark' | 'light',
 	blameOverlayOpen: boolean,
 	heatmapOpen: boolean,
+	lineDiffType: 'word-alt' | 'word' | 'char' | 'none',
 ): FileDiff {
 	return new FileDiff(
-		buildOptions(layoutMode, contentMode, themeType, blameOverlayOpen, heatmapOpen) as never,
+		buildOptions(layoutMode, contentMode, themeType, blameOverlayOpen, heatmapOpen, lineDiffType) as never,
 		getPierreWorkerPool(),
 	);
 }
@@ -162,6 +164,7 @@ function syncFromModel(model: Model): void {
 		heatmapOpen: model.heatmapOpen,
 		blameLines: blameLinesCache,
 		themePreference: model.themePreference,
+		lineDiffType: model.lineDiffType,
 	});
 }
 
@@ -174,6 +177,7 @@ type PierreDiffSyncArgs = {
 	heatmapOpen: boolean;
 	blameLines: BlameLine[];
 	themePreference: 'auto' | 'light' | 'dark';
+	lineDiffType: 'word-alt' | 'word' | 'char' | 'none';
 };
 
 type RangeStackSyncArgs = {
@@ -316,6 +320,7 @@ function syncPierreFileDiff(args: PierreDiffSyncArgs): void {
 		lastThemeType !== themeType ||
 		lastBlameOverlayOpen !== args.blameOverlayOpen ||
 		lastHeatmapOpen !== args.heatmapOpen ||
+		lastLineDiffType !== args.lineDiffType ||
 		!lastShowPierre;
 
 	const nextOldFile = stableFileContents(lastOldFile, {
@@ -341,6 +346,7 @@ function syncPierreFileDiff(args: PierreDiffSyncArgs): void {
 		themeType,
 		args.blameOverlayOpen,
 		args.heatmapOpen,
+		args.lineDiffType,
 	) as never;
 	if (!fileDiff) {
 		fileDiff = createFileDiff(
@@ -349,6 +355,7 @@ function syncPierreFileDiff(args: PierreDiffSyncArgs): void {
 			themeType,
 			args.blameOverlayOpen,
 			args.heatmapOpen,
+			args.lineDiffType,
 		);
 	} else if (optionsChanged) {
 		fileDiff.setOptions(options);
@@ -374,6 +381,7 @@ function syncPierreFileDiff(args: PierreDiffSyncArgs): void {
 	lastThemeType = themeType;
 	lastBlameOverlayOpen = args.blameOverlayOpen;
 	lastHeatmapOpen = args.heatmapOpen;
+	lastLineDiffType = args.lineDiffType;
 	lastShowPierre = true;
 	const portalEl = ensurePortal();
 	portalEl.classList.toggle('is-blame-open', args.blameOverlayOpen);
@@ -781,12 +789,14 @@ function buildOptions(
 	themeType: 'dark' | 'light',
 	blameOverlayOpen = false,
 	heatmapOpen = false,
+	lineDiffType: 'word-alt' | 'word' | 'char' | 'none' = 'word-alt',
 ) {
 	const annotationsActive = blameOverlayOpen || heatmapOpen;
 	return {
 		theme: { dark: 'pierre-dark' as const, light: 'pierre-light' as const },
 		themeType,
 		diffStyle: layoutMode === 'unified' ? ('unified' as const) : ('split' as const),
+		lineDiffType,
 		// Blame/heatmap are gutter annotations — do not force whole-file expand.
 		expandUnchanged: contentMode === 'full',
 		disableFileHeader: true,
