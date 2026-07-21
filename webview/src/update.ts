@@ -923,6 +923,7 @@ function handleReset(model: Model): UpdateReturn {
 		historySearchQuery: () => '',
 		historySearchLoading: () => false as boolean,
 		historySearchResult: () => null,
+		timeLapsePlaying: () => false as boolean,
 		sidebarSearchQuery: () => '',
 		sidebarWidth: () => clampSidebarWidth(280),
 		timelinePaneHeight: () => 220,
@@ -1662,6 +1663,22 @@ export function update(model: Model, message: Message): UpdateReturn {
 			UpdatedHistorySearchQuery: ({ value }) => [evo(model, { historySearchQuery: () => value }), []],
 			SubmittedHistorySearch: () => handleSubmitHistorySearch(model),
 			ClickedHistorySearchHit: ({ entryIndex }) => handleHistorySearchHitClick(model, entryIndex),
+			ToggledTimeLapse: () => [
+				evo(model, {
+					timeLapsePlaying: (playing) => !playing,
+					comparisonMode: () => 'step' as ComparisonMode,
+				}),
+				[],
+			],
+			TimeLapseTick: () => {
+				if (!model.timeLapsePlaying) {
+					return [model, []];
+				}
+				if (!canStepForward(model)) {
+					return [evo(model, { timeLapsePlaying: () => false }), []];
+				}
+				return handleStep(model, 1);
+			},
 			ToggledIntermediate: () => handleToggleIntermediate(model),
 			ClickedStepBackward: () => handleStep(model, -1),
 			ClickedStepFastBackward: () => handleStep(model, -5),

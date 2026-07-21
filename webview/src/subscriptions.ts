@@ -11,6 +11,7 @@ import {
 	PressedShortcut,
 	ReleasedPointerDuringDrag,
 	ClickedPierreBlameLine,
+	TimeLapseTick,
 } from './messages.ts';
 import type { Model } from './model.ts';
 import { PIERRE_BLAME_LINE_EVENT } from './pierre/file-diff-host.ts';
@@ -155,4 +156,12 @@ export const subscriptions = Subscription.make<Model, Message>()((entry) => ({
 	trackMouseMove: Subscription.persistent(trackMouseMoveStream),
 	trackMouseOut: Subscription.persistent(trackMouseOutStream),
 	pierreBlameClick: Subscription.persistent(pierreBlameClickStream),
+	timeLapse: entry(
+		{ timeLapsePlaying: S.Boolean },
+		{
+			modelToDependencies: (model) => ({ timeLapsePlaying: model.timeLapsePlaying }),
+			dependenciesToStream: ({ timeLapsePlaying }) =>
+				timeLapsePlaying ? Stream.tick('700 millis').pipe(Stream.map(() => TimeLapseTick())) : Stream.empty,
+		},
+	),
 }));

@@ -60,6 +60,8 @@ export const ClickedPierreBlameLine = m('ClickedPierreBlameLine', {
 export const UpdatedHistorySearchQuery = m('UpdatedHistorySearchQuery', { value: S.String });
 export const SubmittedHistorySearch = m('SubmittedHistorySearch');
 export const ClickedHistorySearchHit = m('ClickedHistorySearchHit', { entryIndex: S.Number });
+export const ToggledTimeLapse = m('ToggledTimeLapse');
+export const TimeLapseTick = m('TimeLapseTick');
 export const ToggledIntermediate = m('ToggledIntermediate');
 
 // Track
@@ -176,6 +178,8 @@ export const Message = S.Union([
 	UpdatedHistorySearchQuery,
 	SubmittedHistorySearch,
 	ClickedHistorySearchHit,
+	ToggledTimeLapse,
+	TimeLapseTick,
 	ToggledIntermediate,
 	ClickedTrackAnchor,
 	ClickedStepBackward,

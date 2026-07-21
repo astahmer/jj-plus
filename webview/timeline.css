@@ -1417,6 +1417,11 @@ kbd {
 	cursor: default;
 }
 
+.time-lapse-button.is-active {
+	border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+	background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
 .range-label {
 	font-size: 12px;
 	font-weight: 600;

@@ -14,6 +14,7 @@ import {
 	PressedRangeFill,
 	PressedTrack,
 	PressedTrackAnchor,
+	ToggledTimeLapse,
 	UnhoveredEntry,
 } from '../messages.ts';
 import type { Model } from '../model.ts';
@@ -186,6 +187,18 @@ export function timelineTrack(model: Model): Html {
 					h.OnClick(ClickedStepForward()),
 				],
 				['›'],
+			),
+			h.button(
+				[
+					h.Class(`step-button time-lapse-button${model.timeLapsePlaying ? ' is-active' : ''}`),
+					h.Id('toggleTimeLapseButton'),
+					h.Type('button'),
+					h.Title(model.timeLapsePlaying ? 'Pause time-lapse' : 'Play time-lapse (auto-step)'),
+					h.AriaLabel(model.timeLapsePlaying ? 'Pause time-lapse' : 'Play time-lapse'),
+					h.AriaPressed(String(model.timeLapsePlaying)),
+					h.OnClick(ToggledTimeLapse()),
+				],
+				[model.timeLapsePlaying ? '❚❚' : '▶'],
 			),
 			h.button(
 				[
