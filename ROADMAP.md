@@ -14,6 +14,14 @@ Related: [TODO.md](./TODO.md) (engineering backlog). This doc is product ideas +
 | 4   | **Multi-file Pierre for range**     | Inspect all files changed in from→to inside the panel         | done (chips + in-panel stack) |
 | 5   | **Revset filter + evolog overlay**  | Power filter (`jj log -r`) + evolution strip for a change     | done                          |
 
+## Wave 2 sharp bets
+
+| #   | Bet                              | Intent                                                              | Status |
+| --- | -------------------------------- | ------------------------------------------------------------------- | ------ |
+| 6   | **Blame overlay on Pierre**      | Annotate after-side lines; click jumps timeline to that blame rev   | next   |
+| 7   | **Search in history**            | Find when a string was introduced / last removed across file revs   | queued |
+| 8   | **Time-lapse play**              | Auto-step the scrubber through the selected/visible range with pause | queued |
+
 ## Idea inventory (from competitors)
 
 ### Stay in lane (high fit)
