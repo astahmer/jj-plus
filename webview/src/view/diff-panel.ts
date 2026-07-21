@@ -137,10 +137,13 @@ function renderBodyOverlay(
 						h.div([], ['No textual changes in this selection.']),
 						preview.nonTextualDetails?.length
 							? h.div(
-									[h.Class('empty-diff-details')],
-									preview.nonTextualDetails.map((detail) => h.div([], [detail])),
+									[h.Class('empty-diff-details'), h.Id('emptyDiffDetails')],
+									preview.nonTextualDetails.map((detail) => h.div([h.Class('empty-diff-detail')], [detail])),
 								)
-							: h.empty,
+							: h.div(
+									[h.Class('empty-diff-details'), h.Id('emptyDiffDetails')],
+									[h.div([h.Class('empty-diff-detail')], ['No further detail available for this empty selection.'])],
+								),
 					],
 				),
 			],

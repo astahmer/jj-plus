@@ -32,6 +32,7 @@ import type {
 	TimelinePreferences,
 } from '../shared/timeline-types.ts';
 import { computeDiffStats } from '../shared/diff-stats.ts';
+import { buildNonTextualDetails } from '../shared/non-textual-details.ts';
 
 const execFileAsync = promisify(execFile);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -1044,7 +1045,15 @@ async function buildPreview(args: {
 		afterPath,
 		beforeText,
 		afterText,
-		nonTextualDetails: beforePath !== afterPath ? [`Path moved: ${beforePath} -> ${afterPath}`] : [],
+		nonTextualDetails: stats.hasChanges
+			? []
+			: buildNonTextualDetails({
+					beforeText,
+					afterText,
+					beforePath,
+					afterPath,
+					isWorkingTree: toEntry?.isWorkingTree,
+				}),
 	};
 }
 

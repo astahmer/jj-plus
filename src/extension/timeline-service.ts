@@ -1,6 +1,6 @@
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { textsMatchIgnoringLineEndings } from '../shared/diff-helpers.ts';
+import { buildNonTextualDetails } from '../shared/non-textual-details.ts';
 import { computeDiffStats } from '../shared/diff-stats.ts';
 import {
 	buildGitBlameArgs,
@@ -1506,39 +1506,16 @@ function buildDiffPreview(args: {
 		afterPath: args.afterPath,
 		beforeText: args.beforeText,
 		afterText: args.afterText,
-		nonTextualDetails: stats.hasChanges ? [] : buildNonTextualDetails(args),
+		nonTextualDetails: stats.hasChanges
+			? []
+			: buildNonTextualDetails({
+					beforeText: args.beforeText,
+					afterText: args.afterText,
+					beforePath: args.beforePath,
+					afterPath: args.afterPath,
+					isWorkingTree: args.currentEntry.isWorkingTree,
+				}),
 	};
-}
-
-function buildNonTextualDetails(args: {
-	previousEntry?: FileRevisionEntry;
-	currentEntry: FileRevisionEntry;
-	beforeText: string;
-	afterText: string;
-	beforePath: string;
-	afterPath: string;
-}): string[] {
-	const details: string[] = [];
-
-	if (args.previousEntry && args.beforePath && args.afterPath && args.beforePath !== args.afterPath) {
-		details.push(`Path changed: ${args.beforePath} -> ${args.afterPath}`);
-	}
-
-	if (args.beforeText !== args.afterText && textsMatchIgnoringLineEndings(args.beforeText, args.afterText)) {
-		details.push('Line endings changed.');
-	}
-
-	if (!details.length && args.currentEntry.isWorkingTree) {
-		details.push('The working tree differs in a way this preview does not render as a textual line diff.');
-	}
-
-	if (!details.length) {
-		details.push(
-			'This selection changed file metadata or another non-text detail that is not shown in the inline preview.',
-		);
-	}
-
-	return details;
 }
 
 function mergeTimelineEntries(args: {
