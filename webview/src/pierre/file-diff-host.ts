@@ -1,10 +1,7 @@
 import { FileDiff, type DiffLineAnnotation, type FileContents } from '@pierre/diffs';
-import {
-	findBlameForLine,
-	formatBlameGutterLabel,
-	formatBlameHoverTooltip,
-	type BlameLine,
-} from '../../../src/shared/blame.ts';
+import { languageFromPath } from '../../../src/shared/pierre-language.ts';
+import { resolvePierreThemeType, type PierreThemePreference } from '../../../src/shared/pierre-theme.ts';
+import { findBlameForLine, type BlameLine } from '../../../src/shared/blame.ts';
 import { computeBlameHeatLevels, heatLevelClass, type HeatLevel } from '../../../src/shared/blame-heatmap.ts';
 import type { Model } from '../model.ts';
 import { getPreview, getRangeStackItems } from '../selectors.ts';
@@ -74,6 +71,8 @@ type DiffLayoutMetrics = {
 };
 
 export function queuePierreFileDiffSync(model: Model): void {
+	lastSyncedModel = model;
+	observePierreThemePreference(() => lastSyncedModel);
 	pendingModel = model;
 	void ensurePierreWorkerPool().then((pool) => {
 		if (pool && !workerPoolReady) {
@@ -253,11 +252,13 @@ function syncRangeStack(args: RangeStackSyncArgs): void {
 			name: item.preview.beforePath || item.relativePath,
 			contents: item.preview.beforeText ?? '',
 			cacheKey: `old:${item.relativePath}:${hashText(item.preview.beforeText ?? '')}`,
+			lang: languageFromPath(item.preview.beforePath || item.relativePath),
 		});
 		const nextNewFile = stableFileContents(stackEntry.newFile, {
 			name: item.preview.afterPath || item.relativePath,
 			contents: item.preview.afterText ?? '',
 			cacheKey: `new:${item.relativePath}:${hashText(item.preview.afterText ?? '')}`,
+			lang: languageFromPath(item.preview.afterPath || item.relativePath),
 		});
 		const optionsChanged =
 			lastLayoutMode !== args.layoutMode || lastContentMode !== args.contentMode || lastThemeType !== themeType;
@@ -337,11 +338,13 @@ function syncPierreFileDiff(args: PierreDiffSyncArgs): void {
 		name: args.preview.beforePath || 'before',
 		contents: args.preview.beforeText ?? '',
 		cacheKey: `old:${args.preview.beforePath}:${hashText(args.preview.beforeText ?? '')}`,
+		lang: languageFromPath(args.preview.beforePath || args.preview.afterPath || 'file.ts'),
 	});
 	const nextNewFile = stableFileContents(lastNewFile, {
 		name: args.preview.afterPath || 'after',
 		contents: args.preview.afterText ?? '',
 		cacheKey: `new:${args.preview.afterPath}:${hashText(args.preview.afterText ?? '')}`,
+		lang: languageFromPath(args.preview.afterPath || args.preview.beforePath || 'file.ts'),
 	});
 
 	const filesChanged = nextOldFile !== lastOldFile || nextNewFile !== lastNewFile;
@@ -787,7 +790,7 @@ const HEAT_LINE_BACKGROUNDS: Record<HeatLevel, string> = {
 	4: 'color-mix(in srgb, #f85149 28%, transparent)',
 };
 
-/** GitLens-like EOL blame + full-line heatmap paint on the additions-side code rows. */
+/** Full-line heatmap paint on the additions-side code rows (timeline blame chips removed). */
 export function paintPierreBlameHeatOverlays(args: {
 	portal: HTMLElement;
 	blameOverlayOpen: boolean;
@@ -811,46 +814,19 @@ export function paintPierreBlameHeatOverlays(args: {
 		}
 	}
 
-	if (!args.blameOverlayOpen && !args.heatmapOpen) {
+	if (!args.heatmapOpen) {
 		return;
 	}
 
-	const heat = args.heatmapOpen ? computeBlameHeatLevels(args.blameLines) : null;
-	const byLine = new Map(args.blameLines.map((entry) => [entry.line, entry]));
-
-	const lineNumbers = new Set<number>([...args.blameLines.map((entry) => entry.line), ...(heat ? heat.keys() : [])]);
-
-	for (const lineNumber of lineNumbers) {
+	const heat = computeBlameHeatLevels(args.blameLines);
+	for (const [lineNumber, level] of heat) {
 		const lineEl = findAdditionSideLineElement(root, lineNumber);
 		if (!lineEl) {
 			continue;
 		}
-
-		if (heat) {
-			const level = heat.get(lineNumber);
-			if (typeof level === 'number') {
-				lineEl.dataset.jjplusHeat = String(level);
-				lineEl.classList.add('jjplus-line-heat');
-				lineEl.style.backgroundColor = HEAT_LINE_BACKGROUNDS[level];
-			}
-		}
-
-		if (args.blameOverlayOpen) {
-			const entry = byLine.get(lineNumber);
-			if (!entry?.revision) {
-				continue;
-			}
-			const span = document.createElement('span');
-			span.className = 'jjplus-eol-blame';
-			span.textContent = formatBlameGutterLabel(entry);
-			span.title = formatBlameHoverTooltip(entry);
-			span.addEventListener('click', (event) => {
-				event.preventDefault();
-				event.stopPropagation();
-				emitBlameLineClick(lineNumber, entry.revision);
-			});
-			lineEl.appendChild(span);
-		}
+		lineEl.dataset.jjplusHeat = String(level);
+		lineEl.classList.add('jjplus-line-heat');
+		lineEl.style.backgroundColor = HEAT_LINE_BACKGROUNDS[level];
 	}
 }
 
@@ -1028,27 +1004,14 @@ function buildOptions(
 	};
 }
 
-function resolveThemeType(preference: 'auto' | 'light' | 'dark' = 'auto'): 'dark' | 'light' {
-	if (preference === 'light') {
-		return 'light';
-	}
-	if (preference === 'dark') {
-		return 'dark';
-	}
-	const body = document.body;
-	if (
-		body.classList.contains('vscode-light') ||
-		body.classList.contains('vscode-high-contrast-light') ||
-		body.dataset.vscodeThemeKind === 'vscode-light'
-	) {
-		return 'light';
-	}
-	if (window.matchMedia?.('(prefers-color-scheme: light)').matches && !body.classList.contains('vscode-dark')) {
-		if (getComputedStyle(body).colorScheme === 'light') {
-			return 'light';
-		}
-	}
-	return 'dark';
+function resolveThemeType(preference: PierreThemePreference = 'auto'): 'dark' | 'light' {
+	const body = typeof document !== 'undefined' ? document.body : undefined;
+	return resolvePierreThemeType(preference, {
+		bodyClasses: body?.classList,
+		themeKind: body?.dataset.vscodeThemeKind,
+		prefersLight: typeof window !== 'undefined' ? window.matchMedia?.('(prefers-color-scheme: light)').matches : false,
+		colorScheme: body && typeof getComputedStyle === 'function' ? getComputedStyle(body).colorScheme : undefined,
+	});
 }
 
 function stableFileContents(previous: FileContents | undefined, next: FileContents): FileContents {
@@ -1056,7 +1019,8 @@ function stableFileContents(previous: FileContents | undefined, next: FileConten
 		previous &&
 		previous.name === next.name &&
 		previous.contents === next.contents &&
-		previous.cacheKey === next.cacheKey
+		previous.cacheKey === next.cacheKey &&
+		previous.lang === next.lang
 	) {
 		return previous;
 	}
@@ -1070,4 +1034,26 @@ function hashText(value: string): string {
 		hash = Math.imul(hash, 16777619);
 	}
 	return (hash >>> 0).toString(36);
+}
+
+let themeObserver: MutationObserver | undefined;
+let themeMedia: MediaQueryList | undefined;
+let lastSyncedModel: Model | undefined;
+
+/** Keep Pierre themeType in sync with VS Code body theme when preference is auto. */
+export function observePierreThemePreference(getModel: () => Model | undefined): void {
+	if (typeof document === 'undefined' || themeObserver) {
+		return;
+	}
+	const resync = () => {
+		const model = getModel() ?? lastSyncedModel;
+		if (model) {
+			lastSyncedModel = model;
+			syncFromModel(model);
+		}
+	};
+	themeObserver = new MutationObserver(resync);
+	themeObserver.observe(document.body, { attributes: true, attributeFilter: ['class', 'data-vscode-theme-kind'] });
+	themeMedia = window.matchMedia('(prefers-color-scheme: light)');
+	themeMedia.addEventListener('change', resync);
 }
