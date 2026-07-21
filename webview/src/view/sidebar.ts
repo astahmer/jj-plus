@@ -2,6 +2,7 @@ import { html, type Html } from 'foldkit/html';
 import { getEntryTimelineMarkers } from '../domain/timeline-markers.ts';
 import type { Message } from '../messages.ts';
 import {
+	ClickedEvologEntry,
 	ClickedHistoryEntry,
 	ClickedOpenRevisionFilesDiff,
 	ClickedOpenRevisionRemote,
@@ -254,8 +255,15 @@ export function sidebar(model: Model): Html {
 						h.div(
 							[h.Class('evolog-strip-list')],
 							evolog.map((entry) =>
-								h.div(
-									[h.Class('evolog-strip-item'), h.Title(entry.description || entry.shortRevision)],
+								h.button(
+									[
+										h.Class(
+											`evolog-strip-item${entry.index === model.toIndex && model.comparisonSource === 'snapshot' ? ' is-active' : ''}`,
+										),
+										h.Type('button'),
+										h.Title(entry.description || entry.shortRevision),
+										h.OnClick(ClickedEvologEntry({ entryIndex: entry.index })),
+									],
 									[entry.shortRevision],
 								),
 							),

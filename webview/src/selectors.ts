@@ -136,8 +136,8 @@ export function getEvologStripEntries(model: Model): Array<FileRevisionEntry> {
 	if (!tip?.changeId) {
 		return [];
 	}
-	const snapshots = Array.isArray(data.snapshotEntries) ? data.snapshotEntries : [];
-	return snapshots.filter((entry) => entry.changeId === tip.changeId);
+	const snapshotSource = getEntriesForSource(data, 'snapshot');
+	return snapshotSource.filter((entry) => entry.changeId === tip.changeId);
 }
 
 export function getIntermediateLabel(model: Model): string {

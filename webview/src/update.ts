@@ -672,6 +672,27 @@ function handleSetComparisonSource(model: Model, value: ComparisonSource): Updat
 	return afterMutate(next, [persistCommand(next)]);
 }
 
+function handleEvologEntryClick(model: Model, entryIndex: number): UpdateReturn {
+	if (getData(model)?.backend !== 'jj') {
+		return [model, []];
+	}
+	const snapshotEntries = getEntriesForSource(getData(model), 'snapshot');
+	const target = snapshotEntries.find((entry) => entry.index === entryIndex);
+	if (!target) {
+		return [model, []];
+	}
+	const fromIndex = Math.max(0, entryIndex - 1);
+	let next = clearCaches(model);
+	next = evo(next, {
+		comparisonSource: () => 'snapshot' as ComparisonSource,
+		fromIndex: () => fromIndex,
+		toIndex: () => entryIndex,
+		maybeHoveredSelectionIndex: () => Option.none(),
+	});
+	next = stepSelection(next, CancelledSelection());
+	return afterMutate(next, [persistCommand(next), ScrollToEntry({ entryIndex })]);
+}
+
 function handleSetPreset(model: Model, value: TimelinePreset): UpdateReturn {
 	if (!getData(model) || value === model.preset) {
 		let next = evo(model, {
@@ -1324,6 +1345,7 @@ export function update(model: Model, message: Message): UpdateReturn {
 			IgnoredMouseClick: () => [model, []],
 			GotHostMessage: ({ payload }) => handleGotHostMessage(model, payload),
 			ClickedHistoryEntry: ({ entryIndex }) => handleTrackAnchorClick(model, entryIndex),
+			ClickedEvologEntry: ({ entryIndex }) => handleEvologEntryClick(model, entryIndex),
 			ClickedTrackAnchor: ({ entryIndex }) => {
 				if (model.suppressAnchorClick) {
 					return [evo(model, { suppressAnchorClick: () => false }), []];

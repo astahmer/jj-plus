@@ -957,6 +957,14 @@ kbd {
 	font-size: 10px;
 	color: var(--muted);
 	font-family: var(--mono, ui-monospace, monospace);
+	background: transparent;
+	cursor: pointer;
+}
+
+.evolog-strip-item.is-active {
+	color: var(--text);
+	border-color: color-mix(in srgb, var(--accent-alt) 50%, var(--border));
+	background: color-mix(in srgb, var(--accent-alt) 14%, transparent);
 }
 
 .range-file-list {
