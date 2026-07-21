@@ -38,6 +38,7 @@ const DEFAULT_TIMELINE_PREFERENCES: Required<TimelinePreferences> = {
 	comparisonSource: 'revision',
 	showIntermediateRevisions: false,
 	preset: 'year',
+	customRevset: '',
 };
 
 const IGNORED_WORKSPACE_DIRECTORIES = new Set(['.git', '.jj', 'node_modules', 'dist', 'build', 'out', 'coverage']);
@@ -80,6 +81,7 @@ function syncSession(request: { target: ExtensionTimelineSession; source: Extens
 	request.target.pathCache = request.source.pathCache;
 	request.target.activeActionAbortController = request.source.activeActionAbortController;
 	request.target.lineHistory = request.source.lineHistory;
+	request.target.customRevset = request.source.customRevset;
 }
 
 async function getContentForRevset(request: {
@@ -251,6 +253,7 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 			includeIntermediateRevisions?: boolean;
 			entryLimit?: number;
 			lineHistory?: LineHistoryRange;
+			customRevset?: string;
 		};
 	}): Promise<ExtensionTimelineSession> {
 		const historyWorkspacePath = await resolveHistoryWorkspacePath({ workspacePath: request.workspacePath, runner });
@@ -262,6 +265,7 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 		const lineHistory = request.options?.lineHistory
 			? normalizeLineHistoryRange(request.options.lineHistory.startLine, request.options.lineHistory.endLine)
 			: null;
+		const customRevset = (request.options?.customRevset || '').trim() || undefined;
 
 		const workspaceFiles = includeWorkspaceFiles
 			? await listWorkspaceFiles({ adapter, workspacePath: historyWorkspacePath })
@@ -270,6 +274,7 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 			workspacePath: historyWorkspacePath,
 			relativePath,
 			limit: entryLimit,
+			customRevset,
 		});
 		let entries = await buildTimelineEntries({
 			adapter,
@@ -325,6 +330,7 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 			historyLimit: entryLimit,
 			intermediateRevisionsLoaded: includeIntermediateRevisions,
 			lineHistory: lineHistory ?? undefined,
+			customRevset,
 			contentCache: new Map(),
 			previewCache: new Map(),
 			rangeOverviewCache: new Map(),
@@ -365,6 +371,7 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 				loadedChangeIds: [...request.session.snapshotLoadedChangeIds],
 			},
 			...(request.session.lineHistory ? { lineHistory: request.session.lineHistory } : {}),
+			...(request.session.customRevset ? { customRevset: request.session.customRevset } : {}),
 		};
 	}
 
@@ -1208,9 +1215,14 @@ export function normalizeTimelinePreferences(
 			preferences.comparisonSource === 'snapshot' ? 'snapshot' : DEFAULT_TIMELINE_PREFERENCES.comparisonSource,
 		showIntermediateRevisions: preferences.showIntermediateRevisions === true,
 		preset:
-			preferences.preset && Object.hasOwn(DEFAULT_TIMELINE_PREFERENCES, 'preset')
+			preferences.preset === '7d' ||
+			preferences.preset === '30d' ||
+			preferences.preset === '90d' ||
+			preferences.preset === 'all' ||
+			preferences.preset === 'year'
 				? preferences.preset
 				: DEFAULT_TIMELINE_PREFERENCES.preset,
+		customRevset: typeof preferences.customRevset === 'string' ? preferences.customRevset.trim() : '',
 	};
 }
 

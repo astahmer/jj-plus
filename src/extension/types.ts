@@ -55,6 +55,8 @@ export type HistoryAdapter = {
 		workspacePath: string;
 		relativePath: string;
 		limit?: number;
+		/** Optional jj revset intersected with the default file history window. */
+		customRevset?: string;
 	}): Promise<FileRevisionEntry[]>;
 	getRepositoryRevisionHistory(args: { workspacePath: string; limit?: number }): Promise<FileRevisionEntry[]>;
 	showFileAtRevision(args: { workspacePath: string; revset: string; filePath: string }): Promise<string>;
@@ -98,6 +100,7 @@ export type ExtensionTimelineSession = TimelineSession & {
 	workspaceFilesLoaded: boolean;
 	intermediateRevisionsLoaded: boolean;
 	lineHistory?: LineHistoryRange;
+	customRevset?: string;
 };
 
 export type TimelineDebugState = {

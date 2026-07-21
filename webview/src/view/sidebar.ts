@@ -15,6 +15,7 @@ import type { Model } from '../model.ts';
 import {
 	getFilteredSidebarEntries,
 	getEntryDiffCount,
+	getEvologStripEntries,
 	getPendingSelectionIndex,
 	getPreviewForEntry,
 	getSelectionDiffCount,
@@ -241,6 +242,27 @@ export function sidebar(model: Model): Html {
 					]),
 				],
 			),
+			(() => {
+				const evolog = getEvologStripEntries(model);
+				if (evolog.length <= 1) {
+					return h.empty;
+				}
+				return h.div(
+					[h.Class('evolog-strip'), h.Id('evologStrip')],
+					[
+						h.div([h.Class('eyebrow')], ['Evolution']),
+						h.div(
+							[h.Class('evolog-strip-list')],
+							evolog.map((entry) =>
+								h.div(
+									[h.Class('evolog-strip-item'), h.Title(entry.description || entry.shortRevision)],
+									[entry.shortRevision],
+								),
+							),
+						),
+					],
+				);
+			})(),
 			h.div(
 				[h.Class('history-list'), h.Id('historyList')],
 				sidebarEntries.length === 0

@@ -921,6 +921,44 @@ kbd {
 	color: var(--accent-alt);
 }
 
+.revset-filter {
+	display: grid;
+	gap: 6px;
+	margin-top: 8px;
+}
+
+.revset-input {
+	width: 100%;
+	border: 1px solid var(--border);
+	border-radius: var(--radius-control);
+	background: var(--input-bg);
+	color: var(--text);
+	font: inherit;
+	font-size: 11px;
+	padding: 4px 6px;
+}
+
+.evolog-strip {
+	padding: 6px 10px 0;
+	display: grid;
+	gap: 4px;
+}
+
+.evolog-strip-list {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+}
+
+.evolog-strip-item {
+	border: 1px solid var(--border);
+	border-radius: var(--radius-control);
+	padding: 1px 5px;
+	font-size: 10px;
+	color: var(--muted);
+	font-family: var(--mono, ui-monospace, monospace);
+}
+
 .range-file-list {
 	display: flex;
 	flex-wrap: wrap;

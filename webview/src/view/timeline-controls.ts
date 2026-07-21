@@ -7,6 +7,8 @@ import {
 	SelectedContentMode,
 	SelectedLayoutMode,
 	SelectedPreset,
+	AppliedCustomRevset,
+	UpdatedCustomRevset,
 	ToggledIntermediate,
 } from '../messages.ts';
 import type { Model } from '../model.ts';
@@ -187,6 +189,31 @@ export function timelineControls(model: Model): Html {
 													),
 												),
 											),
+											getBackend(model) === 'jj'
+												? h.div(
+														[h.Class('revset-filter'), h.Id('revsetFilter')],
+														[
+															h.label([h.Class('view-menu-label'), h.For('customRevsetInput')], ['Revset']),
+															h.input([
+																h.Class('revset-input'),
+																h.Id('customRevsetInput'),
+																h.Type('text'),
+																h.Placeholder('e.g. bookmarks() | remote_bookmarks()'),
+																h.Value(model.customRevset),
+																h.OnInput((value) => UpdatedCustomRevset({ value })),
+															]),
+															h.button(
+																[
+																	h.Class('menu-item'),
+																	h.Id('applyCustomRevsetButton'),
+																	h.Type('button'),
+																	h.OnClick(AppliedCustomRevset()),
+																],
+																['Apply revset'],
+															),
+														],
+													)
+												: h.empty,
 										],
 									),
 								],

@@ -48,6 +48,8 @@ export const SelectedComparisonSource = m('SelectedComparisonSource', {
 export const SelectedLayoutMode = m('SelectedLayoutMode', { value: S.Literals(['split', 'unified']) });
 export const SelectedContentMode = m('SelectedContentMode', { value: S.Literals(['diffs', 'full']) });
 export const SelectedPreset = m('SelectedPreset', { value: S.Literals(['year', '7d', '30d', '90d', 'all']) });
+export const UpdatedCustomRevset = m('UpdatedCustomRevset', { value: S.String });
+export const AppliedCustomRevset = m('AppliedCustomRevset');
 export const ToggledIntermediate = m('ToggledIntermediate');
 
 // Track
@@ -155,6 +157,8 @@ export const Message = S.Union([
 	SelectedLayoutMode,
 	SelectedContentMode,
 	SelectedPreset,
+	UpdatedCustomRevset,
+	AppliedCustomRevset,
 	ToggledIntermediate,
 	ClickedTrackAnchor,
 	ClickedStepBackward,

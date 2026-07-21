@@ -53,6 +53,7 @@ export type TimelinePreferences = {
 	comparisonSource?: ComparisonSource;
 	showIntermediateRevisions?: boolean;
 	preset?: TimelinePreset;
+	customRevset?: string;
 };
 
 export type DiffPreview = {
@@ -120,6 +121,7 @@ export type TimelineData = {
 	};
 	/** Present when timeline is filtered to revisions that touched these lines. */
 	lineHistory?: LineHistoryRange;
+	customRevset?: string;
 };
 
 export type TimelineInboundMessage =
@@ -220,6 +222,7 @@ export type TimelineCommand =
 	| { command: 'resolve-nonempty-range'; candidateIndexes: number[] }
 	| { command: 'switch-file'; relativePath: string }
 	| { command: 'clear-line-history' }
+	| { command: 'set-custom-revset'; customRevset: string }
 	| {
 			command: 'persist-state';
 			sidebarWidth: number;
@@ -232,6 +235,7 @@ export type TimelineCommand =
 			comparisonSource: ComparisonSource;
 			showIntermediateRevisions: boolean;
 			preset: TimelinePreset;
+			customRevset?: string;
 	  };
 
 export type TimelineFixtureFile = {

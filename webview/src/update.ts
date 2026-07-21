@@ -116,6 +116,7 @@ function persistCommand(model: Model): Command.Command<Message> {
 		comparisonSource: getEffectiveComparisonSource(model),
 		showIntermediateRevisions: model.showIntermediateRevisions,
 		preset: model.preset,
+		customRevset: model.customRevset,
 	};
 	return PersistState({ command });
 }
@@ -834,6 +835,7 @@ function handleReset(model: Model): UpdateReturn {
 		contentMode: () => 'diffs' as 'diffs' | 'full',
 		preset: () => 'year' as TimelinePreset,
 		showIntermediateRevisions: () => false as boolean,
+		customRevset: () => '',
 		sidebarSearchQuery: () => '',
 		sidebarWidth: () => clampSidebarWidth(280),
 		timelinePaneHeight: () => 220,
@@ -927,6 +929,12 @@ function handleTimelineDataMessage(
 		viewMenuOpen: false,
 		hotkeysOpen: false,
 		oldestFirst: false,
+		customRevset:
+			typeof preferences.customRevset === 'string'
+				? preferences.customRevset
+				: typeof data.customRevset === 'string'
+					? data.customRevset
+					: '',
 		fileInputValue: data.relativePath,
 		maybeHoveredSelectionIndex: Option.none(),
 	};
@@ -1404,6 +1412,15 @@ export function update(model: Model, message: Message): UpdateReturn {
 			SelectedLayoutMode: ({ value }) => withPersist(evo(model, { layoutMode: () => value })),
 			SelectedContentMode: ({ value }) => withPersist(evo(model, { contentMode: () => value })),
 			SelectedPreset: ({ value }) => handleSetPreset(model, value),
+			UpdatedCustomRevset: ({ value }) => [evo(model, { customRevset: () => value }), []],
+			AppliedCustomRevset: () => [
+				stepOverlay(model, ClosedOverlays()),
+				[
+					SendHostCommand({
+						command: { command: 'set-custom-revset', customRevset: model.customRevset.trim() },
+					}),
+				],
+			],
 			ToggledIntermediate: () => handleToggleIntermediate(model),
 			ClickedStepBackward: () => handleStep(model, -1),
 			ClickedStepFastBackward: () => handleStep(model, -5),

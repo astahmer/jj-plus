@@ -341,6 +341,7 @@ export function createTimelineHost(): TimelineHost {
 			comparisonSource: command.comparisonSource,
 			showIntermediateRevisions: command.showIntermediateRevisions,
 			preset: command.preset,
+			customRevset: command.customRevset,
 		};
 		window.localStorage.setItem(key, JSON.stringify(nextPreferences));
 	}
@@ -515,6 +516,38 @@ export function createTimelineHost(): TimelineHost {
 			if (command.command === 'clear-line-history') {
 				lineHistoryFilter = null;
 				void emitTimeline();
+				return;
+			}
+
+			if (command.command === 'set-custom-revset') {
+				void getFixture().then((fixture) => {
+					const fileFixture = getActiveFileFixture(fixture);
+					const timelineData = applyBrowserLineHistoryFilter(
+						{
+							...withPersistedPreferences(fileFixture.timelineData),
+							customRevset: command.customRevset,
+							entries: fileFixture.timelineData.entries.filter(
+								(_, index) => index % 2 === 0 || index === fileFixture.timelineData.entries.length - 1,
+							),
+						},
+						lineHistoryFilter,
+					);
+					const remapped = timelineData.entries.map((entry, index) => ({ ...entry, index }));
+					emit({
+						type: 'timeline-data',
+						payload: {
+							...timelineData,
+							entries: remapped,
+							defaultIndex: Math.max(0, remapped.length - 1),
+							latestIndex: Math.max(0, remapped.length - 1),
+							customRevset: command.customRevset,
+							preferences: {
+								...timelineData.preferences,
+								customRevset: command.customRevset,
+							},
+						},
+					});
+				});
 				return;
 			}
 

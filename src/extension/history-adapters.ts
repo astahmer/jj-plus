@@ -13,6 +13,7 @@ import {
 	toJjRootFileFileset,
 } from '../shared/history-helpers.ts';
 import type { FileRevisionEntry } from '../shared/timeline-types.ts';
+import { composeJjHistoryRevset } from '../shared/revset.ts';
 import { MAX_TIMELINE_ENTRIES } from './constants.ts';
 import type { CommandRunner, HistoryAdapter } from './types.ts';
 
@@ -76,7 +77,7 @@ function createGitHistoryAdapter(args: { runner: CommandRunner }): HistoryAdapte
 
 	return {
 		backend: 'git',
-		async getFileRevisionHistory({ workspacePath, relativePath, limit }) {
+		async getFileRevisionHistory({ workspacePath, relativePath, limit, customRevset: _customRevset }) {
 			const { stdout } = await runner.runGit({
 				workspacePath,
 				args: [
@@ -243,12 +244,13 @@ function createJjHistoryAdapter(args: { runner: CommandRunner }): HistoryAdapter
 
 	return {
 		backend: 'jj',
-		async getFileRevisionHistory({ workspacePath, relativePath, limit }) {
+		async getFileRevisionHistory({ workspacePath, relativePath, limit, customRevset }) {
 			return collectJjFileRevisionHistory({
 				runner,
 				workspacePath,
 				relativePath,
 				limit: limit ?? MAX_TIMELINE_ENTRIES,
+				customRevset,
 			});
 		},
 		async getRepositoryRevisionHistory({ workspacePath, limit }) {
@@ -514,11 +516,12 @@ async function collectJjFileRevisionHistory(args: {
 	relativePath: string;
 	limit: number;
 	ancestorLimitRevset?: string;
+	customRevset?: string;
 	seenSegments?: Set<string>;
 }): Promise<FileRevisionEntry[]> {
 	const ancestorLimitRevset = args.ancestorLimitRevset || '@';
 	const seenSegments = args.seenSegments || new Set<string>();
-	const segmentKey = `${args.relativePath}\u0000${ancestorLimitRevset}`;
+	const segmentKey = `${args.relativePath}\u0000${ancestorLimitRevset}\u0000${args.customRevset || ''}`;
 	if (seenSegments.has(segmentKey)) {
 		return [];
 	}
@@ -530,6 +533,7 @@ async function collectJjFileRevisionHistory(args: {
 		args.relativePath,
 		ancestorLimitRevset,
 		args.limit,
+		args.customRevset,
 	);
 	const previousSource = await resolvePreviousJjPath({
 		runner: args.runner,
@@ -543,6 +547,7 @@ async function collectJjFileRevisionHistory(args: {
 				workspacePath: args.workspacePath,
 				relativePath: previousSource.relativePath,
 				ancestorLimitRevset: previousSource.ancestorLimitRevset,
+				customRevset: args.customRevset,
 				seenSegments,
 				limit: args.limit,
 			})
@@ -560,6 +565,7 @@ async function loadJjFileHistorySegment(
 	relativePath: string,
 	ancestorLimitRevset: string,
 	limit: number,
+	customRevset?: string,
 ): Promise<ParsedJjHistoryEntry[]> {
 	const template = [
 		'commit_id.short()',
@@ -585,7 +591,10 @@ async function loadJjFileHistorySegment(
 			'--limit',
 			String(limit),
 			'-r',
-			buildJjAncestorHistoryRevset(ancestorLimitRevset),
+			composeJjHistoryRevset({
+				defaultRevset: buildJjAncestorHistoryRevset(ancestorLimitRevset),
+				customRevset,
+			}),
 			'-T',
 			template,
 			toJjRootFileFileset(relativePath),

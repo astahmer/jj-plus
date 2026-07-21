@@ -127,6 +127,19 @@ export function getFilePathTrailLabel(model: Model): string {
 	return formatFilePathTrail(steps);
 }
 
+export function getEvologStripEntries(model: Model): Array<FileRevisionEntry> {
+	const data = getData(model);
+	if (!data || data.backend !== 'jj') {
+		return [];
+	}
+	const tip = getEntriesForSource(data, getEffectiveComparisonSource(model))[model.toIndex];
+	if (!tip?.changeId) {
+		return [];
+	}
+	const snapshots = Array.isArray(data.snapshotEntries) ? data.snapshotEntries : [];
+	return snapshots.filter((entry) => entry.changeId === tip.changeId);
+}
+
 export function getIntermediateLabel(model: Model): string {
 	return getIntermediateToggleLabel(
 		getVisibleEntries(model).length,

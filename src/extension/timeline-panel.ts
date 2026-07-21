@@ -339,6 +339,7 @@ export function createTimelinePanelController(args: {
 				workspacePath: workspaceFolder.uri.fsPath,
 				absolutePath: documentUri.fsPath,
 				lineHistory,
+				customRevset: args.getPreferences().customRevset || undefined,
 			});
 		},
 	};
@@ -348,6 +349,7 @@ export function createTimelinePanelController(args: {
 		workspacePath: string;
 		absolutePath: string;
 		lineHistory?: { startLine: number; endLine: number };
+		customRevset?: string;
 	}): Promise<void> {
 		const generation = (panelLoadGeneration.get(request.panel) || 0) + 1;
 		panelLoadGeneration.set(request.panel, generation);
@@ -355,7 +357,10 @@ export function createTimelinePanelController(args: {
 		const session = await args.service.buildSession({
 			workspacePath: request.workspacePath,
 			absolutePath: request.absolutePath,
-			options: request.lineHistory ? { lineHistory: request.lineHistory } : undefined,
+			options: {
+				...(request.lineHistory ? { lineHistory: request.lineHistory } : {}),
+				...(request.customRevset ? { customRevset: request.customRevset } : {}),
+			},
 		});
 
 		if (panelLoadGeneration.get(request.panel) !== generation || request.panel.webview.html === '') {
@@ -730,6 +735,7 @@ export function createTimelinePanelController(args: {
 				workspacePath: request.session.workspacePath,
 				absolutePath: path.join(request.session.workspacePath, relativePath),
 				lineHistory: request.session.lineHistory,
+				customRevset: request.session.customRevset,
 			});
 			return;
 		}
@@ -739,6 +745,24 @@ export function createTimelinePanelController(args: {
 				panel: request.panel,
 				workspacePath: request.session.workspacePath,
 				absolutePath: request.session.absolutePath,
+				customRevset: request.session.customRevset,
+			});
+			return;
+		}
+
+		if (command === 'set-custom-revset') {
+			const customRevset = String(Reflect.get(request.message, 'customRevset') || '').trim();
+			const nextPreferences = {
+				...args.getPreferences(),
+				customRevset,
+			};
+			await args.savePreferences(nextPreferences);
+			await loadSessionIntoPanel({
+				panel: request.panel,
+				workspacePath: request.session.workspacePath,
+				absolutePath: request.session.absolutePath,
+				lineHistory: request.session.lineHistory,
+				customRevset: customRevset || undefined,
 			});
 			return;
 		}
@@ -755,6 +779,7 @@ export function createTimelinePanelController(args: {
 				comparisonSource: normalizeComparisonSource(Reflect.get(request.message, 'comparisonSource')),
 				showIntermediateRevisions: Boolean(Reflect.get(request.message, 'showIntermediateRevisions')),
 				preset: normalizeTimelinePreset(Reflect.get(request.message, 'preset')),
+				customRevset: String(Reflect.get(request.message, 'customRevset') || args.getPreferences().customRevset || ''),
 			});
 			return;
 		}
@@ -765,6 +790,7 @@ export function createTimelinePanelController(args: {
 				workspacePath: request.session.workspacePath,
 				absolutePath: request.session.absolutePath,
 				lineHistory: request.session.lineHistory,
+				customRevset: request.session.customRevset,
 			});
 			return;
 		}
