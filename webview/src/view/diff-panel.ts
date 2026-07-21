@@ -251,8 +251,8 @@ export function diffPanel(model: Model): Html {
 													h.Type('button'),
 													h.Title(
 														model.blameOverlayOpen
-															? 'Hide blame annotations on the after side'
-															: 'Show blame annotations; click a line to jump the timeline',
+															? 'Hide blame gutter (author + date on hover)'
+															: 'Show blame gutter like GitLens (author + date on hover)',
 													),
 													h.AriaPressed(String(model.blameOverlayOpen)),
 													h.OnClick(ToggledBlameOverlay()),

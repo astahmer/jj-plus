@@ -1,8 +1,8 @@
 import { FileDiff, type DiffLineAnnotation, type FileContents } from '@pierre/diffs';
 import {
-	collapseBlameToHunkStarts,
 	findBlameForLine,
-	shortBlameRevision,
+	formatBlameGutterLabel,
+	formatBlameHoverTooltip,
 	type BlameLine,
 } from '../../../src/shared/blame.ts';
 import type { Model } from '../model.ts';
@@ -707,7 +707,9 @@ function repairPierreWrapRowSpans(portal: HTMLElement): void {
 }
 
 function applyBlameAnnotations(diff: FileDiff, blameOverlayOpen: boolean, blameLines: BlameLine[]): void {
-	const signature = `${blameOverlayOpen ? 'on' : 'off'}:${blameLines.map((line) => `${line.line}:${line.revision}`).join('|')}`;
+	const signature = `${blameOverlayOpen ? 'on' : 'off'}:${blameLines
+		.map((line) => `${line.line}:${line.revision}:${line.author || ''}:${line.authorDate || ''}`)
+		.join('|')}`;
 	if (signature === lastBlameSignature) {
 		return;
 	}
@@ -717,22 +719,12 @@ function applyBlameAnnotations(diff: FileDiff, blameOverlayOpen: boolean, blameL
 		return;
 	}
 
-	const annotations: DiffLineAnnotation<BlameLine>[] = [
-		{
-			side: 'additions' as const,
-			lineNumber: 0,
-			metadata: {
-				line: 0,
-				revision: '',
-				summary: blameLines.length ? `Blame · ${blameLines.length} lines` : 'Blame · loading…',
-			},
-		},
-		...collapseBlameToHunkStarts(blameLines).map((entry) => ({
-			side: 'additions' as const,
-			lineNumber: entry.line,
-			metadata: entry,
-		})),
-	];
+	// GitLens-style: annotate every blamed line on the after side (gutter chip + hover).
+	const annotations: DiffLineAnnotation<BlameLine>[] = blameLines.map((entry) => ({
+		side: 'additions' as const,
+		lineNumber: entry.line,
+		metadata: entry,
+	}));
 	diff.setLineAnnotations(annotations as never);
 }
 
@@ -762,9 +754,8 @@ function buildOptions(
 		theme: { dark: 'pierre-dark' as const, light: 'pierre-light' as const },
 		themeType,
 		diffStyle: layoutMode === 'unified' ? ('unified' as const) : ('split' as const),
-		// Blame annotations attach to addition-side line numbers; collapsed
-		// unchanged hunks hide most of them, so expand while blame is open.
-		expandUnchanged: contentMode === 'full' || blameOverlayOpen,
+		// Blame is gutter annotations + hover — do not force whole-file expand.
+		expandUnchanged: contentMode === 'full',
 		disableFileHeader: true,
 		hunkSeparators: 'line-info' as const,
 		diffIndicators: 'bars' as const,
@@ -784,23 +775,17 @@ function buildOptions(
 					const button = document.createElement('button');
 					button.type = 'button';
 					button.className = 'pierre-blame-annotation';
-					const revision = annotation.metadata?.revision || '';
-					const summary = annotation.metadata?.summary || '';
-					if (annotation.lineNumber === 0) {
-						button.classList.add('is-header');
-						button.textContent = summary || 'Blame';
-						button.disabled = true;
-						return button;
+					const meta = annotation.metadata;
+					if (!meta?.revision) {
+						return undefined;
 					}
-					const author = annotation.metadata?.author || '';
-					button.textContent = [shortBlameRevision(revision), author ? author.split(' ')[0] : '']
-						.filter(Boolean)
-						.join(' · ');
-					button.title = [revision, author, summary].filter(Boolean).join(' · ');
+					button.textContent = formatBlameGutterLabel(meta);
+					button.title = formatBlameHoverTooltip(meta);
+					button.setAttribute('aria-label', formatBlameHoverTooltip(meta).replace(/\n/g, ', '));
 					button.addEventListener('click', (event) => {
 						event.preventDefault();
 						event.stopPropagation();
-						emitBlameLineClick(annotation.lineNumber, revision);
+						emitBlameLineClick(annotation.lineNumber, meta.revision);
 					});
 					return button;
 				}
@@ -827,22 +812,24 @@ function buildOptions(
 			.pierre-blame-annotation {
 				display: inline-flex;
 				align-items: center;
-				margin-left: 6px;
-				padding: 1px 6px;
-				border: 1px solid color-mix(in srgb, var(--vscode-focusBorder, #58a6ff) 55%, transparent);
-				border-radius: 4px;
-				background: color-mix(in srgb, var(--vscode-focusBorder, #58a6ff) 22%, transparent);
-				color: var(--vscode-foreground, #e6edf3);
-				font: 600 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+				max-width: 140px;
+				margin-left: 4px;
+				padding: 0 4px;
+				border: 0;
+				border-radius: 0;
+				background: transparent;
+				color: color-mix(in srgb, var(--vscode-descriptionForeground, #8b949e) 92%, transparent);
+				font: 500 10px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+				white-space: nowrap;
+				overflow: hidden;
+				text-overflow: ellipsis;
+				opacity: 0.72;
 				cursor: pointer;
 			}
-			.pierre-blame-annotation.is-header {
-				cursor: default;
-				opacity: 0.9;
-				border-style: dashed;
-			}
 			.pierre-blame-annotation:hover:not(:disabled) {
-				background: color-mix(in srgb, var(--vscode-focusBorder, #58a6ff) 38%, transparent);
+				opacity: 1;
+				color: var(--vscode-foreground, #e6edf3);
+				background: color-mix(in srgb, var(--vscode-editor-lineHighlightBackground, #388bfd22) 80%, transparent);
 			}
 		`,
 	};

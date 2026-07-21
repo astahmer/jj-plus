@@ -3,6 +3,10 @@ export type BlameLine = {
 	line: number;
 	revision: string;
 	author?: string;
+	/** Unix epoch seconds when available (git porcelain author-time). */
+	authorTimestamp?: number;
+	/** Display-ready author date string when available. */
+	authorDate?: string;
 	summary?: string;
 };
 
@@ -16,12 +20,7 @@ export function parseGitBlamePorcelain(stdout: string): BlameLine[] {
 		if (/^[0-9a-f]{7,40}\s+\d+\s+\d+/i.test(raw)) {
 			const [revision, , finalLine] = raw.split(/\s+/u);
 			if (pending.revision && pending.line) {
-				lines.push({
-					line: pending.line,
-					revision: pending.revision,
-					author: pending.author,
-					summary: pending.summary,
-				});
+				lines.push(finalizeBlamePending(pending));
 			}
 			pending = { revision, line: Number(finalLine) };
 			continue;
@@ -30,27 +29,59 @@ export function parseGitBlamePorcelain(stdout: string): BlameLine[] {
 			pending.author = raw.slice('author '.length);
 			continue;
 		}
+		if (raw.startsWith('author-time ')) {
+			const timestamp = Number(raw.slice('author-time '.length));
+			if (Number.isFinite(timestamp)) {
+				pending.authorTimestamp = timestamp;
+				pending.authorDate = formatBlameAuthorDate(timestamp);
+			}
+			continue;
+		}
 		if (raw.startsWith('summary ')) {
 			pending.summary = raw.slice('summary '.length);
 		}
 	}
 	if (pending.revision && pending.line) {
-		lines.push({
-			line: pending.line,
-			revision: pending.revision,
-			author: pending.author,
-			summary: pending.summary,
-		});
+		lines.push(finalizeBlamePending(pending));
 	}
 	return lines;
 }
 
-/** jj `file annotate` default: `REVISION PATH:LINE: content` or similar — also accept `rev: content`. */
+function finalizeBlamePending(pending: Partial<BlameLine> & { revision?: string }): BlameLine {
+	return {
+		line: pending.line!,
+		revision: pending.revision!,
+		author: pending.author,
+		authorTimestamp: pending.authorTimestamp,
+		authorDate: pending.authorDate,
+		summary: pending.summary,
+	};
+}
+
+/**
+ * Default / templated jj annotate lines.
+ * Preferred template (see buildJjAnnotateArgs): `REV\tAUTHOR\tTIMESTAMP\tCONTENT`
+ * Also accepts legacy `REV PATH:LINE: content` / `REV content`.
+ */
 export function parseJjFileAnnotate(stdout: string): BlameLine[] {
 	const lines: BlameLine[] = [];
 	let line = 1;
 	for (const raw of stdout.split(/\r?\n/u)) {
 		if (!raw) {
+			continue;
+		}
+		const tabulated = /^([0-9a-f]{7,40}|[a-z0-9]+)\t([^\t]*)\t([^\t]*)\t?(.*)$/iu.exec(raw);
+		if (tabulated) {
+			const timestamp = Number(tabulated[3]);
+			lines.push({
+				line,
+				revision: tabulated[1]!,
+				author: tabulated[2]?.trim() || undefined,
+				authorTimestamp: Number.isFinite(timestamp) ? timestamp : undefined,
+				authorDate: Number.isFinite(timestamp) ? formatBlameAuthorDate(timestamp) : tabulated[3]?.trim() || undefined,
+				summary: tabulated[4]?.trim() || undefined,
+			});
+			line += 1;
 			continue;
 		}
 		const match = /^([0-9a-f]{7,40}|[a-z0-9]+)\s+(?:\S+\s+)?(.*)$/i.exec(raw);
@@ -60,12 +91,63 @@ export function parseJjFileAnnotate(stdout: string): BlameLine[] {
 		}
 		lines.push({
 			line,
-			revision: match[1],
+			revision: match[1]!,
 			summary: match[2]?.trim() || undefined,
 		});
 		line += 1;
 	}
 	return lines;
+}
+
+export function formatBlameAuthorDate(timestampSeconds: number, nowMs = Date.now()): string {
+	const date = new Date(timestampSeconds * 1000);
+	if (Number.isNaN(date.getTime())) {
+		return '';
+	}
+	const deltaSec = Math.max(0, Math.round((nowMs - date.getTime()) / 1000));
+	if (deltaSec < 60) {
+		return 'just now';
+	}
+	if (deltaSec < 3600) {
+		const mins = Math.floor(deltaSec / 60);
+		return `${mins}m ago`;
+	}
+	if (deltaSec < 86400) {
+		const hours = Math.floor(deltaSec / 3600);
+		return `${hours}h ago`;
+	}
+	if (deltaSec < 86400 * 30) {
+		const days = Math.floor(deltaSec / 86400);
+		return `${days}d ago`;
+	}
+	return date.toISOString().slice(0, 10);
+}
+
+export function formatBlameGutterLabel(entry: BlameLine): string {
+	const author = entry.author?.trim().split(/\s+/u)[0] || '';
+	const date = entry.authorDate || '';
+	const rev = shortBlameRevision(entry.revision);
+	if (author && date) {
+		return `${author}, ${date}`;
+	}
+	if (author) {
+		return `${author} · ${rev}`;
+	}
+	if (date) {
+		return `${rev} · ${date}`;
+	}
+	return rev;
+}
+
+export function formatBlameHoverTooltip(entry: BlameLine): string {
+	return [
+		entry.author ? `Author: ${entry.author}` : '',
+		entry.authorDate ? `Date: ${entry.authorDate}` : '',
+		entry.revision ? `Revision: ${entry.revision}` : '',
+		entry.summary ? `Summary: ${entry.summary}` : '',
+	]
+		.filter(Boolean)
+		.join('\n');
 }
 
 export function findBlameForLine(blame: BlameLine[], line: number): BlameLine | undefined {
@@ -83,11 +165,16 @@ export function buildGitBlameFileArgs(args: { relativePath: string; revision?: s
 	return ['blame', '--porcelain', '--', args.relativePath];
 }
 
+/** Tab-separated: commit, author name, author timestamp, content. */
+export const JJ_FILE_ANNOTATE_TEMPLATE =
+	'commit_id.short() ++ "\\t" ++ author.name() ++ "\\t" ++ author.timestamp() ++ "\\t" ++ content';
+
 export function buildJjAnnotateArgs(args: { relativePath: string; revision?: string }): string[] {
+	const templateArgs = ['-T', JJ_FILE_ANNOTATE_TEMPLATE];
 	if (args.revision) {
-		return ['file', 'annotate', '-r', args.revision, args.relativePath];
+		return ['file', 'annotate', '-r', args.revision, ...templateArgs, args.relativePath];
 	}
-	return ['file', 'annotate', args.relativePath];
+	return ['file', 'annotate', ...templateArgs, args.relativePath];
 }
 
 export function revisionMatchesBlame(entryRevision: string, blameRevision: string): boolean {
