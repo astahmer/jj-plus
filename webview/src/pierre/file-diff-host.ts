@@ -320,6 +320,8 @@ function syncPierreFileDiff(args: PierreDiffSyncArgs): void {
 	lastThemeType = themeType;
 	lastBlameOverlayOpen = args.blameOverlayOpen;
 	lastShowPierre = true;
+	const portalEl = ensurePortal();
+	portalEl.classList.toggle('is-blame-open', args.blameOverlayOpen);
 	syncPortalGeometry(true);
 	window.requestAnimationFrame(() => {
 		if (lastShowPierre) {
@@ -641,20 +643,32 @@ function repairPierreWrapRowSpans(portal: HTMLElement): void {
 }
 
 function applyBlameAnnotations(diff: FileDiff, blameOverlayOpen: boolean, blameLines: BlameLine[]): void {
-	const signature = blameOverlayOpen ? blameLines.map((line) => `${line.line}:${line.revision}`).join('|') : '';
+	const signature = `${blameOverlayOpen ? 'on' : 'off'}:${blameLines.map((line) => `${line.line}:${line.revision}`).join('|')}`;
 	if (signature === lastBlameSignature) {
 		return;
 	}
 	lastBlameSignature = signature;
-	if (!blameOverlayOpen || blameLines.length === 0) {
+	if (!blameOverlayOpen) {
 		diff.setLineAnnotations([]);
 		return;
 	}
-	const annotations: DiffLineAnnotation<BlameLine>[] = collapseBlameToHunkStarts(blameLines).map((entry) => ({
-		side: 'additions' as const,
-		lineNumber: entry.line,
-		metadata: entry,
-	}));
+
+	const annotations: DiffLineAnnotation<BlameLine>[] = [
+		{
+			side: 'additions' as const,
+			lineNumber: 0,
+			metadata: {
+				line: 0,
+				revision: '',
+				summary: blameLines.length ? `Blame · ${blameLines.length} lines` : 'Blame · loading…',
+			},
+		},
+		...collapseBlameToHunkStarts(blameLines).map((entry) => ({
+			side: 'additions' as const,
+			lineNumber: entry.line,
+			metadata: entry,
+		})),
+	];
 	diff.setLineAnnotations(annotations as never);
 }
 
@@ -684,7 +698,9 @@ function buildOptions(
 		theme: { dark: 'pierre-dark' as const, light: 'pierre-light' as const },
 		themeType,
 		diffStyle: layoutMode === 'unified' ? ('unified' as const) : ('split' as const),
-		expandUnchanged: contentMode === 'full',
+		// Blame annotations attach to addition-side line numbers; collapsed
+		// unchanged hunks hide most of them, so expand while blame is open.
+		expandUnchanged: contentMode === 'full' || blameOverlayOpen,
 		disableFileHeader: true,
 		hunkSeparators: 'line-info' as const,
 		diffIndicators: 'bars' as const,
@@ -705,10 +721,18 @@ function buildOptions(
 					button.type = 'button';
 					button.className = 'pierre-blame-annotation';
 					const revision = annotation.metadata?.revision || '';
-					button.textContent = shortBlameRevision(revision);
-					button.title = [revision, annotation.metadata?.author, annotation.metadata?.summary]
+					const summary = annotation.metadata?.summary || '';
+					if (annotation.lineNumber === 0) {
+						button.classList.add('is-header');
+						button.textContent = summary || 'Blame';
+						button.disabled = true;
+						return button;
+					}
+					const author = annotation.metadata?.author || '';
+					button.textContent = [shortBlameRevision(revision), author ? author.split(' ')[0] : '']
 						.filter(Boolean)
 						.join(' · ');
+					button.title = [revision, author, summary].filter(Boolean).join(' · ');
 					button.addEventListener('click', (event) => {
 						event.preventDefault();
 						event.stopPropagation();
@@ -740,13 +764,21 @@ function buildOptions(
 				display: inline-flex;
 				align-items: center;
 				margin-left: 6px;
-				padding: 0 5px;
-				border: 1px solid color-mix(in srgb, var(--vscode-foreground, #ccc) 28%, transparent);
+				padding: 1px 6px;
+				border: 1px solid color-mix(in srgb, var(--vscode-focusBorder, #58a6ff) 55%, transparent);
 				border-radius: 4px;
-				background: color-mix(in srgb, var(--vscode-editor-background, #1e1e1e) 70%, transparent);
-				color: color-mix(in srgb, var(--vscode-foreground, #ccc) 80%, transparent);
-				font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+				background: color-mix(in srgb, var(--vscode-focusBorder, #58a6ff) 22%, transparent);
+				color: var(--vscode-foreground, #e6edf3);
+				font: 600 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
 				cursor: pointer;
+			}
+			.pierre-blame-annotation.is-header {
+				cursor: default;
+				opacity: 0.9;
+				border-style: dashed;
+			}
+			.pierre-blame-annotation:hover:not(:disabled) {
+				background: color-mix(in srgb, var(--vscode-focusBorder, #58a6ff) 38%, transparent);
 			}
 		`,
 	};

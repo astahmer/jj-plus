@@ -257,7 +257,15 @@ export function diffPanel(model: Model): Html {
 													h.AriaPressed(String(model.blameOverlayOpen)),
 													h.OnClick(ToggledBlameOverlay()),
 												],
-												[model.blameLoading ? 'Blame…' : model.blameOverlayOpen ? 'Blame on' : 'Blame'],
+												[
+													model.blameLoading
+														? 'Blame…'
+														: model.blameOverlayOpen
+															? Array.isArray(model.blameLines) && (model.blameLines as unknown[]).length
+																? `Blame on (${(model.blameLines as unknown[]).length})`
+																: 'Blame on'
+															: 'Blame',
+												],
 											)
 										: h.empty,
 									h.button(
