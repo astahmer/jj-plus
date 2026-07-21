@@ -1,11 +1,11 @@
 import { expect, test } from 'vitest';
 import { Story } from 'foldkit';
 import { PersistState, ScrollToEntry, SendHostCommand } from './commands.ts';
-import { ClickedPierreBlameLine, ClickedStepForward, GotHostMessage, ToggledBlameOverlay } from './messages.ts';
+import { ClickedPierreBlameLine, ClickedStepForward, GotHostMessage, ToggledHeatmap } from './messages.ts';
 import { hostCommandResolvers, hydratedModel, makeEntry, makeTimelineData } from './test/fixture-model.ts';
 import { update } from './update.ts';
 
-test('blame overlay loads annotations and click focuses matching revision', () => {
+test('heatmap loads blame lines and click focuses matching revision', () => {
 	const data = makeTimelineData([
 		makeEntry({ index: 0, revision: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', shortRevision: 'aaaaaaa' }),
 		makeEntry({ index: 1, revision: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', shortRevision: 'bbbbbbb' }),
@@ -22,10 +22,11 @@ test('blame overlay loads annotations and click focuses matching revision', () =
 	Story.story(
 		update,
 		Story.with(ready),
-		Story.message(ToggledBlameOverlay()),
+		Story.message(ToggledHeatmap()),
 		Story.Command.expectHas(SendHostCommand),
 		Story.model((model) => {
-			expect(model.blameOverlayOpen).toBe(true);
+			expect(model.heatmapOpen).toBe(true);
+			expect(model.blameOverlayOpen).toBe(false);
 			expect(model.blameLoading).toBe(true);
 		}),
 		Story.Command.resolveAll(...hostCommandResolvers()),
@@ -61,7 +62,7 @@ test('blame overlay loads annotations and click focuses matching revision', () =
 	);
 });
 
-test('blame reloads when stepping to another revision', () => {
+test('heatmap blame reloads when stepping to another revision', () => {
 	const data = makeTimelineData([
 		makeEntry({ index: 0, revision: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', shortRevision: 'aaaaaaa' }),
 		makeEntry({ index: 1, revision: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', shortRevision: 'bbbbbbb' }),
@@ -78,7 +79,7 @@ test('blame reloads when stepping to another revision', () => {
 	Story.story(
 		update,
 		Story.with(ready),
-		Story.message(ToggledBlameOverlay()),
+		Story.message(ToggledHeatmap()),
 		Story.Command.resolveAll(...hostCommandResolvers()),
 		Story.message(
 			GotHostMessage({

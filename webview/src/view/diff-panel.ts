@@ -5,7 +5,6 @@ import {
 	ClickedToggleDiffFocus,
 	PressedTimelineResize,
 	SubmittedFileSwitcher,
-	ToggledBlameOverlay,
 	ToggledRangeStack,
 } from '../messages.ts';
 import type { Model } from '../model.ts';
@@ -246,32 +245,6 @@ export function diffPanel(model: Model): Html {
 													h.span([h.Class('stat')], [preview ? `${preview.hunkCount} hunks` : '— hunks']),
 												],
 											),
-									!model.rangeStackOpen
-										? h.button(
-												[
-													h.Class(`collapse-button${model.blameOverlayOpen ? ' is-active' : ''}`),
-													h.Id('toggleBlameOverlayButton'),
-													h.Type('button'),
-													h.Title(
-														model.blameOverlayOpen
-															? 'Blame on — author chips in the after-side gutter (click a chip to jump)'
-															: 'Blame off — turn on for GitLens-style author chips on the after side',
-													),
-													h.AriaLabel('Blame overlay'),
-													h.AriaPressed(String(model.blameOverlayOpen)),
-													h.OnClick(ToggledBlameOverlay()),
-												],
-												[
-													model.blameLoading
-														? 'Blame…'
-														: Array.isArray(model.blameLines) &&
-															  (model.blameLines as unknown[]).length &&
-															  model.blameOverlayOpen
-															? `Blame (${(model.blameLines as unknown[]).length})`
-															: 'Blame',
-												],
-											)
-										: h.empty,
 									h.button(
 										[
 											h.Class('collapse-button'),

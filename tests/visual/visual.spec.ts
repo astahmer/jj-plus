@@ -17,28 +17,6 @@ test.describe('timeline visuals', () => {
 		await expect(page.locator('.workspace')).toHaveScreenshot('git-basic-workspace.png', screenshotOptions);
 	});
 
-	test('blame overlay paints EOL annotations', async ({ page }) => {
-		await openFixture(page, 'jj-basic');
-		await page.locator('#toggleBlameOverlayButton').click();
-		await expect(page.locator('#pierre-diff-root')).toHaveClass(/is-blame-open/, { timeout: 15000 });
-		await expect
-			.poll(
-				async () =>
-					page.locator('#pierre-diff-root').evaluate((root) => {
-						const host = root.querySelector('diffs-container');
-						if (!host) {
-							return 0;
-						}
-						const light = host.querySelectorAll('.jjplus-eol-blame').length;
-						const shadow = host.shadowRoot?.querySelectorAll('.jjplus-eol-blame').length;
-						return light + (shadow ?? 0);
-					}),
-				{ timeout: 15000 },
-			)
-			.toBeGreaterThan(0);
-		await expect(page.locator('#diffHead')).toHaveScreenshot('jj-blame-overlay-head.png', screenshotOptions);
-	});
-
 	test('heatmap paints recency bars in the after gutter', async ({ page }) => {
 		await openFixture(page, 'jj-basic');
 		await page.getByRole('button', { name: 'View' }).click();

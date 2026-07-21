@@ -4,24 +4,8 @@ const screenshotOptions = {
 	maxDiffPixelRatio: 0.04,
 };
 
-test.describe('blame and heatmap proof', () => {
+test.describe('heatmap proof', () => {
 	test.use({ viewport: { width: 1500, height: 1100 } });
-
-	test('blame overlay annotates after-side EOL (screenshot)', async ({ page }) => {
-		await openReady(page);
-		await page.getByRole('button', { name: 'View' }).click();
-		await page.locator('#contentModes button', { hasText: 'Whole file' }).click();
-		await page.keyboard.press('Escape');
-		await expect(page.locator('#toggleBlameOverlayButton')).toBeVisible();
-		await page.locator('#toggleBlameOverlayButton').click();
-		await expect(page.locator('#pierre-diff-root')).toHaveClass(/is-blame-open/, { timeout: 15000 });
-		await expect(page.locator('#toggleBlameOverlayButton')).toHaveAttribute('aria-pressed', 'true');
-
-		const annotationCount = await waitForShadowCount(page, '.jjplus-eol-blame', 1);
-		expect(annotationCount).toBeGreaterThan(0);
-
-		await expect(page.locator('#pierre-diff-root')).toHaveScreenshot('blame-overlay-portal.png', screenshotOptions);
-	});
 
 	test('heatmap paints recency bars and line tint (screenshot)', async ({ page }) => {
 		await openReady(page);
