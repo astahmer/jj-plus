@@ -81,6 +81,10 @@
 			{
 				"command": "jj-range-diff.openFileRevisionTimeline",
 				"title": "JJ: Open File Revision Timeline"
+			},
+			{
+				"command": "jj-range-diff.openFileLineTimeline",
+				"title": "JJ: Open Timeline for Selected Lines"
 			}
 		]
 	},

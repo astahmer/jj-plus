@@ -3,6 +3,7 @@ import type {
 	ComparisonSource,
 	FileRevisionEntry,
 	HistoryBackend,
+	LineHistoryRange,
 	TimelinePreferences,
 	TimelineSession,
 } from '../shared/timeline-types.ts';
@@ -96,6 +97,7 @@ export type ExtensionTimelineSession = TimelineSession & {
 	historyLimit: number;
 	workspaceFilesLoaded: boolean;
 	intermediateRevisionsLoaded: boolean;
+	lineHistory?: LineHistoryRange;
 };
 
 export type TimelineDebugState = {
@@ -108,6 +110,7 @@ export type TimelineDebugState = {
 	fileName: string;
 	entryCount: number;
 	snapshotEntryCount: number;
+	lineHistory: { startLine: number; endLine: number } | null;
 	usesBundledWebview: boolean;
 	viewReady: boolean;
 	readyCount: number;
@@ -117,7 +120,11 @@ export type TimelineDebugState = {
 };
 
 export type TimelinePanelController = {
-	openFileRevisionTimeline(args: { context: vscode.ExtensionContext; absolutePath?: string }): Promise<void>;
+	openFileRevisionTimeline(args: {
+		context: vscode.ExtensionContext;
+		absolutePath?: string;
+		lineHistory?: LineHistoryRange;
+	}): Promise<void>;
 	getDebugState(): TimelineDebugState;
 	getDiffLayoutMetrics(): Promise<import('../shared/timeline-types.ts').DiffLayoutMetrics>;
 	selectTimelineRange(args: {

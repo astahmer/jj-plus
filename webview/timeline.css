@@ -582,6 +582,42 @@ input {
 	gap: 6px;
 }
 
+.line-history-banner {
+	margin: 4px 9px 0;
+	padding: 4px 8px;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	border-radius: var(--radius-control);
+	border: 1px solid color-mix(in srgb, var(--accent-alt) 35%, var(--border));
+	background: color-mix(in srgb, var(--accent-alt) 12%, transparent);
+	font-size: 11px;
+	color: var(--text);
+}
+
+.line-history-banner-label {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.line-history-banner-clear {
+	flex-shrink: 0;
+	border: 0;
+	background: transparent;
+	color: var(--accent-alt);
+	cursor: pointer;
+	font: inherit;
+	padding: 0;
+	text-decoration: underline;
+}
+
+.line-history-banner-clear:hover {
+	color: var(--text);
+}
+
 .sidebar-toggle-button {
 	flex-shrink: 0;
 	width: 22px;

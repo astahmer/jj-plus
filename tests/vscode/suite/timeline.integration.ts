@@ -1,6 +1,6 @@
 import { deepEqual, equal, match, ok } from 'node:assert/strict';
 import { basename, join } from 'node:path';
-import { Uri, commands, window, workspace } from 'vscode';
+import { Position, Selection, Uri, commands, window, workspace } from 'vscode';
 import { parseSnapshotUri } from '../../../src/extension/uri-utils.ts';
 
 type TimelineDebugState = {
@@ -13,6 +13,7 @@ type TimelineDebugState = {
 	panelTitle?: string;
 	usesBundledWebview?: boolean;
 	entryCount?: number;
+	lineHistory?: { startLine: number; endLine: number } | null;
 	entries?: Array<{ index: number; description: string; shortRevision: string }>;
 };
 
@@ -40,6 +41,7 @@ const SELECT_COMMAND = 'jj-range-diff._debug.selectTimelineRange';
 const SET_LAYOUT_COMMAND = 'jj-range-diff._debug.setLayoutMode';
 const OPEN_FILE_DIFF_COMMAND = 'jj-range-diff.openFileRangeDiff';
 const OPEN_TIMELINE_COMMAND = 'jj-range-diff.openFileRevisionTimeline';
+const OPEN_LINE_TIMELINE_COMMAND = 'jj-range-diff.openFileLineTimeline';
 const TARGET_RELATIVE_PATH = 'apps/backend/instructions/lazy-di-rollout-plan.md';
 const SECONDARY_RELATIVE_PATH = 'apps/backend/src/service.ts';
 
@@ -70,6 +72,40 @@ suite('Revision Timeline integration', () => {
 		equal(state.usesBundledWebview, true);
 		ok(state.entryCount && state.entryCount >= 2, `expected at least 2 timeline entries, got ${state.entryCount}`);
 		match(state.panelTitle || '', /^Revision Timeline: lazy-di-rollout-plan\.md$/u);
+	});
+
+	test('opens line-filtered timeline from the editor selection', async () => {
+		const workspaceFolder = workspace.workspaceFolders?.[0];
+		if (!workspaceFolder) {
+			throw new Error('expected the integration test workspace to be open');
+		}
+
+		const fileUri = Uri.file(join(workspaceFolder.uri.fsPath, TARGET_RELATIVE_PATH));
+		const document = await workspace.openTextDocument(fileUri);
+		const editor = await window.showTextDocument(document, { preview: false });
+		editor.selection = new Selection(new Position(0, 0), new Position(2, 0));
+
+		await commands.executeCommand(OPEN_TIMELINE_COMMAND);
+		const fullState = await waitForTimelineReady();
+		const fullCount = fullState.entryCount || 0;
+		await commands.executeCommand('workbench.action.closeAllEditors');
+
+		const again = await workspace.openTextDocument(fileUri);
+		const againEditor = await window.showTextDocument(again, { preview: false });
+		againEditor.selection = new Selection(new Position(0, 0), new Position(2, 0));
+		await commands.executeCommand(OPEN_LINE_TIMELINE_COMMAND);
+
+		const state = await waitForTimelineState(
+			(candidate) =>
+				candidate?.viewReady === true && candidate.lineHistory?.startLine === 1 && candidate.lineHistory?.endLine === 3,
+		);
+		deepEqual(state.lineHistory, { startLine: 1, endLine: 3 });
+		match(state.panelTitle || '', /L1–3/u);
+		ok((state.entryCount || 0) >= 1, `expected filtered entries, got ${JSON.stringify(state)}`);
+		ok(
+			(state.entryCount || 0) <= fullCount,
+			`line history should not expand entries (${state.entryCount} vs full ${fullCount})`,
+		);
 	});
 
 	test('diff portal fills vertical space inside the real VS Code webview', async () => {

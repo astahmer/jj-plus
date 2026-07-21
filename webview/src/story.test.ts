@@ -12,6 +12,7 @@ import {
 	ClickedToggleHotkeys,
 	ClickedToggleViewMenu,
 	ClickedToggleSidebar,
+	ClickedClearLineHistory,
 	CompletedPersistState,
 	CompletedSendHost,
 	GotHostMessage,
@@ -269,6 +270,21 @@ test('diff focus and menu toggles are mutually exclusive', () => {
 	);
 });
 
+test('clear line history asks the host to reload without the filter', () => {
+	const ready = hydratedModel();
+
+	Story.story(
+		update,
+		Story.with(ready),
+		Story.message(ClickedClearLineHistory()),
+		Story.Command.expectHas(SendHostCommand),
+		Story.Command.resolve(SendHostCommand, CompletedSendHost()),
+		Story.model(() => {
+			// Host reload is async; command shape is the contract under test.
+		}),
+	);
+});
+
 test('hydrated model helper seeds a ready session with preview', () => {
 	const model = hydratedModel();
 	expect(model.session._tag).toBe('Ready');
@@ -278,4 +294,16 @@ test('hydrated model helper seeds a ready session with preview', () => {
 
 	const preview = makeDiffPreview(3, 4);
 	expect(preview.hasChanges).toBe(true);
+});
+
+test('clear line history asks the host to reload without the filter', () => {
+	const ready = hydratedModel();
+
+	Story.story(
+		update,
+		Story.with(ready),
+		Story.message(ClickedClearLineHistory()),
+		Story.Command.expectHas(SendHostCommand),
+		Story.Command.resolve(SendHostCommand, CompletedSendHost()),
+	);
 });

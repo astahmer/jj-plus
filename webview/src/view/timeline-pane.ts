@@ -2,6 +2,7 @@ import { html, type Html } from 'foldkit/html';
 import type { Message } from '../messages.ts';
 import {
 	ClickedCancelActiveRequest,
+	ClickedClearLineHistory,
 	ClickedOpenCurrentFile,
 	ClickedOpenEditorDiff,
 	ClickedOpenSelectionDiffs,
@@ -17,6 +18,7 @@ import {
 } from '../messages.ts';
 import type { Model } from '../model.ts';
 import { shortcutTooltip } from '../domain/timeline-shortcuts.ts';
+import { formatLineHistoryLabel } from '../../../src/shared/line-history.ts';
 import {
 	getActiveRangeOverviewItems,
 	getRangeLabel,
@@ -68,6 +70,7 @@ export function timelinePane(model: Model): Html {
 	const fileSwitcherPlaceholder =
 		model.fileSwitcherMode === 'overview' ? 'Jump to a top-changed file...' : 'Switch file...';
 	const collapseLabel = model.timelinePaneCollapsed ? 'Expand timeline' : 'Collapse timeline';
+	const lineHistory = (model.data as { lineHistory?: { startLine: number; endLine: number } } | null)?.lineHistory;
 
 	return h.div(
 		[h.Class(`timeline-pane${model.timelinePaneCollapsed ? ' is-collapsed' : ''}`), h.Id('timelinePane')],
@@ -111,6 +114,24 @@ export function timelinePane(model: Model): Html {
 					),
 				],
 			),
+			lineHistory
+				? h.div(
+						[h.Class('line-history-banner'), h.Id('lineHistoryBanner')],
+						[
+							h.span([h.Class('line-history-banner-label')], [`Line history · ${formatLineHistoryLabel(lineHistory)}`]),
+							h.button(
+								[
+									h.Class('line-history-banner-clear'),
+									h.Id('clearLineHistoryButton'),
+									h.Type('button'),
+									h.AriaLabel('Clear line history filter'),
+									h.OnClick(ClickedClearLineHistory()),
+								],
+								['Show full history'],
+							),
+						],
+					)
+				: h.empty,
 			h.div(
 				[h.Class('diff-head'), h.Id('timelineChrome')],
 				[

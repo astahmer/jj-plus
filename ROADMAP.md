@@ -6,13 +6,13 @@ Related: [TODO.md](./TODO.md) (engineering backlog). This doc is product ideas +
 
 ## Sharp next bets (in progress)
 
-| # | Bet | Intent | Status |
-|---|-----|--------|--------|
-| 1 | **Line history + blame → timeline** | Selection / blame jumps to only revs that touched those lines | next |
-| 2 | **Rename / copy follow (visible)** | Adapter already follows paths; surface path trail + trust UX | queued |
-| 3 | **Churn bars on track** | Anchor height/color from +/- or hunk count so big edits pop | queued |
-| 4 | **Multi-file Pierre for range** | Inspect all files changed in from→to inside the panel | queued |
-| 5 | **Revset filter + evolog overlay** | Power filter (`jj log -r`) + evolution strip for a change | queued |
+| #   | Bet                                 | Intent                                                        | Status |
+| --- | ----------------------------------- | ------------------------------------------------------------- | ------ |
+| 1   | **Line history + blame → timeline** | Selection / blame jumps to only revs that touched those lines | next   |
+| 2   | **Rename / copy follow (visible)**  | Adapter already follows paths; surface path trail + trust UX  | queued |
+| 3   | **Churn bars on track**             | Anchor height/color from +/- or hunk count so big edits pop   | queued |
+| 4   | **Multi-file Pierre for range**     | Inspect all files changed in from→to inside the panel         | queued |
+| 5   | **Revset filter + evolog overlay**  | Power filter (`jj log -r`) + evolution strip for a change     | queued |
 
 ## Idea inventory (from competitors)
 
@@ -58,15 +58,15 @@ Related: [TODO.md](./TODO.md) (engineering backlog). This doc is product ideas +
 
 ## Competitive map (short)
 
-| Camp | Tools | Their strength vs us |
-|------|--------|----------------------|
-| Mainstream Git IDE | GitLens, VS Code Timeline, Git Graph, Git History | Blame, DAG, line history, Visual File History |
-| FOSS GitLens-ish | GitViz, Minimal Git File History | Free blame + hot files + compare |
-| Classic GUIs | GitKraken, Sublime Merge, Fork, Tower | Full client |
-| JetBrains / Perforce | Local History, Time-lapse | File scrub + annotate |
-| jj VS Code | Open JJ, JJ View | Repo log, mutate, workspaces, PR |
-| jj TUI | lazyjj, jjui | Revsets, op-log, absorb/split |
-| Diff engines | Pierre, GitHub PR, VS Code Multi Diff | Multi-file review UX |
+| Camp                 | Tools                                             | Their strength vs us                          |
+| -------------------- | ------------------------------------------------- | --------------------------------------------- |
+| Mainstream Git IDE   | GitLens, VS Code Timeline, Git Graph, Git History | Blame, DAG, line history, Visual File History |
+| FOSS GitLens-ish     | GitViz, Minimal Git File History                  | Free blame + hot files + compare              |
+| Classic GUIs         | GitKraken, Sublime Merge, Fork, Tower             | Full client                                   |
+| JetBrains / Perforce | Local History, Time-lapse                         | File scrub + annotate                         |
+| jj VS Code           | Open JJ, JJ View                                  | Repo log, mutate, workspaces, PR              |
+| jj TUI               | lazyjj, jjui                                      | Revsets, op-log, absorb/split                 |
+| Diff engines         | Pierre, GitHub PR, VS Code Multi Diff             | Multi-file review UX                          |
 
 **We win today on:** range + step selection, snapshot vs revision, scrubber + in-panel Pierre, large wrap repair, jj-first file timeline.
 

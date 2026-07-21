@@ -49,6 +49,42 @@ function clone<T>(value: T): T {
 	return JSON.parse(JSON.stringify(value)) as T;
 }
 
+function parseLineHistoryQuery(search: string): { startLine: number; endLine: number } | null {
+	const raw = new URLSearchParams(search).get('lineHistory');
+	if (!raw) {
+		return null;
+	}
+	const match = /^(\d+)(?:-(\d+))?$/.exec(raw.trim());
+	if (!match) {
+		return null;
+	}
+	const startLine = Number(match[1]);
+	const endLine = Number(match[2] || match[1]);
+	if (!Number.isInteger(startLine) || !Number.isInteger(endLine) || startLine < 1 || endLine < 1) {
+		return null;
+	}
+	return { startLine: Math.min(startLine, endLine), endLine: Math.max(startLine, endLine) };
+}
+
+function applyBrowserLineHistoryFilter(
+	timelineData: TimelineFixtureFile['timelineData'],
+	lineHistory: { startLine: number; endLine: number } | null,
+): TimelineFixtureFile['timelineData'] {
+	if (!lineHistory) {
+		return timelineData;
+	}
+
+	const entries = timelineData.entries.filter((_, index, all) => index === 0 || index >= all.length - 2);
+	const remapped = entries.map((entry, index) => ({ ...entry, index }));
+	return {
+		...timelineData,
+		entries: remapped,
+		defaultIndex: Math.max(0, remapped.length - 1),
+		latestIndex: Math.max(0, remapped.length - 1),
+		lineHistory,
+	};
+}
+
 function getFixtureRangeOverview(fileFixture: TimelineFixtureFile) {
 	const workspaceFiles = fileFixture.timelineData.workspaceFiles || [];
 	return workspaceFiles
@@ -189,6 +225,7 @@ export function createTimelineHost(): TimelineHost {
 	const listeners = new Set<(message: TimelineInboundMessage) => void>();
 	let fixturePromise: Promise<TimelineFixture> | null = null;
 	let activeRelativePath = '';
+	let lineHistoryFilter = parseLineHistoryQuery(window.location.search);
 	const testState = window.__TIMELINE_TEST_STATE__ || {
 		fixtureName: '',
 		activeRelativePath: '',
@@ -354,13 +391,16 @@ export function createTimelineHost(): TimelineHost {
 	async function emitTimeline() {
 		const fixture = await getFixture();
 		const fileFixture = getActiveFileFixture(fixture);
-		const timelineData = withPersistedPreferences(fileFixture.timelineData);
+		const timelineData = applyBrowserLineHistoryFilter(
+			withPersistedPreferences(fileFixture.timelineData),
+			lineHistoryFilter,
+		);
 		emit({ type: 'timeline-data', payload: timelineData });
 		emit({
 			type: 'diff-preview',
 			payload: getFixturePreview(
 				fileFixture,
-				timelineData.defaultIndex - 1,
+				Math.max(0, timelineData.defaultIndex - 1),
 				timelineData.defaultIndex,
 				timelineData.preferences.comparisonSource || 'revision',
 			),
@@ -469,6 +509,12 @@ export function createTimelineHost(): TimelineHost {
 					window.__TIMELINE_TEST_STATE__ = testState;
 					void emitTimeline();
 				});
+				return;
+			}
+
+			if (command.command === 'clear-line-history') {
+				lineHistoryFilter = null;
+				void emitTimeline();
 				return;
 			}
 

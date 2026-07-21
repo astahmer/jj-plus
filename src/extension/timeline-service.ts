@@ -2,6 +2,13 @@ import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { textsMatchIgnoringLineEndings } from '../shared/diff-helpers.ts';
 import { computeDiffStats } from '../shared/diff-stats.ts';
+import {
+	buildGitLineHistoryArgs,
+	filterEntriesTouchingLineRange,
+	normalizeLineHistoryRange,
+	parseGitLineHistoryRevisions,
+	type LineHistoryRange,
+} from '../shared/line-history.ts';
 import type {
 	ComparisonSource,
 	DiffPreview,
@@ -72,6 +79,7 @@ function syncSession(request: { target: ExtensionTimelineSession; source: Extens
 	request.target.entryDiffCountCache = request.source.entryDiffCountCache;
 	request.target.pathCache = request.source.pathCache;
 	request.target.activeActionAbortController = request.source.activeActionAbortController;
+	request.target.lineHistory = request.source.lineHistory;
 }
 
 async function getContentForRevset(request: {
@@ -92,6 +100,72 @@ async function getContentForRevset(request: {
 	});
 	request.session.contentCache.set(cacheKey, content);
 	return content;
+}
+
+async function filterSessionEntriesForLineHistory(args: {
+	adapter: HistoryAdapter;
+	runner: CommandRunner;
+	workspacePath: string;
+	relativePath: string;
+	entries: FileRevisionEntry[];
+	range: LineHistoryRange;
+	limit: number;
+}): Promise<FileRevisionEntry[]> {
+	if (args.adapter.backend === 'git') {
+		try {
+			const { stdout } = await args.runner.runGit({
+				workspacePath: args.workspacePath,
+				args: buildGitLineHistoryArgs({
+					relativePath: args.relativePath,
+					range: args.range,
+					limit: args.limit,
+				}),
+			});
+			const revisions = new Set(parseGitLineHistoryRevisions(stdout));
+			const filtered = args.entries.filter((entry) => entry.isWorkingTree || revisions.has(entry.revision));
+			if (filtered.length) {
+				return filtered;
+			}
+		} catch {
+			// Fall through to content-based filtering (e.g. empty -L result / binary).
+		}
+	}
+
+	const contentByRevision = new Map<string, string>();
+	for (const entry of args.entries) {
+		const filePath = entry.filePath || args.relativePath;
+		const revset = entry.isWorkingTree ? '@' : entry.revision;
+		try {
+			const content = await args.adapter.showFileAtRevision({
+				workspacePath: args.workspacePath,
+				revset: entry.isWorkingTree && args.adapter.backend === 'git' ? 'HEAD' : revset,
+				filePath,
+			});
+			// Working tree: prefer reading isn't available here for git HEAD vs WT — use entry content via show.
+			contentByRevision.set(entry.revision, content);
+		} catch {
+			contentByRevision.set(entry.revision, '');
+		}
+	}
+
+	// For git working tree tip, showFileAtRevision('HEAD') is last commit; still OK as baseline for tip keep.
+	if (args.adapter.backend === 'git') {
+		const tip = args.entries.find((entry) => entry.isWorkingTree);
+		if (tip) {
+			try {
+				const diskPath = path.join(args.workspacePath, tip.filePath || args.relativePath);
+				contentByRevision.set(tip.revision, await readFile(diskPath, 'utf8'));
+			} catch {
+				// keep prior content
+			}
+		}
+	}
+
+	return filterEntriesTouchingLineRange({
+		entries: args.entries,
+		range: args.range,
+		getContent: (entry) => contentByRevision.get(entry.revision) || '',
+	});
 }
 
 async function resolvePreviousPathAcrossRevision(request: {
@@ -143,6 +217,7 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 			includeWorkspaceFiles?: boolean;
 			includeIntermediateRevisions?: boolean;
 			entryLimit?: number;
+			lineHistory?: LineHistoryRange;
 		};
 	}): Promise<ExtensionTimelineSession> {
 		const historyWorkspacePath = await resolveHistoryWorkspacePath({ workspacePath: request.workspacePath, runner });
@@ -151,6 +226,9 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 		const entryLimit = request.options?.entryLimit ?? INITIAL_TIMELINE_ENTRIES;
 		const includeWorkspaceFiles = request.options?.includeWorkspaceFiles === true;
 		const includeIntermediateRevisions = request.options?.includeIntermediateRevisions === true;
+		const lineHistory = request.options?.lineHistory
+			? normalizeLineHistoryRange(request.options.lineHistory.startLine, request.options.lineHistory.endLine)
+			: null;
 
 		const workspaceFiles = includeWorkspaceFiles
 			? await listWorkspaceFiles({ adapter, workspacePath: historyWorkspacePath })
@@ -160,7 +238,7 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 			relativePath,
 			limit: entryLimit,
 		});
-		const entries = await buildTimelineEntries({
+		let entries = await buildTimelineEntries({
 			adapter,
 			workspacePath: historyWorkspacePath,
 			absolutePath: request.absolutePath,
@@ -169,6 +247,17 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 			includeIntermediateRevisions,
 			entryLimit,
 		});
+		if (lineHistory) {
+			entries = await filterSessionEntriesForLineHistory({
+				adapter,
+				runner,
+				workspacePath: historyWorkspacePath,
+				relativePath,
+				entries,
+				range: lineHistory,
+				limit: entryLimit,
+			});
+		}
 		const snapshotEntries = adapter.backend === 'jj' ? [] : [...entries];
 		const remoteBaseUrl = await adapter.getRemoteBaseUrl({ workspacePath: historyWorkspacePath });
 
@@ -195,6 +284,7 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 			workspaceFilesLoaded: includeWorkspaceFiles,
 			historyLimit: entryLimit,
 			intermediateRevisionsLoaded: includeIntermediateRevisions,
+			lineHistory: lineHistory ?? undefined,
 			contentCache: new Map(),
 			previewCache: new Map(),
 			rangeOverviewCache: new Map(),
@@ -234,6 +324,7 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 			snapshotState: {
 				loadedChangeIds: [...request.session.snapshotLoadedChangeIds],
 			},
+			...(request.session.lineHistory ? { lineHistory: request.session.lineHistory } : {}),
 		};
 	}
 

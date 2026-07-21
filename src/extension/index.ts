@@ -14,6 +14,7 @@ import {
 	HELPER_COMMAND,
 	OPEN_FILE_RANGE_DIFF_COMMAND,
 	OPEN_FILE_TIMELINE_COMMAND,
+	OPEN_FILE_LINE_TIMELINE_COMMAND,
 	OPEN_MULTI_DIFF_COMMAND,
 	PENDING_RANGE_DIFF_KEY,
 	SNAPSHOT_SCHEME,
@@ -259,6 +260,20 @@ export function activate(context: vscode.ExtensionContext): void {
 		vscode.commands.registerCommand(OPEN_FILE_TIMELINE_COMMAND, (absolutePath?: string) =>
 			panelController.openFileRevisionTimeline({ context, absolutePath }),
 		),
+		vscode.commands.registerCommand(OPEN_FILE_LINE_TIMELINE_COMMAND, async () => {
+			const editor = vscode.window.activeTextEditor;
+			if (!editor || editor.document.uri.scheme !== 'file') {
+				void vscode.window.showErrorMessage('Open a workspace file and select lines to browse line history');
+				return;
+			}
+			const startLine = Math.min(editor.selection.start.line, editor.selection.end.line) + 1;
+			const endLine = Math.max(editor.selection.start.line, editor.selection.end.line) + 1;
+			await panelController.openFileRevisionTimeline({
+				context,
+				absolutePath: editor.document.uri.fsPath,
+				lineHistory: { startLine, endLine },
+			});
+		}),
 		vscode.commands.registerCommand(GET_TIMELINE_DEBUG_STATE_COMMAND, () => panelController.getDebugState()),
 		vscode.commands.registerCommand(GET_DIFF_LAYOUT_METRICS_COMMAND, () => panelController.getDiffLayoutMetrics()),
 		vscode.commands.registerCommand(

@@ -36,6 +36,7 @@ export const ClickedToggleHotkeys = m('ClickedToggleHotkeys');
 export const ClickedOpenCurrentFile = m('ClickedOpenCurrentFile');
 export const ClickedCancelActiveRequest = m('ClickedCancelActiveRequest');
 export const ClickedRefreshTimeline = m('ClickedRefreshTimeline');
+export const ClickedClearLineHistory = m('ClickedClearLineHistory');
 export const ClickedResetPreferences = m('ClickedResetPreferences');
 export const ClickedToggleDiffFocus = m('ClickedToggleDiffFocus');
 
@@ -146,6 +147,7 @@ export const Message = S.Union([
 	ClickedOpenCurrentFile,
 	ClickedCancelActiveRequest,
 	ClickedRefreshTimeline,
+	ClickedClearLineHistory,
 	ClickedResetPreferences,
 	ClickedToggleDiffFocus,
 	SelectedComparisonMode,

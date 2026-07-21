@@ -288,7 +288,7 @@ export function createTimelinePanelController(args: {
 				message: { type: 'debug-set-layout-mode', layoutMode: nextPreferences.layoutMode },
 			});
 		},
-		async openFileRevisionTimeline({ absolutePath }) {
+		async openFileRevisionTimeline({ absolutePath, lineHistory }) {
 			const initialPath = await resolveTimelineSourcePath({ absolutePath });
 			if (!initialPath) {
 				void vscode.window.showErrorMessage('Open a workspace file to browse its revision timeline');
@@ -315,7 +315,9 @@ export function createTimelinePanelController(args: {
 				context: args.context,
 				webview: panel.webview,
 			});
-			panel.title = `Revision Timeline: ${fileName}`;
+			panel.title = lineHistory
+				? `Revision Timeline: ${fileName} (L${lineHistory.startLine}${lineHistory.endLine === lineHistory.startLine ? '' : `–${lineHistory.endLine}`})`
+				: `Revision Timeline: ${fileName}`;
 			timelineDebugState = {
 				...createEmptyTimelineDebugState(),
 				panelOpen: true,
@@ -324,6 +326,7 @@ export function createTimelinePanelController(args: {
 				workspacePath: workspaceFolder.uri.fsPath,
 				relativePath: path.relative(workspaceFolder.uri.fsPath, documentUri.fsPath).replace(/\\/g, '/'),
 				fileName,
+				lineHistory: lineHistory ? { startLine: lineHistory.startLine, endLine: lineHistory.endLine } : null,
 				usesBundledWebview: hasBundledTimelineWebviewAssets({ context: args.context }),
 			};
 
@@ -335,6 +338,7 @@ export function createTimelinePanelController(args: {
 				panel,
 				workspacePath: workspaceFolder.uri.fsPath,
 				absolutePath: documentUri.fsPath,
+				lineHistory,
 			});
 		},
 	};
@@ -343,6 +347,7 @@ export function createTimelinePanelController(args: {
 		panel: vscode.WebviewPanel;
 		workspacePath: string;
 		absolutePath: string;
+		lineHistory?: { startLine: number; endLine: number };
 	}): Promise<void> {
 		const generation = (panelLoadGeneration.get(request.panel) || 0) + 1;
 		panelLoadGeneration.set(request.panel, generation);
@@ -350,6 +355,7 @@ export function createTimelinePanelController(args: {
 		const session = await args.service.buildSession({
 			workspacePath: request.workspacePath,
 			absolutePath: request.absolutePath,
+			options: request.lineHistory ? { lineHistory: request.lineHistory } : undefined,
 		});
 
 		if (panelLoadGeneration.get(request.panel) !== generation || request.panel.webview.html === '') {
@@ -723,6 +729,16 @@ export function createTimelinePanelController(args: {
 				panel: request.panel,
 				workspacePath: request.session.workspacePath,
 				absolutePath: path.join(request.session.workspacePath, relativePath),
+				lineHistory: request.session.lineHistory,
+			});
+			return;
+		}
+
+		if (command === 'clear-line-history') {
+			await loadSessionIntoPanel({
+				panel: request.panel,
+				workspacePath: request.session.workspacePath,
+				absolutePath: request.session.absolutePath,
 			});
 			return;
 		}
@@ -748,7 +764,9 @@ export function createTimelinePanelController(args: {
 				panel: request.panel,
 				workspacePath: request.session.workspacePath,
 				absolutePath: request.session.absolutePath,
+				lineHistory: request.session.lineHistory,
 			});
+			return;
 		}
 	}
 
@@ -1233,6 +1251,7 @@ function createEmptyTimelineDebugState(): TimelineDebugState {
 		fileName: '',
 		entryCount: 0,
 		snapshotEntryCount: 0,
+		lineHistory: null,
 		usesBundledWebview: false,
 		viewReady: false,
 		readyCount: 0,
@@ -1258,6 +1277,9 @@ function createDebugState(args: {
 		fileName: args.session.fileName,
 		entryCount: args.session.entries.length,
 		snapshotEntryCount: args.session.snapshotEntries.length,
+		lineHistory: args.session.lineHistory
+			? { startLine: args.session.lineHistory.startLine, endLine: args.session.lineHistory.endLine }
+			: null,
 		usesBundledWebview: true,
 		viewReady: false,
 		readyCount: 0,

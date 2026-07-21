@@ -12,6 +12,11 @@ export type TimelinePreset = 'year' | '7d' | '30d' | '90d' | 'all';
 
 export type FileSwitcherMode = 'workspace' | 'overview';
 
+export type LineHistoryRange = {
+	startLine: number;
+	endLine: number;
+};
+
 export type FileRevisionEntry = {
 	id: string;
 	revision: string;
@@ -113,6 +118,8 @@ export type TimelineData = {
 	snapshotState?: {
 		loadedChangeIds: string[];
 	};
+	/** Present when timeline is filtered to revisions that touched these lines. */
+	lineHistory?: LineHistoryRange;
 };
 
 export type TimelineInboundMessage =
@@ -212,6 +219,7 @@ export type TimelineCommand =
 	  }
 	| { command: 'resolve-nonempty-range'; candidateIndexes: number[] }
 	| { command: 'switch-file'; relativePath: string }
+	| { command: 'clear-line-history' }
 	| {
 			command: 'persist-state';
 			sidebarWidth: number;

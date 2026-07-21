@@ -1396,6 +1396,7 @@ export function update(model: Model, message: Message): UpdateReturn {
 				[SendHostCommand({ command: { command: 'cancel-active-request' } })],
 			],
 			ClickedRefreshTimeline: () => handleRefresh(model),
+			ClickedClearLineHistory: () => [model, [SendHostCommand({ command: { command: 'clear-line-history' } })]],
 			ClickedResetPreferences: () => handleReset(model),
 			ClickedToggleDiffFocus: () => [evo(model, { diffFocusMode: (v) => !v }), []],
 			SelectedComparisonMode: ({ value }) => handleSetComparisonMode(model, value),
