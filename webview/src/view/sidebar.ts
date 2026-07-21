@@ -236,7 +236,7 @@ export function sidebar(model: Model): Html {
 						h.Class('sidebar-search-input'),
 						h.Id('sidebarSearchInput'),
 						h.Type('search'),
-						h.Placeholder('Search: author:alex OR path:src AND desc:fix'),
+						h.Placeholder('Search: author:alex OR content:TODO AND path:src'),
 						h.Autocomplete('off'),
 						h.Value(model.sidebarSearchQuery),
 						h.OnInput((value) => UpdatedSidebarSearchQuery({ value })),

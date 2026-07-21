@@ -152,6 +152,7 @@ export type HistorySearchPayload = {
 	hits: Array<{ entryIndex: number; kind: 'introduced' | 'removed' | 'present' }>;
 	introducedAt: number | null;
 	removedAt: number | null;
+	purpose?: 'history' | 'sidebar';
 };
 
 export type TimelineInboundMessage =
@@ -269,7 +270,7 @@ export type TimelineCommand =
 			toIndex: number;
 			comparisonSource: ComparisonSource;
 	  }
-	| { command: 'search-history'; query: string }
+	| { command: 'search-history'; query: string; purpose?: 'history' | 'sidebar' }
 	| {
 			command: 'persist-state';
 			sidebarWidth: number;

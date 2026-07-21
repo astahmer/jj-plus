@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { filterEntriesBySidebarSearch, parseSidebarSearchQuery } from '../../src/shared/sidebar-search.ts';
+import {
+	filterEntriesBySidebarSearch,
+	extractSidebarContentNeedle,
+	parseSidebarSearchQuery,
+} from '../../src/shared/sidebar-search.ts';
 import type { FileRevisionEntry } from '../../src/shared/timeline-types.ts';
 
 function entry(overrides: Partial<FileRevisionEntry> & Pick<FileRevisionEntry, 'index'>): FileRevisionEntry {
@@ -72,4 +76,35 @@ test('filterEntriesBySidebarSearch matches fielded queries and boolean ops', () 
 		filterEntriesBySidebarSearch(entries, 'loading').map((item) => item.index),
 		[0],
 	);
+});
+
+test('content: matches against contentsByIndex or precomputed indexes', () => {
+	const entries = [
+		entry({ index: 0, description: 'alpha' }),
+		entry({ index: 1, description: 'beta' }),
+		entry({ index: 2, description: 'gamma' }),
+	];
+	const contentsByIndex = new Map<number, string>([
+		[0, 'export const TODO = 1'],
+		[1, 'no marker here'],
+		[2, 'still TODO later'],
+	]);
+
+	assert.deepEqual(
+		filterEntriesBySidebarSearch(entries, 'content:TODO', { contentsByIndex }).map((item) => item.index),
+		[0, 2],
+	);
+	assert.deepEqual(
+		filterEntriesBySidebarSearch(entries, 'content:TODO AND desc:gamma', { contentsByIndex }).map((item) => item.index),
+		[2],
+	);
+	assert.deepEqual(
+		filterEntriesBySidebarSearch(entries, 'content:TODO', { contentMatchIndexes: [0, 2] }).map((item) => item.index),
+		[0, 2],
+	);
+});
+
+test('extractSidebarContentNeedle returns the first content field', () => {
+	assert.equal(extractSidebarContentNeedle('author:alex content:needle'), 'needle');
+	assert.equal(extractSidebarContentNeedle('path:src'), null);
 });

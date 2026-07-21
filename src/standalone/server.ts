@@ -262,6 +262,7 @@ async function createStandaloneRuntime(args: { workspacePath: string; filePath: 
 							introducedAt,
 							removedAt: null,
 							hits,
+							purpose: command.purpose === 'sidebar' ? 'sidebar' : 'history',
 						},
 					};
 					return [message];

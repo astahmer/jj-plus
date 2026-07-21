@@ -660,6 +660,7 @@ export function createTimelinePanelController(args: {
 
 		if (command === 'search-history') {
 			const query = String(Reflect.get(request.message, 'query') || '');
+			const purpose = Reflect.get(request.message, 'purpose') === 'sidebar' ? 'sidebar' : 'history';
 			const result = await args.service.searchFileHistory({
 				session: request.session,
 				query,
@@ -668,7 +669,7 @@ export function createTimelinePanelController(args: {
 				panel: request.panel,
 				message: {
 					type: 'history-search',
-					payload: result,
+					payload: { ...result, purpose },
 				},
 			});
 			return;

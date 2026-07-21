@@ -8,6 +8,7 @@ export type HistorySearchResult = {
 	hits: HistorySearchHit[];
 	introducedAt: number | null;
 	removedAt: number | null;
+	purpose?: 'history' | 'sidebar';
 };
 
 export function normalizeHistorySearchQuery(query: string): string {

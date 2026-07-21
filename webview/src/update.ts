@@ -80,6 +80,7 @@ import { BootSession, FocusElement, PersistState, ScrollToEntry, SendHostCommand
 import type { Message } from './messages.ts';
 import { pickRangeStackPaths } from '../../src/shared/range-stack.ts';
 import { findEntryIndexForBlameRevision } from '../../src/shared/blame.ts';
+import { extractSidebarContentNeedle } from '../../src/shared/sidebar-search.ts';
 import {
 	getActivePreviewKey,
 	getActiveRangeOverviewKey,
@@ -1118,6 +1119,9 @@ function handleReset(model: Model): UpdateReturn {
 		historySearchResult: () => null,
 		timeLapsePlaying: () => false as boolean,
 		sidebarSearchQuery: () => '',
+		sidebarContentNeedle: () => '',
+		sidebarContentMatchIndexes: () => [],
+		sidebarContentLoading: () => false as boolean,
 		sidebarWidth: () => clampSidebarWidth(280),
 		timelinePaneHeight: () => 220,
 		timelinePaneCollapsed: () => false as boolean,
@@ -1474,7 +1478,25 @@ function handleHistorySearchMessage(
 	model: Model,
 	message: Extract<TimelineInboundMessage, { type: 'history-search' }>,
 ): UpdateReturn {
-	const result = message.payload;
+	const result = message.payload as {
+		query: string;
+		hits: Array<{ entryIndex: number; kind: string }>;
+		introducedAt: number | null;
+		removedAt: number | null;
+		purpose?: 'history' | 'sidebar';
+	};
+	if (result.purpose === 'sidebar' || (model.sidebarContentNeedle && result.query === model.sidebarContentNeedle)) {
+		const indexes = result.hits
+			.filter((hit) => hit.kind === 'introduced' || hit.kind === 'present')
+			.map((hit) => hit.entryIndex);
+		return [
+			evo(model, {
+				sidebarContentLoading: () => false as boolean,
+				sidebarContentMatchIndexes: () => indexes,
+			}),
+			[],
+		];
+	}
 	let next = evo(model, {
 		historySearchLoading: () => false as boolean,
 		historySearchResult: () => result,
@@ -1483,6 +1505,31 @@ function handleHistorySearchMessage(
 		return jumpToRevisionEntry(next, result.introducedAt);
 	}
 	return [next, []];
+}
+
+function handleUpdatedSidebarSearchQuery(model: Model, value: string): UpdateReturn {
+	const needle = extractSidebarContentNeedle(value);
+	let next = evo(model, { sidebarSearchQuery: () => value }) as Model;
+	if (!needle) {
+		next = evo(next, {
+			sidebarContentNeedle: () => '',
+			sidebarContentMatchIndexes: () => [],
+			sidebarContentLoading: () => false as boolean,
+		});
+		return afterMutate(next);
+	}
+	if (
+		needle === model.sidebarContentNeedle &&
+		(model.sidebarContentLoading || model.sidebarContentMatchIndexes.length)
+	) {
+		return afterMutate(next);
+	}
+	next = evo(next, {
+		sidebarContentNeedle: () => needle,
+		sidebarContentMatchIndexes: () => [],
+		sidebarContentLoading: () => true as boolean,
+	});
+	return [next, [SendHostCommand({ command: { command: 'search-history', query: needle, purpose: 'sidebar' } })]];
 }
 
 function jumpToRevisionEntry(model: Model, entryIndex: number): UpdateReturn {
@@ -1556,7 +1603,7 @@ function handleSubmitHistorySearch(model: Model): UpdateReturn {
 	}
 	return [
 		evo(model, { historySearchLoading: () => true }),
-		[SendHostCommand({ command: { command: 'search-history', query } })],
+		[SendHostCommand({ command: { command: 'search-history', query, purpose: 'history' } })],
 	];
 }
 
@@ -1845,7 +1892,7 @@ export function update(model: Model, message: Message): UpdateReturn {
 				}
 				return [next, [ScrollToEntry({ entryIndex })]];
 			},
-			UpdatedSidebarSearchQuery: ({ value }) => afterMutate(evo(model, { sidebarSearchQuery: () => value })),
+			UpdatedSidebarSearchQuery: ({ value }) => handleUpdatedSidebarSearchQuery(model, value),
 			ToggledSortOrder: () => [evo(model, { oldestFirst: (v) => !v }), []],
 			ClickedOpenSelectionDiffs: () => sendRangeCommand(model, 'open-range-files-diff'),
 			ClickedOpenEditorDiff: () => sendRangeCommand(model, 'open-editor-diff'),

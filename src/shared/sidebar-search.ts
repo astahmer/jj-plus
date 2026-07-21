@@ -19,7 +19,7 @@ export type SidebarSearchableEntry = Pick<
 	| 'branchNames'
 >;
 
-export type SidebarSearchField = 'path' | 'author' | 'desc' | 'date' | 'revset' | 'text';
+export type SidebarSearchField = 'path' | 'author' | 'desc' | 'date' | 'revset' | 'content' | 'text';
 
 export type SidebarSearchAtom = {
 	kind: 'atom';
@@ -50,6 +50,8 @@ const FIELD_ALIASES: Record<string, SidebarSearchField> = {
 	rev: 'revset',
 	revision: 'revset',
 	change: 'revset',
+	content: 'content',
+	body: 'content',
 };
 
 function tokenize(query: string): string[] {
@@ -168,7 +170,7 @@ function includesInsensitive(haystack: string | number | undefined | null, needl
 	return String(haystack).toLowerCase().includes(needle.toLowerCase());
 }
 
-function entryFields(entry: SidebarSearchableEntry): Record<SidebarSearchField, string[]> {
+function entryFields(entry: SidebarSearchableEntry): Record<Exclude<SidebarSearchField, 'content'>, string[]> {
 	return {
 		path: [entry.filePath || ''].filter(Boolean),
 		author: [entry.authorName || ''].filter(Boolean),
@@ -205,32 +207,101 @@ function entryFields(entry: SidebarSearchableEntry): Record<SidebarSearchField, 
 	};
 }
 
-function matchAtom(entry: SidebarSearchableEntry, atom: SidebarSearchAtom): boolean {
+export type SidebarSearchMatchOptions = {
+	/** Entry indexes whose file contents matched the active `content:` needle(s). */
+	contentMatchIndexes?: ReadonlySet<number> | ReadonlyArray<number>;
+	/** Optional raw file text by entry index (unit tests / offline). */
+	contentsByIndex?: ReadonlyMap<number, string> | Record<number, string>;
+};
+
+function contentHaystack(
+	entry: SidebarSearchableEntry & { index?: number },
+	options: SidebarSearchMatchOptions,
+): string {
+	const index = typeof entry.index === 'number' ? entry.index : undefined;
+	if (index === undefined) {
+		return '';
+	}
+	if (options.contentsByIndex instanceof Map) {
+		return options.contentsByIndex.get(index) ?? '';
+	}
+	if (options.contentsByIndex) {
+		return Reflect.get(options.contentsByIndex, index) ?? '';
+	}
+	return '';
+}
+
+function matchAtom(
+	entry: SidebarSearchableEntry & { index?: number },
+	atom: SidebarSearchAtom,
+	options: SidebarSearchMatchOptions,
+): boolean {
 	if (!atom.value) {
 		return !atom.negated;
+	}
+	if (atom.field === 'content') {
+		const indexes = options.contentMatchIndexes
+			? options.contentMatchIndexes instanceof Set
+				? options.contentMatchIndexes
+				: new Set(options.contentMatchIndexes)
+			: null;
+		let matched = false;
+		if (indexes && typeof entry.index === 'number') {
+			matched = indexes.has(entry.index);
+		} else {
+			matched = includesInsensitive(contentHaystack(entry, options), atom.value);
+		}
+		return atom.negated ? !matched : matched;
 	}
 	const fields = entryFields(entry)[atom.field];
 	const matched = fields.some((value) => includesInsensitive(value, atom.value));
 	return atom.negated ? !matched : matched;
 }
 
-export function matchSidebarSearchNode(entry: SidebarSearchableEntry, node: SidebarSearchNode): boolean {
+export function matchSidebarSearchNode(
+	entry: SidebarSearchableEntry & { index?: number },
+	node: SidebarSearchNode,
+	options: SidebarSearchMatchOptions = {},
+): boolean {
 	if (node.kind === 'atom') {
-		return matchAtom(entry, node);
+		return matchAtom(entry, node, options);
 	}
 	if (node.op === 'and') {
-		return node.children.every((child) => matchSidebarSearchNode(entry, child));
+		return node.children.every((child) => matchSidebarSearchNode(entry, child, options));
 	}
-	return node.children.some((child) => matchSidebarSearchNode(entry, child));
+	return node.children.some((child) => matchSidebarSearchNode(entry, child, options));
 }
 
-export function filterEntriesBySidebarSearch<T extends SidebarSearchableEntry>(
+export function filterEntriesBySidebarSearch<T extends SidebarSearchableEntry & { index?: number }>(
 	entries: Array<T>,
 	query: string,
+	options: SidebarSearchMatchOptions = {},
 ): Array<T> {
 	const node = parseSidebarSearchQuery(query);
 	if (!node) {
 		return entries;
 	}
-	return entries.filter((entry) => matchSidebarSearchNode(entry, node));
+	return entries.filter((entry) => matchSidebarSearchNode(entry, node, options));
+}
+
+/** First non-empty `content:` needle in the query (sidebar host search). */
+export function extractSidebarContentNeedle(query: string): string | null {
+	const node = parseSidebarSearchQuery(query);
+	if (!node) {
+		return null;
+	}
+	const needles: string[] = [];
+	const walk = (current: SidebarSearchNode) => {
+		if (current.kind === 'atom') {
+			if (current.field === 'content' && current.value && !current.negated) {
+				needles.push(current.value);
+			}
+			return;
+		}
+		for (const child of current.children) {
+			walk(child);
+		}
+	};
+	walk(node);
+	return needles[0] ?? null;
 }

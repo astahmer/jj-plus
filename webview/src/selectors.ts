@@ -59,7 +59,9 @@ export function getPresetEntries(model: Model): Array<FileRevisionEntry> {
 
 export function getFilteredSidebarEntries(model: Model): Array<FileRevisionEntry> {
 	const visible = getVisibleEntries(model);
-	const filtered = filterEntriesBySidebarSearch(visible, model.sidebarSearchQuery);
+	const filtered = filterEntriesBySidebarSearch(visible, model.sidebarSearchQuery, {
+		contentMatchIndexes: model.sidebarContentMatchIndexes,
+	});
 	return model.oldestFirst ? filtered : filtered.toReversed();
 }
 

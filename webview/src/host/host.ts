@@ -583,6 +583,7 @@ export function createTimelineHost(): TimelineHost {
 							introducedAt,
 							removedAt: null,
 							hits,
+							purpose: command.purpose === 'sidebar' ? 'sidebar' : 'history',
 						},
 					});
 				});
