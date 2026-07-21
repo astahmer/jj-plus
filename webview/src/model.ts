@@ -1,5 +1,6 @@
 import { Option, Schema as S } from 'effect';
 import { DragIdle, DragState } from './machine/drag.ts';
+import { Closed, OverlayState } from './machine/overlay.ts';
 import { SelectionState } from './machine/selection.ts';
 import { SessionState } from './machine/session.ts';
 
@@ -27,6 +28,7 @@ export type TrackTooltipState = typeof TrackTooltipState.Type;
 export const Model = S.Struct({
 	session: SessionState,
 	selection: SelectionState,
+	overlay: OverlayState,
 	data: S.NullOr(S.Unknown),
 	fromIndex: S.Number,
 	toIndex: S.Number,
@@ -72,6 +74,7 @@ export type Model = typeof Model.Type;
 export const initialModel: Model = {
 	session: { _tag: 'Idle' },
 	selection: { _tag: 'IdlePick' },
+	overlay: Closed(),
 	data: null,
 	fromIndex: 0,
 	toIndex: 0,

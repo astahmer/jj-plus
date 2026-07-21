@@ -14,8 +14,8 @@ test('toggle sidebar collapses the workspace chrome', () => {
 	Scene.scene(
 		program,
 		Scene.with(ready),
-		Scene.expect(Scene.role('button', { name: 'Toggle sidebar' })).toExist(),
-		Scene.click(Scene.role('button', { name: 'Toggle sidebar' })),
+		Scene.expect(Scene.role('button', { name: 'Toggle sidebar (B)' })).toExist(),
+		Scene.click(Scene.role('button', { name: 'Toggle sidebar (B)' })),
 		Scene.Command.expectHas(PersistState),
 		Scene.Command.resolve(PersistState, CompletedPersistState()),
 		Scene.expect(Scene.selector('.workspace.is-collapsed')).toExist(),
@@ -45,10 +45,10 @@ test('hotkeys popover opens and closes from the toolbar', () => {
 		program,
 		Scene.with(ready),
 		Scene.expect(Scene.text('Shortcuts')).toBeAbsent(),
-		Scene.click(Scene.role('button', { name: 'Show hotkeys' })),
+		Scene.click(Scene.role('button', { name: 'Show hotkeys (?)' })),
 		Scene.Command.expectNone(),
 		Scene.expect(Scene.text('Shortcuts')).toExist(),
-		Scene.click(Scene.role('button', { name: 'Show hotkeys' })),
+		Scene.click(Scene.role('button', { name: 'Show hotkeys (?)' })),
 		Scene.expect(Scene.text('Shortcuts')).toBeAbsent(),
 	);
 });

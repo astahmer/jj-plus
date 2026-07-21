@@ -44,6 +44,15 @@ import {
 } from './machine/selection.ts';
 import { ReceivedTimelineData, RefreshedSession, SwitchedFile } from './machine/session.ts';
 import { sessionMachine, BootedSession } from './machine/session.ts';
+import {
+	Closed,
+	ClosedOverlays,
+	overlayFlagsFromState,
+	overlayMachine,
+	ToggledActionsMenu,
+	ToggledHotkeys,
+	ToggledViewMenu,
+} from './machine/overlay.ts';
 import type { Model } from './model.ts';
 import { initialModel } from './model.ts';
 import { BootSession, FocusElement, PersistState, ScrollToEntry, SendHostCommand } from './commands.ts';
@@ -265,6 +274,22 @@ function stepSelection(model: Model, message: Parameters<typeof selectionMachine
 	return evo(model, { selection: () => nextSelection });
 }
 
+function stepOverlay(model: Model, message: Parameters<typeof overlayMachine.transition>[1]): Model {
+	const [nextOverlay] = overlayMachine.transition(model.overlay, message);
+	const flags = overlayFlagsFromState(nextOverlay);
+	let next = evo(model, {
+		overlay: () => nextOverlay,
+		hotkeysOpen: () => flags.hotkeysOpen,
+		viewMenuOpen: () => flags.viewMenuOpen,
+		actionsMenuOpen: () => flags.actionsMenuOpen,
+	});
+	const dismissCombobox = nextOverlay._tag !== 'Closed' || message._tag === 'ClosedOverlays';
+	if (dismissCombobox && model.openComboboxId._tag === 'Some') {
+		next = syncRevisionDrafts(evo(next, { openComboboxId: () => Option.none() }));
+	}
+	return next;
+}
+
 function handleTrackAnchorClick(model: Model, entryIndex: number): UpdateReturn {
 	if (model.comparisonMode === 'step') {
 		const entries = getVisibleEntries(model);
@@ -273,12 +298,10 @@ function handleTrackAnchorClick(model: Model, entryIndex: number): UpdateReturn 
 			return [model, []];
 		}
 		const next = stepSelection(
-			evo(model, {
+			evo(stepOverlay(model, ClosedOverlays()), {
 				fromIndex: () => entries[visibleIndex - 1].index,
 				toIndex: () => entries[visibleIndex].index,
 				maybeHoveredSelectionIndex: () => Option.none(),
-				actionsMenuOpen: () => false,
-				viewMenuOpen: () => false,
 			}),
 			CancelledSelection(),
 		);
@@ -288,9 +311,7 @@ function handleTrackAnchorClick(model: Model, entryIndex: number): UpdateReturn 
 	const pending = model.selection._tag === 'PendingAnchor' ? model.selection.entryIndex : null;
 	if (pending === null) {
 		const next = stepSelection(
-			evo(model, {
-				actionsMenuOpen: () => false,
-				viewMenuOpen: () => false,
+			evo(stepOverlay(model, ClosedOverlays()), {
 				maybeHoveredSelectionIndex: () => Option.none(),
 			}),
 			SelectionClickedEntry({ entryIndex }),
@@ -303,11 +324,9 @@ function handleTrackAnchorClick(model: Model, entryIndex: number): UpdateReturn 
 	}
 
 	const next = stepSelection(
-		evo(model, {
+		evo(stepOverlay(model, ClosedOverlays()), {
 			fromIndex: () => Math.min(pending, entryIndex),
 			toIndex: () => Math.max(pending, entryIndex),
-			actionsMenuOpen: () => false,
-			viewMenuOpen: () => false,
 			maybeHoveredSelectionIndex: () => Option.none(),
 		}),
 		CommittedSelection(),
@@ -742,7 +761,7 @@ function handleSubmitRevision(model: Model, side: 'from' | 'to', value: string):
 }
 
 function handleOpenedCombobox(model: Model, id: string): UpdateReturn {
-	return [evo(model, { openComboboxId: () => Option.some(id) }), []];
+	return [evo(stepOverlay(model, ClosedOverlays()), { openComboboxId: () => Option.some(id) }), []];
 }
 
 function handleClosedCombobox(model: Model, id: string): UpdateReturn {
@@ -753,14 +772,15 @@ function handleClosedCombobox(model: Model, id: string): UpdateReturn {
 }
 
 function handleUpdatedComboboxDraft(model: Model, id: string, value: string): UpdateReturn {
+	const base = stepOverlay(model, ClosedOverlays());
 	if (id === 'fromRevisionInput') {
-		return [evo(model, { fromRevisionDraft: () => value, openComboboxId: () => Option.some(id) }), []];
+		return [evo(base, { fromRevisionDraft: () => value, openComboboxId: () => Option.some(id) }), []];
 	}
 	if (id === 'toRevisionInput') {
-		return [evo(model, { toRevisionDraft: () => value, openComboboxId: () => Option.some(id) }), []];
+		return [evo(base, { toRevisionDraft: () => value, openComboboxId: () => Option.some(id) }), []];
 	}
 	if (id === 'fileSwitcher') {
-		return [evo(model, { fileInputValue: () => value, openComboboxId: () => Option.some(id) }), []];
+		return [evo(base, { fileInputValue: () => value, openComboboxId: () => Option.some(id) }), []];
 	}
 	return [model, []];
 }
@@ -776,10 +796,7 @@ function handleSubmitFile(model: Model, rawValue: string): UpdateReturn {
 		return [model, []];
 	}
 	const next = stepSelection(
-		evo(model, {
-			actionsMenuOpen: () => false,
-			viewMenuOpen: () => false,
-			hotkeysOpen: () => false,
+		evo(stepOverlay(model, ClosedOverlays()), {
 			maybeHoveredSelectionIndex: () => Option.none(),
 			sessionKey: (current) => current + 1,
 		}),
@@ -791,10 +808,7 @@ function handleSubmitFile(model: Model, rawValue: string): UpdateReturn {
 
 function handleRefresh(model: Model): UpdateReturn {
 	const next = stepSelection(
-		evo(model, {
-			actionsMenuOpen: () => false,
-			viewMenuOpen: () => false,
-			hotkeysOpen: () => false,
+		evo(stepOverlay(model, ClosedOverlays()), {
 			maybeHoveredSelectionIndex: () => Option.none(),
 			sessionKey: (value) => value + 1,
 		}),
@@ -827,12 +841,10 @@ function handleReset(model: Model): UpdateReturn {
 		responsiveSidebarHeight: () => 248,
 		sidebarCollapsed: () => false as boolean,
 		diffFocusMode: () => false as boolean,
-		actionsMenuOpen: () => false as boolean,
-		viewMenuOpen: () => false as boolean,
-		hotkeysOpen: () => false as boolean,
 		oldestFirst: () => false as boolean,
 		maybeHoveredSelectionIndex: () => Option.none(),
 	});
+	next = stepOverlay(next, ClosedOverlays());
 	next = stepSelection(next, CancelledSelection());
 	return afterMutate(next, [persistCommand(next)]);
 }
@@ -910,6 +922,7 @@ function handleTimelineDataMessage(
 		fromIndex,
 		toIndex,
 		sidebarCollapsed: false,
+		overlay: Closed(),
 		actionsMenuOpen: false,
 		viewMenuOpen: false,
 		hotkeysOpen: false,
@@ -1143,14 +1156,7 @@ function handleShortcut(
 
 	return M.value(shortcut.type).pipe(
 		M.withReturnType<UpdateReturn>(),
-		M.when('toggleHotkeys', () => [
-			evo(model, {
-				hotkeysOpen: (value) => !value,
-				actionsMenuOpen: () => false,
-				viewMenuOpen: () => false,
-			}),
-			[],
-		]),
+		M.when('toggleHotkeys', () => [stepOverlay(model, ToggledHotkeys()), []]),
 		M.when('toggleSidebar', () => {
 			const next = evo(model, { sidebarCollapsed: (value) => !value });
 			return withPersist(next);
@@ -1168,10 +1174,7 @@ function handleShortcut(
 		}),
 		M.when('closeOverlays', () => {
 			const next = stepSelection(
-				evo(model, {
-					hotkeysOpen: () => false,
-					actionsMenuOpen: () => false,
-					viewMenuOpen: () => false,
+				evo(stepOverlay(model, ClosedOverlays()), {
 					maybeHoveredSelectionIndex: () => Option.none(),
 				}),
 				CancelledSelection(),
@@ -1213,11 +1216,7 @@ function sendRangeCommand(model: Model, command: 'open-editor-diff' | 'open-rang
 					toIndex: model.toIndex,
 					comparisonSource,
 				};
-	const next = evo(model, {
-		actionsMenuOpen: () => false,
-		viewMenuOpen: () => false,
-		hotkeysOpen: () => false,
-	});
+	const next = stepOverlay(model, ClosedOverlays());
 	return [next, [SendHostCommand({ command: hostCommand })]];
 }
 
@@ -1366,10 +1365,8 @@ export function update(model: Model, message: Message): UpdateReturn {
 			ClickedToggleSidebar: () => withPersist(evo(model, { sidebarCollapsed: (v) => !v })),
 			ClickedToggleSidebarFromMenu: () =>
 				withPersist(
-					evo(model, {
+					evo(stepOverlay(model, ClosedOverlays()), {
 						sidebarCollapsed: (v) => !v,
-						actionsMenuOpen: () => false,
-						viewMenuOpen: () => false,
 					}),
 				),
 			ClickedToggleTimelinePane: () => {
@@ -1382,50 +1379,20 @@ export function update(model: Model, message: Message): UpdateReturn {
 					);
 				}
 				return withPersist(
-					evo(model, {
+					evo(stepOverlay(model, ClosedOverlays()), {
 						timelinePaneCollapsed: () => true,
-						actionsMenuOpen: () => false,
-						viewMenuOpen: () => false,
-						hotkeysOpen: () => false,
 					}),
 				);
 			},
-			ClickedToggleActionsMenu: () => [
-				evo(model, {
-					actionsMenuOpen: (v) => !v,
-					viewMenuOpen: () => false,
-					hotkeysOpen: () => false,
-				}),
-				[],
-			],
-			ClickedToggleViewMenu: () => [
-				evo(model, {
-					viewMenuOpen: (v) => !v,
-					actionsMenuOpen: () => false,
-					hotkeysOpen: () => false,
-				}),
-				[],
-			],
-			ClickedToggleHotkeys: () => [
-				evo(model, {
-					hotkeysOpen: (v) => !v,
-					actionsMenuOpen: () => false,
-					viewMenuOpen: () => false,
-				}),
-				[],
-			],
+			ClickedToggleActionsMenu: () => [stepOverlay(model, ToggledActionsMenu()), []],
+			ClickedToggleViewMenu: () => [stepOverlay(model, ToggledViewMenu()), []],
+			ClickedToggleHotkeys: () => [stepOverlay(model, ToggledHotkeys()), []],
 			ClickedOpenCurrentFile: () => [
-				evo(model, {
-					actionsMenuOpen: () => false,
-					viewMenuOpen: () => false,
-				}),
+				stepOverlay(model, ClosedOverlays()),
 				[SendHostCommand({ command: { command: 'open-current-file' } })],
 			],
 			ClickedCancelActiveRequest: () => [
-				evo(model, {
-					actionsMenuOpen: () => false,
-					viewMenuOpen: () => false,
-				}),
+				stepOverlay(model, ClosedOverlays()),
 				[SendHostCommand({ command: { command: 'cancel-active-request' } })],
 			],
 			ClickedRefreshTimeline: () => handleRefresh(model),
