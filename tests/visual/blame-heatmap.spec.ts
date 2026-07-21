@@ -7,7 +7,7 @@ const screenshotOptions = {
 test.describe('blame and heatmap proof', () => {
 	test.use({ viewport: { width: 1500, height: 1100 } });
 
-	test('blame overlay annotates after-side gutter (screenshot)', async ({ page }) => {
+	test('blame overlay annotates after-side EOL (screenshot)', async ({ page }) => {
 		await openReady(page);
 		await page.getByRole('button', { name: 'View' }).click();
 		await page.locator('#contentModes button', { hasText: 'Whole file' }).click();
@@ -17,13 +17,13 @@ test.describe('blame and heatmap proof', () => {
 		await expect(page.locator('#pierre-diff-root')).toHaveClass(/is-blame-open/, { timeout: 15000 });
 		await expect(page.locator('#toggleBlameOverlayButton')).toHaveAttribute('aria-pressed', 'true');
 
-		const annotationCount = await waitForShadowCount(page, '.pierre-blame-annotation', 1);
+		const annotationCount = await waitForShadowCount(page, '.jjplus-eol-blame', 1);
 		expect(annotationCount).toBeGreaterThan(0);
 
 		await expect(page.locator('#pierre-diff-root')).toHaveScreenshot('blame-overlay-portal.png', screenshotOptions);
 	});
 
-	test('heatmap paints recency bars (screenshot)', async ({ page }) => {
+	test('heatmap paints recency bars and line tint (screenshot)', async ({ page }) => {
 		await openReady(page);
 		await page.getByRole('button', { name: 'View' }).click();
 		await page.locator('#contentModes button', { hasText: 'Whole file' }).click();
@@ -33,6 +33,8 @@ test.describe('blame and heatmap proof', () => {
 
 		const heatCount = await waitForShadowCount(page, '.pierre-heat-bar', 1);
 		expect(heatCount).toBeGreaterThan(0);
+		const tintCount = await waitForShadowCount(page, '[data-jjplus-heat]', 1);
+		expect(tintCount).toBeGreaterThan(0);
 
 		await expect(page.locator('#pierre-diff-root')).toHaveScreenshot('heatmap-portal.png', screenshotOptions);
 	});

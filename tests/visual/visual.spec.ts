@@ -17,7 +17,7 @@ test.describe('timeline visuals', () => {
 		await expect(page.locator('.workspace')).toHaveScreenshot('git-basic-workspace.png', screenshotOptions);
 	});
 
-	test('blame overlay paints gutter annotations', async ({ page }) => {
+	test('blame overlay paints EOL annotations', async ({ page }) => {
 		await openFixture(page, 'jj-basic');
 		await page.locator('#toggleBlameOverlayButton').click();
 		await expect(page.locator('#pierre-diff-root')).toHaveClass(/is-blame-open/, { timeout: 15000 });
@@ -29,8 +29,8 @@ test.describe('timeline visuals', () => {
 						if (!host) {
 							return 0;
 						}
-						const light = host.querySelectorAll('.pierre-blame-annotation, .pierre-gutter-extras').length;
-						const shadow = host.shadowRoot?.querySelectorAll('.pierre-blame-annotation, .pierre-gutter-extras').length;
+						const light = host.querySelectorAll('.jjplus-eol-blame').length;
+						const shadow = host.shadowRoot?.querySelectorAll('.jjplus-eol-blame').length;
 						return light + (shadow ?? 0);
 					}),
 				{ timeout: 15000 },

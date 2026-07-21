@@ -381,7 +381,7 @@ function syncPierreFileDiff(args: PierreDiffSyncArgs): void {
 			newFile: nextNewFile,
 			containerWrapper: portal,
 			forceRender: optionsChanged || blameChanged,
-			lineAnnotations: buildPierreBlameAnnotations(args.blameOverlayOpen, args.heatmapOpen, args.blameLines),
+			lineAnnotations: buildPierreBlameAnnotations(args.heatmapOpen, args.blameLines) as never,
 		});
 	} else if (fileDiff && (args.blameOverlayOpen || args.heatmapOpen || lastBlameSignature)) {
 		// Annotations can change without file/options churn — pass them through render.
@@ -389,7 +389,7 @@ function syncPierreFileDiff(args: PierreDiffSyncArgs): void {
 			oldFile: nextOldFile,
 			newFile: nextNewFile,
 			containerWrapper: portal,
-			lineAnnotations: buildPierreBlameAnnotations(args.blameOverlayOpen, args.heatmapOpen, args.blameLines),
+			lineAnnotations: buildPierreBlameAnnotations(args.heatmapOpen, args.blameLines) as never,
 		});
 	}
 
@@ -413,6 +413,12 @@ function syncPierreFileDiff(args: PierreDiffSyncArgs): void {
 		if (lastShowPierre) {
 			syncPortalGeometry(true);
 			repairPierreWrapRowSpans(portal);
+			paintPierreBlameHeatOverlays({
+				portal,
+				blameOverlayOpen: args.blameOverlayOpen,
+				heatmapOpen: args.heatmapOpen,
+				blameLines: args.blameLines,
+			});
 		}
 	});
 }
@@ -760,21 +766,109 @@ function repairPierreWrapRowSpans(portal: HTMLElement): void {
 	}
 }
 
+function findAdditionSideLineElement(root: ShadowRoot, lineNumber: number): HTMLElement | undefined {
+	const nodes = [...root.querySelectorAll(`[data-line="${lineNumber}"]`)] as HTMLElement[];
+	if (!nodes.length) {
+		return undefined;
+	}
+	const addition = nodes.find((node) => node.dataset.lineType === 'addition');
+	if (addition) {
+		return addition;
+	}
+	const nonDeletion = nodes.filter((node) => node.dataset.lineType !== 'deletion');
+	return nonDeletion.at(-1) ?? nodes.at(-1);
+}
+
+const HEAT_LINE_BACKGROUNDS: Record<HeatLevel, string> = {
+	0: 'color-mix(in srgb, #58a6ff 10%, transparent)',
+	1: 'color-mix(in srgb, #58a6ff 18%, transparent)',
+	2: 'color-mix(in srgb, #3fb950 20%, transparent)',
+	3: 'color-mix(in srgb, #d29922 24%, transparent)',
+	4: 'color-mix(in srgb, #f85149 28%, transparent)',
+};
+
+/** GitLens-like EOL blame + full-line heatmap paint on the additions-side code rows. */
+export function paintPierreBlameHeatOverlays(args: {
+	portal: HTMLElement;
+	blameOverlayOpen: boolean;
+	heatmapOpen: boolean;
+	blameLines: BlameLine[];
+}): void {
+	const host = args.portal.querySelector('diffs-container');
+	const root = host?.shadowRoot;
+	if (!root) {
+		return;
+	}
+
+	for (const stale of root.querySelectorAll('.jjplus-eol-blame')) {
+		stale.remove();
+	}
+	for (const painted of root.querySelectorAll('[data-jjplus-heat]')) {
+		if (painted instanceof HTMLElement) {
+			painted.style.removeProperty('background-color');
+			painted.removeAttribute('data-jjplus-heat');
+			painted.classList.remove('jjplus-line-heat');
+		}
+	}
+
+	if (!args.blameOverlayOpen && !args.heatmapOpen) {
+		return;
+	}
+
+	const heat = args.heatmapOpen ? computeBlameHeatLevels(args.blameLines) : null;
+	const byLine = new Map(args.blameLines.map((entry) => [entry.line, entry]));
+
+	const lineNumbers = new Set<number>([...args.blameLines.map((entry) => entry.line), ...(heat ? heat.keys() : [])]);
+
+	for (const lineNumber of lineNumbers) {
+		const lineEl = findAdditionSideLineElement(root, lineNumber);
+		if (!lineEl) {
+			continue;
+		}
+
+		if (heat) {
+			const level = heat.get(lineNumber);
+			if (typeof level === 'number') {
+				lineEl.dataset.jjplusHeat = String(level);
+				lineEl.classList.add('jjplus-line-heat');
+				lineEl.style.backgroundColor = HEAT_LINE_BACKGROUNDS[level];
+			}
+		}
+
+		if (args.blameOverlayOpen) {
+			const entry = byLine.get(lineNumber);
+			if (!entry?.revision) {
+				continue;
+			}
+			const span = document.createElement('span');
+			span.className = 'jjplus-eol-blame';
+			span.textContent = formatBlameGutterLabel(entry);
+			span.title = formatBlameHoverTooltip(entry);
+			span.addEventListener('click', (event) => {
+				event.preventDefault();
+				event.stopPropagation();
+				emitBlameLineClick(lineNumber, entry.revision);
+			});
+			lineEl.appendChild(span);
+		}
+	}
+}
+
 function buildPierreBlameAnnotations(
-	blameOverlayOpen: boolean,
 	heatmapOpen: boolean,
 	blameLines: BlameLine[],
 ): DiffLineAnnotation<BlameAnnotationMeta>[] {
-	if (!blameOverlayOpen && !heatmapOpen) {
+	// Heat still uses Pierre annotation slots for a gutter accent; blame is EOL-painted.
+	if (!heatmapOpen) {
 		return [];
 	}
-	const heat = heatmapOpen ? computeBlameHeatLevels(blameLines) : null;
+	const heat = computeBlameHeatLevels(blameLines);
 	return blameLines.map((entry) => ({
 		side: 'additions' as const,
 		lineNumber: entry.line,
 		metadata: {
 			...entry,
-			heatLevel: heat?.get(entry.line),
+			heatLevel: heat.get(entry.line),
 		},
 	}));
 }
@@ -804,7 +898,6 @@ function buildOptions(
 	lineDiffType: 'word-alt' | 'word' | 'char' | 'none' = 'word-alt',
 	embeddedInStack = false,
 ) {
-	const annotationsActive = blameOverlayOpen || heatmapOpen;
 	const hostSizing = embeddedInStack
 		? `
 			:host {
@@ -831,7 +924,7 @@ function buildOptions(
 		themeType,
 		diffStyle: layoutMode === 'unified' ? ('unified' as const) : ('split' as const),
 		lineDiffType,
-		// Blame/heatmap are gutter annotations — do not force whole-file expand.
+		// Blame/heatmap overlays — do not force whole-file expand.
 		expandUnchanged: contentMode === 'full',
 		disableFileHeader: true,
 		hunkSeparators: 'line-info' as const,
@@ -839,53 +932,31 @@ function buildOptions(
 		// Wrap: content defines height; our host scrolls. Avoids Pierre's default
 		// overflow:scroll + align-self:flex-start fighting a height:100% override.
 		overflow: 'wrap' as const,
-		onLineClick: annotationsActive
+		onLineClick: blameOverlayOpen
 			? (props: { lineNumber: number; annotationSide?: 'additions' | 'deletions' }) => {
 					if (props.annotationSide && props.annotationSide !== 'additions') {
-						return;
-					}
-					if (!blameOverlayOpen) {
 						return;
 					}
 					emitBlameLineClick(props.lineNumber);
 				}
 			: undefined,
-		renderAnnotation: annotationsActive
+		renderAnnotation: heatmapOpen
 			? (annotation: DiffLineAnnotation<BlameAnnotationMeta>) => {
 					const meta = annotation.metadata;
-					if (!meta) {
+					if (!meta || typeof meta.heatLevel !== 'number') {
 						return undefined;
 					}
 					const wrap = document.createElement('span');
-					wrap.className = 'pierre-gutter-extras';
-
-					if (heatmapOpen && typeof meta.heatLevel === 'number') {
-						const heat = document.createElement('span');
-						heat.className = `pierre-heat-bar ${heatLevelClass(meta.heatLevel)}`;
-						heat.title = `Recency heat ${meta.heatLevel}/4 — newer lines glow hotter`;
-						heat.setAttribute('aria-hidden', 'true');
-						heat.dataset.heat = String(meta.heatLevel);
-						wrap.appendChild(heat);
-						wrap.dataset.heat = String(meta.heatLevel);
-						wrap.classList.add(`pierre-heat-wrap`, `pierre-heat-wrap--${meta.heatLevel}`);
-					}
-
-					if (blameOverlayOpen && meta.revision) {
-						const button = document.createElement('button');
-						button.type = 'button';
-						button.className = 'pierre-blame-annotation';
-						button.textContent = formatBlameGutterLabel(meta);
-						button.title = formatBlameHoverTooltip(meta);
-						button.setAttribute('aria-label', formatBlameHoverTooltip(meta).replace(/\n/g, ', '));
-						button.addEventListener('click', (event) => {
-							event.preventDefault();
-							event.stopPropagation();
-							emitBlameLineClick(annotation.lineNumber, meta.revision);
-						});
-						wrap.appendChild(button);
-					}
-
-					return wrap.childElementCount > 0 ? wrap : undefined;
+					wrap.className = 'pierre-gutter-extras pierre-heat-wrap';
+					wrap.classList.add(`pierre-heat-wrap--${meta.heatLevel}`);
+					wrap.dataset.heat = String(meta.heatLevel);
+					const heat = document.createElement('span');
+					heat.className = `pierre-heat-bar ${heatLevelClass(meta.heatLevel)}`;
+					heat.title = `Recency heat ${meta.heatLevel}/4 — newer lines glow hotter`;
+					heat.setAttribute('aria-hidden', 'true');
+					heat.dataset.heat = String(meta.heatLevel);
+					wrap.appendChild(heat);
+					return wrap;
 				}
 			: undefined,
 		unsafeCSS: `
@@ -911,46 +982,47 @@ function buildOptions(
 				padding-left: 2px;
 				border-left: 3px solid transparent;
 				margin-left: 0;
+				align-self: stretch;
+				min-height: 1.2em;
 			}
-			.pierre-heat-wrap--0 { border-left-color: color-mix(in srgb, #58a6ff 35%, transparent); background: color-mix(in srgb, #58a6ff 8%, transparent); }
-			.pierre-heat-wrap--1 { border-left-color: color-mix(in srgb, #58a6ff 55%, transparent); background: color-mix(in srgb, #58a6ff 14%, transparent); }
-			.pierre-heat-wrap--2 { border-left-color: color-mix(in srgb, #3fb950 70%, transparent); background: color-mix(in srgb, #3fb950 16%, transparent); }
-			.pierre-heat-wrap--3 { border-left-color: color-mix(in srgb, #d29922 80%, transparent); background: color-mix(in srgb, #d29922 18%, transparent); }
-			.pierre-heat-wrap--4 { border-left-color: color-mix(in srgb, #f85149 90%, transparent); background: color-mix(in srgb, #f85149 22%, transparent); }
+			.pierre-heat-wrap--0 { border-left-color: color-mix(in srgb, #58a6ff 55%, transparent); background: color-mix(in srgb, #58a6ff 14%, transparent); }
+			.pierre-heat-wrap--1 { border-left-color: color-mix(in srgb, #58a6ff 75%, transparent); background: color-mix(in srgb, #58a6ff 22%, transparent); }
+			.pierre-heat-wrap--2 { border-left-color: color-mix(in srgb, #3fb950 85%, transparent); background: color-mix(in srgb, #3fb950 26%, transparent); }
+			.pierre-heat-wrap--3 { border-left-color: color-mix(in srgb, #d29922 90%, transparent); background: color-mix(in srgb, #d29922 30%, transparent); }
+			.pierre-heat-wrap--4 { border-left-color: color-mix(in srgb, #f85149 95%, transparent); background: color-mix(in srgb, #f85149 34%, transparent); }
 			.pierre-heat-bar {
 				display: inline-block;
-				width: 6px;
+				width: 10px;
 				min-height: 14px;
-				height: 1.1em;
+				height: 1.15em;
 				align-self: stretch;
 				border-radius: 2px;
 				flex: 0 0 auto;
 			}
-			.pierre-heat--0 { background: color-mix(in srgb, #58a6ff 35%, transparent); }
-			.pierre-heat--1 { background: color-mix(in srgb, #58a6ff 55%, transparent); }
-			.pierre-heat--2 { background: color-mix(in srgb, #3fb950 70%, transparent); }
-			.pierre-heat--3 { background: color-mix(in srgb, #d29922 85%, transparent); }
-			.pierre-heat--4 { background: color-mix(in srgb, #f85149 95%, transparent); }
-			.pierre-blame-annotation {
-				display: inline-flex;
-				align-items: center;
-				max-width: 140px;
-				padding: 0 4px;
-				border: 0;
-				border-radius: 0;
-				background: transparent;
-				color: color-mix(in srgb, var(--vscode-descriptionForeground, #8b949e) 92%, transparent);
-				font: 500 10px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
-				white-space: nowrap;
-				overflow: hidden;
-				text-overflow: ellipsis;
-				opacity: 0.72;
-				cursor: pointer;
+			.pierre-heat--0 { background: color-mix(in srgb, #58a6ff 55%, transparent); }
+			.pierre-heat--1 { background: color-mix(in srgb, #58a6ff 75%, transparent); }
+			.pierre-heat--2 { background: color-mix(in srgb, #3fb950 85%, transparent); }
+			.pierre-heat--3 { background: color-mix(in srgb, #d29922 92%, transparent); }
+			.pierre-heat--4 { background: color-mix(in srgb, #f85149 98%, transparent); }
+			.jjplus-line-heat {
+				border-radius: 2px;
 			}
-			.pierre-blame-annotation:hover:not(:disabled) {
+			.jjplus-eol-blame {
+				display: inline;
+				margin-left: 1.5em;
+				padding: 0;
+				border: 0;
+				background: transparent;
+				color: color-mix(in srgb, var(--vscode-descriptionForeground, #8b949e) 88%, transparent);
+				font: italic 11px/1.35 var(--vscode-editor-font-family, ui-monospace, SFMono-Regular, Menlo, monospace);
+				white-space: nowrap;
+				opacity: 0.78;
+				cursor: pointer;
+				user-select: none;
+			}
+			.jjplus-eol-blame:hover {
 				opacity: 1;
 				color: var(--vscode-foreground, #e6edf3);
-				background: color-mix(in srgb, var(--vscode-editor-lineHighlightBackground, #388bfd22) 80%, transparent);
 			}
 		`,
 	};
