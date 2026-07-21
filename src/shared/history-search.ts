@@ -1,3 +1,5 @@
+import { diffHunkContainsNeedle } from './diff-content-search.ts';
+
 export type HistorySearchHit = {
 	entryIndex: number;
 	kind: 'introduced' | 'removed' | 'present';
@@ -49,4 +51,36 @@ export function searchHistoryContents(args: {
 	}
 
 	return { query, hits, introducedAt, removedAt };
+}
+
+/**
+ * Sidebar `content:` matches — only revisions whose parent→self diff hunks contain the needle.
+ */
+export function searchHistoryDiffContents(args: {
+	query: string;
+	orderedEntryIndexes: number[];
+	contentsByIndex: Map<number, string>;
+}): HistorySearchResult {
+	const query = normalizeHistorySearchQuery(args.query);
+	const hits: HistorySearchHit[] = [];
+	if (!query) {
+		return { query, hits, introducedAt: null, removedAt: null, purpose: 'sidebar' };
+	}
+
+	let previousContent = '';
+	for (const entryIndex of args.orderedEntryIndexes) {
+		const content = args.contentsByIndex.get(entryIndex) ?? '';
+		if (diffHunkContainsNeedle({ before: previousContent, after: content, needle: query })) {
+			hits.push({ entryIndex, kind: 'present' });
+		}
+		previousContent = content;
+	}
+
+	return {
+		query,
+		hits,
+		introducedAt: hits[0]?.entryIndex ?? null,
+		removedAt: null,
+		purpose: 'sidebar',
+	};
 }
