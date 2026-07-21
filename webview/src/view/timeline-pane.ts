@@ -73,6 +73,8 @@ export function timelinePane(model: Model): Html {
 	const collapseLabel = model.timelinePaneCollapsed ? 'Expand timeline' : 'Collapse timeline';
 	const lineHistory = (model.data as { lineHistory?: { startLine: number; endLine: number } } | null)?.lineHistory;
 	const pathTrail = getFilePathTrailLabel(model);
+	const rangeFiles = getActiveRangeOverviewItems(model);
+	const currentRelativePath = (model.data as { relativePath?: string } | null)?.relativePath || '';
 
 	return h.div(
 		[h.Class(`timeline-pane${model.timelinePaneCollapsed ? ' is-collapsed' : ''}`), h.Id('timelinePane')],
@@ -194,6 +196,40 @@ export function timelinePane(model: Model): Html {
 										options: fileOptions(model),
 										onSubmit: (value) => SubmittedFileSwitcher({ value }),
 									}),
+									model.fileSwitcherMode === 'overview' && rangeFiles.length
+										? h.div(
+												[
+													h.Class('range-file-list'),
+													h.Id('rangeFileList'),
+													h.Role('list'),
+													h.AriaLabel('Files changed in selected range'),
+												],
+												rangeFiles
+													.slice(0, 16)
+													.map((item) =>
+														h.button(
+															[
+																h.Class(
+																	`range-file-chip${item.relativePath === currentRelativePath ? ' is-current' : ''}`,
+																),
+																h.Type('button'),
+																h.Role('listitem'),
+																h.Title(
+																	`${item.relativePath} · ${item.changeCount} change${item.changeCount === 1 ? '' : 's'}`,
+																),
+																h.OnClick(SubmittedFileSwitcher({ value: item.relativePath })),
+															],
+															[
+																h.span(
+																	[h.Class('range-file-chip-name')],
+																	[item.relativePath.split('/').at(-1) || item.relativePath],
+																),
+																h.span([h.Class('range-file-chip-count')], [String(item.changeCount)]),
+															],
+														),
+													),
+											)
+										: h.empty,
 								],
 							),
 							h.div(

@@ -921,6 +921,45 @@ kbd {
 	color: var(--accent-alt);
 }
 
+.range-file-list {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	max-height: 52px;
+	overflow: auto;
+	padding: 2px 0 0;
+}
+
+.range-file-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	max-width: 180px;
+	border: 1px solid var(--border);
+	border-radius: var(--radius-control);
+	background: var(--input-bg);
+	color: var(--text);
+	font-size: 10px;
+	padding: 2px 6px;
+	cursor: pointer;
+}
+
+.range-file-chip.is-current {
+	border-color: color-mix(in srgb, var(--accent-alt) 50%, var(--border));
+	background: color-mix(in srgb, var(--accent-alt) 14%, transparent);
+}
+
+.range-file-chip-name {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.range-file-chip-count {
+	color: var(--muted);
+	font-variant-numeric: tabular-nums;
+}
+
 .combobox {
 	position: relative;
 	z-index: 0;
