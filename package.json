@@ -85,8 +85,21 @@
 			{
 				"command": "jj-range-diff.openFileLineTimeline",
 				"title": "JJ: Open Timeline for Selected Lines"
+			},
+			{
+				"command": "jj-range-diff.openTimelineAtLine",
+				"title": "JJ: Open Timeline at Cursor Line"
 			}
-		]
+		],
+		"menus": {
+			"editor/context": [
+				{
+					"command": "jj-range-diff.openTimelineAtLine",
+					"group": "navigation@90",
+					"when": "resourceScheme == file"
+				}
+			]
+		}
 	},
 	"activationEvents": [
 		"onStartupFinished",

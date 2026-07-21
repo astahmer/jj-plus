@@ -42,6 +42,7 @@ const SET_LAYOUT_COMMAND = 'jj-range-diff._debug.setLayoutMode';
 const OPEN_FILE_DIFF_COMMAND = 'jj-range-diff.openFileRangeDiff';
 const OPEN_TIMELINE_COMMAND = 'jj-range-diff.openFileRevisionTimeline';
 const OPEN_LINE_TIMELINE_COMMAND = 'jj-range-diff.openFileLineTimeline';
+const OPEN_TIMELINE_AT_LINE_COMMAND = 'jj-range-diff.openTimelineAtLine';
 const TARGET_RELATIVE_PATH = 'apps/backend/instructions/lazy-di-rollout-plan.md';
 const SECONDARY_RELATIVE_PATH = 'apps/backend/src/service.ts';
 
@@ -106,6 +107,30 @@ suite('Revision Timeline integration', () => {
 			(state.entryCount || 0) <= fullCount,
 			`line history should not expand entries (${state.entryCount} vs full ${fullCount})`,
 		);
+	});
+
+	test('openTimelineAtLine filters to the cursor line via blame path', async () => {
+		const workspaceFolder = workspace.workspaceFolders?.[0];
+		if (!workspaceFolder) {
+			throw new Error('expected the integration test workspace to be open');
+		}
+
+		const fileUri = Uri.file(join(workspaceFolder.uri.fsPath, TARGET_RELATIVE_PATH));
+		const document = await workspace.openTextDocument(fileUri);
+		await window.showTextDocument(document, { preview: false });
+
+		await commands.executeCommand(OPEN_TIMELINE_AT_LINE_COMMAND, {
+			absolutePath: fileUri.fsPath,
+			line: 1,
+		});
+
+		const state = await waitForTimelineState(
+			(candidate) =>
+				candidate?.viewReady === true && candidate.lineHistory?.startLine === 1 && candidate.lineHistory?.endLine === 1,
+		);
+		deepEqual(state.lineHistory, { startLine: 1, endLine: 1 });
+		match(state.panelTitle || '', /L1/u);
+		ok((state.entryCount || 0) >= 1, `expected timeline entries, got ${JSON.stringify(state)}`);
 	});
 
 	test('diff portal fills vertical space inside the real VS Code webview', async () => {

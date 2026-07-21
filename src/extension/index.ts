@@ -15,11 +15,13 @@ import {
 	OPEN_FILE_RANGE_DIFF_COMMAND,
 	OPEN_FILE_TIMELINE_COMMAND,
 	OPEN_FILE_LINE_TIMELINE_COMMAND,
+	OPEN_TIMELINE_AT_LINE_COMMAND,
 	OPEN_MULTI_DIFF_COMMAND,
 	PENDING_RANGE_DIFF_KEY,
 	SNAPSHOT_SCHEME,
 	TIMELINE_PREFERENCES_KEY,
 } from './constants.ts';
+import { createTimelineBlameCodeLensProvider, createTimelineBlameHoverProvider } from './blame-codelens.ts';
 import { resolveHistoryAdapter, resolveHistoryWorkspacePath } from './history-adapters.ts';
 import { createTimelinePanelController } from './timeline-panel.ts';
 import { createTimelineService, normalizeTimelinePreferences } from './timeline-service.ts';
@@ -252,6 +254,7 @@ export function activate(context: vscode.ExtensionContext): void {
 		}
 	};
 
+	const blameCodeLensProvider = createTimelineBlameCodeLensProvider();
 	context.subscriptions.push(
 		outputChannel,
 		vscode.workspace.registerTextDocumentContentProvider('jj-range-diff', provider),
@@ -274,6 +277,49 @@ export function activate(context: vscode.ExtensionContext): void {
 				lineHistory: { startLine, endLine },
 			});
 		}),
+		vscode.commands.registerCommand(
+			OPEN_TIMELINE_AT_LINE_COMMAND,
+			async (args?: { absolutePath?: string; line?: number } | string) => {
+				const parsed =
+					typeof args === 'string' ? (JSON.parse(args) as { absolutePath?: string; line?: number }) : args || {};
+				const editor = vscode.window.activeTextEditor;
+				const absolutePath = parsed.absolutePath || editor?.document.uri.fsPath;
+				const line =
+					typeof parsed.line === 'number' ? parsed.line : editor ? editor.selection.active.line + 1 : undefined;
+				if (!absolutePath || !line) {
+					void vscode.window.showErrorMessage('Place the cursor on a workspace file line to open timeline');
+					return;
+				}
+
+				const workspaceFolder = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(absolutePath));
+				if (!workspaceFolder) {
+					void vscode.window.showErrorMessage('The file must belong to a workspace folder');
+					return;
+				}
+
+				const relativePath = path.relative(workspaceFolder.uri.fsPath, absolutePath).replace(/\\/g, '/');
+				const adapter = await resolveHistoryAdapter({
+					workspacePath: workspaceFolder.uri.fsPath,
+					runner,
+				});
+				const focusRevision = await service.resolveBlameRevisionForLine({
+					workspacePath: workspaceFolder.uri.fsPath,
+					relativePath,
+					line,
+					backend: adapter.backend,
+				});
+
+				await panelController.openFileRevisionTimeline({
+					context,
+					absolutePath,
+					lineHistory: { startLine: line, endLine: line },
+					focusRevision,
+				});
+			},
+		),
+		vscode.languages.registerCodeLensProvider({ scheme: 'file' }, blameCodeLensProvider),
+		blameCodeLensProvider,
+		vscode.languages.registerHoverProvider({ scheme: 'file' }, createTimelineBlameHoverProvider()),
 		vscode.commands.registerCommand(GET_TIMELINE_DEBUG_STATE_COMMAND, () => panelController.getDebugState()),
 		vscode.commands.registerCommand(GET_DIFF_LAYOUT_METRICS_COMMAND, () => panelController.getDiffLayoutMetrics()),
 		vscode.commands.registerCommand(

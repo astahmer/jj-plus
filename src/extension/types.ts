@@ -127,6 +127,7 @@ export type TimelinePanelController = {
 		context: vscode.ExtensionContext;
 		absolutePath?: string;
 		lineHistory?: LineHistoryRange;
+		focusRevision?: string;
 	}): Promise<void>;
 	getDebugState(): TimelineDebugState;
 	getDiffLayoutMetrics(): Promise<import('../shared/timeline-types.ts').DiffLayoutMetrics>;

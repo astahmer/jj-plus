@@ -9,6 +9,7 @@ import type {
 	TimelineInboundMessage,
 	TimelinePreferences,
 } from '../shared/timeline-types.ts';
+import { revisionMatchesBlame } from '../shared/blame.ts';
 import { OPEN_MULTI_DIFF_COMMAND, TIMELINE_PRESET_DAYS } from './constants.ts';
 import { createTimelineService } from './timeline-service.ts';
 import { createSnapshotUri } from './uri-utils.ts';
@@ -288,7 +289,7 @@ export function createTimelinePanelController(args: {
 				message: { type: 'debug-set-layout-mode', layoutMode: nextPreferences.layoutMode },
 			});
 		},
-		async openFileRevisionTimeline({ absolutePath, lineHistory }) {
+		async openFileRevisionTimeline({ absolutePath, lineHistory, focusRevision }) {
 			const initialPath = await resolveTimelineSourcePath({ absolutePath });
 			if (!initialPath) {
 				void vscode.window.showErrorMessage('Open a workspace file to browse its revision timeline');
@@ -340,6 +341,7 @@ export function createTimelinePanelController(args: {
 				absolutePath: documentUri.fsPath,
 				lineHistory,
 				customRevset: args.getPreferences().customRevset || undefined,
+				focusRevision,
 			});
 		},
 	};
@@ -350,6 +352,7 @@ export function createTimelinePanelController(args: {
 		absolutePath: string;
 		lineHistory?: { startLine: number; endLine: number };
 		customRevset?: string;
+		focusRevision?: string;
 	}): Promise<void> {
 		const generation = (panelLoadGeneration.get(request.panel) || 0) + 1;
 		panelLoadGeneration.set(request.panel, generation);
@@ -394,6 +397,26 @@ export function createTimelinePanelController(args: {
 				panel: request.panel,
 				session,
 			});
+		}
+
+		if (request.focusRevision) {
+			const mapped = args.service.mapEntriesForPayload(session.entries);
+			const match = mapped.find(
+				(entry) => !entry.isWorkingTree && revisionMatchesBlame(entry.revision, request.focusRevision!),
+			);
+			if (match && typeof match.index === 'number') {
+				const fromIndex = Math.max(0, match.index - 1);
+				await handleTimelineMessage({
+					panel: request.panel,
+					session,
+					message: {
+						command: 'select-entry',
+						fromIndex,
+						toIndex: match.index,
+						comparisonSource: 'revision',
+					},
+				});
+			}
 		}
 	}
 

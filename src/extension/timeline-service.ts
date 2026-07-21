@@ -3,6 +3,13 @@ import path from 'node:path';
 import { textsMatchIgnoringLineEndings } from '../shared/diff-helpers.ts';
 import { computeDiffStats } from '../shared/diff-stats.ts';
 import {
+	buildGitBlameArgs,
+	buildJjAnnotateArgs,
+	findBlameForLine,
+	parseGitBlamePorcelain,
+	parseJjFileAnnotate,
+} from '../shared/blame.ts';
+import {
 	buildGitLineHistoryArgs,
 	filterEntriesTouchingLineRange,
 	normalizeLineHistoryRange,
@@ -240,6 +247,7 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 		getEntriesForSource,
 		getRangeOverview,
 		hydrateSnapshotEntries,
+		resolveBlameRevisionForLine,
 		runSessionAction,
 		resolveEntryFilePath,
 		syncSession,
@@ -834,6 +842,31 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 			if (request.session.activeActionAbortController === controller) {
 				request.session.activeActionAbortController = undefined;
 			}
+		}
+	}
+
+	async function resolveBlameRevisionForLine(request: {
+		workspacePath: string;
+		relativePath: string;
+		line: number;
+		backend: 'git' | 'jj';
+	}): Promise<string | undefined> {
+		try {
+			if (request.backend === 'git') {
+				const { stdout } = await runner.runGit({
+					workspacePath: request.workspacePath,
+					args: buildGitBlameArgs({ relativePath: request.relativePath, line: request.line }),
+				});
+				return findBlameForLine(parseGitBlamePorcelain(stdout), request.line)?.revision;
+			}
+
+			const { stdout } = await runner.runJj({
+				workspacePath: request.workspacePath,
+				args: buildJjAnnotateArgs({ relativePath: request.relativePath }),
+			});
+			return findBlameForLine(parseJjFileAnnotate(stdout), request.line)?.revision;
+		} catch {
+			return undefined;
 		}
 	}
 
