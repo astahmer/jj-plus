@@ -26,6 +26,7 @@
 		".features-gen",
 		".vscode-test",
 		"test-results",
-		"webview-dist"
+		"webview-dist",
+		"tests/fixtures/assets"
 	]
 }

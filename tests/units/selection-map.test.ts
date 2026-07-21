@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { mapSelectionAcrossSources } from '../../webview/src/domain/timeline-selection.ts';
-import type { FileRevisionEntry } from '../../src/shared/timeline-types.ts';
+import type { FileRevisionEntry } from '../../webview/src/types.ts';
 
 function entry(
 	overrides: Partial<FileRevisionEntry> & Pick<FileRevisionEntry, 'index' | 'changeId'>,
