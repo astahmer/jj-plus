@@ -28,7 +28,6 @@ import {
 	getVersion,
 } from '../selectors.ts';
 import { combobox, type ComboboxOption } from './combobox.ts';
-import { hotkeysPopover } from './hotkeys.ts';
 import { timelineControls } from './timeline-controls.ts';
 import { timelineRevisionPickers } from './timeline-revision-pickers.ts';
 import { timelineTrack } from './timeline-track.ts';
@@ -288,7 +287,6 @@ export function timelinePane(model: Model): Html {
 						: h.empty,
 				],
 			),
-			model.hotkeysOpen ? hotkeysPopover(model) : h.empty,
 		],
 	);
 }

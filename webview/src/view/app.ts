@@ -3,6 +3,8 @@ import type { Message } from '../messages.ts';
 import type { Model } from '../model.ts';
 import { queuePierreFileDiffSync } from '../pierre/file-diff-host.ts';
 import { diffPanel, timelineResizeHandle } from './diff-panel.ts';
+import { hotkeysPopover } from './hotkeys.ts';
+import { syncOverlayGeometry } from './overlay-geometry.ts';
 import { sessionLoadingOverlay } from './session-loading.ts';
 import { sidebar } from './sidebar.ts';
 import { timelinePane } from './timeline-pane.ts';
@@ -13,6 +15,7 @@ const TIMELINE_COLLAPSED_HEIGHT = 128;
 export function view(model: Model): Html {
 	if (typeof window !== 'undefined') {
 		queuePierreFileDiffSync(model);
+		window.requestAnimationFrame(() => syncOverlayGeometry(model));
 	}
 
 	const h = html<Message>();
@@ -42,6 +45,7 @@ export function view(model: Model): Html {
 				],
 			),
 			trackTooltip(model),
+			model.hotkeysOpen ? hotkeysPopover(model) : h.empty,
 			sessionLoadingOverlay(model),
 		],
 	);
