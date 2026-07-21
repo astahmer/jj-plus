@@ -36,5 +36,20 @@ test.describe('multi-file range switcher', () => {
 				timeout: 15000,
 			})
 			.toBeGreaterThan(0);
+
+		const portal = page.locator('.pierre-diff-root.is-range-stack');
+		await expect
+			.poll(async () => portal.evaluate((el) => getComputedStyle(el).overflowY), { timeout: 10000 })
+			.toMatch(/auto|scroll/);
+		const mountOverflow = await page
+			.locator('.pierre-diff-root.is-range-stack .pierre-stack-mount')
+			.first()
+			.evaluate((el) => getComputedStyle(el).overflowY);
+		expect(mountOverflow === 'visible' || mountOverflow === 'auto').toBe(true);
+		const mountMaxHeight = await page
+			.locator('.pierre-diff-root.is-range-stack .pierre-stack-mount')
+			.first()
+			.evaluate((el) => el.style.maxHeight || getComputedStyle(el).maxHeight);
+		expect(mountMaxHeight === '' || mountMaxHeight === 'none').toBe(true);
 	});
 });

@@ -113,9 +113,18 @@ function createFileDiff(
 	blameOverlayOpen: boolean,
 	heatmapOpen: boolean,
 	lineDiffType: 'word-alt' | 'word' | 'char' | 'none',
+	embeddedInStack = false,
 ): FileDiff {
 	return new FileDiff(
-		buildOptions(layoutMode, contentMode, themeType, blameOverlayOpen, heatmapOpen, lineDiffType) as never,
+		buildOptions(
+			layoutMode,
+			contentMode,
+			themeType,
+			blameOverlayOpen,
+			heatmapOpen,
+			lineDiffType,
+			embeddedInStack,
+		) as never,
 		getPierreWorkerPool(),
 	);
 }
@@ -227,7 +236,7 @@ function syncRangeStack(args: RangeStackSyncArgs): void {
 			section.append(header, mount);
 			portal.append(section);
 			entry = {
-				fileDiff: createFileDiff(args.layoutMode, args.contentMode, themeType, false, false, 'word-alt'),
+				fileDiff: createFileDiff(args.layoutMode, args.contentMode, themeType, false, false, 'word-alt', true),
 				section,
 				mount,
 			};
@@ -254,7 +263,7 @@ function syncRangeStack(args: RangeStackSyncArgs): void {
 			lastLayoutMode !== args.layoutMode || lastContentMode !== args.contentMode || lastThemeType !== themeType;
 		if (optionsChanged) {
 			stackEntry.fileDiff.setOptions(
-				buildOptions(args.layoutMode, args.contentMode, themeType, false, false, 'word-alt') as never,
+				buildOptions(args.layoutMode, args.contentMode, themeType, false, false, 'word-alt', true) as never,
 			);
 		}
 		if (
@@ -643,14 +652,15 @@ function forcePierreHostScrollport(portal: HTMLElement, height: number): void {
 	}
 
 	if (portal.classList.contains('is-range-stack')) {
-		const sectionHeight = Math.max(180, Math.min(420, Math.round(height * 0.45)));
+		// Single scrollbar on the stack portal (GitHub PR review style).
+		// Do not cap each file mount — that creates nested independent scrollers.
 		portal.style.setProperty('overflow', 'auto');
 		for (const mount of portal.querySelectorAll('.pierre-stack-mount')) {
 			if (!(mount instanceof HTMLElement)) {
 				continue;
 			}
-			mount.style.setProperty('max-height', `${sectionHeight}px`);
-			mount.style.setProperty('overflow', 'auto');
+			mount.style.removeProperty('max-height');
+			mount.style.setProperty('overflow', 'visible');
 			const hosts = mount.querySelectorAll('diffs-container');
 			for (const host of hosts) {
 				if (!(host instanceof HTMLElement)) {
@@ -658,9 +668,9 @@ function forcePierreHostScrollport(portal: HTMLElement, height: number): void {
 				}
 				host.style.setProperty('display', 'block');
 				host.style.setProperty('height', 'auto');
-				host.style.setProperty('max-height', `${sectionHeight}px`);
+				host.style.removeProperty('max-height');
 				host.style.setProperty('min-height', '0');
-				host.style.setProperty('overflow', 'auto');
+				host.style.setProperty('overflow', 'visible');
 				host.style.setProperty('box-sizing', 'border-box');
 				host.style.setProperty('width', '100%');
 			}
@@ -794,8 +804,30 @@ function buildOptions(
 	blameOverlayOpen = false,
 	heatmapOpen = false,
 	lineDiffType: 'word-alt' | 'word' | 'char' | 'none' = 'word-alt',
+	embeddedInStack = false,
 ) {
 	const annotationsActive = blameOverlayOpen || heatmapOpen;
+	const hostSizing = embeddedInStack
+		? `
+			:host {
+				display: block !important;
+				height: auto !important;
+				min-height: 0 !important;
+				max-height: none !important;
+				overflow: visible !important;
+				box-sizing: border-box !important;
+			}
+		`
+		: `
+			:host {
+				display: block !important;
+				height: var(--pierre-portal-height, 100%) !important;
+				min-height: 0 !important;
+				max-height: var(--pierre-portal-height, 100%) !important;
+				overflow: auto !important;
+				box-sizing: border-box !important;
+			}
+		`;
 	return {
 		theme: { dark: 'pierre-dark' as const, light: 'pierre-light' as const },
 		themeType,
@@ -859,14 +891,7 @@ function buildOptions(
 				}
 			: undefined,
 		unsafeCSS: `
-			:host {
-				display: block !important;
-				height: var(--pierre-portal-height, 100%) !important;
-				min-height: 0 !important;
-				max-height: var(--pierre-portal-height, 100%) !important;
-				overflow: auto !important;
-				box-sizing: border-box !important;
-			}
+			${hostSizing}
 			/* contain:content + display:contents on [data-code] collapses wrap
 			   row tracks in VS Code Electron (all lines share one grid row). */
 			code[data-code] {

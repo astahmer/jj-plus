@@ -2093,7 +2093,7 @@ kbd {
 	flex: 0 0 auto;
 	border: 1px solid var(--border);
 	border-radius: 8px;
-	overflow: hidden;
+	overflow: visible;
 	background: color-mix(in srgb, var(--panel) 70%, var(--bg));
 }
 
@@ -2105,10 +2105,16 @@ kbd {
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
+	position: sticky;
+	top: 0;
+	z-index: 1;
+	background: color-mix(in srgb, var(--panel) 92%, var(--bg));
 }
 
 .pierre-stack-mount {
-	min-height: 120px;
+	min-height: 0;
+	height: auto;
+	overflow: visible;
 }
 
 .pierre-diff-root.is-pending,
