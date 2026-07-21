@@ -8,6 +8,7 @@ import type {
 	HistoryBackend,
 	LayoutMode,
 	RangeOverviewItem,
+	RangeStackPreviewPayload,
 	TimelineCommand,
 	TimelineData as SharedTimelineData,
 	TimelineFixture as SharedTimelineFixture,
@@ -25,6 +26,7 @@ export type {
 	HistoryBackend,
 	LayoutMode,
 	RangeOverviewItem,
+	RangeStackPreviewPayload,
 	TimelineCommand,
 	TimelinePreferences,
 	TimelinePreset,
@@ -73,7 +75,8 @@ export type TimelineInboundMessage =
 	  }
 	| { type: 'resolved-range'; payload: { fromIndex: number; toIndex: number } | null }
 	| { type: 'debug-measure-layout' }
-	| { type: 'debug-set-layout-mode'; layoutMode: LayoutMode };
+	| { type: 'debug-set-layout-mode'; layoutMode: LayoutMode }
+	| { type: 'range-stack-previews'; payload: RangeStackPreviewPayload };
 
 export type TimelineFixtureFile = Omit<SharedTimelineFixtureFile, 'timelineData' | 'previews'> & {
 	timelineData: TimelineData;

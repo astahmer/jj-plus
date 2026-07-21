@@ -57,9 +57,11 @@ import type { Model } from './model.ts';
 import { initialModel } from './model.ts';
 import { BootSession, FocusElement, PersistState, ScrollToEntry, SendHostCommand } from './commands.ts';
 import type { Message } from './messages.ts';
+import { pickRangeStackPaths } from '../../src/shared/range-stack.ts';
 import {
 	getActivePreviewKey,
 	getActiveRangeOverviewKey,
+	getActiveRangeOverviewItems,
 	getData,
 	getEffectiveComparisonSource,
 	getFilteredSidebarEntries,
@@ -132,11 +134,39 @@ function clearCaches(model: Model): Model {
 	return evo(model, {
 		previewByRange: () => ({}),
 		rangeOverviewByRange: () => ({}),
+		rangeStackByPath: () => ({}),
 		entryDiffCountByKey: () => ({}),
 		rangeOverviewLoadingKey: () => '',
 		entryDiffCountLoadingKey: () => '',
 		sidebarPreviewInFlightKey: () => '',
 		pendingRangeResolutionKey: () => '',
+	});
+}
+
+function rangeStackLoadCommand(model: Model): Command.Command<Message> | null {
+	if (!model.rangeStackOpen || model.session._tag !== 'Ready') {
+		return null;
+	}
+	const data = getData(model);
+	if (!data) {
+		return null;
+	}
+	const overview = getActiveRangeOverviewItems(model);
+	const paths = pickRangeStackPaths(
+		overview.length ? overview : [{ relativePath: data.relativePath, changeCount: 1, isCurrentFile: true }],
+		data.relativePath,
+	);
+	if (!paths.length) {
+		return null;
+	}
+	return SendHostCommand({
+		command: {
+			command: 'load-range-stack',
+			fromIndex: model.fromIndex,
+			toIndex: model.toIndex,
+			comparisonSource: getEffectiveComparisonSource(model),
+			relativePaths: paths,
+		},
 	});
 }
 
@@ -249,6 +279,13 @@ function applySyncPlan(model: Model): UpdateReturn {
 				},
 			}),
 		);
+	}
+
+	if (nextModel.rangeStackOpen && Object.keys(nextModel.rangeStackByPath).length === 0) {
+		const stackCommand = rangeStackLoadCommand(nextModel);
+		if (stackCommand) {
+			commands.push(stackCommand);
+		}
 	}
 
 	return [nextModel, commands];
@@ -857,6 +894,8 @@ function handleReset(model: Model): UpdateReturn {
 		preset: () => 'year' as TimelinePreset,
 		showIntermediateRevisions: () => false as boolean,
 		customRevset: () => '',
+		rangeStackOpen: () => false as boolean,
+		rangeStackByPath: () => ({}),
 		sidebarSearchQuery: () => '',
 		sidebarWidth: () => clampSidebarWidth(280),
 		timelinePaneHeight: () => 220,
@@ -897,6 +936,12 @@ function handleGotHostMessage(model: Model, payload: unknown): UpdateReturn {
 		),
 		M.when('range-overview', () =>
 			handleRangeOverviewMessage(model, message as Extract<TimelineInboundMessage, { type: 'range-overview' }>),
+		),
+		M.when('range-stack-previews', () =>
+			handleRangeStackPreviewsMessage(
+				model,
+				message as Extract<TimelineInboundMessage, { type: 'range-stack-previews' }>,
+			),
 		),
 		M.when('entry-diff-counts', () =>
 			handleEntryDiffCountsMessage(model, message as Extract<TimelineInboundMessage, { type: 'entry-diff-counts' }>),
@@ -1103,8 +1148,38 @@ function handleRangeOverviewMessage(
 	const next = evo(model, {
 		rangeOverviewByRange: (byRange) => ({ ...byRange, [rangeKey]: payload.items }),
 		rangeOverviewLoadingKey: (current) => (current === rangeKey ? '' : current),
+		...(model.rangeStackOpen ? { rangeStackByPath: () => ({}) } : {}),
 	});
 	return afterMutate(next);
+}
+
+function handleRangeStackPreviewsMessage(
+	model: Model,
+	message: Extract<TimelineInboundMessage, { type: 'range-stack-previews' }>,
+): UpdateReturn {
+	const payload = message.payload;
+	if (
+		payload.fromIndex !== Math.min(model.fromIndex, model.toIndex) ||
+		payload.toIndex !== Math.max(model.fromIndex, model.toIndex) ||
+		payload.comparisonSource !== getEffectiveComparisonSource(model)
+	) {
+		return [model, []];
+	}
+	const byPath: Record<string, DiffPreview> = {};
+	for (const item of payload.items) {
+		byPath[item.relativePath] = item.preview;
+	}
+	return [evo(model, { rangeStackByPath: () => byPath }), []];
+}
+
+function handleToggleRangeStack(model: Model): UpdateReturn {
+	const nextOpen = !model.rangeStackOpen;
+	return afterMutate(
+		evo(model, {
+			rangeStackOpen: () => nextOpen,
+			rangeStackByPath: () => ({}),
+		}),
+	);
 }
 
 function handleEntryDiffCountsMessage(
@@ -1443,6 +1518,7 @@ export function update(model: Model, message: Message): UpdateReturn {
 					}),
 				],
 			],
+			ToggledRangeStack: () => handleToggleRangeStack(model),
 			ToggledIntermediate: () => handleToggleIntermediate(model),
 			ClickedStepBackward: () => handleStep(model, -1),
 			ClickedStepFastBackward: () => handleStep(model, -5),

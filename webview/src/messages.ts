@@ -51,6 +51,7 @@ export const SelectedContentMode = m('SelectedContentMode', { value: S.Literals(
 export const SelectedPreset = m('SelectedPreset', { value: S.Literals(['year', '7d', '30d', '90d', 'all']) });
 export const UpdatedCustomRevset = m('UpdatedCustomRevset', { value: S.String });
 export const AppliedCustomRevset = m('AppliedCustomRevset');
+export const ToggledRangeStack = m('ToggledRangeStack');
 export const ToggledIntermediate = m('ToggledIntermediate');
 
 // Track
@@ -161,6 +162,7 @@ export const Message = S.Union([
 	SelectedPreset,
 	UpdatedCustomRevset,
 	AppliedCustomRevset,
+	ToggledRangeStack,
 	ToggledIntermediate,
 	ClickedTrackAnchor,
 	ClickedStepBackward,

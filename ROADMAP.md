@@ -6,13 +6,13 @@ Related: [TODO.md](./TODO.md) (engineering backlog). This doc is product ideas +
 
 ## Sharp next bets (in progress)
 
-| #   | Bet                                 | Intent                                                        | Status |
-| --- | ----------------------------------- | ------------------------------------------------------------- | ------ |
-| 1   | **Line history + blame → timeline** | Selection / blame jumps to only revs that touched those lines | done   |
-| 2   | **Rename / copy follow (visible)**  | Adapter already follows paths; surface path trail + trust UX  | done   |
-| 3   | **Churn bars on track**             | Anchor height/color from +/- or hunk count so big edits pop   | done   |
-| 4   | **Multi-file Pierre for range**     | Inspect all files changed in from→to inside the panel         | done   |
-| 5   | **Revset filter + evolog overlay**  | Power filter (`jj log -r`) + evolution strip for a change     | done   |
+| #   | Bet                                 | Intent                                                        | Status                        |
+| --- | ----------------------------------- | ------------------------------------------------------------- | ----------------------------- |
+| 1   | **Line history + blame → timeline** | Selection / blame jumps to only revs that touched those lines | done                          |
+| 2   | **Rename / copy follow (visible)**  | Adapter already follows paths; surface path trail + trust UX  | done                          |
+| 3   | **Churn bars on track**             | Anchor height/color from +/- or hunk count so big edits pop   | done                          |
+| 4   | **Multi-file Pierre for range**     | Inspect all files changed in from→to inside the panel         | done (chips + in-panel stack) |
+| 5   | **Revset filter + evolog overlay**  | Power filter (`jj log -r`) + evolution strip for a change     | done                          |
 
 ## Idea inventory (from competitors)
 

@@ -246,6 +246,7 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 		getEntryDiffCounts,
 		getEntriesForSource,
 		getRangeOverview,
+		getRangeStackPreviews,
 		hydrateSnapshotEntries,
 		resolveBlameRevisionForLine,
 		runSessionAction,
@@ -749,6 +750,105 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 
 		request.session.rangeOverviewCache.set(cacheKey, items);
 		return items;
+	}
+
+	async function getRangeStackPreviews(request: {
+		session: ExtensionTimelineSession;
+		fromIndex: number;
+		toIndex: number;
+		comparisonSource?: ComparisonSource;
+		relativePaths: string[];
+	}): Promise<Array<{ relativePath: string; preview: DiffPreview }>> {
+		const comparisonSource = request.comparisonSource || 'revision';
+		const normalizedFromIndex = Math.max(0, Math.min(request.fromIndex, request.toIndex));
+		const normalizedToIndex = Math.max(normalizedFromIndex, Math.max(request.fromIndex, request.toIndex));
+		const sourceEntries = getEntriesForSource({
+			session: request.session,
+			comparisonSource,
+		});
+		const comparison = getComparisonEntries({
+			entries: sourceEntries,
+			fromIndex: normalizedFromIndex,
+			toIndex: normalizedToIndex,
+		});
+		if (!comparison) {
+			return [];
+		}
+
+		const items: Array<{ relativePath: string; preview: DiffPreview }> = [];
+		for (const relativePath of request.relativePaths) {
+			const trimmed = relativePath.trim();
+			if (!trimmed) {
+				continue;
+			}
+			if (trimmed === request.session.relativePath) {
+				items.push({
+					relativePath: trimmed,
+					preview: await getDiffPreview({
+						session: request.session,
+						fromIndex: normalizedFromIndex,
+						toIndex: normalizedToIndex,
+						comparisonSource,
+					}),
+				});
+				continue;
+			}
+
+			const beforeText = comparison.fromEntry
+				? await readPathAtEntry({
+						session: request.session,
+						entry: comparison.fromEntry,
+						relativePath: trimmed,
+					})
+				: '';
+			const afterText = await readPathAtEntry({
+				session: request.session,
+				entry: comparison.toEntry,
+				relativePath: trimmed,
+			});
+			items.push({
+				relativePath: trimmed,
+				preview: buildDiffPreview({
+					index: normalizedToIndex,
+					previousEntry: comparison.fromEntry,
+					currentEntry: comparison.toEntry,
+					beforeText,
+					afterText,
+					fromIndex: normalizedFromIndex,
+					toIndex: normalizedToIndex,
+					beforePath: trimmed,
+					afterPath: trimmed,
+					comparisonSource,
+				}),
+			});
+		}
+		return items;
+	}
+
+	async function readPathAtEntry(request: {
+		session: ExtensionTimelineSession;
+		entry: FileRevisionEntry;
+		relativePath: string;
+	}): Promise<string> {
+		const cacheKey = `${request.entry.id}:stack:${request.relativePath}`;
+		const cached = request.session.contentCache.get(cacheKey);
+		if (cached !== undefined) {
+			return cached;
+		}
+		try {
+			const content = request.entry.isWorkingTree
+				? await readFile(path.join(request.session.workspacePath, request.relativePath), 'utf8')
+				: await request.session.adapter.showFileAtRevision({
+						workspacePath: request.session.workspacePath,
+						revset: request.entry.revision,
+						filePath: request.relativePath,
+					});
+			request.session.contentCache.set(cacheKey, content);
+			return content;
+		} catch {
+			request.session.contentCache.set(cacheKey, '');
+			return '';
+		}
 	}
 
 	async function getEntryDiffCounts(request: {

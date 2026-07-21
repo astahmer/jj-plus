@@ -15,6 +15,7 @@ import {
 	ClickedToggleTimelinePane,
 	SelectedFileSwitcherMode,
 	SubmittedFileSwitcher,
+	ToggledRangeStack,
 } from '../messages.ts';
 import type { Model } from '../model.ts';
 import { shortcutTooltip } from '../domain/timeline-shortcuts.ts';
@@ -204,30 +205,47 @@ export function timelinePane(model: Model): Html {
 													h.Role('list'),
 													h.AriaLabel('Files changed in selected range'),
 												],
-												rangeFiles
-													.slice(0, 16)
-													.map((item) =>
-														h.button(
-															[
-																h.Class(
-																	`range-file-chip${item.relativePath === currentRelativePath ? ' is-current' : ''}`,
-																),
-																h.Type('button'),
-																h.Role('listitem'),
-																h.Title(
-																	`${item.relativePath} · ${item.changeCount} change${item.changeCount === 1 ? '' : 's'}`,
-																),
-																h.OnClick(SubmittedFileSwitcher({ value: item.relativePath })),
-															],
-															[
-																h.span(
-																	[h.Class('range-file-chip-name')],
-																	[item.relativePath.split('/').at(-1) || item.relativePath],
-																),
-																h.span([h.Class('range-file-chip-count')], [String(item.changeCount)]),
-															],
+												[
+													...rangeFiles
+														.slice(0, 16)
+														.map((item) =>
+															h.button(
+																[
+																	h.Class(
+																		`range-file-chip${item.relativePath === currentRelativePath ? ' is-current' : ''}`,
+																	),
+																	h.Type('button'),
+																	h.Role('listitem'),
+																	h.Title(
+																		`${item.relativePath} · ${item.changeCount} change${item.changeCount === 1 ? '' : 's'}`,
+																	),
+																	h.OnClick(SubmittedFileSwitcher({ value: item.relativePath })),
+																],
+																[
+																	h.span(
+																		[h.Class('range-file-chip-name')],
+																		[item.relativePath.split('/').at(-1) || item.relativePath],
+																	),
+																	h.span([h.Class('range-file-chip-count')], [String(item.changeCount)]),
+																],
+															),
 														),
+													h.button(
+														[
+															h.Class(`range-stack-toggle${model.rangeStackOpen ? ' is-active' : ''}`),
+															h.Id('toggleRangeStackButton'),
+															h.Type('button'),
+															h.Title(
+																model.rangeStackOpen
+																	? 'Show single-file diff'
+																	: 'Stack Pierre diffs for top changed files in this range',
+															),
+															h.AriaPressed(model.rangeStackOpen ? 'true' : 'false'),
+															h.OnClick(ToggledRangeStack()),
+														],
+														[model.rangeStackOpen ? 'Exit stack' : 'Stack diffs'],
 													),
+												],
 											)
 										: h.empty,
 								],

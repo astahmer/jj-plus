@@ -590,6 +590,42 @@ export function createTimelinePanelController(args: {
 			return;
 		}
 
+		if (command === 'load-range-stack') {
+			const fromIndex = Number(Reflect.get(request.message, 'fromIndex'));
+			const toIndex = Number(Reflect.get(request.message, 'toIndex'));
+			const comparisonSource = normalizeComparisonSource(Reflect.get(request.message, 'comparisonSource'));
+			const relativePaths = Array.isArray(Reflect.get(request.message, 'relativePaths'))
+				? (Reflect.get(request.message, 'relativePaths') as unknown[])
+						.map((value) => String(value || '').trim())
+						.filter(Boolean)
+				: [];
+			if (!Number.isInteger(fromIndex) || !Number.isInteger(toIndex) || !relativePaths.length) {
+				return;
+			}
+
+			const normalizedFromIndex = Math.max(0, Math.min(fromIndex, toIndex));
+			const normalizedToIndex = Math.max(normalizedFromIndex, Math.max(fromIndex, toIndex));
+			await postTimelineMessage({
+				panel: request.panel,
+				message: {
+					type: 'range-stack-previews',
+					payload: {
+						fromIndex: normalizedFromIndex,
+						toIndex: normalizedToIndex,
+						comparisonSource,
+						items: await args.service.getRangeStackPreviews({
+							session: request.session,
+							fromIndex: normalizedFromIndex,
+							toIndex: normalizedToIndex,
+							comparisonSource,
+							relativePaths,
+						}),
+					},
+				},
+			});
+			return;
+		}
+
 		if (command === 'load-entry-diff-counts') {
 			const comparisonSource = normalizeComparisonSource(Reflect.get(request.message, 'comparisonSource'));
 			const entryIndexes = Array.isArray(Reflect.get(request.message, 'entryIndexes'))

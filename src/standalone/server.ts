@@ -209,6 +209,39 @@ async function createStandaloneRuntime(args: { workspacePath: string; filePath: 
 						},
 					];
 				}
+				case 'load-range-stack': {
+					const normalizedFromIndex = Math.max(0, Math.min(command.fromIndex, command.toIndex));
+					const normalizedToIndex = Math.max(normalizedFromIndex, Math.max(command.fromIndex, command.toIndex));
+					const comparisonSource = command.comparisonSource === 'snapshot' ? 'snapshot' : 'revision';
+					const items: Array<{ relativePath: string; preview: DiffPreview }> = [];
+					for (const stackPath of command.relativePaths) {
+						const normalizedPath = normalizePath(stackPath);
+						const fileFixture =
+							normalizedPath === activeRelativePath
+								? await getActiveFileFixture()
+								: await getFileFixture(normalizedPath);
+						items.push({
+							relativePath: normalizedPath,
+							preview: getFixturePreview({
+								fileFixture,
+								fromIndex: normalizedFromIndex,
+								toIndex: normalizedToIndex,
+								comparisonSource,
+							}),
+						});
+					}
+					return [
+						{
+							type: 'range-stack-previews',
+							payload: {
+								fromIndex: normalizedFromIndex,
+								toIndex: normalizedToIndex,
+								comparisonSource,
+								items,
+							},
+						},
+					];
+				}
 				case 'load-entry-diff-counts': {
 					const fileFixture = await getActiveFileFixture();
 					return [

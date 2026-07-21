@@ -1,6 +1,6 @@
 import { FileDiff, type FileContents } from '@pierre/diffs';
 import type { Model } from '../model.ts';
-import { getPreview } from '../selectors.ts';
+import { getPreview, getRangeStackItems } from '../selectors.ts';
 import type { ContentMode, DiffPreview, LayoutMode } from '../types.ts';
 
 const PIERRE_SLOT_ID = 'pierre-diff-slot';
@@ -13,6 +13,17 @@ let lastLayoutMode: LayoutMode | undefined;
 let lastContentMode: ContentMode | undefined;
 let lastThemeType: 'dark' | 'light' | undefined;
 let lastShowPierre = false;
+let stackMode = false;
+const stackByPath = new Map<
+	string,
+	{
+		fileDiff: FileDiff;
+		oldFile?: FileContents;
+		newFile?: FileContents;
+		section: HTMLElement;
+		mount: HTMLElement;
+	}
+>();
 let pendingFrame = 0;
 let pendingModel: Model | null = null;
 let slotObserver: ResizeObserver | undefined;
@@ -59,6 +70,26 @@ export function queuePierreFileDiffSync(model: Model): void {
 }
 
 function syncFromModel(model: Model): void {
+	if (model.rangeStackOpen) {
+		const items = getRangeStackItems(model);
+		const showStack = items.length > 0;
+		if (!showStack && stackMode) {
+			syncPortalGeometry(true);
+			return;
+		}
+		syncRangeStack({
+			items,
+			layoutMode: model.layoutMode,
+			contentMode: model.contentMode,
+			showStack,
+		});
+		return;
+	}
+
+	if (stackMode) {
+		clearRangeStack();
+	}
+
 	const preview = getPreview(model);
 	const showPierre = Boolean(preview && (model.contentMode === 'full' || preview.hasChanges));
 
@@ -84,8 +115,127 @@ type PierreDiffSyncArgs = {
 	showPierre: boolean;
 };
 
+type RangeStackSyncArgs = {
+	items: Array<{ relativePath: string; preview: DiffPreview }>;
+	layoutMode: LayoutMode;
+	contentMode: ContentMode;
+	showStack: boolean;
+};
+
+function syncRangeStack(args: RangeStackSyncArgs): void {
+	const portal = ensurePortal();
+	observeSlot();
+	observePortalMutations(portal);
+	portal.classList.add('is-range-stack');
+
+	if (!args.showStack) {
+		clearRangeStack();
+		syncPortalGeometry(false);
+		return;
+	}
+
+	if (!stackMode) {
+		clearPierreFileDiff();
+		stackMode = true;
+	}
+
+	const themeType = resolveThemeType();
+	const keep = new Set(args.items.map((item) => item.relativePath));
+	for (const [path, entry] of stackByPath) {
+		if (!keep.has(path)) {
+			entry.fileDiff.cleanUp();
+			entry.section.remove();
+			stackByPath.delete(path);
+		}
+	}
+
+	for (const item of args.items) {
+		let entry = stackByPath.get(item.relativePath);
+		if (!entry) {
+			const section = document.createElement('section');
+			section.className = 'pierre-stack-section';
+			section.dataset.path = item.relativePath;
+			const header = document.createElement('header');
+			header.className = 'pierre-stack-header';
+			const mount = document.createElement('div');
+			mount.className = 'pierre-stack-mount';
+			section.append(header, mount);
+			portal.append(section);
+			entry = {
+				fileDiff: new FileDiff(buildOptions(args.layoutMode, args.contentMode, themeType)),
+				section,
+				mount,
+			};
+			stackByPath.set(item.relativePath, entry);
+		}
+
+		const header = entry.section.querySelector('.pierre-stack-header');
+		if (header) {
+			header.textContent = `${item.relativePath}  +${item.preview.additions}/−${item.preview.deletions}`;
+		}
+
+		const nextOldFile = stableFileContents(entry.oldFile, {
+			name: item.preview.beforePath || item.relativePath,
+			contents: item.preview.beforeText ?? '',
+			cacheKey: `old:${item.relativePath}:${hashText(item.preview.beforeText ?? '')}`,
+		});
+		const nextNewFile = stableFileContents(entry.newFile, {
+			name: item.preview.afterPath || item.relativePath,
+			contents: item.preview.afterText ?? '',
+			cacheKey: `new:${item.relativePath}:${hashText(item.preview.afterText ?? '')}`,
+		});
+		const optionsChanged =
+			lastLayoutMode !== args.layoutMode || lastContentMode !== args.contentMode || lastThemeType !== themeType;
+		if (optionsChanged) {
+			entry.fileDiff.setOptions(buildOptions(args.layoutMode, args.contentMode, themeType));
+		}
+		if (
+			nextOldFile !== entry.oldFile ||
+			nextNewFile !== entry.newFile ||
+			optionsChanged ||
+			entry.mount.childElementCount === 0
+		) {
+			entry.fileDiff.render({
+				oldFile: nextOldFile,
+				newFile: nextNewFile,
+				containerWrapper: entry.mount,
+				forceRender: optionsChanged,
+			});
+		}
+		entry.oldFile = nextOldFile;
+		entry.newFile = nextNewFile;
+	}
+
+	lastLayoutMode = args.layoutMode;
+	lastContentMode = args.contentMode;
+	lastThemeType = themeType;
+	lastShowPierre = true;
+	syncPortalGeometry(true);
+	window.requestAnimationFrame(() => {
+		if (lastShowPierre && stackMode) {
+			syncPortalGeometry(true);
+			repairPierreWrapRowSpans(portal);
+		}
+	});
+}
+
+function clearRangeStack(): void {
+	for (const entry of stackByPath.values()) {
+		entry.fileDiff.cleanUp();
+		entry.section.remove();
+	}
+	stackByPath.clear();
+	stackMode = false;
+	const portal = document.getElementById(PIERRE_ROOT_ID);
+	if (portal) {
+		portal.classList.remove('is-range-stack');
+		portal.replaceChildren();
+	}
+}
+
 function syncPierreFileDiff(args: PierreDiffSyncArgs): void {
 	const portal = ensurePortal();
+	portal.classList.remove('is-range-stack');
 	observeSlot();
 	observePortalMutations(portal);
 
@@ -162,10 +312,11 @@ function clearPierreFileDiff(): void {
 	lastForcedHeight = -1;
 
 	const portal = document.getElementById(PIERRE_ROOT_ID);
-	if (portal) {
+	if (portal && !stackMode) {
 		portal.replaceChildren();
 		portal.hidden = true;
 		portal.classList.add('is-pending');
+		portal.classList.remove('is-range-stack');
 	}
 }
 
@@ -360,6 +511,32 @@ function forcePierreHostScrollport(portal: HTMLElement, height: number): void {
 		// Still refresh hosts in case Pierre recreated the custom element.
 	} else {
 		lastForcedHeight = height;
+	}
+
+	if (portal.classList.contains('is-range-stack')) {
+		const sectionHeight = Math.max(180, Math.min(420, Math.round(height * 0.45)));
+		portal.style.setProperty('overflow', 'auto');
+		for (const mount of portal.querySelectorAll('.pierre-stack-mount')) {
+			if (!(mount instanceof HTMLElement)) {
+				continue;
+			}
+			mount.style.setProperty('max-height', `${sectionHeight}px`);
+			mount.style.setProperty('overflow', 'auto');
+			const hosts = mount.querySelectorAll('diffs-container');
+			for (const host of hosts) {
+				if (!(host instanceof HTMLElement)) {
+					continue;
+				}
+				host.style.setProperty('display', 'block');
+				host.style.setProperty('height', 'auto');
+				host.style.setProperty('max-height', `${sectionHeight}px`);
+				host.style.setProperty('min-height', '0');
+				host.style.setProperty('overflow', 'auto');
+				host.style.setProperty('box-sizing', 'border-box');
+				host.style.setProperty('width', '100%');
+			}
+		}
+		return;
 	}
 
 	const hosts = portal.querySelectorAll('diffs-container');

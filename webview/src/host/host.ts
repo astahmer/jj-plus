@@ -103,6 +103,34 @@ function getFixtureRangeOverview(fileFixture: TimelineFixtureFile) {
 		});
 }
 
+function buildFallbackStackPreview(
+	fileFixture: TimelineFixtureFile,
+	fromIndex: number,
+	toIndex: number,
+	comparisonSource: ComparisonSource,
+	relativePath: string,
+): DiffPreview {
+	const sample = Object.values(fileFixture.previews.revision || {})[0];
+	return {
+		index: toIndex,
+		title: `${relativePath} stack`,
+		subtitle: relativePath,
+		diffCount: 1,
+		additions: sample?.additions ?? 1,
+		deletions: sample?.deletions ?? 0,
+		hunkCount: sample?.hunkCount ?? 1,
+		hasChanges: true,
+		fromIndex,
+		toIndex,
+		comparisonSource,
+		beforePath: relativePath,
+		afterPath: relativePath,
+		beforeText: sample?.beforeText ?? `// before ${relativePath}\n`,
+		afterText: sample?.afterText ?? `// after ${relativePath}\nchanged\n`,
+		nonTextualDetails: [],
+	};
+}
+
 function getFixtureEntryDiffCount(
 	fileFixture: TimelineFixtureFile,
 	entryIndex: number,
@@ -471,6 +499,32 @@ export function createTimelineHost(): TimelineHost {
 							comparisonSource: command.comparisonSource,
 							selectedEntryIndexes: command.selectedEntryIndexes,
 							items: getFixtureRangeOverview(fileFixture),
+						},
+					});
+				});
+				return;
+			}
+
+			if (command.command === 'load-range-stack') {
+				void getFixture().then((fixture) => {
+					const fromIndex = Math.min(command.fromIndex, command.toIndex);
+					const toIndex = Math.max(command.fromIndex, command.toIndex);
+					const key = `${fromIndex}:${toIndex}`;
+					const items = command.relativePaths.flatMap((relativePath) => {
+						const fileFixture = resolveFileFixture(fixture, relativePath) || getActiveFileFixture(fixture);
+						const preview =
+							fileFixture.previews[command.comparisonSource]?.[key] ||
+							fileFixture.previews.revision?.[key] ||
+							buildFallbackStackPreview(fileFixture, fromIndex, toIndex, command.comparisonSource, relativePath);
+						return [{ relativePath, preview }];
+					});
+					emit({
+						type: 'range-stack-previews',
+						payload: {
+							fromIndex,
+							toIndex,
+							comparisonSource: command.comparisonSource,
+							items,
 						},
 					});
 				});

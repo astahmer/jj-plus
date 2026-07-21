@@ -124,6 +124,13 @@ export type TimelineData = {
 	customRevset?: string;
 };
 
+export type RangeStackPreviewPayload = {
+	fromIndex: number;
+	toIndex: number;
+	comparisonSource: ComparisonSource;
+	items: Array<{ relativePath: string; preview: DiffPreview }>;
+};
+
 export type TimelineInboundMessage =
 	| { type: 'timeline-data'; payload: TimelineData }
 	| { type: 'diff-preview'; payload: DiffPreview }
@@ -158,7 +165,8 @@ export type TimelineInboundMessage =
 	  }
 	| { type: 'resolved-range'; payload: { fromIndex: number; toIndex: number } | null }
 	| { type: 'debug-measure-layout' }
-	| { type: 'debug-set-layout-mode'; layoutMode: LayoutMode };
+	| { type: 'debug-set-layout-mode'; layoutMode: LayoutMode }
+	| { type: 'range-stack-previews'; payload: RangeStackPreviewPayload };
 
 export type DiffLayoutMetrics = {
 	viewportH: number;
@@ -223,6 +231,13 @@ export type TimelineCommand =
 	| { command: 'switch-file'; relativePath: string }
 	| { command: 'clear-line-history' }
 	| { command: 'set-custom-revset'; customRevset: string }
+	| {
+			command: 'load-range-stack';
+			fromIndex: number;
+			toIndex: number;
+			comparisonSource: ComparisonSource;
+			relativePaths: string[];
+	  }
 	| {
 			command: 'persist-state';
 			sidebarWidth: number;

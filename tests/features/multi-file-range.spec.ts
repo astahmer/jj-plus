@@ -22,4 +22,19 @@ test.describe('multi-file range switcher', () => {
 		expect(after.includes('/') || after.includes('.')).toBe(true);
 		void before;
 	});
+
+	test('Stack diffs loads multi-file Pierre portal sections', async ({ page }) => {
+		await page.goto('/?fixture=jj-basic');
+		await expect(page.locator('.session-loading-overlay')).toHaveCount(0, { timeout: 15000 });
+
+		await page.getByRole('tab', { name: 'Top changed' }).click();
+		await expect(page.locator('#rangeFileList')).toBeVisible({ timeout: 15000 });
+		await page.getByRole('button', { name: 'Stack diffs' }).click();
+		await expect(page.locator('#diffTitle')).toContainText('Range stack', { timeout: 15000 });
+		await expect
+			.poll(async () => page.locator('.pierre-diff-root.is-range-stack .pierre-stack-section').count(), {
+				timeout: 15000,
+			})
+			.toBeGreaterThan(0);
+	});
 });

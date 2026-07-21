@@ -221,6 +221,13 @@ export function getActiveRangeOverviewItems(model: Model): Array<RangeOverviewIt
 	return (model.rangeOverviewByRange[getActiveRangeOverviewKey(model)] as Array<RangeOverviewItem> | undefined) || [];
 }
 
+export function getRangeStackItems(model: Model): Array<{ relativePath: string; preview: DiffPreview }> {
+	return Object.entries(model.rangeStackByPath as Record<string, DiffPreview>).map(([relativePath, preview]) => ({
+		relativePath,
+		preview,
+	}));
+}
+
 export function getRangeOverviewLoading(model: Model): boolean {
 	return model.rangeOverviewLoadingKey === getActiveRangeOverviewKey(model);
 }

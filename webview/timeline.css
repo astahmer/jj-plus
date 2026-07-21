@@ -1006,6 +1006,43 @@ kbd {
 	font-variant-numeric: tabular-nums;
 }
 
+.range-stack-toggle {
+	flex: 0 0 auto;
+	border: 1px solid var(--border);
+	border-radius: 6px;
+	background: transparent;
+	color: var(--fg);
+	padding: 4px 8px;
+	font: inherit;
+	cursor: pointer;
+}
+
+.range-stack-toggle.is-active {
+	border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+	background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.range-stack-toc {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	margin-top: 8px;
+}
+
+.range-stack-toc-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	border: 1px solid var(--border);
+	border-radius: 6px;
+	background: color-mix(in srgb, var(--panel) 80%, transparent);
+	color: var(--fg);
+	padding: 3px 8px;
+	font: inherit;
+	font-size: 12px;
+	cursor: pointer;
+}
+
 .combobox {
 	position: relative;
 	z-index: 0;
@@ -1863,6 +1900,38 @@ kbd {
 	min-height: 0;
 	overflow: auto;
 	box-sizing: border-box;
+}
+
+.pierre-diff-root.is-range-stack {
+	overflow: auto;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	padding: 8px;
+	box-sizing: border-box;
+}
+
+.pierre-diff-root.is-range-stack > .pierre-stack-section {
+	height: auto;
+	flex: 0 0 auto;
+	border: 1px solid var(--border);
+	border-radius: 8px;
+	overflow: hidden;
+	background: color-mix(in srgb, var(--panel) 70%, var(--bg));
+}
+
+.pierre-stack-header {
+	padding: 6px 10px;
+	font-size: 12px;
+	color: var(--muted);
+	border-bottom: 1px solid var(--border);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.pierre-stack-mount {
+	min-height: 120px;
 }
 
 .pierre-diff-root.is-pending,
