@@ -25,7 +25,7 @@ export function readJjplusSettings(): JjplusSettings {
 		scmChangedLines: config.get<boolean>('scmChangedLines', false),
 		opLogWatch: config.get<boolean>('opLogWatch', false),
 		conflictHelper: config.get<boolean>('conflictHelper', true),
-		codeActions: config.get<boolean>('codeActions', true),
+		codeActions: config.get<boolean>('codeActions', false),
 	};
 }
 

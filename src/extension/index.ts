@@ -285,6 +285,8 @@ export function activate(context: vscode.ExtensionContext): void {
 		),
 		vscode.commands.registerCommand(OPEN_REVISION_DIFF_PREVIOUS_COMMAND, () => revisionDiffNav.openPrevious()),
 		vscode.commands.registerCommand(OPEN_REVISION_DIFF_NEXT_COMMAND, () => revisionDiffNav.openNext()),
+		vscode.commands.registerCommand('jj-range-diff.openRevisionDiffPreviousUnavailable', () => undefined),
+		vscode.commands.registerCommand('jj-range-diff.openRevisionDiffNextUnavailable', () => undefined),
 		vscode.commands.registerCommand(OPEN_REVISION_DIFF_TIMELINE_COMMAND, () => revisionDiffNav.openTimelineHere()),
 		vscode.commands.registerCommand(OPEN_FILE_TIMELINE_COMMAND, (arg?: unknown) =>
 			panelController.openFileRevisionTimeline({ context, absolutePath: resolveCommandFilePath(arg) }),

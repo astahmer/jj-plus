@@ -114,7 +114,7 @@
 				},
 				"jjplus.codeActions": {
 					"type": "boolean",
-					"default": true,
+					"default": false,
 					"description": "Offer Code Actions like “Why is this line here?”."
 				}
 			}
@@ -141,17 +141,35 @@
 			{
 				"command": "jj-range-diff.openRevisionDiffPrevious",
 				"title": "jjplus: Open Previous Revision Diff",
-				"icon": "$(arrow-left)"
+				"icon": "$(arrow-left)",
+				"enablement": "jjplus.revisionDiffHasPrevious"
+			},
+			{
+				"command": "jj-range-diff.openRevisionDiffPreviousUnavailable",
+				"title": "jjplus: No previous revision available",
+				"icon": "$(arrow-left)",
+				"enablement": "false"
 			},
 			{
 				"command": "jj-range-diff.openRevisionDiffNext",
 				"title": "jjplus: Open Next Revision Diff",
-				"icon": "$(arrow-right)"
+				"icon": "$(arrow-right)",
+				"enablement": "jjplus.revisionDiffHasNext"
+			},
+			{
+				"command": "jj-range-diff.openRevisionDiffNextUnavailable",
+				"title": "jjplus: No next revision available",
+				"icon": "$(arrow-right)",
+				"enablement": "false"
 			},
 			{
 				"command": "jj-range-diff.openRevisionDiffTimeline",
 				"title": "jjplus: Open Timeline from Revision Diff",
 				"icon": "$(timeline-view-icon)"
+			},
+			{
+				"command": "jj-range-diff.toggleLineBlame",
+				"title": "jjplus: Toggle Line Blame"
 			},
 			{
 				"command": "jj-range-diff.compareWithBookmark",
@@ -233,12 +251,22 @@
 				{
 					"command": "jj-range-diff.openRevisionDiffPrevious",
 					"group": "navigation@4",
-					"when": "jjplus.revisionDiffActive"
+					"when": "jjplus.revisionDiffActive && jjplus.revisionDiffHasPrevious"
+				},
+				{
+					"command": "jj-range-diff.openRevisionDiffPreviousUnavailable",
+					"group": "navigation@4",
+					"when": "jjplus.revisionDiffActive && !jjplus.revisionDiffHasPrevious"
 				},
 				{
 					"command": "jj-range-diff.openRevisionDiffNext",
 					"group": "navigation@5",
-					"when": "jjplus.revisionDiffActive"
+					"when": "jjplus.revisionDiffActive && jjplus.revisionDiffHasNext"
+				},
+				{
+					"command": "jj-range-diff.openRevisionDiffNextUnavailable",
+					"group": "navigation@5",
+					"when": "jjplus.revisionDiffActive && !jjplus.revisionDiffHasNext"
 				},
 				{
 					"command": "jj-range-diff.openRevisionDiffTimeline",

@@ -1,5 +1,7 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { getRevisionDiffNavAvailability } from '../shared/revision-diff-availability.ts';
+import { resolveNonEmptyRevisionPair } from '../shared/revision-diff-pair.ts';
 import { resolveCommandFilePath } from './resolve-file-path.ts';
 
 export type RevisionDiffSession = {
@@ -13,6 +15,8 @@ export type RevisionDiffSession = {
 	tipIndex: number;
 };
 
+export { getRevisionDiffNavAvailability } from '../shared/revision-diff-availability.ts';
+
 type ShowFile = (args: { workspacePath: string; revset: string; filePath: string }) => Promise<string>;
 
 type CreateUri = (args: { workspacePath: string; revset: string; relativePath: string; content: string }) => vscode.Uri;
@@ -24,6 +28,10 @@ type ListRevisions = (args: {
 }) => Promise<string[]>;
 
 type ResolveBackend = (args: { workspacePath: string }) => Promise<{ backend: 'git' | 'jj' }>;
+
+const CONTEXT_ACTIVE = 'jjplus.revisionDiffActive';
+const CONTEXT_HAS_PREVIOUS = 'jjplus.revisionDiffHasPrevious';
+const CONTEXT_HAS_NEXT = 'jjplus.revisionDiffHasNext';
 
 export function createRevisionDiffNavigator(args: {
 	showFile: ShowFile;
@@ -41,41 +49,49 @@ export function createRevisionDiffNavigator(args: {
 	dispose: () => void;
 } {
 	let session: RevisionDiffSession | undefined;
-	const contextKey = 'jjplus.revisionDiffActive';
 
-	const setActive = async (active: boolean) => {
-		await vscode.commands.executeCommand('setContext', contextKey, active);
+	const syncContext = async () => {
+		const availability = getRevisionDiffNavAvailability(session);
+		await Promise.all([
+			vscode.commands.executeCommand('setContext', CONTEXT_ACTIVE, availability.active),
+			vscode.commands.executeCommand('setContext', CONTEXT_HAS_PREVIOUS, availability.hasPrevious),
+			vscode.commands.executeCommand('setContext', CONTEXT_HAS_NEXT, availability.hasNext),
+		]);
 	};
 
 	const openPair = async (next: RevisionDiffSession) => {
-		const tip = next.revisions[next.tipIndex];
-		const base = next.revisions[next.tipIndex - 1];
-		if (!tip || !base) {
-			throw new Error('No adjacent revision pair available');
+		const pair = await resolveNonEmptyRevisionPair({
+			revisions: next.revisions,
+			tipIndex: next.tipIndex,
+			showFile: (revset) =>
+				args.showFile({
+					workspacePath: next.workspacePath,
+					revset,
+					filePath: next.relativePath,
+				}),
+		});
+		if (!pair) {
+			throw new Error('No non-empty revision pair available for this file');
 		}
-		const [originalContent, modifiedContent] = await Promise.all([
-			args.showFile({ workspacePath: next.workspacePath, revset: base, filePath: next.relativePath }),
-			args.showFile({ workspacePath: next.workspacePath, revset: tip, filePath: next.relativePath }),
-		]);
 		const originalUri = args.createUri({
 			workspacePath: next.workspacePath,
-			revset: base,
+			revset: pair.base,
 			relativePath: next.relativePath,
-			content: originalContent,
+			content: pair.originalContent,
 		});
 		const modifiedUri = args.createUri({
 			workspacePath: next.workspacePath,
-			revset: tip,
+			revset: pair.tip,
 			relativePath: next.relativePath,
-			content: modifiedContent,
+			content: pair.modifiedContent,
 		});
-		session = next;
-		await setActive(true);
+		session = { ...next, tipIndex: pair.tipIndex };
+		await syncContext();
 		await vscode.commands.executeCommand(
 			'vscode.diff',
 			originalUri,
 			modifiedUri,
-			`${next.fileName}: ${short(base)} → ${short(tip)}`,
+			`${next.fileName}: ${short(pair.base)} → ${short(pair.tip)}`,
 			{ preview: true },
 		);
 	};
@@ -119,8 +135,8 @@ export function createRevisionDiffNavigator(args: {
 	};
 
 	const openPrevious = async () => {
-		if (!session || session.tipIndex < 1) {
-			void vscode.window.showInformationMessage('Already at the oldest revision for this file');
+		const availability = getRevisionDiffNavAvailability(session);
+		if (!session || !availability.hasPrevious) {
 			return;
 		}
 		try {
@@ -132,8 +148,8 @@ export function createRevisionDiffNavigator(args: {
 	};
 
 	const openNext = async () => {
-		if (!session || session.tipIndex >= session.revisions.length - 1) {
-			void vscode.window.showInformationMessage('Already at the newest revision for this file');
+		const availability = getRevisionDiffNavAvailability(session);
+		if (!session || !availability.hasNext) {
 			return;
 		}
 		try {
@@ -154,8 +170,10 @@ export function createRevisionDiffNavigator(args: {
 	};
 
 	const disposable = vscode.window.onDidChangeActiveTextEditor(() => {
-		void setActive(Boolean(session));
+		void syncContext();
 	});
+
+	void syncContext();
 
 	return {
 		openWithPrevious,
@@ -165,7 +183,8 @@ export function createRevisionDiffNavigator(args: {
 		getSession: () => session,
 		dispose: () => {
 			disposable.dispose();
-			void setActive(false);
+			session = undefined;
+			void syncContext();
 		},
 	};
 }
