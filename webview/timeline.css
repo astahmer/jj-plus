@@ -1329,11 +1329,11 @@ kbd {
 .timeline {
 	position: relative;
 	display: grid;
-	grid-template-rows: auto minmax(44px, 1fr);
+	grid-template-rows: auto auto;
 	gap: 4px;
 	overflow: visible;
-	padding-top: 6px;
-	min-height: 72px;
+	padding-top: 4px;
+	min-height: 56px;
 }
 
 .handle-pills {
@@ -1717,18 +1717,19 @@ kbd {
 	padding: 0;
 	overflow: hidden;
 	background: var(--bg);
-	display: flex;
-	flex-direction: column;
+	display: block;
 	min-width: 0;
 	min-height: 0;
 }
 
 .pierre-diff-root > diffs-container,
 .pierre-diff-root > * {
-	flex: 1 1 auto;
-	min-height: 0;
+	display: block;
 	width: 100%;
 	height: 100%;
+	min-height: 0;
+	overflow: auto;
+	box-sizing: border-box;
 }
 
 .pierre-diff-root.is-pending,

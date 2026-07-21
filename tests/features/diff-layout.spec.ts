@@ -3,12 +3,18 @@ import { expect, test, type Page } from '@playwright/test';
 type DiffLayoutMetrics = {
 	viewportH: number;
 	portalH: number;
+	hostH: number;
+	hostScrollH: number;
 	rowsH: number;
 	contentH: number;
 	timelineH: number;
 	maxLineH: number;
+	minLineH: number;
+	lineCount: number;
+	maxCodeScrollH: number;
+	minCodeClientH: number;
 	portalFillRatio: number;
-	rowsFillRatio: number;
+	isCrushed: boolean;
 };
 
 test.describe('diff vertical layout', () => {
@@ -22,10 +28,12 @@ test.describe('diff vertical layout', () => {
 		expect(layout.portalH).toBeGreaterThan(layout.viewportH * 0.4);
 		expect(layout.rowsH).toBeGreaterThan(layout.viewportH * 0.4);
 		expect(layout.portalFillRatio).toBeGreaterThan(0.4);
-		expect(layout.rowsFillRatio).toBeGreaterThan(0.4);
+		expect(layout.hostH).toBeGreaterThanOrEqual(layout.portalH - 8);
 		expect(layout.maxLineH).toBeLessThan(40);
-		// Portal must not leave a large empty void under a short strip.
-		expect(layout.portalH).toBeGreaterThanOrEqual(layout.rowsH - 8);
+		expect(layout.minLineH).toBeGreaterThan(8);
+		expect(layout.lineCount).toBeGreaterThan(5);
+		expect(Math.max(layout.maxCodeScrollH, layout.hostScrollH, layout.minCodeClientH)).toBeGreaterThan(40);
+		expect(layout.isCrushed).toBe(false);
 	});
 
 	test('focus diff expands the portal to nearly the full viewport height', async ({ page }) => {
@@ -42,8 +50,10 @@ test.describe('diff vertical layout', () => {
 		expect(focused.portalH).toBeGreaterThan(before.portalH);
 		expect(focused.portalH).toBeGreaterThan(focused.viewportH * 0.7);
 		expect(focused.rowsH).toBeGreaterThan(focused.viewportH * 0.65);
+		expect(focused.hostH).toBeGreaterThanOrEqual(focused.portalH - 8);
 		expect(focused.maxLineH).toBeLessThan(40);
-		expect(focused.portalH).toBeGreaterThanOrEqual(focused.rowsH - 8);
+		expect(focused.minLineH).toBeGreaterThan(8);
+		expect(focused.isCrushed).toBe(false);
 	});
 
 	test('git fixture also keeps a tall scrollable diff surface', async ({ page }) => {
@@ -52,10 +62,18 @@ test.describe('diff vertical layout', () => {
 		const layout = await measureDiffLayout(page);
 		expect(layout.portalH).toBeGreaterThan(layout.viewportH * 0.4);
 		expect(layout.rowsH).toBeGreaterThan(layout.viewportH * 0.4);
+		expect(layout.hostH).toBeGreaterThanOrEqual(layout.portalH - 8);
 		expect(layout.maxLineH).toBeLessThan(40);
+		expect(layout.minLineH).toBeGreaterThan(8);
+		expect(layout.isCrushed).toBe(false);
 
 		await page.getByRole('button', { name: 'Focus diff' }).click();
-		await expect.poll(async () => (await measureDiffLayout(page)).portalFillRatio).toBeGreaterThan(0.7);
+		await expect
+			.poll(async () => {
+				const next = await measureDiffLayout(page);
+				return next.portalFillRatio > 0.7 && !next.isCrushed && next.hostH >= next.portalH - 8;
+			})
+			.toBe(true);
 	});
 });
 
@@ -85,22 +103,45 @@ async function measureDiffLayout(page: Page): Promise<DiffLayoutMetrics> {
 		const rows = document.getElementById('diffRows');
 		const content = document.querySelector('.diff-content');
 		const timeline = document.querySelector('.timeline-pane');
-		const container = portal?.querySelector('diffs-container');
-		const lines = [...(container?.shadowRoot?.querySelectorAll('[data-line]') ?? [])] as HTMLElement[];
+		const host = portal?.querySelector('diffs-container') as HTMLElement | null;
+		const codes = [...(host?.shadowRoot?.querySelectorAll('[data-code]') ?? [])] as HTMLElement[];
+		const lines = [...(host?.shadowRoot?.querySelectorAll('[data-line]') ?? [])] as HTMLElement[];
 		const viewportH = Math.round(window.visualViewport?.height ?? window.innerHeight);
 		const portalH = portal ? Math.round(portal.getBoundingClientRect().height) : 0;
+		const hostH = host ? Math.round(host.getBoundingClientRect().height) : 0;
+		const hostScrollH = host ? Math.round(host.scrollHeight) : 0;
 		const rowsH = rows ? Math.round(rows.getBoundingClientRect().height) : 0;
 		const contentH = content instanceof HTMLElement ? Math.round(content.getBoundingClientRect().height) : 0;
 		const timelineH = timeline instanceof HTMLElement ? Math.round(timeline.getBoundingClientRect().height) : 0;
+		const lineHeights = lines.map((line) => Math.round(line.getBoundingClientRect().height)).filter((h) => h > 0);
+		const codeClientHeights = codes.map((c) => Math.round(c.getBoundingClientRect().height));
+		const codeScrollHeights = codes.map((c) => Math.round(c.scrollHeight));
+		const maxCodeScrollH = codeScrollHeights.length ? Math.max(...codeScrollHeights) : 0;
+		const minCodeClientH = codeClientHeights.length ? Math.min(...codeClientHeights) : 0;
+		const maxLineH = lineHeights.length ? Math.max(...lineHeights) : 0;
+		const minLineH = lineHeights.length ? Math.min(...lineHeights) : 0;
+		const lineCount = lines.length;
+		const isCrushed =
+			portalH > 280 &&
+			lineCount > 8 &&
+			minCodeClientH > 0 &&
+			minCodeClientH < Math.min(80, portalH * 0.15) &&
+			maxCodeScrollH < Math.min(120, portalH * 0.2);
 		return {
 			viewportH,
 			portalH,
+			hostH,
+			hostScrollH,
 			rowsH,
 			contentH,
 			timelineH,
-			maxLineH: Math.max(0, ...lines.map((line) => Math.round(line.getBoundingClientRect().height))),
+			maxLineH,
+			minLineH,
+			lineCount,
+			maxCodeScrollH,
+			minCodeClientH,
 			portalFillRatio: viewportH > 0 ? portalH / viewportH : 0,
-			rowsFillRatio: viewportH > 0 ? rowsH / viewportH : 0,
+			isCrushed,
 		};
 	});
 }

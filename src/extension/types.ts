@@ -113,11 +113,18 @@ export type TimelineDebugState = {
 	readyCount: number;
 	lastMessageCommand: string;
 	lastReadyAt: number;
+	entries: Array<{ index: number; description: string; shortRevision: string }>;
 };
 
 export type TimelinePanelController = {
 	openFileRevisionTimeline(args: { context: vscode.ExtensionContext; absolutePath?: string }): Promise<void>;
 	getDebugState(): TimelineDebugState;
+	getDiffLayoutMetrics(): Promise<import('../shared/timeline-types.ts').DiffLayoutMetrics>;
+	selectTimelineRange(args: {
+		fromIndex: number;
+		toIndex: number;
+		comparisonSource?: 'revision' | 'snapshot';
+	}): Promise<void>;
 	dispose(): void;
 };
 

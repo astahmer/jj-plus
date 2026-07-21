@@ -18,11 +18,25 @@ type TimelineService = ReturnType<typeof createTimelineService>;
 
 const LARGE_MULTI_DIFF_CONFIRMATION_THRESHOLD = 200;
 
+function collectPendingSnapshotHydrationIndexes(session: ExtensionTimelineSession): number[] {
+	return session.entries.reduce<number[]>((indexes, entry, index) => {
+		if (
+			entry &&
+			!entry.isWorkingTree &&
+			entry.touchesFile &&
+			entry.changeId &&
+			!session.snapshotLoadedChangeIds.has(entry.changeId)
+		) {
+			indexes.push(index);
+		}
+		return indexes;
+	}, []);
+}
+
 function postTimelineMessage(request: {
 	panel: vscode.WebviewPanel;
 	message: TimelineInboundMessage;
 }): Promise<boolean> {
-	// oxlint-disable-next-line unicorn/require-post-message-target-origin
 	return Promise.resolve(request.panel.webview.postMessage(request.message));
 }
 
@@ -207,6 +221,57 @@ export function createTimelinePanelController(args: {
 		},
 		getDebugState() {
 			return { ...timelineDebugState };
+		},
+		async getDiffLayoutMetrics() {
+			const panel = activeTimelinePanel;
+			if (!panel) {
+				throw new Error('no active timeline panel');
+			}
+
+			return await new Promise((resolve, reject) => {
+				const timeout = setTimeout(() => {
+					subscription.dispose();
+					reject(new Error('timed out waiting for webview layout metrics'));
+				}, 8000);
+
+				const subscription = panel.webview.onDidReceiveMessage((message: unknown) => {
+					if (!message || typeof message !== 'object') {
+						return;
+					}
+					if (Reflect.get(message, 'command') !== 'layout-metrics') {
+						return;
+					}
+					const metrics = Reflect.get(message, 'metrics');
+					if (!metrics || typeof metrics !== 'object') {
+						return;
+					}
+					clearTimeout(timeout);
+					subscription.dispose();
+					resolve(metrics as import('../shared/timeline-types.ts').DiffLayoutMetrics);
+				});
+
+				void panel.webview.postMessage({ type: 'debug-measure-layout' });
+			});
+		},
+		async selectTimelineRange(request) {
+			const panel = activeTimelinePanel;
+			if (!panel) {
+				throw new Error('no active timeline panel');
+			}
+			const session = timelineSessions.get(panel);
+			if (!session) {
+				throw new Error('no active timeline session');
+			}
+			await handleTimelineMessage({
+				panel,
+				session,
+				message: {
+					command: 'select-entry',
+					fromIndex: request.fromIndex,
+					toIndex: request.toIndex,
+					comparisonSource: request.comparisonSource || 'revision',
+				},
+			});
 		},
 		async openFileRevisionTimeline({ absolutePath }) {
 			const initialPath = await resolveTimelineSourcePath({ absolutePath });
@@ -426,6 +491,11 @@ export function createTimelinePanelController(args: {
 		}
 
 		if (command === 'ready') {
+			return;
+		}
+
+		if (command === 'layout-metrics') {
+			// Handled by getDiffLayoutMetrics() waiter; ignore in the action router.
 			return;
 		}
 
@@ -748,21 +818,6 @@ export function createTimelinePanelController(args: {
 		} catch {
 			// Background enrichment is best-effort; first paint already succeeded.
 		}
-	}
-
-	function collectPendingSnapshotHydrationIndexes(session: ExtensionTimelineSession): number[] {
-		return session.entries.reduce<number[]>((indexes, entry, index) => {
-			if (
-				entry &&
-				!entry.isWorkingTree &&
-				entry.touchesFile &&
-				entry.changeId &&
-				!session.snapshotLoadedChangeIds.has(entry.changeId)
-			) {
-				indexes.push(index);
-			}
-			return indexes;
-		}, []);
 	}
 
 	function buildPayload(session: ExtensionTimelineSession) {
@@ -1168,6 +1223,7 @@ function createEmptyTimelineDebugState(): TimelineDebugState {
 		readyCount: 0,
 		lastMessageCommand: '',
 		lastReadyAt: 0,
+		entries: [],
 	};
 }
 
@@ -1192,6 +1248,11 @@ function createDebugState(args: {
 		readyCount: 0,
 		lastMessageCommand: args.lastMessageCommand,
 		lastReadyAt: 0,
+		entries: args.session.entries.map((entry) => ({
+			index: entry.index ?? 0,
+			description: entry.description,
+			shortRevision: entry.shortRevision,
+		})),
 	};
 }
 

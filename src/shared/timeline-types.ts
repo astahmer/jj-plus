@@ -147,12 +147,37 @@ export type TimelineInboundMessage =
 				}>;
 			};
 	  }
-	| { type: 'resolved-range'; payload: { fromIndex: number; toIndex: number } | null };
+	| { type: 'resolved-range'; payload: { fromIndex: number; toIndex: number } | null }
+	| { type: 'debug-measure-layout' };
+
+export type DiffLayoutMetrics = {
+	viewportH: number;
+	portalH: number;
+	portalTop: number;
+	hostH: number;
+	hostScrollH: number;
+	rowsH: number;
+	contentH: number;
+	timelineH: number;
+	maxLineH: number;
+	minLineH: number;
+	lineCount: number;
+	maxCodeScrollH: number;
+	minCodeClientH: number;
+	portalFillRatio: number;
+	paintedH: number;
+	paintedRatio: number;
+	/** Vertical span of [data-line] tops (layout space, not just viewport). */
+	lineTopSpan: number;
+	uniqueLineTops: number;
+	isCrushed: boolean;
+};
 
 export type TimelineCommand =
 	| { command: 'ready' }
 	| { command: 'refresh' }
 	| { command: 'cancel-active-request' }
+	| { command: 'layout-metrics'; metrics: DiffLayoutMetrics }
 	| { command: 'open-current-file' }
 	| { command: 'select-entry'; fromIndex: number; toIndex: number; comparisonSource: ComparisonSource }
 	| { command: 'open-editor-diff'; fromIndex: number; toIndex: number; comparisonSource: ComparisonSource }

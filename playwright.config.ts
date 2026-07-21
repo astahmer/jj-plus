@@ -37,6 +37,7 @@ export default defineConfig({
 			name: 'visual',
 			testDir: '.',
 			testMatch: 'tests/visual/**/*.spec.ts',
+			testIgnore: '**/tmp/**',
 			use: { ...devices['Desktop Chrome'] },
 		},
 	],

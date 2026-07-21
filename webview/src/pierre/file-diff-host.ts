@@ -16,8 +16,32 @@ let lastShowPierre = false;
 let pendingFrame = 0;
 let pendingModel: Model | null = null;
 let slotObserver: ResizeObserver | undefined;
+let portalMutationObserver: MutationObserver | undefined;
 let observedSlot: HTMLElement | undefined;
 let geometryListenersBound = false;
+let lastForcedHeight = -1;
+
+type DiffLayoutMetrics = {
+	viewportH: number;
+	portalH: number;
+	portalTop: number;
+	hostH: number;
+	hostScrollH: number;
+	rowsH: number;
+	contentH: number;
+	timelineH: number;
+	maxLineH: number;
+	minLineH: number;
+	lineCount: number;
+	maxCodeScrollH: number;
+	minCodeClientH: number;
+	portalFillRatio: number;
+	paintedH: number;
+	paintedRatio: number;
+	lineTopSpan: number;
+	uniqueLineTops: number;
+	isCrushed: boolean;
+};
 
 export function queuePierreFileDiffSync(model: Model): void {
 	pendingModel = model;
@@ -53,16 +77,17 @@ function syncFromModel(model: Model): void {
 	});
 }
 
-export type PierreDiffSyncArgs = {
+type PierreDiffSyncArgs = {
 	preview: DiffPreview | null;
 	layoutMode: LayoutMode;
 	contentMode: ContentMode;
 	showPierre: boolean;
 };
 
-export function syncPierreFileDiff(args: PierreDiffSyncArgs): void {
+function syncPierreFileDiff(args: PierreDiffSyncArgs): void {
 	const portal = ensurePortal();
 	observeSlot();
+	observePortalMutations(portal);
 
 	if (!args.showPierre || !args.preview) {
 		clearPierreFileDiff();
@@ -91,6 +116,10 @@ export function syncPierreFileDiff(args: PierreDiffSyncArgs): void {
 
 	const filesChanged = nextOldFile !== lastOldFile || nextNewFile !== lastNewFile;
 
+	// Size the portal before FileDiff paints so --pierre-portal-height is real
+	// on first shadow stylesheet application (avoids height:100% collapse).
+	syncPortalGeometry(true);
+
 	if (!fileDiff) {
 		fileDiff = new FileDiff(buildOptions(args.layoutMode, args.contentMode, themeType));
 	} else if (optionsChanged) {
@@ -113,15 +142,15 @@ export function syncPierreFileDiff(args: PierreDiffSyncArgs): void {
 	lastThemeType = themeType;
 	lastShowPierre = true;
 	syncPortalGeometry(true);
-	// Second frame: FileDiff/shadow layout may settle after first paint.
 	window.requestAnimationFrame(() => {
 		if (lastShowPierre) {
 			syncPortalGeometry(true);
+			repairPierreSplitWrapRowSpans(portal);
 		}
 	});
 }
 
-export function clearPierreFileDiff(): void {
+function clearPierreFileDiff(): void {
 	fileDiff?.cleanUp();
 	fileDiff = undefined;
 	lastOldFile = undefined;
@@ -130,6 +159,7 @@ export function clearPierreFileDiff(): void {
 	lastContentMode = undefined;
 	lastThemeType = undefined;
 	lastShowPierre = false;
+	lastForcedHeight = -1;
 
 	const portal = document.getElementById(PIERRE_ROOT_ID);
 	if (portal) {
@@ -137,6 +167,83 @@ export function clearPierreFileDiff(): void {
 		portal.hidden = true;
 		portal.classList.add('is-pending');
 	}
+}
+
+export function measureDiffLayoutMetrics(): DiffLayoutMetrics {
+	const portal = document.getElementById(PIERRE_ROOT_ID);
+	if (portal instanceof HTMLElement) {
+		repairPierreSplitWrapRowSpans(portal);
+	}
+	const rows = document.getElementById('diffRows');
+	const content = document.querySelector('.diff-content');
+	const timeline = document.querySelector('.timeline-pane');
+	const host = portal?.querySelector('diffs-container') as HTMLElement | null;
+	const root = host?.shadowRoot;
+	const codes = [...(root?.querySelectorAll('[data-code], [data-overflow] > code, pre > code') ?? [])] as HTMLElement[];
+	const lines = [...(root?.querySelectorAll('[data-line]') ?? [])] as HTMLElement[];
+	const viewportH = Math.round(window.visualViewport?.height ?? window.innerHeight);
+	const portalRect = portal?.getBoundingClientRect();
+	const portalH = portalRect ? Math.round(portalRect.height) : 0;
+	const portalTop = portalRect ? Math.round(portalRect.top) : 0;
+	const hostH = host ? Math.round(host.getBoundingClientRect().height) : 0;
+	const hostScrollH = host ? Math.round(host.scrollHeight) : 0;
+	const rowsH = rows ? Math.round(rows.getBoundingClientRect().height) : 0;
+	const contentH = content instanceof HTMLElement ? Math.round(content.getBoundingClientRect().height) : 0;
+	const timelineH = timeline instanceof HTMLElement ? Math.round(timeline.getBoundingClientRect().height) : 0;
+	const lineHeights = lines.map((line) => Math.round(line.getBoundingClientRect().height)).filter((h) => h > 0);
+	const codeClientHeights = codes.map((c) => Math.round(c.getBoundingClientRect().height));
+	const codeScrollHeights = codes.map((c) => Math.round(c.scrollHeight));
+	const maxCodeScrollH = codeScrollHeights.length ? Math.max(...codeScrollHeights) : 0;
+	const minCodeClientH = codeClientHeights.length ? Math.min(...codeClientHeights) : 0;
+	const maxLineH = lineHeights.length ? Math.max(...lineHeights) : 0;
+	const minLineH = lineHeights.length ? Math.min(...lineHeights) : 0;
+	const lineCount = lines.length;
+	const lineTops = lines.map((line) => line.getBoundingClientRect().top);
+	const lineTopSpan = lineTops.length > 0 ? Math.round(Math.max(...lineTops) - Math.min(...lineTops)) : 0;
+	const uniqueLineTops = new Set(lineTops.map((top) => Math.round(top / 2) * 2)).size;
+	let paintedH = 0;
+	if (portalRect) {
+		for (const line of lines) {
+			const rect = line.getBoundingClientRect();
+			if (rect.bottom < portalRect.top || rect.top > portalRect.bottom) {
+				continue;
+			}
+			paintedH += Math.max(0, Math.min(rect.bottom, portalRect.bottom) - Math.max(rect.top, portalRect.top));
+		}
+	}
+	paintedH = Math.round(paintedH);
+	const paintedRatio = portalH > 0 ? paintedH / portalH : 0;
+	// Crush signatures seen in VS Code for large atproto diffs:
+	// - many Pierre lines mounted
+	// - host scrollport not growing (wrap content collapsed)
+	// - line tops clustered instead of flowing down the document
+	const isCrushed =
+		portalH > 200 &&
+		lineCount > 40 &&
+		((hostScrollH <= portalH + 24 && lineTopSpan < Math.max(120, portalH * 0.45)) ||
+			(uniqueLineTops < Math.max(8, Math.floor(lineCount * 0.2)) && lineTopSpan < portalH * 0.5));
+
+	return {
+		viewportH,
+		portalH,
+		portalTop,
+		hostH,
+		hostScrollH,
+		rowsH,
+		contentH,
+		timelineH,
+		maxLineH,
+		minLineH,
+		lineCount,
+		maxCodeScrollH,
+		minCodeClientH,
+		portalFillRatio: viewportH > 0 ? portalH / viewportH : 0,
+		paintedH,
+		paintedRatio,
+		lineTopSpan,
+		uniqueLineTops,
+		isCrushed,
+	};
 }
 
 function ensurePortal(): HTMLElement {
@@ -179,6 +286,18 @@ function observeSlot(): void {
 	bindGeometryListeners();
 }
 
+function observePortalMutations(portal: HTMLElement): void {
+	if (portalMutationObserver) {
+		return;
+	}
+	portalMutationObserver = new MutationObserver(() => {
+		if (lastShowPierre) {
+			syncPortalGeometry(true);
+		}
+	});
+	portalMutationObserver.observe(portal, { childList: true, subtree: true });
+}
+
 function bindGeometryListeners(): void {
 	if (geometryListenersBound) {
 		return;
@@ -198,6 +317,7 @@ function syncPortalGeometry(visible: boolean): void {
 		portal.hidden = true;
 		portal.classList.add('is-pending');
 		portal.style.removeProperty('--pierre-portal-height');
+		lastForcedHeight = -1;
 		return;
 	}
 
@@ -226,6 +346,81 @@ function syncPortalGeometry(visible: boolean): void {
 	portal.style.width = `${width}px`;
 	portal.style.height = `${height}px`;
 	portal.style.setProperty('--pierre-portal-height', `${height}px`);
+	forcePierreHostScrollport(portal, height);
+	repairPierreSplitWrapRowSpans(portal);
+}
+
+/**
+ * Portal/`diffs-container` is the scrollport. Pierre content stays content-sized
+ * (`overflow: wrap`). Never set height:100% on [data-code] — that collapses to a
+ * few pixels in VS Code when the % chain is unresolved (standalone often lucks out).
+ */
+function forcePierreHostScrollport(portal: HTMLElement, height: number): void {
+	if (height === lastForcedHeight) {
+		// Still refresh hosts in case Pierre recreated the custom element.
+	} else {
+		lastForcedHeight = height;
+	}
+
+	const hosts = portal.querySelectorAll('diffs-container');
+	for (const host of hosts) {
+		if (!(host instanceof HTMLElement)) {
+			continue;
+		}
+		host.style.setProperty('display', 'block');
+		host.style.setProperty('height', `${height}px`);
+		host.style.setProperty('max-height', `${height}px`);
+		host.style.setProperty('min-height', '0');
+		host.style.setProperty('overflow', 'auto');
+		host.style.setProperty('box-sizing', 'border-box');
+		host.style.setProperty('width', '100%');
+	}
+}
+
+/**
+ * Split+wrap uses `display: contents` on [data-code] so gutter/content become
+ * items of the outer pre grid and must carry `grid-row: span N`. In VS Code's
+ * Electron webview those spans sometimes never stick (or get dropped), leaving
+ * `grid-template-rows: <one track>` — every [data-line] stacks on the same top.
+ */
+function repairPierreSplitWrapRowSpans(portal: HTMLElement): void {
+	const hosts = portal.querySelectorAll('diffs-container');
+	for (const host of hosts) {
+		const root = host.shadowRoot;
+		if (!root) {
+			continue;
+		}
+		const wraps = root.querySelectorAll('[data-diff-type="split"][data-overflow="wrap"]');
+		for (const wrap of wraps) {
+			if (!(wrap instanceof HTMLElement)) {
+				continue;
+			}
+			const columns = [...wrap.querySelectorAll('[data-gutter], [data-content]')] as HTMLElement[];
+			if (columns.length === 0) {
+				continue;
+			}
+			const rowCount = Math.max(
+				1,
+				...columns.map((column) => {
+					const fromStyle = Number.parseInt(column.style.gridRow.match(/span\s+(\d+)/u)?.[1] ?? '', 10);
+					const fromCode = Number.parseInt(
+						(column.parentElement as HTMLElement | null)?.style.gridRow.match(/span\s+(\d+)/u)?.[1] ?? '',
+						10,
+					);
+					return Math.max(
+						column.childElementCount,
+						Number.isFinite(fromStyle) ? fromStyle : 0,
+						Number.isFinite(fromCode) ? fromCode : 0,
+					);
+				}),
+			);
+			for (const column of columns) {
+				column.style.setProperty('grid-row', `span ${rowCount}`);
+			}
+			// Ensure the wrap parent can grow past a single collapsed track.
+			wrap.style.setProperty('grid-auto-rows', 'max-content');
+		}
+	}
 }
 
 function buildOptions(layoutMode: LayoutMode, contentMode: ContentMode, themeType: 'dark' | 'light') {
@@ -237,45 +432,25 @@ function buildOptions(layoutMode: LayoutMode, contentMode: ContentMode, themeTyp
 		disableFileHeader: true,
 		hunkSeparators: 'line-info' as const,
 		diffIndicators: 'bars' as const,
-		overflow: 'scroll' as const,
-		// Shadow DOM: force the split code panes to use the full portal height and
-		// scroll inside — default align-self:flex-start leaves a tiny content strip.
+		// Wrap: content defines height; our host scrolls. Avoids Pierre's default
+		// overflow:scroll + align-self:flex-start fighting a height:100% override.
+		overflow: 'wrap' as const,
 		unsafeCSS: `
 			:host {
 				display: block !important;
 				height: var(--pierre-portal-height, 100%) !important;
 				min-height: 0 !important;
 				max-height: var(--pierre-portal-height, 100%) !important;
-				overflow: hidden !important;
+				overflow: auto !important;
 				box-sizing: border-box !important;
 			}
-			pre {
-				height: 100% !important;
-				min-height: 0 !important;
-				max-height: 100% !important;
-				box-sizing: border-box !important;
+			/* contain:content + display:contents on [data-code] collapses split+wrap
+			   row tracks in VS Code Electron (all lines share one grid row). */
+			code[data-code] {
+				contain: none !important;
 			}
-			[data-diff-type='split'][data-overflow='scroll'] {
-				height: 100% !important;
-				min-height: 0 !important;
-				max-height: 100% !important;
-			}
-			/* Pierre defaults [data-code] to align-self:flex-start (content height).
-			   Stretch panes to the portal so the scroll viewport fills available space. */
-			[data-diff-type='split'][data-overflow='scroll'] > [data-code],
-			[data-diff-type='split'][data-overflow='scroll'] > code {
-				align-self: stretch !important;
-				align-content: start !important;
-				height: 100% !important;
-				min-height: 0 !important;
-				max-height: 100% !important;
-				overflow: auto !important;
-			}
-			[data-overflow='scroll'][data-diff-type='unified'] {
-				height: 100% !important;
-				max-height: 100% !important;
-				overflow: auto !important;
-				align-content: start !important;
+			[data-diff-type="split"][data-overflow="wrap"] {
+				grid-auto-rows: max-content !important;
 			}
 		`,
 	};

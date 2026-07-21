@@ -8,6 +8,8 @@ import {
 	DEFAULT_TO_REVSET,
 	EXTENSION_ID,
 	GET_TIMELINE_DEBUG_STATE_COMMAND,
+	GET_DIFF_LAYOUT_METRICS_COMMAND,
+	DEBUG_SELECT_TIMELINE_RANGE_COMMAND,
 	HELPER_COMMAND,
 	OPEN_FILE_RANGE_DIFF_COMMAND,
 	OPEN_FILE_TIMELINE_COMMAND,
@@ -257,6 +259,12 @@ export function activate(context: vscode.ExtensionContext): void {
 			panelController.openFileRevisionTimeline({ context, absolutePath }),
 		),
 		vscode.commands.registerCommand(GET_TIMELINE_DEBUG_STATE_COMMAND, () => panelController.getDebugState()),
+		vscode.commands.registerCommand(GET_DIFF_LAYOUT_METRICS_COMMAND, () => panelController.getDiffLayoutMetrics()),
+		vscode.commands.registerCommand(
+			DEBUG_SELECT_TIMELINE_RANGE_COMMAND,
+			(args: { fromIndex: number; toIndex: number; comparisonSource?: 'revision' | 'snapshot' }) =>
+				panelController.selectTimelineRange(args),
+		),
 		vscode.window.registerUriHandler({
 			async handleUri(uri) {
 				if (!isRangeDiffUriTarget({ uri, extensionId: EXTENSION_ID })) {

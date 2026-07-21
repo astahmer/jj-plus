@@ -71,7 +71,8 @@ export type TimelineInboundMessage =
 				}>;
 			};
 	  }
-	| { type: 'resolved-range'; payload: { fromIndex: number; toIndex: number } | null };
+	| { type: 'resolved-range'; payload: { fromIndex: number; toIndex: number } | null }
+	| { type: 'debug-measure-layout' };
 
 export type TimelineFixtureFile = Omit<SharedTimelineFixtureFile, 'timelineData' | 'previews'> & {
 	timelineData: TimelineData;

@@ -23,7 +23,7 @@ import type {
 const DEFAULT_TIMELINE_PREFERENCES: Required<TimelinePreferences> = {
 	sidebarWidth: 276,
 	sidebarCollapsed: false,
-	timelinePaneHeight: 278,
+	timelinePaneHeight: 220,
 	timelinePaneCollapsed: false,
 	layoutMode: 'split',
 	contentMode: 'diffs',

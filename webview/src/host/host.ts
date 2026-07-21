@@ -1,4 +1,5 @@
 import { getEntriesForSource } from '../domain/timeline-model.ts';
+import { measureDiffLayoutMetrics } from '../pierre/file-diff-host.ts';
 import type {
 	ComparisonSource,
 	DiffPreview,
@@ -108,6 +109,17 @@ async function maybeAttachStandaloneEditorCommand(command: TimelineCommand): Pro
 	};
 }
 
+function isDebugMeasureLayoutMessage(data: unknown): boolean {
+	return Boolean(data && typeof data === 'object' && Reflect.get(data, 'type') === 'debug-measure-layout');
+}
+
+function postLayoutMetrics(send: (command: TimelineCommand) => void): void {
+	send({
+		command: 'layout-metrics',
+		metrics: measureDiffLayoutMetrics(),
+	});
+}
+
 export function createTimelineHost(): TimelineHost {
 	if (typeof window.acquireVsCodeApi === 'function') {
 		const vscode = window.acquireVsCodeApi();
@@ -116,9 +128,13 @@ export function createTimelineHost(): TimelineHost {
 				vscode.postMessage(command);
 			},
 			subscribe(listener) {
-				const handler = (event: MessageEvent<TimelineInboundMessage>) => {
+				const handler = (event: MessageEvent<TimelineInboundMessage | { type: string }>) => {
+					if (isDebugMeasureLayoutMessage(event.data)) {
+						postLayoutMetrics((command) => vscode.postMessage(command));
+						return;
+					}
 					if (event.data && typeof event.data === 'object' && 'type' in event.data) {
-						listener(event.data);
+						listener(event.data as TimelineInboundMessage);
 					}
 				};
 				window.addEventListener('message', handler);
