@@ -4,8 +4,10 @@
 
 ## Future Ideas
 
+Product ideas + sharp bets live in [ROADMAP.md](./ROADMAP.md) (file time-machine focus).
+
 - Expose a machine-readable CLI output mode for scripts that want timeline metadata without opening a UI.
-- Inline multi-file diffs via Pierre `CodeView` (timeline is single-file for now; VS Code multi-diff stays for open-in-editor).
+- Inline multi-file diffs via Pierre `CodeView` (timeline is single-file for now; VS Code multi-diff stays for open-in-editor). See ROADMAP sharp bet #4.
 
 ### jj-lib (in-process) — later performance path
 
