@@ -657,6 +657,22 @@ export function createTimelinePanelController(args: {
 			return;
 		}
 
+		if (command === 'search-history') {
+			const query = String(Reflect.get(request.message, 'query') || '');
+			const result = await args.service.searchFileHistory({
+				session: request.session,
+				query,
+			});
+			await postTimelineMessage({
+				panel: request.panel,
+				message: {
+					type: 'history-search',
+					payload: result,
+				},
+			});
+			return;
+		}
+
 		if (command === 'load-entry-diff-counts') {
 			const comparisonSource = normalizeComparisonSource(Reflect.get(request.message, 'comparisonSource'));
 			const entryIndexes = Array.isArray(Reflect.get(request.message, 'entryIndexes'))

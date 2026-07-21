@@ -10,6 +10,9 @@ import {
 	AppliedCustomRevset,
 	UpdatedCustomRevset,
 	ToggledIntermediate,
+	UpdatedHistorySearchQuery,
+	SubmittedHistorySearch,
+	ClickedHistorySearchHit,
 } from '../messages.ts';
 import type { Model } from '../model.ts';
 import { getBackend, getIntermediateLabel } from '../selectors.ts';
@@ -29,6 +32,12 @@ export function timelineControls(model: Model): Html {
 	const hasIntermediate = model.data
 		? (model.data as { hasIntermediateRevisions?: boolean }).hasIntermediateRevisions === true
 		: false;
+	const searchResult = model.historySearchResult as {
+		query: string;
+		hits: Array<{ entryIndex: number; kind: string }>;
+		introducedAt: number | null;
+		removedAt: number | null;
+	} | null;
 
 	return h.div(
 		[h.Class('control-row')],
@@ -214,6 +223,61 @@ export function timelineControls(model: Model): Html {
 														],
 													)
 												: h.empty,
+											h.div(
+												[h.Class('history-search'), h.Id('historySearch')],
+												[
+													h.label([h.Class('view-menu-label'), h.For('historySearchInput')], ['Search in history']),
+													h.input([
+														h.Class('revset-input'),
+														h.Id('historySearchInput'),
+														h.Type('search'),
+														h.Placeholder('Find when text appeared / left'),
+														h.Value(model.historySearchQuery),
+														h.OnInput((value) => UpdatedHistorySearchQuery({ value })),
+													]),
+													h.button(
+														[
+															h.Class('menu-item'),
+															h.Id('submitHistorySearchButton'),
+															h.Type('button'),
+															h.Disabled(model.historySearchLoading || !model.historySearchQuery.trim()),
+															h.OnClick(SubmittedHistorySearch()),
+														],
+														[model.historySearchLoading ? 'Searching…' : 'Search history'],
+													),
+													searchResult
+														? h.div(
+																[h.Class('history-search-result'), h.Id('historySearchResult')],
+																[
+																	h.div(
+																		[h.Class('history-search-summary')],
+																		[
+																			searchResult.introducedAt === null
+																				? 'No introduction found'
+																				: `Introduced @ #${searchResult.introducedAt}`,
+																			searchResult.removedAt === null ? '' : ` · Removed @ #${searchResult.removedAt}`,
+																		],
+																	),
+																	h.div(
+																		[h.Class('history-search-hits')],
+																		searchResult.hits
+																			.slice(0, 8)
+																			.map((hit) =>
+																				h.button(
+																					[
+																						h.Class('history-search-hit'),
+																						h.Type('button'),
+																						h.OnClick(ClickedHistorySearchHit({ entryIndex: hit.entryIndex })),
+																					],
+																					[`#${hit.entryIndex} · ${hit.kind}`],
+																				),
+																			),
+																	),
+																],
+															)
+														: h.empty,
+												],
+											),
 										],
 									),
 								],

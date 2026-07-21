@@ -144,6 +144,13 @@ export type DiffBlamePayload = {
 	}>;
 };
 
+export type HistorySearchPayload = {
+	query: string;
+	hits: Array<{ entryIndex: number; kind: 'introduced' | 'removed' | 'present' }>;
+	introducedAt: number | null;
+	removedAt: number | null;
+};
+
 export type TimelineInboundMessage =
 	| { type: 'timeline-data'; payload: TimelineData }
 	| { type: 'diff-preview'; payload: DiffPreview }
@@ -180,7 +187,8 @@ export type TimelineInboundMessage =
 	| { type: 'debug-measure-layout' }
 	| { type: 'debug-set-layout-mode'; layoutMode: LayoutMode }
 	| { type: 'range-stack-previews'; payload: RangeStackPreviewPayload }
-	| { type: 'diff-blame'; payload: DiffBlamePayload };
+	| { type: 'diff-blame'; payload: DiffBlamePayload }
+	| { type: 'history-search'; payload: HistorySearchPayload };
 
 export type DiffLayoutMetrics = {
 	viewportH: number;
@@ -258,6 +266,7 @@ export type TimelineCommand =
 			toIndex: number;
 			comparisonSource: ComparisonSource;
 	  }
+	| { command: 'search-history'; query: string }
 	| {
 			command: 'persist-state';
 			sidebarWidth: number;

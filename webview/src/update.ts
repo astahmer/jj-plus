@@ -920,6 +920,9 @@ function handleReset(model: Model): UpdateReturn {
 		blameOverlayOpen: () => false as boolean,
 		blameLines: () => initialModel.blameLines,
 		blameLoading: () => false as boolean,
+		historySearchQuery: () => '',
+		historySearchLoading: () => false as boolean,
+		historySearchResult: () => null,
 		sidebarSearchQuery: () => '',
 		sidebarWidth: () => clampSidebarWidth(280),
 		timelinePaneHeight: () => 220,
@@ -969,6 +972,9 @@ function handleGotHostMessage(model: Model, payload: unknown): UpdateReturn {
 		),
 		M.when('diff-blame', () =>
 			handleDiffBlameMessage(model, message as Extract<TimelineInboundMessage, { type: 'diff-blame' }>),
+		),
+		M.when('history-search', () =>
+			handleHistorySearchMessage(model, message as Extract<TimelineInboundMessage, { type: 'history-search' }>),
 		),
 		M.when('entry-diff-counts', () =>
 			handleEntryDiffCountsMessage(model, message as Extract<TimelineInboundMessage, { type: 'entry-diff-counts' }>),
@@ -1221,6 +1227,30 @@ function handleDiffBlameMessage(
 	];
 }
 
+function handleHistorySearchMessage(
+	model: Model,
+	message: Extract<TimelineInboundMessage, { type: 'history-search' }>,
+): UpdateReturn {
+	const result = message.payload;
+	let next = evo(model, {
+		historySearchLoading: () => false as boolean,
+		historySearchResult: () => result,
+	}) as Model;
+	if (result.introducedAt !== null && Number.isInteger(result.introducedAt)) {
+		const entryIndex = result.introducedAt;
+		const fromIndex = Math.max(0, entryIndex - 1);
+		next = evo(next, {
+			comparisonMode: () => 'step' as ComparisonMode,
+			fromIndex: () => fromIndex,
+			toIndex: () => entryIndex,
+			maybeHoveredSelectionIndex: () => Option.none(),
+		}) as Model;
+		next = stepSelection(next, CancelledSelection());
+		return afterMutate(next, [persistCommand(next), ScrollToEntry({ entryIndex })]);
+	}
+	return [next, []];
+}
+
 function handleToggleRangeStack(model: Model): UpdateReturn {
 	const nextOpen = !model.rangeStackOpen;
 	return afterMutate(
@@ -1248,6 +1278,36 @@ function handlePierreBlameLineClick(model: Model, revision: string): UpdateRetur
 	if (entryIndex < 0) {
 		return [model, []];
 	}
+	const fromIndex = Math.max(0, entryIndex - 1);
+	let next = clearCaches(model);
+	next = evo(next, {
+		comparisonMode: () => 'step' as ComparisonMode,
+		fromIndex: () => fromIndex,
+		toIndex: () => entryIndex,
+		maybeHoveredSelectionIndex: () => Option.none(),
+	});
+	next = stepSelection(next, CancelledSelection());
+	return afterMutate(next, [persistCommand(next), ScrollToEntry({ entryIndex })]);
+}
+
+function handleSubmitHistorySearch(model: Model): UpdateReturn {
+	const query = model.historySearchQuery.trim();
+	if (!query) {
+		return [
+			evo(model, {
+				historySearchResult: () => null,
+				historySearchLoading: () => false,
+			}),
+			[],
+		];
+	}
+	return [
+		evo(model, { historySearchLoading: () => true }),
+		[SendHostCommand({ command: { command: 'search-history', query } })],
+	];
+}
+
+function handleHistorySearchHitClick(model: Model, entryIndex: number): UpdateReturn {
 	const fromIndex = Math.max(0, entryIndex - 1);
 	let next = clearCaches(model);
 	next = evo(next, {
@@ -1599,6 +1659,9 @@ export function update(model: Model, message: Message): UpdateReturn {
 			ToggledRangeStack: () => handleToggleRangeStack(model),
 			ToggledBlameOverlay: () => handleToggleBlameOverlay(model),
 			ClickedPierreBlameLine: ({ revision }) => handlePierreBlameLineClick(model, revision),
+			UpdatedHistorySearchQuery: ({ value }) => [evo(model, { historySearchQuery: () => value }), []],
+			SubmittedHistorySearch: () => handleSubmitHistorySearch(model),
+			ClickedHistorySearchHit: ({ entryIndex }) => handleHistorySearchHitClick(model, entryIndex),
 			ToggledIntermediate: () => handleToggleIntermediate(model),
 			ClickedStepBackward: () => handleStep(model, -1),
 			ClickedStepFastBackward: () => handleStep(model, -5),

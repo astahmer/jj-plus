@@ -18,6 +18,7 @@ import {
 	parseGitLineHistoryRevisions,
 	type LineHistoryRange,
 } from '../shared/line-history.ts';
+import { searchHistoryContents } from '../shared/history-search.ts';
 import type {
 	ComparisonSource,
 	DiffPreview,
@@ -246,6 +247,7 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 		getComparisonEntries,
 		getDiffPreview,
 		getDiffBlame,
+		searchFileHistory,
 		getEntryDiffCounts,
 		getEntriesForSource,
 		getRangeOverview,
@@ -1015,6 +1017,36 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 		} catch {
 			return { relativePath, lines: [] };
 		}
+	}
+
+	async function searchFileHistory(request: {
+		session: ExtensionTimelineSession;
+		query: string;
+		maxEntries?: number;
+	}): Promise<ReturnType<typeof searchHistoryContents>> {
+		const maxEntries = request.maxEntries ?? 40;
+		const touching = request.session.entries
+			.map((entry, index) => ({ entry, index }))
+			.filter(({ entry }) => entry.touchesFile && !entry.isWorkingTree)
+			.slice(-maxEntries);
+		const contentsByIndex = new Map<number, string>();
+		for (const { entry, index } of touching) {
+			try {
+				const content = await getRevisionContent({
+					session: request.session,
+					entry,
+					entryIndex: index,
+				});
+				contentsByIndex.set(index, content);
+			} catch {
+				contentsByIndex.set(index, '');
+			}
+		}
+		return searchHistoryContents({
+			query: request.query,
+			orderedEntryIndexes: touching.map(({ index }) => index),
+			contentsByIndex,
+		});
 	}
 
 	async function buildTimelineEntries(request: {

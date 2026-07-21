@@ -242,6 +242,30 @@ async function createStandaloneRuntime(args: { workspacePath: string; filePath: 
 						},
 					];
 				}
+				case 'search-history': {
+					const fileFixture = await getActiveFileFixture();
+					const entries = fileFixture.timelineData.entries.filter((entry) => !entry.isWorkingTree);
+					const tip = entries[Math.max(0, entries.length - 1)];
+					const previous = entries[Math.max(0, entries.length - 2)] || tip;
+					const introducedAt = previous?.index ?? 0;
+					const tipIndex = tip?.index ?? introducedAt;
+					const hits: Array<{ entryIndex: number; kind: 'introduced' | 'present' }> = [
+						{ entryIndex: introducedAt, kind: 'introduced' },
+					];
+					if (tipIndex !== introducedAt) {
+						hits.push({ entryIndex: tipIndex, kind: 'present' });
+					}
+					const message: TimelineInboundMessage = {
+						type: 'history-search',
+						payload: {
+							query: command.query,
+							introducedAt,
+							removedAt: null,
+							hits,
+						},
+					};
+					return [message];
+				}
 				case 'load-entry-diff-counts': {
 					const fileFixture = await getActiveFileFixture();
 					return [

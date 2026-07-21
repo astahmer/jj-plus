@@ -10,6 +10,7 @@ import type {
 	RangeOverviewItem,
 	RangeStackPreviewPayload,
 	DiffBlamePayload,
+	HistorySearchPayload,
 	TimelineCommand,
 	TimelineData as SharedTimelineData,
 	TimelineFixture as SharedTimelineFixture,
@@ -24,6 +25,7 @@ export type {
 	ContentMode,
 	DiffPreview,
 	DiffBlamePayload,
+	HistorySearchPayload,
 	FileSwitcherMode,
 	HistoryBackend,
 	LayoutMode,
@@ -79,7 +81,8 @@ export type TimelineInboundMessage =
 	| { type: 'debug-measure-layout' }
 	| { type: 'debug-set-layout-mode'; layoutMode: LayoutMode }
 	| { type: 'range-stack-previews'; payload: RangeStackPreviewPayload }
-	| { type: 'diff-blame'; payload: DiffBlamePayload };
+	| { type: 'diff-blame'; payload: DiffBlamePayload }
+	| { type: 'history-search'; payload: HistorySearchPayload };
 
 export type TimelineFixtureFile = Omit<SharedTimelineFixtureFile, 'timelineData' | 'previews'> & {
 	timelineData: TimelineData;

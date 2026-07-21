@@ -561,6 +561,33 @@ export function createTimelineHost(): TimelineHost {
 				return;
 			}
 
+			if (command.command === 'search-history') {
+				void getFixture().then((fixture) => {
+					const fileFixture = getActiveFileFixture(fixture);
+					const entries = fileFixture.timelineData.entries.filter((entry) => !entry.isWorkingTree);
+					const tip = entries[Math.max(0, entries.length - 1)];
+					const previous = entries[Math.max(0, entries.length - 2)] || tip;
+					const introducedAt = previous?.index ?? 0;
+					const tipIndex = tip?.index ?? introducedAt;
+					const hits: Array<{ entryIndex: number; kind: 'introduced' | 'present' }> = [
+						{ entryIndex: introducedAt, kind: 'introduced' },
+					];
+					if (tipIndex !== introducedAt) {
+						hits.push({ entryIndex: tipIndex, kind: 'present' });
+					}
+					emit({
+						type: 'history-search',
+						payload: {
+							query: command.query,
+							introducedAt,
+							removedAt: null,
+							hits,
+						},
+					});
+				});
+				return;
+			}
+
 			if (command.command === 'load-entry-diff-counts') {
 				void getFixture().then((fixture) => {
 					const fileFixture = getActiveFileFixture(fixture);

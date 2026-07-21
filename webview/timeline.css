@@ -927,6 +927,39 @@ kbd {
 	margin-top: 8px;
 }
 
+.history-search {
+	display: grid;
+	gap: 6px;
+	margin-top: 10px;
+}
+
+.history-search-result {
+	display: grid;
+	gap: 6px;
+}
+
+.history-search-summary {
+	color: var(--muted);
+	font-size: 12px;
+}
+
+.history-search-hits {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+}
+
+.history-search-hit {
+	border: 1px solid var(--border);
+	border-radius: 6px;
+	background: transparent;
+	color: var(--fg);
+	padding: 2px 6px;
+	font: inherit;
+	font-size: 12px;
+	cursor: pointer;
+}
+
 .revset-input {
 	width: 100%;
 	border: 1px solid var(--border);
