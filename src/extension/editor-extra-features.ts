@@ -1,9 +1,10 @@
-import * as path from 'node:path';
-import * as vscode from 'vscode';
-import { buildJjAnnotateArgs, findBlameForLine, parseJjFileAnnotate } from '../shared/blame.ts';
 import { OPEN_FILE_TIMELINE_COMMAND, OPEN_TIMELINE_AT_LINE_COMMAND } from './constants.ts';
 import { resolveCommandFilePath } from './resolve-file-path.ts';
-import { onJjplusSettingsChange, readJjplusSettings } from './settings.ts';
+import { onJjplusSettingsChange, readJjplusSettings, SETTINGS_SECTION } from './settings.ts';
+import { mergeCompareQuickPickValues } from '../shared/jj-revset-suggestions.ts';
+import { buildJjAnnotateArgs, findBlameForLine, parseJjFileAnnotate } from '../shared/blame.ts';
+import * as path from 'node:path';
+import * as vscode from 'vscode';
 
 type Runner = {
 	runJj: (args: { workspacePath: string; args: string[] }) => Promise<{ stdout: string }>;
@@ -30,6 +31,12 @@ export function registerEditorExtraFeatures(args: {
 	const disposables: vscode.Disposable[] = [];
 
 	disposables.push(
+		vscode.commands.registerCommand('jj-range-diff.toggleLineBlame', async () => {
+			const config = vscode.workspace.getConfiguration(SETTINGS_SECTION);
+			const current = config.get<boolean>('inlineBlameGutter', false);
+			await config.update('inlineBlameGutter', !current, vscode.ConfigurationTarget.Global);
+			void vscode.window.setStatusBarMessage(`jjplus: line blame ${current ? 'off' : 'on'}`, 2500);
+		}),
 		vscode.commands.registerCommand('jj-range-diff.compareWithBookmark', async () => {
 			const absolutePath = resolveCommandFilePath();
 			if (!absolutePath) {
@@ -518,7 +525,7 @@ async function listJjBookmarks(runner: Runner, workspacePath: string): Promise<s
 		.split(/\r?\n/u)
 		.map((line) => line.trim())
 		.filter(Boolean);
-	return [...new Set(['@-', 'trunk()', 'main@origin', ...names])];
+	return mergeCompareQuickPickValues(names);
 }
 
 async function listGitBranches(runner: Runner, workspacePath: string): Promise<string[]> {
