@@ -101,8 +101,8 @@ test('open editor diff from actions menu sends host command', () => {
 		Scene.with(ready),
 		Scene.click(Scene.selector('#actionsButton')),
 		Scene.Command.expectNone(),
-		Scene.expect(Scene.text('Open diff')).toExist(),
-		Scene.click(Scene.role('button', { name: 'Open diff' })),
+		Scene.expect(Scene.text('Open single-file diff')).toExist(),
+		Scene.click(Scene.role('button', { name: 'Open single-file diff' })),
 		Scene.Command.expectExact(
 			SendHostCommand({
 				command: {

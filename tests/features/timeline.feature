@@ -105,11 +105,11 @@ Feature: Revision timeline app
     Then the last host action should be "open-current-file"
     And the last host action payload should include "fileName" as "lazy-di-rollout-plan.md"
     When I open the actions menu
-    And I choose the action menu item "Open diff"
+    And I choose the action menu item "Open single-file diff"
     Then the last host action should be "open-editor-diff"
     And the last host action payload should include "comparisonSource" as "snapshot"
     When I open the actions menu
-    And I choose the action menu item "Open diffs"
+    And I choose the action menu item "Open multi-file diffs"
     Then the last host action should be "open-range-files-diff"
     When I open the actions menu
     And I choose the action menu item "Cancel request"
@@ -125,7 +125,7 @@ Feature: Revision timeline app
     When I click the "Remote" row action for revision "plan refinement"
     Then the last host action should be "open-revision-remote"
     And the last host action payload should include "revision" as "woumzsyy/0"
-    When I click the "Open diffs" row action for revision "plan refinement"
+    When I click the "Open multi-file diffs" row action for revision "plan refinement"
     Then the last host action should be "open-revision-files-diff"
 
   Scenario: Switching files updates the preview content

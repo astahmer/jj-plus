@@ -31,6 +31,7 @@ const TOGGLE_SHORTCUT_TOOLTIPS = {
 	toggleSidebar: 'Toggle sidebar (B)',
 	toggleDiffFocus: 'Focus diff (D)',
 	exitDiffFocus: 'Exit focus (D)',
+	openSelectionDiffs: 'Open multi-file diffs (Space)',
 } as const;
 
 export type ToggleShortcutId = keyof typeof TOGGLE_SHORTCUT_TOOLTIPS;

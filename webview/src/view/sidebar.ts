@@ -142,7 +142,7 @@ function renderEntry(model: Model, entry: FileRevisionEntry): Html {
 											h.Type('button'),
 											h.OnClick(ClickedOpenRevisionFilesDiff({ entryIndex: entry.index })),
 										],
-										[formatDiffActionLabel('Open diffs', rowDiffCount)],
+										[formatDiffActionLabel('Open multi-file diffs', rowDiffCount)],
 									)
 								: h.empty,
 						],

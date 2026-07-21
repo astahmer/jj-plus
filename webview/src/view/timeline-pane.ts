@@ -68,7 +68,8 @@ export function timelinePane(model: Model): Html {
 	const showSnapshot = getShowSnapshotStatus(model);
 	const showStepStatusRow = Boolean(stepStatus) || showSnapshot;
 	const selectionDiffCount = getSelectionDiffCount(model);
-	const openSelectionDiffsLabel = selectionDiffCount === null ? 'Open diffs' : `Open diffs (${selectionDiffCount})`;
+	const openSelectionDiffsLabel =
+		selectionDiffCount === null ? 'Open multi-file diffs' : `Open multi-file diffs (${selectionDiffCount})`;
 	const fileSwitcherPlaceholder =
 		model.fileSwitcherMode === 'overview' ? 'Jump to a top-changed file...' : 'Switch file...';
 	const collapseLabel = model.timelinePaneCollapsed ? 'Expand timeline' : 'Collapse timeline';
@@ -284,6 +285,7 @@ export function timelinePane(model: Model): Html {
 															h.Class('menu-item'),
 															h.Id('toggleSidebarAction'),
 															h.Type('button'),
+															h.Title(shortcutTooltip('toggleSidebar')),
 															h.OnClick(ClickedToggleSidebarFromMenu()),
 														],
 														[model.sidebarCollapsed ? 'Show Sidebar' : 'Hide Sidebar'],
@@ -304,13 +306,14 @@ export function timelinePane(model: Model): Html {
 															h.Type('button'),
 															h.OnClick(ClickedOpenEditorDiff()),
 														],
-														['Open diff'],
+														['Open single-file diff'],
 													),
 													h.button(
 														[
 															h.Class('menu-item'),
 															h.Id('openRangeFilesButton'),
 															h.Type('button'),
+															h.Title(shortcutTooltip('openSelectionDiffs')),
 															h.OnClick(ClickedOpenSelectionDiffs()),
 														],
 														[openSelectionDiffsLabel],

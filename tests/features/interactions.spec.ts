@@ -9,9 +9,9 @@ test.describe('timeline interactions', () => {
 		await expect(page.locator('#openSidebarRangeDiffButton')).toContainText('Open selection diffs (1)');
 		await expect(page.locator('#actionsButton')).toBeVisible();
 		await page.locator('#actionsButton').click();
-		await expect(page.locator('#openRangeFilesButton')).toContainText('Open diffs (1)');
+		await expect(page.locator('#openRangeFilesButton')).toContainText('Open multi-file diffs (1)');
 		await expect(
-			sidebarRevision(page, 'plan refinement').getByRole('button', { name: /Open diffs \(1\)/ }),
+			sidebarRevision(page, 'plan refinement').getByRole('button', { name: /Open multi-file diffs \(1\)/ }),
 		).toBeVisible();
 	});
 

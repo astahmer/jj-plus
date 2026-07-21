@@ -17,7 +17,7 @@ function renderTimelineBodyHtml(): string {
               <div class="eyebrow">Revisions</div>
               <div class="sidebar-hint" id="sidebarHint"></div>
             </div>
-            <button class="sidebar-head-action" id="openSidebarRangeDiffButton" type="button">Open diff</button>
+            <button class="sidebar-head-action" id="openSidebarRangeDiffButton" type="button">Open selection diffs</button>
           </div>
           <div class="sidebar-search-wrap">
             <input class="sidebar-search-input" id="sidebarSearchInput" type="search" placeholder="Search revisions" autocomplete="off" />
@@ -52,8 +52,8 @@ function renderTimelineBodyHtml(): string {
                     <div class="menu" id="actionsMenu">
                       <button class="menu-item" id="toggleSidebarAction" type="button">Hide Sidebar</button>
                       <button class="menu-item" id="openCurrentFileAction" type="button">Open File</button>
-                      <button class="menu-item" id="openEditorButton" type="button">Open diff</button>
-                      <button class="menu-item" id="openRangeFilesButton" type="button">Open diffs</button>
+                      <button class="menu-item" id="openEditorButton" type="button">Open single-file diff</button>
+                      <button class="menu-item" id="openRangeFilesButton" type="button">Open multi-file diffs</button>
                       <button class="menu-item" id="cancelActiveRequestAction" type="button">Cancel request</button>
                       <button class="menu-item" id="refreshButton" type="button">Refresh</button>
                     </div>
