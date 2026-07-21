@@ -35,7 +35,7 @@ export function view(model: Model): Html {
 	};
 
 	return h.div(
-		[h.Class('app'), h.Style(layoutVars)],
+		[h.Class('app'), h.DataAttribute('theme', model.themePreference), h.Style(layoutVars)],
 		[
 			h.section(
 				[h.Class(workspaceClasses)],

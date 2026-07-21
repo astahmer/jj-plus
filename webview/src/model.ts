@@ -10,6 +10,7 @@ export const LayoutMode = S.Literals(['split', 'unified']);
 export const ContentMode = S.Literals(['diffs', 'full']);
 export const Preset = S.Literals(['year', '7d', '30d', '90d', 'all']);
 export const FileSwitcherMode = S.Literals(['workspace', 'overview']);
+export const ThemePreference = S.Literals(['auto', 'light', 'dark']);
 
 // Range tooltip payload — only fields the view needs to lay out and label the tooltip.
 // Entries/preview are looked up from `data`/`previewByRange` at view time.
@@ -54,6 +55,7 @@ export const Model = S.Struct({
 	responsiveSidebarHeight: S.Number,
 	timelinePaneHeight: S.Number,
 	timelinePaneCollapsed: S.Boolean,
+	themePreference: ThemePreference,
 	diffFocusMode: S.Boolean,
 	actionsMenuOpen: S.Boolean,
 	viewMenuOpen: S.Boolean,
@@ -110,6 +112,7 @@ export const initialModel: Model = {
 	responsiveSidebarHeight: 248,
 	timelinePaneHeight: 220,
 	timelinePaneCollapsed: false,
+	themePreference: 'auto',
 	diffFocusMode: false,
 	actionsMenuOpen: false,
 	viewMenuOpen: false,

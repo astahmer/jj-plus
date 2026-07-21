@@ -95,6 +95,7 @@ function syncFromModel(model: Model): void {
 			layoutMode: model.layoutMode,
 			contentMode: model.contentMode,
 			showStack,
+			themePreference: model.themePreference,
 		});
 		return;
 	}
@@ -120,6 +121,7 @@ function syncFromModel(model: Model): void {
 		showPierre,
 		blameOverlayOpen: model.blameOverlayOpen,
 		blameLines: blameLinesCache,
+		themePreference: model.themePreference,
 	});
 }
 
@@ -130,6 +132,7 @@ type PierreDiffSyncArgs = {
 	showPierre: boolean;
 	blameOverlayOpen: boolean;
 	blameLines: BlameLine[];
+	themePreference: 'auto' | 'light' | 'dark';
 };
 
 type RangeStackSyncArgs = {
@@ -137,6 +140,7 @@ type RangeStackSyncArgs = {
 	layoutMode: LayoutMode;
 	contentMode: ContentMode;
 	showStack: boolean;
+	themePreference: 'auto' | 'light' | 'dark';
 };
 
 function syncRangeStack(args: RangeStackSyncArgs): void {
@@ -156,7 +160,7 @@ function syncRangeStack(args: RangeStackSyncArgs): void {
 		stackMode = true;
 	}
 
-	const themeType = resolveThemeType();
+	const themeType = resolveThemeType(args.themePreference);
 	const keep = new Set(args.items.map((item) => item.relativePath));
 	for (const [path, entry] of stackByPath) {
 		if (!keep.has(path)) {
@@ -264,7 +268,7 @@ function syncPierreFileDiff(args: PierreDiffSyncArgs): void {
 		return;
 	}
 
-	const themeType = resolveThemeType();
+	const themeType = resolveThemeType(args.themePreference);
 	const optionsChanged =
 		lastLayoutMode !== args.layoutMode ||
 		lastContentMode !== args.contentMode ||
@@ -748,7 +752,13 @@ function buildOptions(
 	};
 }
 
-function resolveThemeType(): 'dark' | 'light' {
+function resolveThemeType(preference: 'auto' | 'light' | 'dark' = 'auto'): 'dark' | 'light' {
+	if (preference === 'light') {
+		return 'light';
+	}
+	if (preference === 'dark') {
+		return 'dark';
+	}
 	const body = document.body;
 	if (
 		body.classList.contains('vscode-light') ||

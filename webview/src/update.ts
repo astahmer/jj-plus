@@ -133,6 +133,7 @@ function persistCommand(model: Model): Command.Command<Message> {
 		showIntermediateRevisions: model.showIntermediateRevisions,
 		preset: model.preset,
 		customRevset: model.customRevset,
+		themePreference: model.themePreference,
 	};
 	return PersistState({ command });
 }
@@ -1050,6 +1051,7 @@ function handleReset(model: Model): UpdateReturn {
 		sidebarWidth: () => clampSidebarWidth(280),
 		timelinePaneHeight: () => 220,
 		timelinePaneCollapsed: () => false as boolean,
+		themePreference: () => 'auto' as const,
 		responsiveSidebarHeight: () => 248,
 		sidebarCollapsed: () => false as boolean,
 		diffFocusMode: () => false as boolean,
@@ -1136,6 +1138,10 @@ function handleTimelineDataMessage(
 		sidebarWidth: clampSidebarWidth(preferences.sidebarWidth || 280),
 		timelinePaneHeight: preferences.timelinePaneHeight || 220,
 		timelinePaneCollapsed: preferences.timelinePaneCollapsed === true,
+		themePreference:
+			preferences.themePreference === 'light' || preferences.themePreference === 'dark'
+				? preferences.themePreference
+				: 'auto',
 		responsiveSidebarHeight: clampResponsiveSidebarHeight(model.responsiveSidebarHeight || 248),
 		layoutMode: preferences.layoutMode || 'split',
 		contentMode: preferences.contentMode || 'diffs',
@@ -1769,6 +1775,7 @@ export function update(model: Model, message: Message): UpdateReturn {
 			SelectedComparisonSource: ({ value }) => handleSetComparisonSource(model, value),
 			SelectedLayoutMode: ({ value }) => withPersist(evo(model, { layoutMode: () => value })),
 			SelectedContentMode: ({ value }) => withPersist(evo(model, { contentMode: () => value })),
+			SelectedThemePreference: ({ value }) => withPersist(evo(model, { themePreference: () => value })),
 			SelectedPreset: ({ value }) => handleSetPreset(model, value),
 			UpdatedCustomRevset: ({ value }) => [evo(model, { customRevset: () => value }), []],
 			AppliedCustomRevset: () => [

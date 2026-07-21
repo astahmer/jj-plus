@@ -370,6 +370,7 @@ export function createTimelineHost(): TimelineHost {
 			showIntermediateRevisions: command.showIntermediateRevisions,
 			preset: command.preset,
 			customRevset: command.customRevset,
+			themePreference: command.themePreference,
 		};
 		window.localStorage.setItem(key, JSON.stringify(nextPreferences));
 	}

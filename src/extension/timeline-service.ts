@@ -49,6 +49,7 @@ const DEFAULT_TIMELINE_PREFERENCES: Required<TimelinePreferences> = {
 	showIntermediateRevisions: false,
 	preset: 'year',
 	customRevset: '',
+	themePreference: 'auto',
 };
 
 const IGNORED_WORKSPACE_DIRECTORIES = new Set(['.git', '.jj', 'node_modules', 'dist', 'build', 'out', 'coverage']);
@@ -1435,6 +1436,10 @@ export function normalizeTimelinePreferences(
 				? preferences.preset
 				: DEFAULT_TIMELINE_PREFERENCES.preset,
 		customRevset: typeof preferences.customRevset === 'string' ? preferences.customRevset.trim() : '',
+		themePreference:
+			preferences.themePreference === 'light' || preferences.themePreference === 'dark'
+				? preferences.themePreference
+				: DEFAULT_TIMELINE_PREFERENCES.themePreference,
 	};
 }
 

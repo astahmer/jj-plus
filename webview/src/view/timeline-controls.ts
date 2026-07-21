@@ -7,6 +7,7 @@ import {
 	SelectedContentMode,
 	SelectedLayoutMode,
 	SelectedPreset,
+	SelectedThemePreference,
 	AppliedCustomRevset,
 	UpdatedCustomRevset,
 	ToggledIntermediate,
@@ -110,6 +111,32 @@ export function timelineControls(model: Model): Html {
 							h.div(
 								[h.Class(`view-menu${model.viewMenuOpen ? ' open' : ''}`), h.Id('viewMenu')],
 								[
+									h.div(
+										[h.Class('view-menu-section')],
+										[
+											h.div([h.Class('view-menu-label')], ['Theme']),
+											h.div(
+												[h.Class('segmented segmented--wrap'), h.Id('themePreferences')],
+												(
+													[
+														['auto', 'VS Code'],
+														['light', 'Light'],
+														['dark', 'Dark'],
+													] as const
+												).map(([value, label]) =>
+													h.button(
+														[
+															h.Class(`segment${model.themePreference === value ? ' active' : ''}`),
+															h.Type('button'),
+															h.AriaPressed(String(model.themePreference === value)),
+															h.OnClick(SelectedThemePreference({ value })),
+														],
+														[label],
+													),
+												),
+											),
+										],
+									),
 									h.div(
 										[h.Class('view-menu-section')],
 										[

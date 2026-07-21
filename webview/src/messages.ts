@@ -48,6 +48,9 @@ export const SelectedComparisonSource = m('SelectedComparisonSource', {
 });
 export const SelectedLayoutMode = m('SelectedLayoutMode', { value: S.Literals(['split', 'unified']) });
 export const SelectedContentMode = m('SelectedContentMode', { value: S.Literals(['diffs', 'full']) });
+export const SelectedThemePreference = m('SelectedThemePreference', {
+	value: S.Literals(['auto', 'light', 'dark']),
+});
 export const SelectedPreset = m('SelectedPreset', { value: S.Literals(['year', '7d', '30d', '90d', 'all']) });
 export const UpdatedCustomRevset = m('UpdatedCustomRevset', { value: S.String });
 export const AppliedCustomRevset = m('AppliedCustomRevset');
@@ -178,6 +181,7 @@ export const Message = S.Union([
 	SelectedComparisonSource,
 	SelectedLayoutMode,
 	SelectedContentMode,
+	SelectedThemePreference,
 	SelectedPreset,
 	UpdatedCustomRevset,
 	AppliedCustomRevset,

@@ -42,6 +42,8 @@ export type FileRevisionEntry = {
 	index?: number;
 };
 
+export type ThemePreference = 'auto' | 'light' | 'dark';
+
 export type TimelinePreferences = {
 	sidebarWidth?: number;
 	sidebarCollapsed?: boolean;
@@ -54,6 +56,7 @@ export type TimelinePreferences = {
 	showIntermediateRevisions?: boolean;
 	preset?: TimelinePreset;
 	customRevset?: string;
+	themePreference?: ThemePreference;
 };
 
 export type DiffPreview = {
@@ -280,6 +283,7 @@ export type TimelineCommand =
 			showIntermediateRevisions: boolean;
 			preset: TimelinePreset;
 			customRevset?: string;
+			themePreference?: ThemePreference;
 	  };
 
 export type TimelineFixtureFile = {

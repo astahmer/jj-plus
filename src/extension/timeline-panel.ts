@@ -5,6 +5,7 @@ import { renderTimelineDocumentHtml } from '../webview/timeline-template.ts';
 import type {
 	ComparisonSource,
 	FileRevisionEntry,
+	ThemePreference,
 	TimelineCommand,
 	TimelineInboundMessage,
 	TimelinePreferences,
@@ -886,6 +887,7 @@ export function createTimelinePanelController(args: {
 				showIntermediateRevisions: Boolean(Reflect.get(request.message, 'showIntermediateRevisions')),
 				preset: normalizeTimelinePreset(Reflect.get(request.message, 'preset')),
 				customRevset: String(Reflect.get(request.message, 'customRevset') || args.getPreferences().customRevset || ''),
+				themePreference: normalizeThemePreference(Reflect.get(request.message, 'themePreference')),
 			});
 			return;
 		}
@@ -1427,6 +1429,10 @@ function createDebugState(args: {
 
 function normalizeComparisonSource(value: unknown): ComparisonSource {
 	return value === 'snapshot' ? 'snapshot' : 'revision';
+}
+
+function normalizeThemePreference(value: unknown): ThemePreference {
+	return value === 'light' || value === 'dark' ? value : 'auto';
 }
 
 function normalizeTimelinePreset(value: unknown): keyof typeof TIMELINE_PRESET_DAYS {

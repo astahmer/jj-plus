@@ -1875,6 +1875,7 @@ function extractPersistedPreferences(
 		comparisonSource: command.comparisonSource,
 		showIntermediateRevisions: command.showIntermediateRevisions,
 		preset: command.preset,
+		themePreference: command.themePreference,
 	};
 }
 
