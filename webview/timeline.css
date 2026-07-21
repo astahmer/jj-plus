@@ -1020,6 +1020,30 @@ kbd {
 	padding: 4px 6px;
 }
 
+.revset-suggestions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+}
+
+.revset-suggestion {
+	border: 1px solid var(--border);
+	border-radius: 6px;
+	background: transparent;
+	color: var(--muted);
+	padding: 2px 6px;
+	font: inherit;
+	font-size: 11px;
+	cursor: pointer;
+}
+
+.revset-suggestion:hover,
+.revset-suggestion.is-active {
+	color: var(--fg);
+	border-color: color-mix(in srgb, var(--accent-alt) 45%, var(--border));
+	background: color-mix(in srgb, var(--accent-alt) 10%, transparent);
+}
+
 .evolog-strip {
 	padding: 6px 10px 0;
 	display: grid;

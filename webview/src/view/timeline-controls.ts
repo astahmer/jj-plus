@@ -19,6 +19,7 @@ import {
 } from '../messages.ts';
 import type { Model } from '../model.ts';
 import { getBackend, getIntermediateLabel } from '../selectors.ts';
+import { COMMON_REVSET_SUGGESTIONS } from '../domain/revset-suggestions.ts';
 import type { TimelinePreset } from '../types.ts';
 
 const PRESET_LABELS: Record<TimelinePreset, string> = {
@@ -294,6 +295,22 @@ export function timelineControls(model: Model): Html {
 																h.Value(model.customRevset),
 																h.OnInput((value) => UpdatedCustomRevset({ value })),
 															]),
+															h.div(
+																[h.Class('revset-suggestions'), h.Id('revsetSuggestions')],
+																COMMON_REVSET_SUGGESTIONS.map((suggestion) =>
+																	h.button(
+																		[
+																			h.Class(
+																				`revset-suggestion${model.customRevset.trim() === suggestion.revset ? ' is-active' : ''}`,
+																			),
+																			h.Type('button'),
+																			h.Title(suggestion.revset),
+																			h.OnClick(UpdatedCustomRevset({ value: suggestion.revset })),
+																		],
+																		[suggestion.label],
+																	),
+																),
+															),
 															h.button(
 																[
 																	h.Class('menu-item'),

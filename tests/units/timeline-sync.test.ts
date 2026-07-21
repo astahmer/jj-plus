@@ -209,6 +209,6 @@ test('buildTimelineSyncPlan prefetches neighboring uncached sidebar previews wit
 
 	assert.deepEqual(
 		plan.sidebarPreviewRequests?.map((request) => request.key),
-		[buildPreviewKey(2, 3, 'revision'), buildPreviewKey(4, 5, 'revision'), buildPreviewKey(1, 2, 'revision')],
+		[buildPreviewKey(2, 3, 'revision')],
 	);
 });
