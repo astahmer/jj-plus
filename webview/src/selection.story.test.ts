@@ -2,7 +2,7 @@ import { Option } from 'effect';
 import { expect, test } from 'vitest';
 import { Story } from 'foldkit';
 import { evo } from 'foldkit/struct';
-import { SendHostCommand } from './commands.ts';
+import { PersistState, SendHostCommand } from './commands.ts';
 import {
 	ClickedHistoryEntry,
 	ClickedRefreshTimeline,

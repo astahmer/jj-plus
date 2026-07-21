@@ -18,14 +18,19 @@ import {
 	OPEN_FILE_LINE_TIMELINE_COMMAND,
 	OPEN_TIMELINE_AT_LINE_COMMAND,
 	OPEN_CHANGES_WITH_PREVIOUS_COMMAND,
+	OPEN_REVISION_DIFF_PREVIOUS_COMMAND,
+	OPEN_REVISION_DIFF_NEXT_COMMAND,
+	OPEN_REVISION_DIFF_TIMELINE_COMMAND,
 	OPEN_MULTI_DIFF_COMMAND,
 	PENDING_RANGE_DIFF_KEY,
 	SNAPSHOT_SCHEME,
 	TIMELINE_PREFERENCES_KEY,
 } from './constants.ts';
-import { createCurrentLineBlameLens, createTimelineBlameHoverProvider } from './blame-codelens.ts';
+import { createEditorBlameDecorations } from './blame-codelens.ts';
+import { registerEditorExtraFeatures } from './editor-extra-features.ts';
 import { resolveHistoryAdapter, resolveHistoryWorkspacePath } from './history-adapters.ts';
-import { coerceFsPath, resolveCommandFilePath } from './resolve-file-path.ts';
+import { resolveCommandFilePath } from './resolve-file-path.ts';
+import { createRevisionDiffNavigator, listFileRevisionIds } from './revision-diff-nav.ts';
 import { createTimelinePanelController } from './timeline-panel.ts';
 import { createTimelineService, normalizeTimelinePreferences } from './timeline-service.ts';
 import {
@@ -257,71 +262,18 @@ export function activate(context: vscode.ExtensionContext): void {
 		}
 	};
 
-	const openChangesWithPrevious = async (arg?: unknown) => {
-		const absolutePath = resolveCommandFilePath(arg);
-		if (!absolutePath) {
-			void vscode.window.showErrorMessage('Open a workspace file to diff against the previous revision');
-			return;
-		}
-
-		try {
-			const preferredWorkspacePath = path.dirname(absolutePath);
-			const historyWorkspacePath = await resolveHistoryWorkspacePath({
-				workspacePath: preferredWorkspacePath,
-				runner,
-			});
-			const relativePath = toHistoryRelativePath({
-				historyWorkspacePath,
-				absolutePath,
-			});
-			if (!relativePath) {
-				throw new Error('The selected file is outside the resolved repository root');
-			}
-
-			const adapter = await resolveHistoryAdapter({
-				workspacePath: historyWorkspacePath,
-				runner,
-			});
-			const parentRevset = adapter.backend === 'jj' ? '@-' : 'HEAD^';
-			const tipRevset = adapter.backend === 'jj' ? '@' : 'HEAD';
-			const [originalContent, modifiedContent] = await Promise.all([
-				adapter.showFileAtRevision({
-					workspacePath: historyWorkspacePath,
-					revset: parentRevset,
-					filePath: relativePath,
-				}),
-				adapter.showFileAtRevision({
-					workspacePath: historyWorkspacePath,
-					revset: tipRevset,
-					filePath: relativePath,
-				}),
-			]);
-
-			const fileName = path.basename(absolutePath);
-			const originalUri = provider.createInlineContentUri({
-				workspacePath: historyWorkspacePath,
-				revset: parentRevset,
-				relativePath,
-				content: originalContent,
-			});
-			const modifiedUri = provider.createInlineContentUri({
-				workspacePath: historyWorkspacePath,
-				revset: tipRevset,
-				relativePath,
-				content: modifiedContent,
-			});
-			await vscode.commands.executeCommand(
-				'vscode.diff',
-				originalUri,
-				modifiedUri,
-				`${fileName}: ${parentRevset} → ${tipRevset}`,
-				{ preview: true },
-			);
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			void vscode.window.showErrorMessage(`Failed to open changes with previous revision: ${message}`);
-		}
-	};
+	const revisionDiffNav = createRevisionDiffNavigator({
+		showFile: async ({ workspacePath, revset, filePath }) => {
+			const adapter = await resolveHistoryAdapter({ workspacePath, runner });
+			return adapter.showFileAtRevision({ workspacePath, revset, filePath });
+		},
+		createUri: (uriArgs) => provider.createInlineContentUri(uriArgs),
+		listRevisions: async ({ workspacePath, relativePath, backend }) =>
+			listFileRevisionIds({ runner, workspacePath, relativePath, backend }),
+		resolveBackend: async ({ workspacePath }) => resolveHistoryAdapter({ workspacePath, runner }),
+		resolveHistoryWorkspacePath: async ({ workspacePath }) => resolveHistoryWorkspacePath({ workspacePath, runner }),
+		toRelativePath: toHistoryRelativePath,
+	});
 
 	context.subscriptions.push(
 		outputChannel,
@@ -329,8 +281,11 @@ export function activate(context: vscode.ExtensionContext): void {
 		vscode.commands.registerCommand(HELPER_COMMAND, openRangeMultiDiff),
 		vscode.commands.registerCommand(OPEN_FILE_RANGE_DIFF_COMMAND, openFileRangeDiff),
 		vscode.commands.registerCommand(OPEN_CHANGES_WITH_PREVIOUS_COMMAND, (arg?: unknown) =>
-			openChangesWithPrevious(arg),
+			revisionDiffNav.openWithPrevious(arg),
 		),
+		vscode.commands.registerCommand(OPEN_REVISION_DIFF_PREVIOUS_COMMAND, () => revisionDiffNav.openPrevious()),
+		vscode.commands.registerCommand(OPEN_REVISION_DIFF_NEXT_COMMAND, () => revisionDiffNav.openNext()),
+		vscode.commands.registerCommand(OPEN_REVISION_DIFF_TIMELINE_COMMAND, () => revisionDiffNav.openTimelineHere()),
 		vscode.commands.registerCommand(OPEN_FILE_TIMELINE_COMMAND, (arg?: unknown) =>
 			panelController.openFileRevisionTimeline({ context, absolutePath: resolveCommandFilePath(arg) }),
 		),
@@ -389,7 +344,7 @@ export function activate(context: vscode.ExtensionContext): void {
 				});
 			},
 		),
-		createCurrentLineBlameLens({
+		createEditorBlameDecorations({
 			runner,
 			resolveBackend: async ({ workspacePath }) =>
 				resolveHistoryAdapter({
@@ -397,7 +352,17 @@ export function activate(context: vscode.ExtensionContext): void {
 					runner,
 				}),
 		}),
-		vscode.languages.registerHoverProvider({ scheme: 'file' }, createTimelineBlameHoverProvider()),
+		registerEditorExtraFeatures({
+			context,
+			runner,
+			resolveBackend: async ({ workspacePath }) => resolveHistoryAdapter({ workspacePath, runner }),
+			createInlineContentUri: (uriArgs) => provider.createInlineContentUri(uriArgs),
+			showFileAtRevision: async ({ workspacePath, revset, filePath }) => {
+				const adapter = await resolveHistoryAdapter({ workspacePath, runner });
+				return adapter.showFileAtRevision({ workspacePath, revset, filePath });
+			},
+		}),
+		revisionDiffNav,
 		vscode.commands.registerCommand(GET_TIMELINE_DEBUG_STATE_COMMAND, () => panelController.getDebugState()),
 		vscode.commands.registerCommand(GET_DIFF_LAYOUT_METRICS_COMMAND, () => panelController.getDiffLayoutMetrics()),
 		vscode.commands.registerCommand(

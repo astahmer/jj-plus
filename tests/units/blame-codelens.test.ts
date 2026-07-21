@@ -5,6 +5,7 @@ import {
 	buildCurrentLineBlameHoverMarkdown,
 	buildTimelineAtLineCodeLens,
 	formatCurrentLineBlameDecoration,
+	formatTimelineAtLineHoverTitle,
 	truncateBlameSummary,
 } from '../../src/extension/timeline-at-line.ts';
 
@@ -24,6 +25,18 @@ test('formatCurrentLineBlameDecoration puts author date and summary on the right
 		summary: 'polish timeline tooltips',
 	});
 	assert.match(text, /^ {2}Ada · last week · polish timeline tooltips$/);
+});
+
+test('hover title includes author relative time and short desc', () => {
+	assert.match(
+		formatTimelineAtLineHoverTitle({
+			line: 9,
+			author: 'Ada Lovelace',
+			when: 'last week',
+			summary: 'polish tooltips',
+		}),
+		/line 9 — Ada · last week · polish tooltips/,
+	);
 });
 
 test('buildCurrentLineBlameHoverMarkdown includes open-timeline command link', () => {

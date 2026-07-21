@@ -381,11 +381,16 @@ function syncPierreFileDiff(args: PierreDiffSyncArgs): void {
 			newFile: nextNewFile,
 			containerWrapper: portal,
 			forceRender: optionsChanged || blameChanged,
+			lineAnnotations: buildPierreBlameAnnotations(args.blameOverlayOpen, args.heatmapOpen, args.blameLines),
 		});
-	}
-
-	if (fileDiff) {
-		applyBlameAnnotations(fileDiff, args.blameOverlayOpen, args.heatmapOpen, args.blameLines);
+	} else if (fileDiff && (args.blameOverlayOpen || args.heatmapOpen || lastBlameSignature)) {
+		// Annotations can change without file/options churn — pass them through render.
+		fileDiff.render({
+			oldFile: nextOldFile,
+			newFile: nextNewFile,
+			containerWrapper: portal,
+			lineAnnotations: buildPierreBlameAnnotations(args.blameOverlayOpen, args.heatmapOpen, args.blameLines),
+		});
 	}
 
 	lastOldFile = nextOldFile;
@@ -397,6 +402,9 @@ function syncPierreFileDiff(args: PierreDiffSyncArgs): void {
 	lastHeatmapOpen = args.heatmapOpen;
 	lastLineDiffType = args.lineDiffType;
 	lastShowPierre = true;
+	lastBlameSignature = `${args.blameOverlayOpen ? 'on' : 'off'}:${args.heatmapOpen ? 'heat' : 'noheat'}:${args.blameLines
+		.map((line) => `${line.line}:${line.revision}:${line.authorTimestamp ?? ''}`)
+		.join('|')}`;
 	const portalEl = ensurePortal();
 	portalEl.classList.toggle('is-blame-open', args.blameOverlayOpen);
 	portalEl.classList.toggle('is-heatmap-open', args.heatmapOpen);
@@ -752,29 +760,16 @@ function repairPierreWrapRowSpans(portal: HTMLElement): void {
 	}
 }
 
-function applyBlameAnnotations(
-	diff: FileDiff,
+function buildPierreBlameAnnotations(
 	blameOverlayOpen: boolean,
 	heatmapOpen: boolean,
 	blameLines: BlameLine[],
-): void {
-	const heat = heatmapOpen ? computeBlameHeatLevels(blameLines) : null;
-	const signature = `${blameOverlayOpen ? 'on' : 'off'}:${heatmapOpen ? 'heat' : 'noheat'}:${blameLines
-		.map(
-			(line) =>
-				`${line.line}:${line.revision}:${line.author || ''}:${line.authorDate || ''}:${heat?.get(line.line) ?? ''}`,
-		)
-		.join('|')}`;
-	if (signature === lastBlameSignature) {
-		return;
-	}
-	lastBlameSignature = signature;
+): DiffLineAnnotation<BlameAnnotationMeta>[] {
 	if (!blameOverlayOpen && !heatmapOpen) {
-		diff.setLineAnnotations([]);
-		return;
+		return [];
 	}
-
-	const annotations: DiffLineAnnotation<BlameAnnotationMeta>[] = blameLines.map((entry) => ({
+	const heat = heatmapOpen ? computeBlameHeatLevels(blameLines) : null;
+	return blameLines.map((entry) => ({
 		side: 'additions' as const,
 		lineNumber: entry.line,
 		metadata: {
@@ -782,7 +777,6 @@ function applyBlameAnnotations(
 			heatLevel: heat?.get(entry.line),
 		},
 	}));
-	diff.setLineAnnotations(annotations as never);
 }
 
 function emitBlameLineClick(lineNumber: number, revisionHint?: string): void {

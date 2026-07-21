@@ -539,40 +539,41 @@ export function createTimelineHost(): TimelineHost {
 					const fileFixture = getActiveFileFixture(fixture);
 					const fromIndex = Math.min(command.fromIndex, command.toIndex);
 					const toIndex = Math.max(command.fromIndex, command.toIndex);
-					const entries = getEntriesForSource(fileFixture.timelineData, command.comparisonSource);
+					const comparisonSource = command.comparisonSource;
+					const entries = getEntriesForSource(fileFixture.timelineData, comparisonSource);
 					const tip = entries[toIndex] || entries[entries.length - 1];
+					const previous = entries[Math.max(0, toIndex - 1)];
+					const previewKey = `${fromIndex}:${toIndex}`;
+					const preview =
+						fileFixture.previews[comparisonSource]?.[previewKey] ||
+						fileFixture.previews.revision?.[previewKey] ||
+						Object.values(fileFixture.previews.revision || {})[0];
+					const afterLineCount = Math.max(
+						3,
+						(preview?.afterText || '').split(/\r?\n/u).length,
+						(preview?.beforeText || '').split(/\r?\n/u).length,
+					);
+					const now = 1_700_003_600;
+					const lines = Array.from({ length: afterLineCount }, (_, index) => {
+						const line = index + 1;
+						const older = line % 3 === 0;
+						return {
+							line,
+							revision: older ? previous?.revision || 'bbbbbbb' : tip?.revision || 'aaaaaaa',
+							author: older ? 'Earlier Author' : tip?.authorName || 'Tip Author',
+							summary: older ? 'prior change' : tip?.description || 'tip change',
+							authorTimestamp: older ? now - 86_400 * 30 : now - line * 3600,
+							authorDate: older ? '30d ago' : `${line}h ago`,
+						};
+					});
 					emit({
 						type: 'diff-blame',
 						payload: {
 							fromIndex,
 							toIndex,
-							comparisonSource: command.comparisonSource,
+							comparisonSource,
 							relativePath: fileFixture.timelineData.relativePath,
-							lines: [
-								{
-									line: 1,
-									revision: tip?.revision || 'aaaaaaa',
-									author: tip?.authorName,
-									summary: tip?.description,
-									authorTimestamp: 1_700_003_600,
-									authorDate: '1h ago',
-								},
-								{
-									line: 2,
-									revision: tip?.revision || 'aaaaaaa',
-									author: tip?.authorName,
-									authorTimestamp: 1_700_000_000,
-									authorDate: '2h ago',
-								},
-								{
-									line: 3,
-									revision: entries[Math.max(0, toIndex - 1)]?.revision || 'bbbbbbb',
-									author: 'Earlier',
-									summary: 'prior change',
-									authorTimestamp: 1_690_000_000,
-									authorDate: '30d ago',
-								},
-							],
+							lines,
 						},
 					});
 				});

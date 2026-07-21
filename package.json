@@ -69,6 +69,56 @@
 		"vitest": "^4.1.10"
 	},
 	"contributes": {
+		"configuration": {
+			"title": "jjplus",
+			"properties": {
+				"jjplus.currentLineBlame": {
+					"type": "boolean",
+					"default": true,
+					"description": "Show GitLens-style current-line blame on the right of the active line."
+				},
+				"jjplus.inlineBlameGutter": {
+					"type": "boolean",
+					"default": false,
+					"description": "Show inline blame annotations for many lines (can be dense)."
+				},
+				"jjplus.inlineBlameSparse": {
+					"type": "boolean",
+					"default": true,
+					"description": "When inline blame is on, only annotate revision hunk starts."
+				},
+				"jjplus.hoverTimelineLink": {
+					"type": "boolean",
+					"default": true,
+					"description": "Show jjplus timeline hover on lines with author / relative time / description."
+				},
+				"jjplus.statusBarChangeChip": {
+					"type": "boolean",
+					"default": true,
+					"description": "Show working-copy change id on the status bar."
+				},
+				"jjplus.scmChangedLines": {
+					"type": "boolean",
+					"default": false,
+					"description": "Decorate lines changed vs @- in the editor."
+				},
+				"jjplus.opLogWatch": {
+					"type": "boolean",
+					"default": false,
+					"description": "Watch jj op log and toast when another tool mutates the repo."
+				},
+				"jjplus.conflictHelper": {
+					"type": "boolean",
+					"default": true,
+					"description": "Highlight jj conflict markers and enable jump-next."
+				},
+				"jjplus.codeActions": {
+					"type": "boolean",
+					"default": true,
+					"description": "Offer Code Actions like “Why is this line here?”."
+				}
+			}
+		},
 		"commands": [
 			{
 				"command": "jj-range-diff.openRangeMultiDiff",
@@ -87,6 +137,41 @@
 				"command": "jj-range-diff.openFileRevisionTimeline",
 				"title": "jjplus: Open Revision Timeline",
 				"icon": "$(diff)"
+			},
+			{
+				"command": "jj-range-diff.openRevisionDiffPrevious",
+				"title": "jjplus: Open Previous Revision Diff",
+				"icon": "$(arrow-left)"
+			},
+			{
+				"command": "jj-range-diff.openRevisionDiffNext",
+				"title": "jjplus: Open Next Revision Diff",
+				"icon": "$(arrow-right)"
+			},
+			{
+				"command": "jj-range-diff.openRevisionDiffTimeline",
+				"title": "jjplus: Open Timeline from Revision Diff",
+				"icon": "$(timeline-view-icon)"
+			},
+			{
+				"command": "jj-range-diff.compareWithBookmark",
+				"title": "jjplus: Compare File with Bookmark / Branch"
+			},
+			{
+				"command": "jj-range-diff.peekRevisionAtCursor",
+				"title": "jjplus: Peek Revision at Cursor"
+			},
+			{
+				"command": "jj-range-diff.openFileAtRevision",
+				"title": "jjplus: Open File at Revision"
+			},
+			{
+				"command": "jj-range-diff.openWorkingCopyChangesMulti",
+				"title": "jjplus: Open Working Copy Changes vs Previous"
+			},
+			{
+				"command": "jj-range-diff.jumpNextConflict",
+				"title": "jjplus: Jump to Next Conflict Marker"
 			},
 			{
 				"command": "jj-range-diff.openFileLineTimeline",
@@ -117,6 +202,16 @@
 					"command": "jj-range-diff.openChangesWithPrevious",
 					"group": "navigation@92",
 					"when": "resourceScheme == file"
+				},
+				{
+					"command": "jj-range-diff.compareWithBookmark",
+					"group": "navigation@93",
+					"when": "resourceScheme == file"
+				},
+				{
+					"command": "jj-range-diff.peekRevisionAtCursor",
+					"group": "navigation@94",
+					"when": "resourceScheme == file"
 				}
 			],
 			"editor/title": [
@@ -129,6 +224,26 @@
 					"command": "jj-range-diff.openFileRevisionTimeline",
 					"group": "navigation@2",
 					"when": "resourceScheme == file"
+				},
+				{
+					"command": "jj-range-diff.compareWithBookmark",
+					"group": "navigation@3",
+					"when": "resourceScheme == file"
+				},
+				{
+					"command": "jj-range-diff.openRevisionDiffPrevious",
+					"group": "navigation@4",
+					"when": "jjplus.revisionDiffActive"
+				},
+				{
+					"command": "jj-range-diff.openRevisionDiffNext",
+					"group": "navigation@5",
+					"when": "jjplus.revisionDiffActive"
+				},
+				{
+					"command": "jj-range-diff.openRevisionDiffTimeline",
+					"group": "navigation@6",
+					"when": "jjplus.revisionDiffActive"
 				}
 			],
 			"editor/title/context": [

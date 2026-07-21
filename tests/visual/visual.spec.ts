@@ -26,11 +26,12 @@ test.describe('timeline visuals', () => {
 				async () =>
 					page.locator('#pierre-diff-root').evaluate((root) => {
 						const host = root.querySelector('diffs-container');
-						const shadow = host?.shadowRoot;
-						if (!shadow) {
+						if (!host) {
 							return 0;
 						}
-						return shadow.querySelectorAll('.pierre-blame-annotation, .pierre-gutter-extras').length;
+						const light = host.querySelectorAll('.pierre-blame-annotation, .pierre-gutter-extras').length;
+						const shadow = host.shadowRoot?.querySelectorAll('.pierre-blame-annotation, .pierre-gutter-extras').length;
+						return light + (shadow ?? 0);
 					}),
 				{ timeout: 15000 },
 			)
@@ -48,11 +49,12 @@ test.describe('timeline visuals', () => {
 				async () =>
 					page.locator('#pierre-diff-root').evaluate((root) => {
 						const host = root.querySelector('diffs-container');
-						const shadow = host?.shadowRoot;
-						if (!shadow) {
+						if (!host) {
 							return 0;
 						}
-						return shadow.querySelectorAll('.pierre-heat-bar, .pierre-heat-wrap').length;
+						const light = host.querySelectorAll('.pierre-heat-bar, .pierre-heat-wrap').length;
+						const shadow = host.shadowRoot?.querySelectorAll('.pierre-heat-bar, .pierre-heat-wrap').length;
+						return light + (shadow ?? 0);
 					}),
 				{ timeout: 15000 },
 			)

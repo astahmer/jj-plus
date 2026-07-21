@@ -6,6 +6,21 @@ export function formatTimelineAtLineCodeLensTitle(line: number): string {
 	return `jjplus: Open revision timeline · line ${line}`;
 }
 
+export function formatTimelineAtLineHoverTitle(args: {
+	line: number;
+	author?: string;
+	when?: string;
+	summary?: string;
+}): string {
+	const bits = [
+		args.author?.trim().split(/\s+/u)[0],
+		args.when?.trim(),
+		args.summary ? truncateBlameSummary(args.summary, 40) : undefined,
+	].filter(Boolean);
+	const detail = bits.length ? ` — ${bits.join(' · ')}` : '';
+	return `jjplus: Open revision timeline · line ${args.line}${detail}`;
+}
+
 export function buildTimelineAtLineCodeLens(args: { absolutePath: string; line: number }): {
 	title: string;
 	command: string;
@@ -53,7 +68,15 @@ export function buildCurrentLineBlameHoverMarkdown(args: {
 	const longDesc = args.fullDescription?.trim() || '';
 	const body = longDesc && longDesc !== shortDesc ? `${shortDesc}\n\n${longDesc}` : shortDesc || '_No description_';
 	const rev = shortBlameRevision(args.entry.revision, 12);
+	const title = formatTimelineAtLineHoverTitle({
+		line: args.line,
+		author,
+		when,
+		summary: shortDesc,
+	});
 	return [
+		`**${title}**`,
+		'',
 		`**${header}**`,
 		'',
 		body,

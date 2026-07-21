@@ -3,16 +3,18 @@ import * as vscode from 'vscode';
 import {
 	buildGitBlameFileArgs,
 	buildJjAnnotateArgs,
+	collapseBlameToHunkStarts,
 	findBlameForLine,
 	parseGitBlamePorcelain,
 	parseJjFileAnnotate,
 	type BlameLine,
 } from '../shared/blame.ts';
 import { OPEN_TIMELINE_AT_LINE_COMMAND } from './constants.ts';
+import { onJjplusSettingsChange, readJjplusSettings } from './settings.ts';
 import {
 	buildCurrentLineBlameHoverMarkdown,
 	formatCurrentLineBlameDecoration,
-	formatTimelineAtLineCodeLensTitle,
+	formatTimelineAtLineHoverTitle,
 } from './timeline-at-line.ts';
 
 type BlameRunner = {
@@ -20,25 +22,22 @@ type BlameRunner = {
 	runJj: (args: { workspacePath: string; args: string[] }) => Promise<{ stdout: string }>;
 };
 
-type HistoryBackend = 'git' | 'jj';
+type ResolveBackend = (args: { workspacePath: string }) => Promise<{ backend: 'git' | 'jj' }>;
 
-type ResolveBackend = (args: { workspacePath: string }) => Promise<{ backend: HistoryBackend }>;
-
-type FileBlameCacheEntry = {
+type CacheEntry = {
 	key: string;
 	lines: BlameLine[];
-	fetchedAt: number;
 };
 
 /**
- * GitLens-style current-line blame on the right — end-of-line decorations.
- * Avoids CodeLens layout shift on the selected line.
+ * Shared file-blame cache + GitLens-style decorations (current line + optional full gutter).
+ * Hover always carries author / relative time / short desc when blame is available.
  */
-export function createCurrentLineBlameLens(args: {
+export function createEditorBlameDecorations(args: {
 	runner: BlameRunner;
 	resolveBackend: ResolveBackend;
 }): vscode.Disposable {
-	const decorationType = vscode.window.createTextEditorDecorationType({
+	const currentLineType = vscode.window.createTextEditorDecorationType({
 		after: {
 			color: new vscode.ThemeColor('editorCodeLens.foreground'),
 			fontStyle: 'italic',
@@ -46,12 +45,21 @@ export function createCurrentLineBlameLens(args: {
 		},
 		rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
 	});
+	const inlineGutterType = vscode.window.createTextEditorDecorationType({
+		after: {
+			color: new vscode.ThemeColor('editorCodeLens.foreground'),
+			fontStyle: 'italic',
+			margin: '0 0 0 1.2em',
+			fontWeight: 'normal',
+		},
+		rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
+	});
 
-	const cache = new Map<string, FileBlameCacheEntry>();
+	const cache = new Map<string, CacheEntry>();
 	let generation = 0;
 	let refreshTimer: ReturnType<typeof setTimeout> | undefined;
 
-	const scheduleRefresh = (delayMs = 80) => {
+	const scheduleRefresh = (delayMs = 60) => {
 		if (refreshTimer) {
 			clearTimeout(refreshTimer);
 		}
@@ -60,94 +68,174 @@ export function createCurrentLineBlameLens(args: {
 		}, delayMs);
 	};
 
+	const loadBlame = async (
+		workspacePath: string,
+		relativePath: string,
+		backend: 'git' | 'jj',
+	): Promise<BlameLine[]> => {
+		if (backend === 'git') {
+			const { stdout } = await args.runner.runGit({
+				workspacePath,
+				args: buildGitBlameFileArgs({ relativePath }),
+			});
+			return parseGitBlamePorcelain(stdout);
+		}
+		const { stdout } = await args.runner.runJj({
+			workspacePath,
+			args: buildJjAnnotateArgs({ relativePath }),
+		});
+		return parseJjFileAnnotate(stdout);
+	};
+
+	const getCachedLines = async (document: vscode.TextDocument): Promise<BlameLine[] | undefined> => {
+		const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
+		if (!workspaceFolder || document.uri.scheme !== 'file') {
+			return undefined;
+		}
+		const workspacePath = workspaceFolder.uri.fsPath;
+		const relativePath = path.relative(workspacePath, document.uri.fsPath).replace(/\\/g, '/');
+		if (!relativePath || relativePath.startsWith('..')) {
+			return undefined;
+		}
+		const cacheKey = `${document.uri.toString()}::${document.version}`;
+		let entry = cache.get(document.uri.toString());
+		if (!entry || entry.key !== cacheKey) {
+			const { backend } = await args.resolveBackend({ workspacePath });
+			const lines = await loadBlame(workspacePath, relativePath, backend);
+			entry = { key: cacheKey, lines };
+			cache.set(document.uri.toString(), entry);
+		}
+		return entry.lines;
+	};
+
 	const refresh = async (editor: vscode.TextEditor | undefined) => {
 		const token = ++generation;
+		const settings = readJjplusSettings();
 		if (!editor || editor.document.uri.scheme !== 'file') {
 			return;
 		}
 
+		if (!settings.currentLineBlame && !settings.inlineBlameGutter) {
+			editor.setDecorations(currentLineType, []);
+			editor.setDecorations(inlineGutterType, []);
+			return;
+		}
+
+		let lines: BlameLine[] | undefined;
+		try {
+			lines = await getCachedLines(editor.document);
+		} catch {
+			editor.setDecorations(currentLineType, []);
+			editor.setDecorations(inlineGutterType, []);
+			return;
+		}
+		if (token !== generation || vscode.window.activeTextEditor !== editor || !lines) {
+			return;
+		}
+
 		const document = editor.document;
-		const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
-		if (!workspaceFolder) {
-			editor.setDecorations(decorationType, []);
-			return;
-		}
+		const activeLine = editor.selection.active.line;
 
-		const workspacePath = workspaceFolder.uri.fsPath;
-		const relativePath = path.relative(workspacePath, document.uri.fsPath).replace(/\\/g, '/');
-		if (!relativePath || relativePath.startsWith('..')) {
-			editor.setDecorations(decorationType, []);
-			return;
-		}
-
-		const cacheKey = `${document.uri.toString()}::${document.version}`;
-		let entry = cache.get(document.uri.toString());
-		if (!entry || entry.key !== cacheKey) {
-			try {
-				const { backend } = await args.resolveBackend({ workspacePath });
-				if (token !== generation) {
-					return;
-				}
-				const lines =
-					backend === 'git'
-						? await loadGitBlame(args.runner, workspacePath, relativePath)
-						: await loadJjBlame(args.runner, workspacePath, relativePath);
-				entry = { key: cacheKey, lines, fetchedAt: Date.now() };
-				cache.set(document.uri.toString(), entry);
-			} catch {
-				if (token !== generation) {
-					return;
-				}
-				editor.setDecorations(decorationType, []);
-				return;
-			}
-		}
-
-		if (token !== generation || vscode.window.activeTextEditor !== editor) {
-			return;
-		}
-
-		const line = editor.selection.active.line;
-		const blame = findBlameForLine(entry.lines, line + 1);
-		if (!blame) {
-			editor.setDecorations(decorationType, []);
-			return;
-		}
-
-		const range = document.lineAt(line).range;
-		const hover = new vscode.MarkdownString(
-			buildCurrentLineBlameHoverMarkdown({
-				entry: blame,
-				absolutePath: document.uri.fsPath,
-				line: line + 1,
-			}),
-		);
-		hover.isTrusted = true;
-		hover.supportHtml = false;
-
-		editor.setDecorations(decorationType, [
-			{
-				range,
-				renderOptions: {
-					after: {
-						contentText: formatCurrentLineBlameDecoration(blame),
+		if (settings.currentLineBlame) {
+			const blame = findBlameForLine(lines, activeLine + 1);
+			if (blame) {
+				const hover = new vscode.MarkdownString(
+					buildCurrentLineBlameHoverMarkdown({
+						entry: blame,
+						absolutePath: document.uri.fsPath,
+						line: activeLine + 1,
+					}),
+				);
+				hover.isTrusted = true;
+				editor.setDecorations(currentLineType, [
+					{
+						range: document.lineAt(activeLine).range,
+						renderOptions: { after: { contentText: formatCurrentLineBlameDecoration(blame) } },
+						hoverMessage: hover,
 					},
-				},
-				hoverMessage: hover,
-			},
-		]);
+				]);
+			} else {
+				editor.setDecorations(currentLineType, []);
+			}
+		} else {
+			editor.setDecorations(currentLineType, []);
+		}
+
+		if (settings.inlineBlameGutter) {
+			const annotated = settings.inlineBlameSparse ? collapseBlameToHunkStarts(lines) : lines;
+			editor.setDecorations(
+				inlineGutterType,
+				annotated
+					.filter((entry) => entry.line >= 1 && entry.line <= document.lineCount)
+					.map((entry) => {
+						const line = entry.line - 1;
+						const hover = new vscode.MarkdownString(
+							buildCurrentLineBlameHoverMarkdown({
+								entry,
+								absolutePath: document.uri.fsPath,
+								line: entry.line,
+							}),
+						);
+						hover.isTrusted = true;
+						return {
+							range: document.lineAt(line).range,
+							renderOptions: {
+								after: {
+									contentText: formatCurrentLineBlameDecoration(entry),
+								},
+							},
+							hoverMessage: hover,
+						};
+					}),
+			);
+		} else {
+			editor.setDecorations(inlineGutterType, []);
+		}
 
 		for (const other of vscode.window.visibleTextEditors) {
 			if (other !== editor) {
-				other.setDecorations(decorationType, []);
+				other.setDecorations(currentLineType, []);
+				other.setDecorations(inlineGutterType, []);
 			}
 		}
+	};
+
+	const hoverProvider: vscode.HoverProvider = {
+		async provideHover(document, position) {
+			const settings = readJjplusSettings();
+			if (!settings.hoverTimelineLink || document.uri.scheme !== 'file') {
+				return null;
+			}
+			const line = position.line + 1;
+			let blame: BlameLine | undefined;
+			try {
+				const lines = await getCachedLines(document);
+				blame = lines ? findBlameForLine(lines, line) : undefined;
+			} catch {
+				blame = undefined;
+			}
+			const markdown = new vscode.MarkdownString(
+				blame
+					? buildCurrentLineBlameHoverMarkdown({
+							entry: blame,
+							absolutePath: document.uri.fsPath,
+							line,
+						})
+					: `[${formatTimelineAtLineHoverTitle({ line })}](command:${OPEN_TIMELINE_AT_LINE_COMMAND}?${encodeURIComponent(
+							JSON.stringify({ absolutePath: document.uri.fsPath, line }),
+						)})`,
+			);
+			markdown.isTrusted = true;
+			return new vscode.Hover(markdown);
+		},
 	};
 
 	scheduleRefresh(0);
 
 	return vscode.Disposable.from(
-		decorationType,
+		currentLineType,
+		inlineGutterType,
+		vscode.languages.registerHoverProvider({ scheme: 'file' }, hoverProvider),
 		vscode.window.onDidChangeActiveTextEditor(() => scheduleRefresh(0)),
 		vscode.window.onDidChangeTextEditorSelection((event) => {
 			if (event.textEditor === vscode.window.activeTextEditor) {
@@ -157,9 +245,10 @@ export function createCurrentLineBlameLens(args: {
 		vscode.workspace.onDidChangeTextDocument((event) => {
 			if (event.document.uri.toString() === vscode.window.activeTextEditor?.document.uri.toString()) {
 				cache.delete(event.document.uri.toString());
-				scheduleRefresh(200);
+				scheduleRefresh(180);
 			}
 		}),
+		onJjplusSettingsChange(() => scheduleRefresh(0)),
 		{
 			dispose() {
 				if (refreshTimer) {
@@ -169,65 +258,4 @@ export function createCurrentLineBlameLens(args: {
 			},
 		},
 	);
-}
-
-async function loadJjBlame(runner: BlameRunner, workspacePath: string, relativePath: string): Promise<BlameLine[]> {
-	const { stdout } = await runner.runJj({
-		workspacePath,
-		args: buildJjAnnotateArgs({ relativePath }),
-	});
-	return parseJjFileAnnotate(stdout);
-}
-
-async function loadGitBlame(runner: BlameRunner, workspacePath: string, relativePath: string): Promise<BlameLine[]> {
-	const { stdout } = await runner.runGit({
-		workspacePath,
-		args: buildGitBlameFileArgs({ relativePath }),
-	});
-	return parseGitBlamePorcelain(stdout);
-}
-
-/** @deprecated Prefer createCurrentLineBlameLens — kept for tests that assert title helpers. */
-export function createTimelineBlameCodeLensProvider(): vscode.CodeLensProvider & vscode.Disposable {
-	const onDidChange = new vscode.EventEmitter<void>();
-	return {
-		onDidChangeCodeLenses: onDidChange.event,
-		provideCodeLenses() {
-			return [];
-		},
-		dispose() {
-			onDidChange.dispose();
-		},
-	};
-}
-
-export function createTimelineBlameHoverProvider(args?: {
-	getBlameLine?: (document: vscode.TextDocument, line: number) => BlameLine | undefined;
-}): vscode.HoverProvider {
-	return {
-		provideHover(document, position) {
-			if (document.uri.scheme !== 'file') {
-				return null;
-			}
-			const line = position.line + 1;
-			const blame = args?.getBlameLine?.(document, line);
-			if (blame) {
-				const markdown = new vscode.MarkdownString(
-					buildCurrentLineBlameHoverMarkdown({
-						entry: blame,
-						absolutePath: document.uri.fsPath,
-						line,
-					}),
-				);
-				markdown.isTrusted = true;
-				return new vscode.Hover(markdown);
-			}
-			const commandArgs = encodeURIComponent(JSON.stringify({ absolutePath: document.uri.fsPath, line }));
-			const markdown = new vscode.MarkdownString(
-				`[${formatTimelineAtLineCodeLensTitle(line)}](command:${OPEN_TIMELINE_AT_LINE_COMMAND}?${commandArgs})`,
-			);
-			markdown.isTrusted = true;
-			return new vscode.Hover(markdown);
-		},
-	};
 }
