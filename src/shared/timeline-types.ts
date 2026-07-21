@@ -150,6 +150,8 @@ export type DiffBlamePayload = {
 		line: number;
 		revision: string;
 		author?: string;
+		authorTimestamp?: number;
+		authorDate?: string;
 		summary?: string;
 	}>;
 };

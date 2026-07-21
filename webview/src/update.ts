@@ -332,8 +332,7 @@ function applySyncPlan(model: Model): UpdateReturn {
 				blameRangeKey: () => '',
 			});
 		}
-		const needsBlameLoad =
-			blameStale || !(Array.isArray(nextModel.blameLines) && nextModel.blameLines.length > 0);
+		const needsBlameLoad = blameStale || !(Array.isArray(nextModel.blameLines) && nextModel.blameLines.length > 0);
 		if (needsBlameLoad && !nextModel.blameLoading) {
 			nextModel = evo(nextModel, { blameLoading: () => true });
 			commands.push(
@@ -1543,8 +1542,7 @@ function handleDiffBlameMessage(
 		evo(model, {
 			blameLines: () => payload.lines,
 			blameLoading: () => false,
-			blameRangeKey: () =>
-				buildPreviewKey(payload.fromIndex, payload.toIndex, payload.comparisonSource || 'revision'),
+			blameRangeKey: () => buildPreviewKey(payload.fromIndex, payload.toIndex, payload.comparisonSource || 'revision'),
 		}),
 		[],
 	];

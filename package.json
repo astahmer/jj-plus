@@ -72,27 +72,33 @@
 		"commands": [
 			{
 				"command": "jj-range-diff.openRangeMultiDiff",
-				"title": "JJ: Open Range Multi Diff"
+				"title": "jjplus: Open Range Multi Diff"
 			},
 			{
 				"command": "jj-range-diff.openFileRangeDiff",
-				"title": "JJ: Open File Diff Between Revisions"
+				"title": "jjplus: Open File Diff Between Revisions"
+			},
+			{
+				"command": "jj-range-diff.openChangesWithPrevious",
+				"title": "jjplus: Open Changes with Previous Revision",
+				"icon": "$(diff)"
 			},
 			{
 				"command": "jj-range-diff.openFileRevisionTimeline",
-				"title": "JJ: Open File Revision Timeline"
+				"title": "jjplus: Open Revision Timeline",
+				"icon": "$(history)"
 			},
 			{
 				"command": "jj-range-diff.openFileLineTimeline",
-				"title": "JJ: Open Timeline for Selected Lines"
+				"title": "jjplus: Open Timeline for Selected Lines"
 			},
 			{
 				"command": "jj-range-diff.openTimelineAtLine",
-				"title": "JJ: Open Timeline at Cursor Line"
+				"title": "jjplus: Open Timeline at Cursor Line"
 			},
 			{
 				"command": "jj-range-diff.clearLineHistory",
-				"title": "JJ: Clear Line History Filter"
+				"title": "jjplus: Clear Line History Filter"
 			}
 		],
 		"menus": {
@@ -106,6 +112,23 @@
 					"command": "jj-range-diff.openFileLineTimeline",
 					"group": "navigation@91",
 					"when": "resourceScheme == file"
+				},
+				{
+					"command": "jj-range-diff.openChangesWithPrevious",
+					"group": "navigation@92",
+					"when": "resourceScheme == file"
+				}
+			],
+			"editor/title": [
+				{
+					"command": "jj-range-diff.openChangesWithPrevious",
+					"group": "navigation@1",
+					"when": "resourceScheme == file"
+				},
+				{
+					"command": "jj-range-diff.openFileRevisionTimeline",
+					"group": "navigation@2",
+					"when": "resourceScheme == file"
 				}
 			],
 			"editor/title/context": [
@@ -117,6 +140,11 @@
 				{
 					"command": "jj-range-diff.openTimelineAtLine",
 					"group": "navigation@91",
+					"when": "resourceScheme == file"
+				},
+				{
+					"command": "jj-range-diff.openChangesWithPrevious",
+					"group": "navigation@92",
 					"when": "resourceScheme == file"
 				}
 			]

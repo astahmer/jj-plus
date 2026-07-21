@@ -1,5 +1,10 @@
 import { html, type Html } from 'foldkit/html';
-import { clampTooltipX, clampTooltipY, formatRevisionCount, shouldPlaceTooltipBelow } from '../domain/timeline-tooltips.ts';
+import {
+	clampTooltipX,
+	clampTooltipY,
+	formatRevisionCount,
+	shouldPlaceTooltipBelow,
+} from '../domain/timeline-tooltips.ts';
 import type { Message } from '../messages.ts';
 import type { Model } from '../model.ts';
 import { getPreview, getVisibleEntries } from '../selectors.ts';

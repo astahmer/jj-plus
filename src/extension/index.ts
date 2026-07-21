@@ -17,16 +17,13 @@ import {
 	OPEN_FILE_TIMELINE_COMMAND,
 	OPEN_FILE_LINE_TIMELINE_COMMAND,
 	OPEN_TIMELINE_AT_LINE_COMMAND,
+	OPEN_CHANGES_WITH_PREVIOUS_COMMAND,
 	OPEN_MULTI_DIFF_COMMAND,
 	PENDING_RANGE_DIFF_KEY,
 	SNAPSHOT_SCHEME,
 	TIMELINE_PREFERENCES_KEY,
 } from './constants.ts';
-import {
-	createTimelineAtLineGutterDecoration,
-	createTimelineBlameCodeLensProvider,
-	createTimelineBlameHoverProvider,
-} from './blame-codelens.ts';
+import { createCurrentLineBlameLens, createTimelineBlameHoverProvider } from './blame-codelens.ts';
 import { resolveHistoryAdapter, resolveHistoryWorkspacePath } from './history-adapters.ts';
 import { createTimelinePanelController } from './timeline-panel.ts';
 import { createTimelineService, normalizeTimelinePreferences } from './timeline-service.ts';
@@ -259,12 +256,81 @@ export function activate(context: vscode.ExtensionContext): void {
 		}
 	};
 
-	const blameCodeLensProvider = createTimelineBlameCodeLensProvider();
+	const openChangesWithPrevious = async (absolutePathArg?: string) => {
+		const editor = vscode.window.activeTextEditor;
+		const absolutePath = absolutePathArg || editor?.document.uri.fsPath;
+		if (!absolutePath) {
+			void vscode.window.showErrorMessage('Open a workspace file to diff against the previous revision');
+			return;
+		}
+
+		try {
+			const preferredWorkspacePath = path.dirname(absolutePath);
+			const historyWorkspacePath = await resolveHistoryWorkspacePath({
+				workspacePath: preferredWorkspacePath,
+				runner,
+			});
+			const relativePath = toHistoryRelativePath({
+				historyWorkspacePath,
+				absolutePath,
+			});
+			if (!relativePath) {
+				throw new Error('The selected file is outside the resolved repository root');
+			}
+
+			const adapter = await resolveHistoryAdapter({
+				workspacePath: historyWorkspacePath,
+				runner,
+			});
+			const parentRevset = adapter.backend === 'jj' ? '@-' : 'HEAD^';
+			const tipRevset = adapter.backend === 'jj' ? '@' : 'HEAD';
+			const [originalContent, modifiedContent] = await Promise.all([
+				adapter.showFileAtRevision({
+					workspacePath: historyWorkspacePath,
+					revset: parentRevset,
+					filePath: relativePath,
+				}),
+				adapter.showFileAtRevision({
+					workspacePath: historyWorkspacePath,
+					revset: tipRevset,
+					filePath: relativePath,
+				}),
+			]);
+
+			const fileName = path.basename(absolutePath);
+			const originalUri = provider.createInlineContentUri({
+				workspacePath: historyWorkspacePath,
+				revset: parentRevset,
+				relativePath,
+				content: originalContent,
+			});
+			const modifiedUri = provider.createInlineContentUri({
+				workspacePath: historyWorkspacePath,
+				revset: tipRevset,
+				relativePath,
+				content: modifiedContent,
+			});
+			await vscode.commands.executeCommand(
+				'vscode.diff',
+				originalUri,
+				modifiedUri,
+				`${fileName}: ${parentRevset} → ${tipRevset}`,
+				{ preview: true },
+			);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			void vscode.window.showErrorMessage(`Failed to open changes with previous revision: ${message}`);
+		}
+	};
+
 	context.subscriptions.push(
 		outputChannel,
 		vscode.workspace.registerTextDocumentContentProvider('jj-range-diff', provider),
 		vscode.commands.registerCommand(HELPER_COMMAND, openRangeMultiDiff),
 		vscode.commands.registerCommand(OPEN_FILE_RANGE_DIFF_COMMAND, openFileRangeDiff),
+		vscode.commands.registerCommand(OPEN_CHANGES_WITH_PREVIOUS_COMMAND, (absolutePath?: string) =>
+			openChangesWithPrevious(absolutePath),
+		),
 		vscode.commands.registerCommand(OPEN_FILE_TIMELINE_COMMAND, (absolutePath?: string) =>
 			panelController.openFileRevisionTimeline({ context, absolutePath }),
 		),
@@ -323,9 +389,14 @@ export function activate(context: vscode.ExtensionContext): void {
 				});
 			},
 		),
-		vscode.languages.registerCodeLensProvider({ scheme: 'file' }, blameCodeLensProvider),
-		blameCodeLensProvider,
-		createTimelineAtLineGutterDecoration(),
+		createCurrentLineBlameLens({
+			runner,
+			resolveBackend: async ({ workspacePath }) =>
+				resolveHistoryAdapter({
+					workspacePath,
+					runner,
+				}),
+		}),
 		vscode.languages.registerHoverProvider({ scheme: 'file' }, createTimelineBlameHoverProvider()),
 		vscode.commands.registerCommand(GET_TIMELINE_DEBUG_STATE_COMMAND, () => panelController.getDebugState()),
 		vscode.commands.registerCommand(GET_DIFF_LAYOUT_METRICS_COMMAND, () => panelController.getDiffLayoutMetrics()),

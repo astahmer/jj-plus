@@ -16,6 +16,48 @@ test.describe('timeline visuals', () => {
 		await openFixture(page, 'git-basic');
 		await expect(page.locator('.workspace')).toHaveScreenshot('git-basic-workspace.png', screenshotOptions);
 	});
+
+	test('blame overlay paints gutter annotations', async ({ page }) => {
+		await openFixture(page, 'jj-basic');
+		await page.locator('#toggleBlameOverlayButton').click();
+		await expect(page.locator('#pierre-diff-root')).toHaveClass(/is-blame-open/, { timeout: 15000 });
+		await expect
+			.poll(
+				async () =>
+					page.locator('#pierre-diff-root').evaluate((root) => {
+						const host = root.querySelector('diffs-container');
+						const shadow = host?.shadowRoot;
+						if (!shadow) {
+							return 0;
+						}
+						return shadow.querySelectorAll('.pierre-blame-annotation, .pierre-gutter-extras').length;
+					}),
+				{ timeout: 15000 },
+			)
+			.toBeGreaterThan(0);
+		await expect(page.locator('#diffHead')).toHaveScreenshot('jj-blame-overlay-head.png', screenshotOptions);
+	});
+
+	test('heatmap paints recency bars in the after gutter', async ({ page }) => {
+		await openFixture(page, 'jj-basic');
+		await page.getByRole('button', { name: 'View' }).click();
+		await page.locator('#heatmapToggle').click();
+		await expect(page.locator('#pierre-diff-root')).toHaveClass(/is-heatmap-open/, { timeout: 15000 });
+		await expect
+			.poll(
+				async () =>
+					page.locator('#pierre-diff-root').evaluate((root) => {
+						const host = root.querySelector('diffs-container');
+						const shadow = host?.shadowRoot;
+						if (!shadow) {
+							return 0;
+						}
+						return shadow.querySelectorAll('.pierre-heat-bar, .pierre-heat-wrap').length;
+					}),
+				{ timeout: 15000 },
+			)
+			.toBeGreaterThan(0);
+	});
 });
 
 async function openFixture(page: Page, fixture: string) {

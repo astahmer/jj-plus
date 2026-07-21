@@ -2,7 +2,7 @@ import { Option } from 'effect';
 import { expect, test } from 'vitest';
 import { Story } from 'foldkit';
 import { evo } from 'foldkit/struct';
-import { PersistState, SendHostCommand } from './commands.ts';
+import { SendHostCommand } from './commands.ts';
 import {
 	ClickedHistoryEntry,
 	ClickedRefreshTimeline,
@@ -41,7 +41,7 @@ test('pending sidebar selection commits, cancels, and updates selection meta', (
 		}),
 		Story.message(ClickedHistoryEntry({ entryIndex: 2 })),
 		Story.message(ClickedHistoryEntry({ entryIndex: 4 })),
-		Story.Command.expectHas(PersistState),
+		Story.Command.expectHas(SendHostCommand),
 		Story.Command.resolveAll(...hostCommandResolvers()),
 		Story.model((model) => {
 			expect(model.fromIndex).toBe(2);
