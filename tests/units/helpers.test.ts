@@ -9,6 +9,7 @@ import {
 	parseJjEvolutionLine,
 	parseJjBookmarkNames,
 	parseJjEvolutionSummaryEntries,
+	parseJjHistoryLine,
 	parseJjSummaryChangedPaths,
 	parseJjSummaryRenameLines,
 	resolvePreferredHistoryBackend,
@@ -208,6 +209,28 @@ test('parseGitBranchNames keeps branch refs and strips HEAD aliases and tags', (
 test('parseJjBookmarkNames normalizes the template bookmark list', () => {
 	assert.deepEqual(parseJjBookmarkNames('main, feature/responsive-pane, main'), ['main', 'feature/responsive-pane']);
 	assert.equal(parseJjBookmarkNames(''), undefined);
+});
+
+test('parseJjHistoryLine reads empty conflict immutable flags', () => {
+	const entry = parseJjHistoryLine(
+		'abcd1234\tkqppukkm\t2026-04-09T12:32:35+02:00\talex\tmain\ttrue\ttrue\tfalse\tempty conflicted change',
+	);
+	assert.equal(entry.revision, 'abcd1234');
+	assert.equal(entry.changeId, 'kqppukkm');
+	assert.deepEqual(entry.bookmarkNames, ['main']);
+	assert.equal(entry.isEmpty, true);
+	assert.equal(entry.hasConflict, true);
+	assert.equal(entry.isImmutable, undefined);
+	assert.equal(entry.description, 'empty conflicted change');
+});
+
+test('parseJjHistoryLine keeps legacy bookmark-description format', () => {
+	const entry = parseJjHistoryLine(
+		'abcd1234\tkqppukkm\t2026-04-09T12:32:35+02:00\talex\tmain\tlegacy description',
+	);
+	assert.equal(entry.description, 'legacy description');
+	assert.equal(entry.isEmpty, undefined);
+	assert.equal(entry.hasConflict, undefined);
 });
 
 test('normalizeSnapshotOperationKey adds an explicit zero suffix for the visible revision snapshot', () => {
@@ -669,5 +692,8 @@ test('normalizeTimelinePreferences restores missing values to the persisted defa
 		comparisonSource: 'snapshot',
 		showIntermediateRevisions: false,
 		preset: 'year',
+		customRevset: '',
+		themePreference: 'auto',
+		heatmapOpen: false,
 	});
 });

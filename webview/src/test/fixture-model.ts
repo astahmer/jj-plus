@@ -18,6 +18,8 @@ export function makeEntry(overrides: Partial<FileRevisionEntry> & Pick<FileRevis
 		revision: overrides.revision || `rev-${overrides.index}`.padEnd(40, '0'),
 		shortRevision: overrides.shortRevision || `r${overrides.index}`,
 		changeId: overrides.changeId,
+		bookmarkNames: overrides.bookmarkNames,
+		branchNames: overrides.branchNames,
 		authorDate: overrides.authorDate || '2026-04-10T16:07:57+02:00',
 		authorName: overrides.authorName || 'Alex',
 		description: overrides.description || `entry ${overrides.index}`,
@@ -34,6 +36,9 @@ export function makeEntry(overrides: Partial<FileRevisionEntry> & Pick<FileRevis
 		shortDate: overrides.shortDate || `Apr ${10 + overrides.index}`,
 		relativeDate: overrides.relativeDate || `${overrides.index}d ago`,
 		index: overrides.index,
+		isEmpty: overrides.isEmpty,
+		hasConflict: overrides.hasConflict,
+		isImmutable: overrides.isImmutable,
 	};
 }
 

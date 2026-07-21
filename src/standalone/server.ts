@@ -12,12 +12,13 @@ import {
 	getGitHubRemoteBaseUrl,
 	normalizeSnapshotOperationKey,
 	parseGitBranchNames,
-	parseJjBookmarkNames,
 	parseJjEvolutionSummaryEntries,
+	parseJjHistoryLine,
 	parseJjSummaryChangedPaths,
 	parseJjSummaryRenameLines,
 	resolvePreferredHistoryBackend,
 	toJjRootFileFileset,
+	buildJjHistoryLogTemplate,
 } from '../shared/history-helpers.ts';
 import type {
 	ComparisonSource,
@@ -722,20 +723,7 @@ async function getJjEntries(args: {
 	relativePath: string;
 	remoteBaseUrl?: string;
 }): Promise<FileRevisionEntry[]> {
-	const template = [
-		'commit_id.short()',
-		'"\\t"',
-		'change_id.shortest()',
-		'"\\t"',
-		'author.timestamp().format("%Y-%m-%dT%H:%M:%S%:z")',
-		'"\\t"',
-		'author.name()',
-		'"\\t"',
-		'self.local_bookmarks().map(|b| b.name()).join(",")',
-		'"\\t"',
-		'description.first_line()',
-		'"\\n"',
-	].join(' ++ ');
+	const template = buildJjHistoryLogTemplate();
 	const { stdout } = await run({
 		command: 'jj',
 		args: ['log', '--no-graph', '--reversed', '--limit', '100', '-T', template],
@@ -744,29 +732,21 @@ async function getJjEntries(args: {
 	const revisions = stdout.trim().split(/\r?\n/).filter(Boolean);
 	const entries: FileRevisionEntry[] = [];
 	for (const [index, line] of revisions.entries()) {
-		const [revision, changeId, authorDate, authorName, bookmarkNames, description] = line.split('\t');
-		if (/^0+$/u.test(revision || '')) {
+		const parsed = parseJjHistoryLine(line);
+		if (/^0+$/u.test(parsed.revision || '')) {
 			continue;
 		}
 
 		const touchesFile = await jjTouchesFile({
 			repoRoot: args.repoRoot,
-			revision: revision || '',
+			revision: parsed.revision || '',
 			relativePath: args.relativePath,
 		});
 		entries.push(
 			makeEntry({
-				id: revision || '',
+				...parsed,
 				index,
-				revision: revision || '',
-				shortRevision: changeId || (revision || '').slice(0, 8),
-				changeId: changeId || undefined,
-				bookmarkNames: parseJjBookmarkNames(bookmarkNames || ''),
-				authorDate: authorDate || '',
-				authorName: authorName || '',
-				description: description || '',
 				touchesFile,
-				isWorkingTree: false,
 				filePath: args.relativePath,
 				remoteBaseUrl: args.remoteBaseUrl,
 			}),
@@ -1777,6 +1757,9 @@ function makeEntry(args: {
 	operationIndex?: number;
 	operationKey?: string;
 	remoteBaseUrl?: string;
+	isEmpty?: boolean;
+	hasConflict?: boolean;
+	isImmutable?: boolean;
 }): FileRevisionEntry {
 	const timestamp = Date.parse(args.authorDate);
 	return {
@@ -1802,6 +1785,9 @@ function makeEntry(args: {
 		relativeDate: relativeTime(timestamp),
 		hasPreviousEntry: args.index > 0,
 		remoteUrl: args.isWorkingTree || !args.remoteBaseUrl ? undefined : `${args.remoteBaseUrl}/commit/${args.revision}`,
+		...(args.isEmpty ? { isEmpty: true } : {}),
+		...(args.hasConflict ? { hasConflict: true } : {}),
+		...(args.isImmutable ? { isImmutable: true } : {}),
 	};
 }
 

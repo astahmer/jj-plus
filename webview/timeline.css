@@ -1355,6 +1355,24 @@ kbd {
 	color: var(--vscode-charts-orange, #d18616);
 }
 
+.timeline-marker--empty {
+	border-color: color-mix(in srgb, var(--vscode-descriptionForeground, #8b949e) 45%, var(--border));
+	background: color-mix(in srgb, var(--vscode-descriptionForeground, #8b949e) 10%, transparent);
+	color: var(--vscode-descriptionForeground, #8b949e);
+}
+
+.timeline-marker--conflict {
+	border-color: color-mix(in srgb, var(--vscode-errorForeground, #f85149) 45%, var(--border));
+	background: color-mix(in srgb, var(--vscode-errorForeground, #f85149) 12%, transparent);
+	color: var(--vscode-errorForeground, #f85149);
+}
+
+.timeline-marker--immutable {
+	border-color: color-mix(in srgb, var(--vscode-charts-blue, #79c0ff) 40%, var(--border));
+	background: color-mix(in srgb, var(--vscode-charts-blue, #79c0ff) 12%, transparent);
+	color: var(--vscode-charts-blue, #79c0ff);
+}
+
 .combobox-empty {
 	padding: 6px 8px;
 }

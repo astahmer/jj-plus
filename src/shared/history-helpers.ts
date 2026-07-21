@@ -1,5 +1,7 @@
 import path from 'node:path';
 
+import type { FileRevisionEntry } from './timeline-types.ts';
+
 type RenameEntry = {
 	fromPath: string;
 	toPath: string;
@@ -291,6 +293,78 @@ export function parseJjEvolutionSummaryEntries(output: string): ParsedEvolutionS
 
 export function parseJjBookmarkNames(rawValue: string): string[] | undefined {
 	return parseMarkerNames(rawValue);
+}
+
+/** jj template prints `true`/`false` for empty/conflict/immutable. */
+export function parseJjBooleanFlag(rawValue: string | undefined): boolean {
+	const value = (rawValue || '').trim().toLowerCase();
+	return value === 'true' || value === '1' || value === 'yes';
+}
+
+/**
+ * Shared jj log template fields for file/repo history lines:
+ * revision, changeId, date, author, bookmarks, empty, conflict, immutable, description
+ */
+export function buildJjHistoryLogTemplate(): string {
+	return [
+		'commit_id.short()',
+		'"\\t"',
+		'change_id.shortest()',
+		'"\\t"',
+		'author.timestamp().format("%Y-%m-%dT%H:%M:%S%:z")',
+		'"\\t"',
+		'author.name()',
+		'"\\t"',
+		'self.local_bookmarks().map(|b| b.name()).join(",")',
+		'"\\t"',
+		'if(empty, "true", "false")',
+		'"\\t"',
+		'if(conflict, "true", "false")',
+		'"\\t"',
+		'if(immutable, "true", "false")',
+		'"\\t"',
+		'description.first_line()',
+		'"\\n"',
+	].join(' ++ ');
+}
+
+export function parseJjHistoryLine(line: string): FileRevisionEntry {
+	const parts = line.split('\t');
+	const revision = parts[0] || '';
+	const changeId = parts[1] || '';
+	const authorDate = parts[2] || '';
+	const authorName = parts[3] || '';
+	const bookmarkNames = parts[4] || '';
+
+	// New format: … bookmarks, empty, conflict, immutable, description…
+	// Legacy: … bookmarks, description…
+	const looksLikeFlags =
+		parts.length >= 8 &&
+		/^(true|false|0|1)$/iu.test((parts[5] || '').trim()) &&
+		/^(true|false|0|1)$/iu.test((parts[6] || '').trim()) &&
+		/^(true|false|0|1)$/iu.test((parts[7] || '').trim());
+
+	const isEmpty = looksLikeFlags ? parseJjBooleanFlag(parts[5]) : undefined;
+	const hasConflict = looksLikeFlags ? parseJjBooleanFlag(parts[6]) : undefined;
+	const isImmutable = looksLikeFlags ? parseJjBooleanFlag(parts[7]) : undefined;
+	const description = looksLikeFlags ? parts.slice(8).join('\t') : parts.slice(5).join('\t');
+
+	return {
+		id: revision,
+		revision,
+		shortRevision: changeId || revision.slice(0, 8),
+		changeId: changeId || undefined,
+		bookmarkNames: parseJjBookmarkNames(bookmarkNames),
+		authorDate,
+		authorName: authorName || 'Unknown author',
+		description: description || 'No description',
+		isWorkingTree: false,
+		touchesFile: true,
+		timestamp: Date.parse(authorDate) || 0,
+		...(isEmpty ? { isEmpty: true } : {}),
+		...(hasConflict ? { hasConflict: true } : {}),
+		...(isImmutable ? { isImmutable: true } : {}),
+	};
 }
 
 export function parseJjSummaryChangedPaths(summaryLines: string[] | string): string[] {

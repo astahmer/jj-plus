@@ -1,13 +1,16 @@
 import type { FileRevisionEntry } from '../types.ts';
 
 export type TimelineMarker = {
-	kind: 'bookmark' | 'branch' | 'operation';
+	kind: 'bookmark' | 'branch' | 'operation' | 'empty' | 'conflict' | 'immutable';
 	label: string;
 	title: string;
 };
 
 export function getEntryTimelineMarkers(
-	entry: Pick<FileRevisionEntry, 'bookmarkNames' | 'branchNames' | 'operationId' | 'operationIndex'>,
+	entry: Pick<
+		FileRevisionEntry,
+		'bookmarkNames' | 'branchNames' | 'operationId' | 'operationIndex' | 'isEmpty' | 'hasConflict' | 'isImmutable'
+	>,
 ): Array<TimelineMarker> {
 	const markers: Array<TimelineMarker> = [];
 	for (const bookmarkName of new Set(entry.bookmarkNames || [])) {
@@ -36,6 +39,30 @@ export function getEntryTimelineMarkers(
 		});
 	}
 
+	if (entry.isEmpty) {
+		markers.push({
+			kind: 'empty',
+			label: 'empty',
+			title: 'Empty change (no content diff)',
+		});
+	}
+
+	if (entry.hasConflict) {
+		markers.push({
+			kind: 'conflict',
+			label: 'conflict',
+			title: 'Conflicted change',
+		});
+	}
+
+	if (entry.isImmutable) {
+		markers.push({
+			kind: 'immutable',
+			label: 'immutable',
+			title: 'Immutable change',
+		});
+	}
+
 	return markers;
 }
 
@@ -47,6 +74,12 @@ export function getTimelineMarkerPrefix(kind: TimelineMarker['kind']): string {
 			return 'BR';
 		case 'operation':
 			return 'OP';
+		case 'empty':
+			return '∅';
+		case 'conflict':
+			return '!';
+		case 'immutable':
+			return 'IM';
 	}
 }
 

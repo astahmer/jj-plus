@@ -40,6 +40,9 @@ export type FileRevisionEntry = {
 	shortDate?: string;
 	relativeDate?: string;
 	index?: number;
+	isEmpty?: boolean;
+	hasConflict?: boolean;
+	isImmutable?: boolean;
 };
 
 export type ThemePreference = 'auto' | 'light' | 'dark';

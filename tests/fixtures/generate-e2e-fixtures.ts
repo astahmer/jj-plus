@@ -4,10 +4,11 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 
 import {
+	buildJjHistoryLogTemplate,
 	normalizeSnapshotOperationKey,
 	parseGitBranchNames,
-	parseJjBookmarkNames,
 	parseJjEvolutionSummaryEntries,
+	parseJjHistoryLine,
 	parseJjSummaryChangedPaths,
 	toJjRootFileFileset,
 } from '../../src/shared/history-helpers.ts';
@@ -51,6 +52,9 @@ type BuildEntryArgs = {
 	operationId?: string;
 	operationIndex?: number;
 	operationKey?: string;
+	isEmpty?: boolean;
+	hasConflict?: boolean;
+	isImmutable?: boolean;
 };
 
 type StableEntryOverrides = Partial<Pick<FixtureEntry, 'changeId' | 'shortRevision' | 'authorDate' | 'authorName'>>;
@@ -422,42 +426,21 @@ async function getGitHistoryEntries(repoDir: string, relativePath: string): Prom
 }
 
 async function getJjEntries(repoDir: string, relativePath: string): Promise<FixtureEntry[]> {
-	const template = [
-		'commit_id.short()',
-		'"\\t"',
-		'change_id.shortest()',
-		'"\\t"',
-		'author.timestamp().format("%Y-%m-%dT%H:%M:%S%:z")',
-		'"\\t"',
-		'author.name()',
-		'"\\t"',
-		'self.local_bookmarks().map(|b| b.name()).join(",")',
-		'"\\t"',
-		'description.first_line()',
-		'"\\n"',
-	].join(' ++ ');
+	const template = buildJjHistoryLogTemplate();
 	const { stdout } = await run('jj', ['log', '--no-graph', '--reversed', '--limit', '100', '-T', template], repoDir);
 	const revisions = stdout.trim().split(/\r?\n/).filter(Boolean);
 	const entries: Array<FixtureEntry | null> = await Promise.all(
 		revisions.map(async (line, index) => {
-			const [revision, changeId, authorDate, authorName, bookmarkNames, description] = line.split('\t');
-			if (/^0+$/u.test(revision)) {
+			const parsed = parseJjHistoryLine(line);
+			if (/^0+$/u.test(parsed.revision)) {
 				return null;
 			}
 
-			const touchesFile = await jjTouchesFile(repoDir, revision, relativePath);
+			const touchesFile = await jjTouchesFile(repoDir, parsed.revision, relativePath);
 			return makeEntry({
-				id: revision,
+				...parsed,
 				index,
-				revision,
-				shortRevision: changeId || revision.slice(0, 8),
-				changeId: changeId || undefined,
-				bookmarkNames: parseJjBookmarkNames(bookmarkNames || ''),
-				authorDate,
-				authorName,
-				description,
 				touchesFile,
-				isWorkingTree: false,
 				filePath: relativePath,
 			});
 		}),
@@ -727,6 +710,9 @@ function makeEntry({
 	operationId,
 	operationIndex,
 	operationKey,
+	isEmpty,
+	hasConflict,
+	isImmutable,
 }: BuildEntryArgs): FixtureEntry {
 	const timestamp = Date.parse(authorDate);
 	return {
@@ -752,6 +738,9 @@ function makeEntry({
 		relativeDate: relativeTime(timestamp),
 		hasPreviousEntry: index > 0,
 		remoteUrl: isWorkingTree ? undefined : `${remoteBaseUrl}/commit/${revision}`,
+		...(isEmpty ? { isEmpty: true } : {}),
+		...(hasConflict ? { hasConflict: true } : {}),
+		...(isImmutable ? { isImmutable: true } : {}),
 	};
 }
 

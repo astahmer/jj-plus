@@ -1,5 +1,6 @@
 import { Option } from 'effect';
 import { html, type Html } from 'foldkit/html';
+import { getEntryTimelineMarkers } from '../domain/timeline-markers.ts';
 import { getTimelineAnchorPercent } from '../domain/timeline-model.ts';
 import { churnFromDiffCount, normalizeTrackChurnBars } from '../domain/track-churn.ts';
 import type { Message } from '../messages.ts';
@@ -104,6 +105,14 @@ export function timelineTrack(model: Model): Html {
 								.filter(Boolean)
 								.join(' ');
 							const heightPx = 4 + Math.round((churn?.heightFactor ?? 0.2) * 14);
+							const stopMarkers = getEntryTimelineMarkers(entry);
+							const stopTitle = [
+								entry.shortRevision,
+								entry.description,
+								...stopMarkers.map((marker) => marker.title),
+							]
+								.filter(Boolean)
+								.join(' · ');
 							return h.keyed('button')(
 								`anchor-${entry.index}:${entry.id}`,
 								[
@@ -113,6 +122,7 @@ export function timelineTrack(model: Model): Html {
 										height: `${heightPx}px`,
 										width: `${Math.max(4, Math.round(heightPx / 2))}px`,
 									}),
+									h.Title(stopTitle),
 									h.DataAttribute('entry-index', String(entry.index)),
 									h.DataAttribute('churn', String(churn?.churn ?? 0)),
 									h.DataAttribute('churn-factor', String(churn?.heightFactor ?? 0.2)),

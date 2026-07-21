@@ -1,12 +1,13 @@
 import path from 'node:path';
 
 import {
+	buildJjHistoryLogTemplate,
 	dedupeAdjacentEntriesByChangeId,
 	getGitHubRemoteBaseUrl,
 	normalizeSnapshotOperationKey,
 	parseGitBranchNames,
-	parseJjBookmarkNames,
 	parseJjEvolutionSummaryEntries,
+	parseJjHistoryLine,
 	parseJjSummaryChangedPaths,
 	parseJjSummaryRenameLines,
 	resolvePreferredHistoryBackend,
@@ -254,20 +255,7 @@ function createJjHistoryAdapter(args: { runner: CommandRunner }): HistoryAdapter
 			});
 		},
 		async getRepositoryRevisionHistory({ workspacePath, limit }) {
-			const template = [
-				'commit_id.short()',
-				'"\\t"',
-				'change_id.shortest()',
-				'"\\t"',
-				'author.timestamp().format("%Y-%m-%dT%H:%M:%S%:z")',
-				'"\\t"',
-				'author.name()',
-				'"\\t"',
-				'self.local_bookmarks().map(|b| b.name()).join(",")',
-				'"\\t"',
-				'description.first_line()',
-				'"\\n"',
-			].join(' ++ ');
+			const template = buildJjHistoryLogTemplate();
 			const { stdout } = await runner.runJj({
 				workspacePath,
 				args: [
@@ -487,24 +475,6 @@ function parseGitHistoryLine(line: string): FileRevisionEntry {
 	};
 }
 
-function parseJjHistoryLine(line: string): FileRevisionEntry {
-	const [revision = '', changeId = '', authorDate = '', authorName = '', bookmarkNames = '', ...descriptionParts] =
-		line.split('\t');
-	return {
-		id: revision,
-		revision,
-		shortRevision: changeId || revision.slice(0, 8),
-		changeId: changeId || undefined,
-		bookmarkNames: parseJjBookmarkNames(bookmarkNames),
-		authorDate,
-		authorName: authorName || 'Unknown author',
-		description: descriptionParts.join('\t') || 'No description',
-		isWorkingTree: false,
-		touchesFile: true,
-		timestamp: Date.parse(authorDate) || 0,
-	};
-}
-
 type ParsedJjHistoryEntry = {
 	entry: FileRevisionEntry;
 	summaryLines: string[];
@@ -567,20 +537,7 @@ async function loadJjFileHistorySegment(
 	limit: number,
 	customRevset?: string,
 ): Promise<ParsedJjHistoryEntry[]> {
-	const template = [
-		'commit_id.short()',
-		'"\\t"',
-		'change_id.shortest()',
-		'"\\t"',
-		'author.timestamp().format("%Y-%m-%dT%H:%M:%S%:z")',
-		'"\\t"',
-		'author.name()',
-		'"\\t"',
-		'self.local_bookmarks().map(|b| b.name()).join(",")',
-		'"\\t"',
-		'description.first_line()',
-		'"\\n"',
-	].join(' ++ ');
+	const template = buildJjHistoryLogTemplate();
 	const { stdout } = await runner.runJj({
 		workspacePath,
 		args: [
