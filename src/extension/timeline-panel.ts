@@ -1359,12 +1359,14 @@ function getTimelineWebviewHtml(args: { context: vscode.ExtensionContext; webvie
 
 	const appStylePath = vscode.Uri.joinPath(args.context.extensionUri, 'webview-dist', 'timeline-app.css');
 	const appScriptPath = vscode.Uri.joinPath(args.context.extensionUri, 'webview-dist', 'timeline-app.js');
+	const workerPath = vscode.Uri.joinPath(args.context.extensionUri, 'webview-dist', 'pierre-worker-portable.js');
 
 	return renderTimelineDocumentHtml({
 		title: 'Revision Timeline',
 		cspSource: args.webview.cspSource,
 		styleHref: String(args.webview.asWebviewUri(appStylePath)),
 		appSrc: String(args.webview.asWebviewUri(appScriptPath)),
+		workerSrc: String(args.webview.asWebviewUri(workerPath)),
 	});
 }
 

@@ -8,6 +8,7 @@ import {
 import type { Model } from '../model.ts';
 import { getPreview, getRangeStackItems } from '../selectors.ts';
 import type { ContentMode, DiffPreview, LayoutMode } from '../types.ts';
+import { ensurePierreWorkerPool, getPierreWorkerPool } from './worker-pool.ts';
 
 export const PIERRE_BLAME_LINE_EVENT = 'jj-timeline-blame-line';
 
@@ -25,6 +26,7 @@ let lastBlameOverlayOpen = false;
 let lastBlameSignature = '';
 let blameLinesCache: BlameLine[] = [];
 let stackMode = false;
+let workerPoolReady = false;
 const stackByPath = new Map<
 	string,
 	{
@@ -42,6 +44,7 @@ let portalMutationObserver: MutationObserver | undefined;
 let observedSlot: HTMLElement | undefined;
 let geometryListenersBound = false;
 let lastForcedHeight = -1;
+let shadowObservers = new WeakMap<ShadowRoot, MutationObserver>();
 
 type DiffLayoutMetrics = {
 	viewportH: number;
@@ -67,6 +70,24 @@ type DiffLayoutMetrics = {
 
 export function queuePierreFileDiffSync(model: Model): void {
 	pendingModel = model;
+	void ensurePierreWorkerPool().then((pool) => {
+		if (pool && !workerPoolReady) {
+			workerPoolReady = true;
+			// Recreate FileDiff instances so they attach to the worker pool.
+			if (fileDiff) {
+				fileDiff.cleanUp();
+				fileDiff = undefined;
+				lastShowPierre = false;
+			}
+			for (const entry of stackByPath.values()) {
+				entry.fileDiff.cleanUp();
+			}
+			stackByPath.clear();
+			if (pendingModel) {
+				queuePierreFileDiffSync(pendingModel);
+			}
+		}
+	});
 	if (pendingFrame !== 0) {
 		return;
 	}
@@ -78,6 +99,18 @@ export function queuePierreFileDiffSync(model: Model): void {
 			syncFromModel(next);
 		}
 	});
+}
+
+function createFileDiff(
+	layoutMode: LayoutMode,
+	contentMode: ContentMode,
+	themeType: 'dark' | 'light',
+	blameOverlayOpen: boolean,
+): FileDiff {
+	return new FileDiff(
+		buildOptions(layoutMode, contentMode, themeType, blameOverlayOpen) as never,
+		getPierreWorkerPool(),
+	);
 }
 
 function syncFromModel(model: Model): void {
@@ -183,7 +216,7 @@ function syncRangeStack(args: RangeStackSyncArgs): void {
 			section.append(header, mount);
 			portal.append(section);
 			entry = {
-				fileDiff: new FileDiff(buildOptions(args.layoutMode, args.contentMode, themeType, false) as never),
+				fileDiff: createFileDiff(args.layoutMode, args.contentMode, themeType, false),
 				section,
 				mount,
 			};
@@ -295,7 +328,7 @@ function syncPierreFileDiff(args: PierreDiffSyncArgs): void {
 
 	const options = buildOptions(args.layoutMode, args.contentMode, themeType, args.blameOverlayOpen) as never;
 	if (!fileDiff) {
-		fileDiff = new FileDiff(options);
+		fileDiff = createFileDiff(args.layoutMode, args.contentMode, themeType, args.blameOverlayOpen);
 	} else if (optionsChanged) {
 		fileDiff.setOptions(options);
 	}
@@ -471,15 +504,46 @@ function observeSlot(): void {
 }
 
 function observePortalMutations(portal: HTMLElement): void {
-	if (portalMutationObserver) {
-		return;
+	if (!portalMutationObserver) {
+		portalMutationObserver = new MutationObserver(() => {
+			if (!lastShowPierre) {
+				return;
+			}
+			observePierreShadowRoots(portal);
+			schedulePierreWrapRepair(portal);
+		});
+		portalMutationObserver.observe(portal, { childList: true, subtree: true });
 	}
-	portalMutationObserver = new MutationObserver(() => {
-		if (lastShowPierre) {
-			syncPortalGeometry(true);
+	observePierreShadowRoots(portal);
+}
+
+function observePierreShadowRoots(portal: HTMLElement): void {
+	for (const host of portal.querySelectorAll('diffs-container')) {
+		const root = host.shadowRoot;
+		if (!root || shadowObservers.has(root)) {
+			continue;
 		}
+		const observer = new MutationObserver(() => {
+			if (lastShowPierre) {
+				schedulePierreWrapRepair(portal);
+			}
+		});
+		observer.observe(root, { childList: true, subtree: true, attributes: true });
+		shadowObservers.set(root, observer);
+	}
+}
+
+function schedulePierreWrapRepair(portal: HTMLElement): void {
+	syncPortalGeometry(true);
+	window.requestAnimationFrame(() => {
+		repairPierreWrapRowSpans(portal);
+		window.requestAnimationFrame(() => repairPierreWrapRowSpans(portal));
 	});
-	portalMutationObserver.observe(portal, { childList: true, subtree: true });
+	window.setTimeout(() => {
+		if (lastShowPierre) {
+			repairPierreWrapRowSpans(portal);
+		}
+	}, 50);
 }
 
 function bindGeometryListeners(): void {

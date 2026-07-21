@@ -58,7 +58,7 @@ const subtitleDateFormatter = new Intl.DateTimeFormat(displayLocale, {
 });
 const timelinePresets = { year: 365, '7d': 7, '30d': 30, '90d': 90, all: Number.POSITIVE_INFINITY };
 const ignoredWorkspaceEntries = new Set(['.git', '.jj', 'node_modules', 'webview-dist', '.e2e-runtime']);
-const distAssets = ['index.html', 'timeline-app.js', 'timeline-app.css'];
+const distAssets = ['index.html', 'timeline-app.js', 'timeline-app.css', 'pierre-worker-portable.js'];
 
 type RepoContext = {
 	backend: HistoryBackend;

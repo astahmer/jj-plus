@@ -5,6 +5,7 @@ type TimelineDocumentHtmlOptions = {
 	modelSrc?: string;
 	scriptSrc?: string;
 	cspSource?: string;
+	workerSrc?: string;
 };
 
 function renderTimelineBodyHtml(): string {
@@ -175,20 +176,27 @@ export function renderTimelineDocumentHtml(options: TimelineDocumentHtmlOptions)
 	const appSrc = escapeAttribute(options.appSrc || '');
 	const modelSrc = escapeAttribute(options.modelSrc || '');
 	const scriptSrc = escapeAttribute(options.scriptSrc || '');
+	const workerSrc = escapeAttribute(options.workerSrc || '');
 	const cspSource = options.cspSource;
+	const csp = cspSource
+		? `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${cspSource} https: data:; style-src ${cspSource}; script-src ${cspSource}; worker-src ${cspSource} blob:; connect-src ${cspSource};" />`
+		: '';
+	const workerBoot =
+		workerSrc.length > 0 ? `<script>window.WORKER_URI=${JSON.stringify(options.workerSrc)};</script>` : '';
 
 	if (appSrc) {
 		return `<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    ${cspSource ? `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${cspSource} https: data:; style-src ${cspSource}; script-src ${cspSource};" />` : ''}
+    ${csp}
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>${title}</title>
     <link rel="stylesheet" href="${styleHref}" />
   </head>
   <body>
     <div id="timelineApp"></div>
+    ${workerBoot}
     <script type="module" src="${appSrc}"></script>
   </body>
 </html>`;
@@ -198,13 +206,14 @@ export function renderTimelineDocumentHtml(options: TimelineDocumentHtmlOptions)
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    ${cspSource ? `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${cspSource} https: data:; style-src ${cspSource}; script-src ${cspSource};" />` : ''}
+    ${csp}
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>${title}</title>
     <link rel="stylesheet" href="${styleHref}" />
   </head>
   <body>
     ${renderTimelineBodyHtml()}
+    ${workerBoot}
     ${modelSrc ? `<script src="${modelSrc}"></script>` : ''}
     ${scriptSrc ? `<script src="${scriptSrc}"></script>` : ''}
   </body>
