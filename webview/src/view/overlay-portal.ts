@@ -1,3 +1,5 @@
+import { shouldPreventOverlayPointerDefault } from '../../../src/shared/overlay-pointer-guard.ts';
+
 export type OverlayPlacement = {
 	gap?: number;
 	zIndex?: number;
@@ -94,13 +96,18 @@ export function ensureOverlayPortal(): HTMLElement {
 	return portal;
 }
 
+export { shouldPreventOverlayPointerDefault } from '../../../src/shared/overlay-pointer-guard.ts';
+
 function bindOverlayPointerGuard(panel: HTMLElement): void {
 	if (panel.dataset.overlayPointerGuard === 'true') {
 		return;
 	}
 	panel.dataset.overlayPointerGuard = 'true';
-	// Keep combobox/input focus while clicking menu options (blur would close first).
+	// Keep combobox focus when clicking options — but never block real inputs.
 	panel.addEventListener('pointerdown', (event) => {
+		if (!shouldPreventOverlayPointerDefault(event.target as { closest?: (s: string) => unknown } | null)) {
+			return;
+		}
 		event.preventDefault();
 	});
 }
