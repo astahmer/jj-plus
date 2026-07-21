@@ -279,6 +279,15 @@ input {
 	font-size: 11px;
 }
 
+.path-trail {
+	color: var(--accent-alt);
+	font-size: 10px;
+	max-width: 42vw;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
 .history-meta {
 	display: inline-flex;
 	align-items: center;

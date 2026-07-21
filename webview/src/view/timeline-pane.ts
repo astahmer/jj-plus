@@ -24,6 +24,7 @@ import {
 	getRangeLabel,
 	getRangeOverviewLoading,
 	getRangeSubtitle,
+	getFilePathTrailLabel,
 	getSelectionDiffCount,
 	getShowSnapshotStatus,
 	getSnapshotStatusLabel,
@@ -71,6 +72,7 @@ export function timelinePane(model: Model): Html {
 		model.fileSwitcherMode === 'overview' ? 'Jump to a top-changed file...' : 'Switch file...';
 	const collapseLabel = model.timelinePaneCollapsed ? 'Expand timeline' : 'Collapse timeline';
 	const lineHistory = (model.data as { lineHistory?: { startLine: number; endLine: number } } | null)?.lineHistory;
+	const pathTrail = getFilePathTrailLabel(model);
 
 	return h.div(
 		[h.Class(`timeline-pane${model.timelinePaneCollapsed ? ' is-collapsed' : ''}`), h.Id('timelinePane')],
@@ -101,6 +103,7 @@ export function timelinePane(model: Model): Html {
 						[
 							h.div([h.Class('range-label')], [getRangeLabel(model)]),
 							h.div([h.Class('range-subtitle')], [getRangeSubtitle(model)]),
+							pathTrail ? h.div([h.Class('path-trail'), h.Id('pathTrail'), h.Title(pathTrail)], [pathTrail]) : h.empty,
 						],
 					),
 					h.button(

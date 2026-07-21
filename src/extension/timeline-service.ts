@@ -168,6 +168,39 @@ async function filterSessionEntriesForLineHistory(args: {
 	});
 }
 
+async function hydrateEntryFilePaths(args: {
+	adapter: HistoryAdapter;
+	workspacePath: string;
+	relativePath: string;
+	entries: FileRevisionEntry[];
+}): Promise<void> {
+	if (!args.entries.length) {
+		return;
+	}
+
+	args.entries[args.entries.length - 1].filePath = args.relativePath;
+	let currentPath = args.relativePath;
+	for (let index = args.entries.length - 1; index > 0; index -= 1) {
+		const currentEntry = args.entries[index];
+		const previousEntry = args.entries[index - 1];
+		if (previousEntry.filePath) {
+			currentPath = previousEntry.filePath;
+			continue;
+		}
+
+		let previousPath = currentPath;
+		if (currentEntry.touchesFile && !currentEntry.isWorkingTree) {
+			previousPath = await args.adapter.resolvePreviousPath({
+				workspacePath: args.workspacePath,
+				revision: currentEntry.revision,
+				currentPath,
+			});
+		}
+		previousEntry.filePath = previousPath;
+		currentPath = previousPath;
+	}
+}
+
 async function resolvePreviousPathAcrossRevision(request: {
 	session: ExtensionTimelineSession;
 	entry: FileRevisionEntry;
@@ -268,6 +301,13 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 				}
 			}
 		}
+
+		await hydrateEntryFilePaths({
+			adapter,
+			workspacePath: historyWorkspacePath,
+			relativePath,
+			entries,
+		});
 
 		return {
 			adapter,

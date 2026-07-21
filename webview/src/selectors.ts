@@ -10,6 +10,7 @@ import {
 	getUnitPreviewRange,
 	getIntermediateToggleLabel,
 } from './domain/timeline-model.ts';
+import { buildFilePathTrail, formatFilePathTrail, pathTrailChanged } from '../../src/shared/path-trail.ts';
 import type {
 	ComparisonSource,
 	DiffPreview,
@@ -112,6 +113,18 @@ export function getRangeSubtitle(model: Model): string {
 	const selectedCount = getSelectedEntryCount(visible, model.fromIndex, model.toIndex);
 	const label = getEffectiveComparisonSource(model) === 'snapshot' ? 'snapshots' : 'revisions';
 	return `${selectedCount}/${visible.length} ${label}`;
+}
+
+export function getFilePathTrailLabel(model: Model): string {
+	const data = getData(model);
+	if (!data) {
+		return '';
+	}
+	const steps = buildFilePathTrail(data.entries, data.relativePath);
+	if (!pathTrailChanged(steps)) {
+		return '';
+	}
+	return formatFilePathTrail(steps);
 }
 
 export function getIntermediateLabel(model: Model): string {
