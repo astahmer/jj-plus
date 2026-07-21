@@ -36,7 +36,6 @@ export function timelineRevisionPickers(model: Model): Html {
 						value: model.fromRevisionDraft,
 						open: model.openComboboxId._tag === 'Some' && model.openComboboxId.value === 'fromRevisionInput',
 						options: revisionOptions,
-						menuClass: 'combobox-menu--wide',
 						onSubmit: (value) => SubmittedFromRevision({ value }),
 					}),
 					h.div(
@@ -73,7 +72,6 @@ export function timelineRevisionPickers(model: Model): Html {
 						value: model.toRevisionDraft,
 						open: model.openComboboxId._tag === 'Some' && model.openComboboxId.value === 'toRevisionInput',
 						options: revisionOptions,
-						menuClass: 'combobox-menu--wide',
 						onSubmit: (value) => SubmittedToRevision({ value }),
 					}),
 					h.div(

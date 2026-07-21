@@ -18,36 +18,80 @@ export type ComboboxViewProps = {
 	value: string;
 	open: boolean;
 	placeholder?: string;
-	menuClass?: string;
 	options: ReadonlyArray<ComboboxOption>;
 	onSubmit: (value: string) => Message;
 };
 
+export function filterComboboxOptions(
+	options: ReadonlyArray<ComboboxOption>,
+	value: string,
+	open: boolean,
+): Array<ComboboxOption> {
+	const query = open ? value.trim().toLowerCase() : '';
+	if (!query) {
+		return [...options];
+	}
+	return options.filter((option) =>
+		[option.value, option.label, option.description, ...(option.keywords || [])]
+			.filter(Boolean)
+			.some((candidate) => String(candidate).toLowerCase().includes(query)),
+	);
+}
+
+export function comboboxMenuContent(
+	filteredOptions: ReadonlyArray<ComboboxOption>,
+	onSubmit: (value: string) => Message,
+): Array<Html | string> {
+	const h = html<Message>();
+	if (filteredOptions.length === 0) {
+		return [h.div([h.Class('combobox-empty')], ['No matches'])];
+	}
+	return filteredOptions.map((option) =>
+		h.button(
+			[
+				h.Class('combobox-option'),
+				h.Type('button'),
+				h.Role('option'),
+				h.DataAttribute('value', option.value),
+				h.OnClick(onSubmit(option.value)),
+			],
+			[
+				h.div(
+					[h.Class('combobox-option-title-row')],
+					[
+						h.span([h.Class('combobox-option-title')], [option.label || option.value]),
+						option.label && option.label !== option.value
+							? h.span([h.Class('combobox-option-value')], [option.value])
+							: h.empty,
+					],
+				),
+				option.description ? h.div([h.Class('combobox-option-description')], [option.description]) : h.empty,
+				option.markers && option.markers.length
+					? h.div(
+							[h.Class('combobox-option-markers')],
+							option.markers.map((marker) =>
+								h.span(
+									[h.Class(`timeline-marker timeline-marker--${marker.kind}`), h.Title(marker.title)],
+									[
+										h.span([h.Class('timeline-marker-prefix')], [getTimelineMarkerPrefix(marker.kind)]),
+										h.span([h.Class('timeline-marker-label')], [marker.label]),
+									],
+								),
+							),
+						)
+					: h.empty,
+			],
+		),
+	);
+}
+
 /**
- * Combobox matching Solid DOM ids/classes. Menu only renders while `open`.
- * Draft text is owned by the Model (`value`) so background re-renders do not
- * clobber in-progress typing via a controlled Value reset.
+ * Input-only combobox. Open menus render through the body overlay portal so they
+ * are never clipped by overflow:hidden ancestors.
  */
-export function combobox({
-	id,
-	inputClass,
-	value,
-	open,
-	placeholder,
-	menuClass,
-	options,
-	onSubmit,
-}: ComboboxViewProps): Html {
+export function combobox({ id, inputClass, value, open, placeholder, options, onSubmit }: ComboboxViewProps): Html {
 	const h = html<Message>();
 	const listId = `${id}Options`;
-	const query = open ? value.trim().toLowerCase() : '';
-	const filteredOptions = query
-		? options.filter((option) =>
-				[option.value, option.label, option.description, ...(option.keywords || [])]
-					.filter(Boolean)
-					.some((candidate) => String(candidate).toLowerCase().includes(query)),
-			)
-		: options;
 
 	return h.div(
 		[h.Class('combobox')],
@@ -56,8 +100,6 @@ export function combobox({
 				h.Class(inputClass),
 				h.Id(id),
 				h.Type('text'),
-				// While open, leave the input uncontrolled so background re-renders
-				// (preview/count loads) cannot clobber in-progress typing via Value.
 				...(open ? [] : [h.Value(value)]),
 				h.Placeholder(placeholder || ''),
 				h.Autocomplete('off'),
@@ -85,59 +127,6 @@ export function combobox({
 					return Option.none();
 				}),
 			]),
-			open
-				? h.div(
-						[h.Class(`combobox-menu${menuClass ? ` ${menuClass}` : ''}`), h.Id(listId), h.Role('listbox')],
-						filteredOptions.length === 0
-							? [h.div([h.Class('combobox-empty')], ['No matches'])]
-							: filteredOptions.map((option) =>
-									h.button(
-										[
-											h.Class('combobox-option'),
-											h.Type('button'),
-											h.Role('option'),
-											h.DataAttribute('value', option.value),
-											h.OnClick(onSubmit(option.value)),
-										],
-										[
-											h.div(
-												[h.Class('combobox-option-title-row')],
-												[
-													h.span([h.Class('combobox-option-title')], [option.label || option.value]),
-													option.label && option.label !== option.value
-														? h.span([h.Class('combobox-option-value')], [option.value])
-														: h.empty,
-												],
-											),
-											option.description
-												? h.div([h.Class('combobox-option-description')], [option.description])
-												: h.empty,
-											option.markers && option.markers.length
-												? h.div(
-														[h.Class('combobox-option-markers')],
-														option.markers.map((marker) =>
-															h.span(
-																[h.Class(`timeline-marker timeline-marker--${marker.kind}`), h.Title(marker.title)],
-																[
-																	h.span([h.Class('timeline-marker-prefix')], [getTimelineMarkerPrefix(marker.kind)]),
-																	h.span([h.Class('timeline-marker-label')], [marker.label]),
-																],
-															),
-														),
-													)
-												: h.empty,
-										],
-									),
-								),
-					)
-				: h.div(
-						[
-							h.Class(`combobox-menu combobox-menu--hidden${menuClass ? ` ${menuClass}` : ''}`),
-							h.Id(listId),
-							h.Role('listbox'),
-						],
-						[],
-					),
 		],
 	);
 }

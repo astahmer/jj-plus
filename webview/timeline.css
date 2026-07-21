@@ -1198,22 +1198,42 @@ kbd {
 	border-color: var(--accent);
 }
 
+.timeline-overlay-portal {
+	position: fixed;
+	inset: 0;
+	pointer-events: none;
+	z-index: 1200;
+}
+
+.timeline-overlay-portal > * {
+	pointer-events: auto;
+}
+
 .combobox-menu {
-	position: absolute;
-	top: calc(100% + 4px);
+	position: fixed;
+	top: 0;
 	left: 0;
-	right: 0;
+	right: auto;
 	max-width: min(560px, calc(100vw - 24px));
 	max-height: 220px;
 	overflow: auto;
 	padding: 4px;
 	border-radius: var(--radius-surface);
-	border: 1px solid var(--dropdown-border);
-	background: var(--dropdown-bg);
-	box-shadow: var(--widget-shadow);
+	border: 1px solid color-mix(in srgb, var(--dropdown-border) 85%, var(--text));
+	background: color-mix(in srgb, var(--dropdown-bg) 94%, var(--text));
+	box-shadow:
+		var(--widget-shadow),
+		0 8px 28px color-mix(in srgb, #000 28%, transparent);
 	z-index: 40;
 	display: grid;
 	gap: 1px;
+	/* Hidden until overlay portal pins geometry — avoids flash at 0,0. */
+	visibility: hidden;
+}
+
+.combobox-menu[data-overlay-portaled='true'] {
+	visibility: visible;
+	right: auto;
 }
 
 .combobox-menu--hidden {
@@ -1221,15 +1241,8 @@ kbd {
 }
 
 .combobox-menu--wide {
-	left: 0;
-	right: auto;
 	width: min(720px, calc(100vw - 32px));
 	max-width: min(720px, calc(100vw - 32px));
-}
-
-.revision-picker-col:last-child .combobox-menu--wide {
-	left: auto;
-	right: 0;
 }
 
 .combobox-option {

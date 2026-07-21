@@ -6,6 +6,7 @@ import { PressedSidebarResize } from '../messages.ts';
 import type { Model } from '../model.ts';
 import { queuePierreFileDiffSync } from '../pierre/file-diff-host.ts';
 import { diffPanel, timelineResizeHandle } from './diff-panel.ts';
+import { floatingComboboxMenus } from './floating-combobox-menus.ts';
 import { hotkeysPopover } from './hotkeys.ts';
 import { syncOverlayGeometry } from './overlay-geometry.ts';
 import { sessionLoadingOverlay } from './session-loading.ts';
@@ -58,6 +59,7 @@ export function view(model: Model): Html {
 				],
 			),
 			trackTooltip(model),
+			floatingComboboxMenus(model),
 			model.hotkeysOpen ? hotkeysPopover(model) : h.empty,
 			sessionLoadingOverlay(model),
 		],
