@@ -102,6 +102,40 @@ test.describe('diff vertical layout', () => {
 			)
 			.toBe(true);
 	});
+
+	test('expanding unmodified lines keeps distinct line tops', async ({ page }) => {
+		await openFixture(page, 'jj-basic');
+		await switchToFile(page, 'apps/web/src/main.ts');
+		await page.locator('.history-list .history-item').filter({ hasText: 'componentize stuff' }).first().click();
+		await page.locator('.history-list .history-item').filter({ hasText: 'implement vector search' }).first().click();
+
+		const expanded = await page.locator('diffs-container').evaluate((el) => {
+			const root = el.shadowRoot;
+			if (!root) {
+				return false;
+			}
+			const candidates = [...root.querySelectorAll('button, [role="button"], a, summary, [data-expand]')];
+			const target = candidates.find((node) =>
+				/unmodified|unchanged|hidden lines|expand/i.test(node.textContent || ''),
+			);
+			if (!(target instanceof HTMLElement)) {
+				return false;
+			}
+			target.click();
+			return true;
+		});
+		expect(expanded).toBe(true);
+
+		await expect
+			.poll(
+				async () => {
+					const layout = await measureDiffLayout(page);
+					return layout.lineCount > 20 && !layout.isCrushed && layout.uniqueLineTops > 8;
+				},
+				{ timeout: 20000 },
+			)
+			.toBe(true);
+	});
 });
 
 async function switchToFile(page: Page, relativePath: string) {
