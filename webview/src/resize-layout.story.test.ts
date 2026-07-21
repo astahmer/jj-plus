@@ -9,7 +9,7 @@ import {
 import { PersistState } from './commands.ts';
 import { hostCommandResolvers, hydratedModel } from './test/fixture-model.ts';
 import { update } from './update.ts';
-import { clampTooltipX, clampTooltipY } from './domain/timeline-tooltips.ts';
+import { clampTooltipX, clampTooltipY, shouldPlaceTooltipBelow } from './domain/timeline-tooltips.ts';
 
 test('sidebar resize drag updates width and persists on release', () => {
 	const ready = hydratedModel();
@@ -82,8 +82,11 @@ test('tooltip clamps keep content inside the viewport', () => {
 
 	expect(clampTooltipX(10)).toBe(180);
 	expect(clampTooltipX(790)).toBe(620);
-	expect(clampTooltipY(20, 160)).toBe(176);
-	expect(clampTooltipY(700, 160)).toBe(588);
+	expect(shouldPlaceTooltipBelow(20, 160)).toBe(true);
+	expect(shouldPlaceTooltipBelow(400, 160)).toBe(false);
+	expect(clampTooltipY(20, 160, true)).toBe(28);
+	expect(clampTooltipY(20, 160, false)).toBe(168);
+	expect(clampTooltipY(700, 160, false)).toBe(592);
 
 	Object.defineProperty(globalThis, 'window', {
 		configurable: true,

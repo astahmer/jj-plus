@@ -41,7 +41,7 @@ export function syncOverlayGeometry(model: Model): void {
 			open: openComboboxId === 'toRevisionInput',
 			triggerId: 'toRevisionInput',
 			panelId: 'toRevisionInputOptions',
-			placement: { zIndex: 1400, maxWidth: 720, minWidth: 280, align: 'end' },
+			placement: { zIndex: 1400, maxWidth: 720, minWidth: 280, align: 'start' },
 		},
 		{
 			open: openComboboxId === 'fileSwitcher',

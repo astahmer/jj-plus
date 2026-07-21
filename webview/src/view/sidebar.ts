@@ -29,7 +29,11 @@ import type { FileRevisionEntry } from '../types.ts';
 import { Option } from 'effect';
 
 function formatDiffActionLabel(label: string, diffCount: number | null): string {
-	return diffCount === null ? label : `${label} (${diffCount})`;
+	if (diffCount === null) {
+		return label;
+	}
+	const unit = diffCount === 1 ? 'file' : 'files';
+	return `${label} (${diffCount} ${unit})`;
 }
 
 function renderEntry(model: Model, entry: FileRevisionEntry): Html {
@@ -213,6 +217,11 @@ export function sidebar(model: Model): Html {
 									h.Class('sidebar-icon-button'),
 									h.Id('toggleSidebarOrderButton'),
 									h.Type('button'),
+									h.Title(
+										model.oldestFirst
+											? 'Oldest first — click to show newest revisions at the top'
+											: 'Newest first — click to show oldest revisions at the top',
+									),
 									h.AriaLabel(model.oldestFirst ? 'Show newest revisions first' : 'Show oldest revisions first'),
 									h.OnClick(ToggledSortOrder()),
 								],

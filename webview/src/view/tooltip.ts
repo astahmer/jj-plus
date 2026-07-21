@@ -1,5 +1,5 @@
 import { html, type Html } from 'foldkit/html';
-import { clampTooltipX, clampTooltipY, formatRevisionCount } from '../domain/timeline-tooltips.ts';
+import { clampTooltipX, clampTooltipY, formatRevisionCount, shouldPlaceTooltipBelow } from '../domain/timeline-tooltips.ts';
 import type { Message } from '../messages.ts';
 import type { Model } from '../model.ts';
 import { getPreview, getVisibleEntries } from '../selectors.ts';
@@ -42,8 +42,8 @@ export function trackTooltip(model: Model): Html {
 		.join(' ');
 
 	const left = clampTooltipX(tooltip.left);
-	const top = clampTooltipY(tooltip.top);
-	const flipBelow = typeof window !== 'undefined' && top < 120;
+	const placeBelow = shouldPlaceTooltipBelow(tooltip.top);
+	const top = clampTooltipY(tooltip.top, 200, placeBelow);
 
 	return h.div(
 		[
@@ -51,7 +51,7 @@ export function trackTooltip(model: Model): Html {
 			h.Style({
 				left: `${left}px`,
 				top: `${top}px`,
-				transform: flipBelow ? 'translate(-50%, 12px)' : 'translate(-50%, calc(-100% - 8px))',
+				transform: placeBelow ? 'translate(-50%, 12px)' : 'translate(-50%, calc(-100% - 8px))',
 			}),
 		],
 		[

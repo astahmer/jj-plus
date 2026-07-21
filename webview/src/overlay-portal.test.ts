@@ -28,15 +28,15 @@ describe('overlay portal placement', () => {
 		expect(geometry.top).toBeGreaterThanOrEqual(12);
 	});
 
-	test('keeps to-combobox end alignment on screen', () => {
+	test('keeps to-combobox start alignment on screen', () => {
 		const geometry = computeOverlayGeometry(
 			{ top: 40, bottom: 64, left: 500, right: 700, width: 200, height: 24 },
 			{ width: 280, height: 120 },
 			{ width: 800, height: 600 },
-			{ align: 'end', maxWidth: 720, minWidth: 280 },
+			{ align: 'start', maxWidth: 720, minWidth: 280 },
 		);
 
-		expect(geometry.left).toBe(420);
+		expect(geometry.left).toBe(500);
 		expect(geometry.left + geometry.width).toBeLessThanOrEqual(800);
 	});
 });

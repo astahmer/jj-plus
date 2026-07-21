@@ -4,7 +4,11 @@ import { RevisionIdentifier, getRevisionIdentifierValue } from './revision-ident
 import { getEntryTimelineMarkers } from '../timeline-markers.ts';
 
 function formatDiffActionLabel(label: string, diffCount: number | null) {
-	return diffCount === null ? label : `${label} (${diffCount})`;
+	if (diffCount === null) {
+		return label;
+	}
+	const unit = diffCount === 1 ? 'file' : 'files';
+	return `${label} (${diffCount} ${unit})`;
 }
 
 export function Sidebar() {

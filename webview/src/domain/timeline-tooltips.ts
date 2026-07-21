@@ -98,14 +98,24 @@ export function clampTooltipX(left: number, halfWidth = 180): number {
 	return Math.min(window.innerWidth - halfWidth, Math.max(halfWidth, left));
 }
 
-export function clampTooltipY(top: number, estimatedHeight = 160): number {
+export function shouldPlaceTooltipBelow(clientY: number, estimatedHeight = 200): boolean {
+	return clientY < estimatedHeight + 24;
+}
+
+export function clampTooltipY(top: number, estimatedHeight = 200, placeBelow = false): number {
 	if (typeof window === 'undefined') {
 		return top;
 	}
 
 	const gap = 8;
-	const minTop = estimatedHeight + gap + 8;
-	const maxTop = window.innerHeight - 12;
+	if (placeBelow) {
+		const maxTop = Math.max(12, window.innerHeight - estimatedHeight - gap);
+		return Math.min(maxTop, Math.max(12, top + gap));
+	}
+
+	// Point is the bottom of the tooltip (CSS translates up by 100%).
+	const minTop = estimatedHeight + gap;
+	const maxTop = window.innerHeight - gap;
 	return Math.min(maxTop, Math.max(minTop, top));
 }
 
