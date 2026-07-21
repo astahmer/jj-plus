@@ -1,6 +1,5 @@
 import { expect, test } from 'vitest';
-import { buildFilePathTrail, formatFilePathTrail, pathTrailChanged } from '../../src/shared/path-trail.ts';
-import { getFilePathTrailLabel } from './selectors.ts';
+import { getFilePathTrailLabel, getFilePathTrailTitle } from './selectors.ts';
 import { hydratedModel, makeTimelineData, makeEntry } from './test/fixture-model.ts';
 
 test('getFilePathTrailLabel is empty when path never changes', () => {
@@ -8,21 +7,27 @@ test('getFilePathTrailLabel is empty when path never changes', () => {
 	expect(getFilePathTrailLabel(model)).toBe('');
 });
 
-test('getFilePathTrailLabel formats rename chain from entry filePaths', () => {
+test('getFilePathTrailLabel collapses rename ping-pong', () => {
 	const base = hydratedModel();
 	const model = {
 		...base,
 		data: makeTimelineData(
 			[
-				makeEntry({ index: 0, id: 'a', revision: 'a', shortRevision: 'a', filePath: 'legacy.ts' }),
-				makeEntry({ index: 1, id: 'b', revision: 'b', shortRevision: 'b', filePath: 'invite.ts' }),
-				makeEntry({ index: 2, id: 'c', revision: 'c', shortRevision: 'c', filePath: 'app.ts', isWorkingTree: true }),
+				makeEntry({ index: 0, id: 'a', revision: 'a', shortRevision: 'a', filePath: 'apps/api/src/spec.ts' }),
+				makeEntry({ index: 1, id: 'b', revision: 'b', shortRevision: 'b', filePath: 'apps/api/src/api.ts' }),
+				makeEntry({ index: 2, id: 'c', revision: 'c', shortRevision: 'c', filePath: 'apps/api/src/spec.ts' }),
+				makeEntry({
+					index: 3,
+					id: 'd',
+					revision: 'd',
+					shortRevision: 'd',
+					filePath: 'apps/api/src/api.ts',
+					isWorkingTree: true,
+				}),
 			],
-			{ relativePath: 'app.ts' },
+			{ relativePath: 'apps/api/src/api.ts' },
 		),
 	};
-	expect(pathTrailChanged(buildFilePathTrail(model.data!.entries, 'app.ts'))).toBe(true);
-	expect(getFilePathTrailLabel(model)).toContain('legacy.ts');
-	expect(getFilePathTrailLabel(model)).toContain('app.ts');
-	expect(getFilePathTrailLabel(model)).toBe(formatFilePathTrail(buildFilePathTrail(model.data!.entries, 'app.ts')));
+	expect(getFilePathTrailLabel(model)).toBe('apps/api/src/spec.ts → apps/api/src/api.ts');
+	expect(getFilePathTrailTitle(model)).toContain('spec.ts → apps/api/src/api.ts → apps/api/src/spec.ts');
 });

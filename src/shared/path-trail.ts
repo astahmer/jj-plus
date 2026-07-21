@@ -26,11 +26,29 @@ export function buildFilePathTrail(
 	return steps;
 }
 
-export function formatFilePathTrail(steps: PathTrailStep[]): string {
+/** Full consecutive trail (may ping-pong on renames). */
+export function formatFilePathTrailFull(steps: PathTrailStep[]): string {
 	if (steps.length <= 1) {
 		return steps[0]?.relativePath || '';
 	}
 	return steps.map((step) => step.relativePath).join(' → ');
+}
+
+/**
+ * Display trail: unique paths in first-seen order.
+ * Collapses rename ping-pong (a→b→a→b) to `a → b` so the title stays readable.
+ */
+export function formatFilePathTrail(steps: PathTrailStep[]): string {
+	if (steps.length <= 1) {
+		return steps[0]?.relativePath || '';
+	}
+	const unique: string[] = [];
+	for (const step of steps) {
+		if (!unique.includes(step.relativePath)) {
+			unique.push(step.relativePath);
+		}
+	}
+	return unique.join(' → ');
 }
 
 export function pathTrailChanged(steps: PathTrailStep[]): boolean {

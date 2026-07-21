@@ -26,6 +26,7 @@ import {
 	getRangeOverviewLoading,
 	getRangeSubtitle,
 	getFilePathTrailLabel,
+	getFilePathTrailTitle,
 	getSelectionDiffCount,
 	getShowSnapshotStatus,
 	getSnapshotStatusLabel,
@@ -75,6 +76,7 @@ export function timelinePane(model: Model): Html {
 	const collapseLabel = model.timelinePaneCollapsed ? 'Expand timeline' : 'Collapse timeline';
 	const lineHistory = (model.data as { lineHistory?: { startLine: number; endLine: number } } | null)?.lineHistory;
 	const pathTrail = getFilePathTrailLabel(model);
+	const pathTrailTitle = getFilePathTrailTitle(model);
 	const rangeFiles = getActiveRangeOverviewItems(model);
 	const currentRelativePath = (model.data as { relativePath?: string } | null)?.relativePath || '';
 
@@ -107,7 +109,9 @@ export function timelinePane(model: Model): Html {
 						[
 							h.div([h.Class('range-label')], [getRangeLabel(model)]),
 							h.div([h.Class('range-subtitle')], [getRangeSubtitle(model)]),
-							pathTrail ? h.div([h.Class('path-trail'), h.Id('pathTrail'), h.Title(pathTrail)], [pathTrail]) : h.empty,
+							pathTrail
+								? h.div([h.Class('path-trail'), h.Id('pathTrail'), h.Title(pathTrailTitle || pathTrail)], [pathTrail])
+								: h.empty,
 						],
 					),
 					h.button(

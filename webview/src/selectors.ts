@@ -11,7 +11,12 @@ import {
 	getUnitPreviewRange,
 	getIntermediateToggleLabel,
 } from './domain/timeline-model.ts';
-import { buildFilePathTrail, formatFilePathTrail, pathTrailChanged } from '../../src/shared/path-trail.ts';
+import {
+	buildFilePathTrail,
+	formatFilePathTrail,
+	formatFilePathTrailFull,
+	pathTrailChanged,
+} from '../../src/shared/path-trail.ts';
 import type {
 	ComparisonSource,
 	DiffPreview,
@@ -108,6 +113,19 @@ export function getFilePathTrailLabel(model: Model): string {
 		return '';
 	}
 	return formatFilePathTrail(steps);
+}
+
+/** Full trail for tooltip (keeps rename ping-pong detail). */
+export function getFilePathTrailTitle(model: Model): string {
+	const data = getData(model);
+	if (!data) {
+		return '';
+	}
+	const steps = buildFilePathTrail(data.entries, data.relativePath);
+	if (!pathTrailChanged(steps)) {
+		return '';
+	}
+	return formatFilePathTrailFull(steps);
 }
 
 export function getEvologStripEntries(model: Model): Array<FileRevisionEntry> {

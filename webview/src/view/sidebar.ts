@@ -296,7 +296,8 @@ export function sidebar(model: Model): Html {
 				return h.div(
 					[h.Class('evolog-strip oplog-strip'), h.Id('fileOpLogStrip')],
 					[
-						h.div([h.Class('eyebrow')], ['Op log']),
+						h.div([h.Class('eyebrow')], ['File ops']),
+						h.div([h.Class('sidebar-hint'), h.Id('fileOpLogHint')], ['Recent ops that touched this file']),
 						h.div(
 							[h.Class('evolog-strip-list')],
 							ops.map((entry) =>

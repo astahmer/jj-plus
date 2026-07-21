@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { buildFilePathTrail, formatFilePathTrail, pathTrailChanged } from '../../src/shared/path-trail.ts';
+import {
+	buildFilePathTrail,
+	formatFilePathTrail,
+	formatFilePathTrailFull,
+	pathTrailChanged,
+} from '../../src/shared/path-trail.ts';
 
 test('buildFilePathTrail collapses consecutive identical paths', () => {
 	const steps = buildFilePathTrail(
@@ -21,6 +26,22 @@ test('buildFilePathTrail collapses consecutive identical paths', () => {
 	]);
 	assert.equal(pathTrailChanged(steps), true);
 	assert.equal(formatFilePathTrail(steps), 'a.ts → b.ts → c.ts');
+});
+
+test('formatFilePathTrail collapses rename ping-pong for display', () => {
+	const steps = buildFilePathTrail(
+		[
+			{ filePath: 'apps/api/src/spec.ts', index: 0 },
+			{ filePath: 'apps/api/src/api.ts', index: 1 },
+			{ filePath: 'apps/api/src/spec.ts', index: 2 },
+			{ filePath: 'apps/api/src/api.ts', index: 3 },
+			{ filePath: 'apps/api/src/spec.ts', index: 4 },
+			{ filePath: 'apps/api/src/api.ts', index: 5 },
+		],
+		'apps/api/src/api.ts',
+	);
+	assert.equal(formatFilePathTrail(steps), 'apps/api/src/spec.ts → apps/api/src/api.ts');
+	assert.match(formatFilePathTrailFull(steps), /spec\.ts → apps\/api\/src\/api\.ts → apps\/api\/src\/spec\.ts/);
 });
 
 test('buildFilePathTrail falls back when filePath missing', () => {

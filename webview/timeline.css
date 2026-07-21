@@ -48,6 +48,8 @@ html,
 body,
 #timelineApp {
 	height: 100%;
+	width: 100%;
+	max-width: 100%;
 	overflow: hidden;
 }
 
@@ -82,6 +84,8 @@ input {
 	height: 100%;
 	min-height: 0;
 	width: 100%;
+	max-width: 100%;
+	min-width: 0;
 	padding: var(--workspace-gap);
 	box-sizing: border-box;
 	background: var(--bg);
@@ -215,6 +219,8 @@ input {
 	border-radius: var(--radius-panel);
 	transition: border-radius 0.18s ease;
 	min-height: 0;
+	min-width: 0;
+	max-width: 100%;
 }
 
 .workspace.is-collapsed .diff-panel {
@@ -326,7 +332,8 @@ input {
 .path-trail {
 	color: var(--accent-alt);
 	font-size: 10px;
-	max-width: 42vw;
+	max-width: min(42vw, 100%);
+	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -619,10 +626,14 @@ input {
 	display: grid;
 	gap: 4px;
 	min-height: 0;
+	min-width: 0;
+	max-width: 100%;
 }
 
 .timeline-pane {
 	min-height: 0;
+	min-width: 0;
+	max-width: 100%;
 	max-height: var(--timeline-pane-height);
 	overflow-x: hidden;
 	overflow-y: auto;
@@ -1567,6 +1578,10 @@ kbd {
 	gap: 6px;
 	padding: 0 2px;
 	pointer-events: none;
+	min-width: 0;
+	max-width: 100%;
+	width: 100%;
+	box-sizing: border-box;
 }
 
 .timeline-row .timeline {
@@ -1669,6 +1684,8 @@ kbd {
 	overflow: visible;
 	padding-top: 0;
 	min-height: 46px;
+	min-width: 0;
+	width: 100%;
 	align-items: stretch;
 }
 
