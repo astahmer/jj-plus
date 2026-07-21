@@ -50,6 +50,7 @@ const DEFAULT_TIMELINE_PREFERENCES: Required<TimelinePreferences> = {
 	preset: 'year',
 	customRevset: '',
 	themePreference: 'auto',
+	heatmapOpen: false,
 };
 
 const IGNORED_WORKSPACE_DIRECTORIES = new Set(['.git', '.jj', 'node_modules', 'dist', 'build', 'out', 'coverage']);
@@ -1440,6 +1441,7 @@ export function normalizeTimelinePreferences(
 			preferences.themePreference === 'light' || preferences.themePreference === 'dark'
 				? preferences.themePreference
 				: DEFAULT_TIMELINE_PREFERENCES.themePreference,
+		heatmapOpen: preferences.heatmapOpen === true,
 	};
 }
 

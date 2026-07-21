@@ -143,6 +143,7 @@ function persistCommand(model: Model): Command.Command<Message> {
 		preset: model.preset,
 		customRevset: model.customRevset,
 		themePreference: model.themePreference,
+		heatmapOpen: model.heatmapOpen,
 	};
 	return PersistState({ command });
 }
@@ -321,7 +322,7 @@ function applySyncPlan(model: Model): UpdateReturn {
 	}
 
 	if (
-		nextModel.blameOverlayOpen &&
+		(nextModel.blameOverlayOpen || nextModel.heatmapOpen) &&
 		!(Array.isArray(nextModel.blameLines) && nextModel.blameLines.length > 0) &&
 		!nextModel.blameLoading
 	) {
@@ -1054,6 +1055,7 @@ function handleSubmitFile(model: Model, rawValue: string): UpdateReturn {
 			rangeStackOpen: () => false as boolean,
 			rangeStackByPath: () => ({}),
 			blameOverlayOpen: () => false as boolean,
+			heatmapOpen: () => false as boolean,
 			blameLines: () => initialModel.blameLines,
 			blameLoading: () => false as boolean,
 			sidebarPreviewInFlightKey: () => '',
@@ -1112,6 +1114,7 @@ function handleReset(model: Model): UpdateReturn {
 		rangeStackOpen: () => false as boolean,
 		rangeStackByPath: () => ({}),
 		blameOverlayOpen: () => false as boolean,
+		heatmapOpen: () => false as boolean,
 		blameLines: () => initialModel.blameLines,
 		blameLoading: () => false as boolean,
 		historySearchQuery: () => '',
@@ -1247,6 +1250,7 @@ function handleTimelineDataMessage(
 			preferences.themePreference === 'light' || preferences.themePreference === 'dark'
 				? preferences.themePreference
 				: 'auto',
+		heatmapOpen: preferences.heatmapOpen === true,
 		responsiveSidebarHeight: clampResponsiveSidebarHeight(model.responsiveSidebarHeight || 248),
 		layoutMode: preferences.layoutMode || cached?.layoutMode || 'split',
 		contentMode: preferences.contentMode || cached?.contentMode || 'diffs',
@@ -1458,7 +1462,7 @@ function handleDiffBlameMessage(
 ): UpdateReturn {
 	const payload = message.payload;
 	if (
-		!model.blameOverlayOpen ||
+		(!model.blameOverlayOpen && !model.heatmapOpen) ||
 		payload.fromIndex !== Math.min(model.fromIndex, model.toIndex) ||
 		payload.toIndex !== Math.max(model.fromIndex, model.toIndex) ||
 		payload.comparisonSource !== getEffectiveComparisonSource(model)
@@ -1566,10 +1570,20 @@ function handleToggleBlameOverlay(model: Model): UpdateReturn {
 	return afterMutate(
 		evo(model, {
 			blameOverlayOpen: () => nextOpen,
-			blameLines: () => initialModel.blameLines,
+			blameLines: () => (nextOpen || model.heatmapOpen ? model.blameLines : initialModel.blameLines),
 			blameLoading: () => false,
 		}),
 	);
+}
+
+function handleToggleHeatmap(model: Model): UpdateReturn {
+	const nextOpen = !model.heatmapOpen;
+	const next = evo(model, {
+		heatmapOpen: () => nextOpen,
+		blameLines: () => (nextOpen || model.blameOverlayOpen ? model.blameLines : initialModel.blameLines),
+		blameLoading: () => false,
+	});
+	return afterMutate(next, [persistCommand(next)]);
 }
 
 function handlePierreBlameLineClick(model: Model, revision: string): UpdateReturn {
@@ -1950,6 +1964,7 @@ export function update(model: Model, message: Message): UpdateReturn {
 			],
 			ToggledRangeStack: () => handleToggleRangeStack(model),
 			ToggledBlameOverlay: () => handleToggleBlameOverlay(model),
+			ToggledHeatmap: () => handleToggleHeatmap(model),
 			ClickedPierreBlameLine: ({ revision }) => handlePierreBlameLineClick(model, revision),
 			UpdatedHistorySearchQuery: ({ value }) => [evo(model, { historySearchQuery: () => value }), []],
 			SubmittedHistorySearch: () => handleSubmitHistorySearch(model),

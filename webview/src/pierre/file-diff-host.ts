@@ -5,6 +5,7 @@ import {
 	formatBlameHoverTooltip,
 	type BlameLine,
 } from '../../../src/shared/blame.ts';
+import { computeBlameHeatLevels, heatLevelClass, type HeatLevel } from '../../../src/shared/blame-heatmap.ts';
 import type { Model } from '../model.ts';
 import { getPreview, getRangeStackItems } from '../selectors.ts';
 import type { ContentMode, DiffPreview, LayoutMode } from '../types.ts';
@@ -15,6 +16,8 @@ export const PIERRE_BLAME_LINE_EVENT = 'jj-timeline-blame-line';
 const PIERRE_SLOT_ID = 'pierre-diff-slot';
 const PIERRE_ROOT_ID = 'pierre-diff-root';
 
+type BlameAnnotationMeta = BlameLine & { heatLevel?: HeatLevel };
+
 let fileDiff: FileDiff | undefined;
 let lastOldFile: FileContents | undefined;
 let lastNewFile: FileContents | undefined;
@@ -23,6 +26,7 @@ let lastContentMode: ContentMode | undefined;
 let lastThemeType: 'dark' | 'light' | undefined;
 let lastShowPierre = false;
 let lastBlameOverlayOpen = false;
+let lastHeatmapOpen = false;
 let lastBlameSignature = '';
 let blameLinesCache: BlameLine[] = [];
 let stackMode = false;
@@ -106,15 +110,17 @@ function createFileDiff(
 	contentMode: ContentMode,
 	themeType: 'dark' | 'light',
 	blameOverlayOpen: boolean,
+	heatmapOpen: boolean,
 ): FileDiff {
 	return new FileDiff(
-		buildOptions(layoutMode, contentMode, themeType, blameOverlayOpen) as never,
+		buildOptions(layoutMode, contentMode, themeType, blameOverlayOpen, heatmapOpen) as never,
 		getPierreWorkerPool(),
 	);
 }
 
 function syncFromModel(model: Model): void {
-	blameLinesCache = model.blameOverlayOpen ? (model.blameLines as BlameLine[]) : [];
+	blameLinesCache =
+		model.blameOverlayOpen || model.heatmapOpen ? (model.blameLines as BlameLine[]) : [];
 
 	if (model.rangeStackOpen) {
 		const items = getRangeStackItems(model);
@@ -153,6 +159,7 @@ function syncFromModel(model: Model): void {
 		contentMode: model.contentMode,
 		showPierre,
 		blameOverlayOpen: model.blameOverlayOpen,
+		heatmapOpen: model.heatmapOpen,
 		blameLines: blameLinesCache,
 		themePreference: model.themePreference,
 	});
@@ -164,6 +171,7 @@ type PierreDiffSyncArgs = {
 	contentMode: ContentMode;
 	showPierre: boolean;
 	blameOverlayOpen: boolean;
+	heatmapOpen: boolean;
 	blameLines: BlameLine[];
 	themePreference: 'auto' | 'light' | 'dark';
 };
@@ -307,6 +315,7 @@ function syncPierreFileDiff(args: PierreDiffSyncArgs): void {
 		lastContentMode !== args.contentMode ||
 		lastThemeType !== themeType ||
 		lastBlameOverlayOpen !== args.blameOverlayOpen ||
+		lastHeatmapOpen !== args.heatmapOpen ||
 		!lastShowPierre;
 
 	const nextOldFile = stableFileContents(lastOldFile, {
@@ -326,9 +335,21 @@ function syncPierreFileDiff(args: PierreDiffSyncArgs): void {
 	// on first shadow stylesheet application (avoids height:100% collapse).
 	syncPortalGeometry(true);
 
-	const options = buildOptions(args.layoutMode, args.contentMode, themeType, args.blameOverlayOpen) as never;
+	const options = buildOptions(
+		args.layoutMode,
+		args.contentMode,
+		themeType,
+		args.blameOverlayOpen,
+		args.heatmapOpen,
+	) as never;
 	if (!fileDiff) {
-		fileDiff = createFileDiff(args.layoutMode, args.contentMode, themeType, args.blameOverlayOpen);
+		fileDiff = createFileDiff(
+			args.layoutMode,
+			args.contentMode,
+			themeType,
+			args.blameOverlayOpen,
+			args.heatmapOpen,
+		);
 	} else if (optionsChanged) {
 		fileDiff.setOptions(options);
 	}
@@ -343,7 +364,7 @@ function syncPierreFileDiff(args: PierreDiffSyncArgs): void {
 	}
 
 	if (fileDiff) {
-		applyBlameAnnotations(fileDiff, args.blameOverlayOpen, args.blameLines);
+		applyBlameAnnotations(fileDiff, args.blameOverlayOpen, args.heatmapOpen, args.blameLines);
 	}
 
 	lastOldFile = nextOldFile;
@@ -352,9 +373,11 @@ function syncPierreFileDiff(args: PierreDiffSyncArgs): void {
 	lastContentMode = args.contentMode;
 	lastThemeType = themeType;
 	lastBlameOverlayOpen = args.blameOverlayOpen;
+	lastHeatmapOpen = args.heatmapOpen;
 	lastShowPierre = true;
 	const portalEl = ensurePortal();
 	portalEl.classList.toggle('is-blame-open', args.blameOverlayOpen);
+	portalEl.classList.toggle('is-heatmap-open', args.heatmapOpen);
 	syncPortalGeometry(true);
 	window.requestAnimationFrame(() => {
 		if (lastShowPierre) {
@@ -706,24 +729,32 @@ function repairPierreWrapRowSpans(portal: HTMLElement): void {
 	}
 }
 
-function applyBlameAnnotations(diff: FileDiff, blameOverlayOpen: boolean, blameLines: BlameLine[]): void {
-	const signature = `${blameOverlayOpen ? 'on' : 'off'}:${blameLines
-		.map((line) => `${line.line}:${line.revision}:${line.author || ''}:${line.authorDate || ''}`)
+function applyBlameAnnotations(
+	diff: FileDiff,
+	blameOverlayOpen: boolean,
+	heatmapOpen: boolean,
+	blameLines: BlameLine[],
+): void {
+	const heat = heatmapOpen ? computeBlameHeatLevels(blameLines) : null;
+	const signature = `${blameOverlayOpen ? 'on' : 'off'}:${heatmapOpen ? 'heat' : 'noheat'}:${blameLines
+		.map((line) => `${line.line}:${line.revision}:${line.author || ''}:${line.authorDate || ''}:${heat?.get(line.line) ?? ''}`)
 		.join('|')}`;
 	if (signature === lastBlameSignature) {
 		return;
 	}
 	lastBlameSignature = signature;
-	if (!blameOverlayOpen) {
+	if (!blameOverlayOpen && !heatmapOpen) {
 		diff.setLineAnnotations([]);
 		return;
 	}
 
-	// GitLens-style: annotate every blamed line on the after side (gutter chip + hover).
-	const annotations: DiffLineAnnotation<BlameLine>[] = blameLines.map((entry) => ({
+	const annotations: DiffLineAnnotation<BlameAnnotationMeta>[] = blameLines.map((entry) => ({
 		side: 'additions' as const,
 		lineNumber: entry.line,
-		metadata: entry,
+		metadata: {
+			...entry,
+			heatLevel: heat?.get(entry.line),
+		},
 	}));
 	diff.setLineAnnotations(annotations as never);
 }
@@ -749,12 +780,14 @@ function buildOptions(
 	contentMode: ContentMode,
 	themeType: 'dark' | 'light',
 	blameOverlayOpen = false,
+	heatmapOpen = false,
 ) {
+	const annotationsActive = blameOverlayOpen || heatmapOpen;
 	return {
 		theme: { dark: 'pierre-dark' as const, light: 'pierre-light' as const },
 		themeType,
 		diffStyle: layoutMode === 'unified' ? ('unified' as const) : ('split' as const),
-		// Blame is gutter annotations + hover — do not force whole-file expand.
+		// Blame/heatmap are gutter annotations — do not force whole-file expand.
 		expandUnchanged: contentMode === 'full',
 		disableFileHeader: true,
 		hunkSeparators: 'line-info' as const,
@@ -762,32 +795,50 @@ function buildOptions(
 		// Wrap: content defines height; our host scrolls. Avoids Pierre's default
 		// overflow:scroll + align-self:flex-start fighting a height:100% override.
 		overflow: 'wrap' as const,
-		onLineClick: blameOverlayOpen
+		onLineClick: annotationsActive
 			? (props: { lineNumber: number; annotationSide?: 'additions' | 'deletions' }) => {
 					if (props.annotationSide && props.annotationSide !== 'additions') {
+						return;
+					}
+					if (!blameOverlayOpen) {
 						return;
 					}
 					emitBlameLineClick(props.lineNumber);
 				}
 			: undefined,
-		renderAnnotation: blameOverlayOpen
-			? (annotation: DiffLineAnnotation<BlameLine>) => {
-					const button = document.createElement('button');
-					button.type = 'button';
-					button.className = 'pierre-blame-annotation';
+		renderAnnotation: annotationsActive
+			? (annotation: DiffLineAnnotation<BlameAnnotationMeta>) => {
 					const meta = annotation.metadata;
-					if (!meta?.revision) {
+					if (!meta) {
 						return undefined;
 					}
-					button.textContent = formatBlameGutterLabel(meta);
-					button.title = formatBlameHoverTooltip(meta);
-					button.setAttribute('aria-label', formatBlameHoverTooltip(meta).replace(/\n/g, ', '));
-					button.addEventListener('click', (event) => {
-						event.preventDefault();
-						event.stopPropagation();
-						emitBlameLineClick(annotation.lineNumber, meta.revision);
-					});
-					return button;
+					const wrap = document.createElement('span');
+					wrap.className = 'pierre-gutter-extras';
+
+					if (heatmapOpen && typeof meta.heatLevel === 'number') {
+						const heat = document.createElement('span');
+						heat.className = `pierre-heat-bar ${heatLevelClass(meta.heatLevel)}`;
+						heat.title = `Recency heat ${meta.heatLevel}/4`;
+						heat.setAttribute('aria-hidden', 'true');
+						wrap.appendChild(heat);
+					}
+
+					if (blameOverlayOpen && meta.revision) {
+						const button = document.createElement('button');
+						button.type = 'button';
+						button.className = 'pierre-blame-annotation';
+						button.textContent = formatBlameGutterLabel(meta);
+						button.title = formatBlameHoverTooltip(meta);
+						button.setAttribute('aria-label', formatBlameHoverTooltip(meta).replace(/\n/g, ', '));
+						button.addEventListener('click', (event) => {
+							event.preventDefault();
+							event.stopPropagation();
+							emitBlameLineClick(annotation.lineNumber, meta.revision);
+						});
+						wrap.appendChild(button);
+					}
+
+					return wrap.childElementCount > 0 ? wrap : undefined;
 				}
 			: undefined,
 		unsafeCSS: `
@@ -809,11 +860,30 @@ function buildOptions(
 			[data-diff-type="single"][data-overflow="wrap"] [data-code] {
 				grid-auto-rows: max-content !important;
 			}
+			.pierre-gutter-extras {
+				display: inline-flex;
+				align-items: center;
+				gap: 4px;
+				margin-left: 2px;
+				vertical-align: middle;
+			}
+			.pierre-heat-bar {
+				display: inline-block;
+				width: 3px;
+				min-height: 12px;
+				align-self: stretch;
+				border-radius: 1px;
+				flex: 0 0 auto;
+			}
+			.pierre-heat--0 { background: color-mix(in srgb, #58a6ff 12%, transparent); }
+			.pierre-heat--1 { background: color-mix(in srgb, #58a6ff 28%, transparent); }
+			.pierre-heat--2 { background: color-mix(in srgb, #3fb950 45%, transparent); }
+			.pierre-heat--3 { background: color-mix(in srgb, #d29922 65%, transparent); }
+			.pierre-heat--4 { background: color-mix(in srgb, #f85149 85%, transparent); }
 			.pierre-blame-annotation {
 				display: inline-flex;
 				align-items: center;
 				max-width: 140px;
-				margin-left: 4px;
 				padding: 0 4px;
 				border: 0;
 				border-radius: 0;

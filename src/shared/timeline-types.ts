@@ -57,6 +57,7 @@ export type TimelinePreferences = {
 	preset?: TimelinePreset;
 	customRevset?: string;
 	themePreference?: ThemePreference;
+	heatmapOpen?: boolean;
 };
 
 export type DiffPreview = {
@@ -285,6 +286,7 @@ export type TimelineCommand =
 			preset: TimelinePreset;
 			customRevset?: string;
 			themePreference?: ThemePreference;
+			heatmapOpen?: boolean;
 	  };
 
 export type TimelineFixtureFile = {

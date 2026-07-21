@@ -11,6 +11,7 @@ import {
 	AppliedCustomRevset,
 	UpdatedCustomRevset,
 	ToggledIntermediate,
+	ToggledHeatmap,
 	UpdatedHistorySearchQuery,
 	SubmittedHistorySearch,
 	ClickedHistorySearchHit,
@@ -192,6 +193,23 @@ export function timelineControls(model: Model): Html {
 														['Whole file'],
 													),
 												],
+											),
+										],
+									),
+									h.div(
+										[h.Class('view-menu-section')],
+										[
+											h.div([h.Class('view-menu-label')], ['Diff overlays']),
+											h.button(
+												[
+													h.Class(`segmented-toggle${model.heatmapOpen ? ' active' : ''}`),
+													h.Id('heatmapToggle'),
+													h.Type('button'),
+													h.AriaLabel(model.heatmapOpen ? 'Hide blame heatmap' : 'Show blame heatmap'),
+													h.AriaPressed(String(model.heatmapOpen)),
+													h.OnClick(ToggledHeatmap()),
+												],
+												[model.heatmapOpen ? 'Heatmap on' : 'Heatmap'],
 											),
 										],
 									),

@@ -1886,6 +1886,7 @@ function extractPersistedPreferences(
 		showIntermediateRevisions: command.showIntermediateRevisions,
 		preset: command.preset,
 		themePreference: command.themePreference,
+		heatmapOpen: command.heatmapOpen === true,
 	};
 }
 

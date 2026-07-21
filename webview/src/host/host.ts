@@ -371,6 +371,7 @@ export function createTimelineHost(): TimelineHost {
 			preset: command.preset,
 			customRevset: command.customRevset,
 			themePreference: command.themePreference,
+			heatmapOpen: command.heatmapOpen === true,
 		};
 		window.localStorage.setItem(key, JSON.stringify(nextPreferences));
 	}
