@@ -95,13 +95,13 @@ input {
 	height: 100%;
 	min-height: 0;
 	display: grid;
-	grid-template-columns: minmax(0, var(--sidebar-width)) 0px minmax(0, 1fr);
+	grid-template-columns: minmax(0, var(--sidebar-width)) 6px minmax(0, 1fr);
 	gap: var(--workspace-gap);
 	transition: grid-template-columns 0.18s ease;
 }
 
 .workspace.is-collapsed {
-	grid-template-columns: 0px 0px minmax(0, 1fr);
+	grid-template-columns: 0px 6px minmax(0, 1fr);
 	gap: 0;
 }
 
@@ -143,8 +143,8 @@ input {
 
 .resize-handle {
 	position: relative;
-	width: 0;
-	margin-inline: calc(var(--workspace-gap) / -2);
+	width: 6px;
+	margin-inline: calc((var(--workspace-gap) - 6px) / -2);
 	cursor: col-resize;
 	z-index: 2;
 }
@@ -152,10 +152,10 @@ input {
 .resize-handle::before {
 	content: '';
 	position: absolute;
-	inset: 12% -3px;
+	inset: 8% 1px;
 	border-radius: var(--radius-control);
 	background: var(--border);
-	opacity: 0.45;
+	opacity: 0.7;
 }
 
 .resize-handle:hover::before,
@@ -344,9 +344,14 @@ input {
 	background: var(--list-inactive);
 }
 
-.history-item.is-from,
+.history-item.is-from {
+	border-left-color: var(--accent-alt);
+	border-left-width: 3px;
+}
+
 .history-item.is-to {
-	border-left-color: color-mix(in srgb, var(--accent) 60%, transparent);
+	border-left-color: var(--accent);
+	border-left-width: 3px;
 }
 
 .history-item.in-range {
@@ -776,7 +781,7 @@ input {
 	position: fixed;
 	top: 52px;
 	right: 12px;
-	z-index: 60;
+	z-index: 1100;
 	max-width: calc(100vw - 24px);
 	pointer-events: auto;
 }
@@ -984,13 +989,13 @@ kbd {
 }
 
 .evolog-strip-item {
-	border: 1px solid var(--border);
+	border: 1px solid color-mix(in srgb, var(--border) 70%, var(--text));
 	border-radius: var(--radius-control);
 	padding: 1px 5px;
 	font-size: 10px;
 	color: var(--muted);
 	font-family: var(--mono, ui-monospace, monospace);
-	background: transparent;
+	background: color-mix(in srgb, var(--panel) 88%, var(--text));
 	cursor: pointer;
 }
 
@@ -1303,10 +1308,27 @@ kbd {
 	align-items: center;
 }
 
+.head-actions > .menu-button,
+.head-actions > .menu-wrap {
+	display: inline-flex;
+	align-items: center;
+	height: 28px;
+}
+
+.head-actions .menu-button {
+	height: 28px;
+	width: 28px;
+	padding: 0;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	line-height: 1;
+}
+
 .menu-wrap,
 .view-menu-wrap {
 	position: relative;
-	z-index: 45;
+	z-index: auto;
 }
 
 .menu,
@@ -1319,11 +1341,11 @@ kbd {
 	max-height: min(70vh, 520px);
 	display: none;
 	padding: 4px;
-	border: 1px solid var(--dropdown-border);
+	border: 1px solid color-mix(in srgb, var(--dropdown-border) 85%, var(--text));
 	border-radius: var(--radius-card);
-	background: var(--dropdown-bg);
-	box-shadow: var(--widget-shadow);
-	z-index: 60;
+	background: color-mix(in srgb, var(--dropdown-bg) 92%, var(--text));
+	box-shadow: var(--widget-shadow), 0 8px 28px color-mix(in srgb, #000 35%, transparent);
+	z-index: 1000;
 	overflow-x: hidden;
 	overflow-y: auto;
 }
@@ -1424,11 +1446,18 @@ kbd {
 
 .range-label {
 	font-size: 12px;
-	font-weight: 600;
+	font-weight: 700;
 	letter-spacing: -0.01em;
 	white-space: nowrap;
 	overflow: hidden;
 	text-overflow: ellipsis;
+	color: var(--text);
+}
+
+.range-subtitle {
+	font-size: 11px;
+	font-weight: 600;
+	color: color-mix(in srgb, var(--accent-alt) 80%, var(--text));
 }
 
 .timeline-row {
@@ -1446,7 +1475,8 @@ kbd {
 }
 
 .timeline-row .step-button {
-	margin-top: 0;
+	margin-top: 10px;
+	align-self: flex-start;
 	pointer-events: auto;
 }
 
@@ -1533,11 +1563,12 @@ kbd {
 .timeline {
 	position: relative;
 	display: grid;
-	grid-template-rows: auto auto;
-	gap: 4px;
+	grid-template-rows: 18px minmax(28px, auto);
+	gap: 0;
 	overflow: visible;
-	padding-top: 4px;
-	min-height: 56px;
+	padding-top: 0;
+	min-height: 46px;
+	align-items: stretch;
 }
 
 .handle-pills {
@@ -1572,9 +1603,9 @@ kbd {
 	position: absolute;
 	left: 0;
 	right: 0;
-	top: 32px;
-	height: 4px;
-	border-radius: var(--radius-control);
+	top: 28px;
+	height: 7px;
+	border-radius: 999px;
 	border: 1px solid var(--border);
 	background: var(--input-bg);
 	overflow: visible;
@@ -1631,8 +1662,8 @@ kbd {
 
 .track-anchor.is-from,
 .track-anchor.is-to {
-	width: 6px;
-	height: 6px;
+	width: 8px;
+	height: 8px;
 	background: var(--accent);
 }
 
@@ -1647,11 +1678,15 @@ kbd {
 
 .range-fill {
 	position: absolute;
-	top: 32px;
-	height: 4px;
-	border-radius: var(--radius-control);
-	border: 0;
-	background: color-mix(in srgb, var(--accent) 35%, transparent);
+	top: 28px;
+	height: 7px;
+	border-radius: 999px;
+	border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+	background: linear-gradient(
+		90deg,
+		color-mix(in srgb, var(--accent-alt) 35%, transparent),
+		color-mix(in srgb, var(--accent) 62%, transparent)
+	);
 	cursor: grab;
 	z-index: 1;
 }
@@ -1662,18 +1697,18 @@ kbd {
 
 .handle-marker {
 	position: absolute;
-	top: 34px;
-	width: 10px;
-	height: 10px;
+	top: 31.5px;
+	width: 14px;
+	height: 14px;
 	transform: translate(-50%, -50%);
-	border-radius: var(--radius-control);
-	border: 1px solid var(--bg);
+	border-radius: 999px;
+	border: 2px solid var(--bg);
 	z-index: 3;
 	cursor: ew-resize;
 	padding: 0;
 	appearance: none;
 	-webkit-appearance: none;
-	box-shadow: none;
+	box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
 }
 
 .handle-marker.from {

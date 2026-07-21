@@ -1,6 +1,13 @@
+import { Option } from 'effect';
 import { html, type Html } from 'foldkit/html';
 import type { Message } from '../messages.ts';
-import { ClickedToggleDiffFocus, SubmittedFileSwitcher, ToggledBlameOverlay, ToggledRangeStack } from '../messages.ts';
+import {
+	ClickedToggleDiffFocus,
+	PressedTimelineResize,
+	SubmittedFileSwitcher,
+	ToggledBlameOverlay,
+	ToggledRangeStack,
+} from '../messages.ts';
 import type { Model } from '../model.ts';
 import { shortcutTooltip } from '../domain/timeline-shortcuts.ts';
 import {
@@ -151,9 +158,18 @@ function renderBodyOverlay(
 	);
 }
 
-export function timelineResizeHandle(): Html {
+export function timelineResizeHandle(model: Model): Html {
 	const h = html<Message>();
-	return h.div([h.Class('timeline-resize-handle'), h.Id('timelineResizeHandle')], []);
+	return h.div(
+		[
+			h.Class(`timeline-resize-handle${model.dragState._tag === 'DragTimelineResize' ? ' is-dragging' : ''}`),
+			h.Id('timelineResizeHandle'),
+			h.OnPointerDown((_pointerType, button, _sx, _sy, _ts, _clientX, clientY) =>
+				Option.some(PressedTimelineResize({ clientY, button })),
+			),
+		],
+		[],
+	);
 }
 
 export function diffPanel(model: Model): Html {

@@ -90,12 +90,23 @@ export function formatRevisionCount(count: number): string {
 	return `${count} ${count === 1 ? 'revision' : 'revisions'}`;
 }
 
-export function clampTooltipX(left: number): number {
+export function clampTooltipX(left: number, halfWidth = 180): number {
 	if (typeof window === 'undefined') {
 		return left;
 	}
 
-	return Math.min(window.innerWidth - 180, Math.max(180, left));
+	return Math.min(window.innerWidth - halfWidth, Math.max(halfWidth, left));
+}
+
+export function clampTooltipY(top: number, estimatedHeight = 160): number {
+	if (typeof window === 'undefined') {
+		return top;
+	}
+
+	const gap = 8;
+	const minTop = estimatedHeight + gap + 8;
+	const maxTop = window.innerHeight - 12;
+	return Math.min(maxTop, Math.max(minTop, top));
 }
 
 export function readAnchorEntryIndex(target: HTMLElement | null): number | null {

@@ -1,6 +1,6 @@
 import type { Model } from '../model.ts';
 
-function placeFixedBelowRight(trigger: HTMLElement, panel: HTMLElement, gap = 4): void {
+function placeFixedBelowRight(trigger: HTMLElement, panel: HTMLElement, gap = 4, zIndex = 1000): void {
 	const rect = trigger.getBoundingClientRect();
 	const panelWidth = Math.min(panel.offsetWidth || 260, window.innerWidth - 24);
 	const maxHeight = Math.min(window.innerHeight * 0.7, 520);
@@ -17,7 +17,7 @@ function placeFixedBelowRight(trigger: HTMLElement, panel: HTMLElement, gap = 4)
 	panel.style.bottom = 'auto';
 	panel.style.maxHeight = `${Math.round(maxHeight)}px`;
 	panel.style.width = `${Math.round(panelWidth)}px`;
-	panel.style.zIndex = '60';
+	panel.style.zIndex = String(zIndex);
 }
 
 /**
@@ -33,7 +33,7 @@ export function syncOverlayGeometry(model: Model): void {
 		const trigger = document.getElementById('toggleHotkeysButton');
 		const panel = document.getElementById('hotkeysPopover');
 		if (trigger instanceof HTMLElement && panel instanceof HTMLElement) {
-			placeFixedBelowRight(trigger, panel);
+			placeFixedBelowRight(trigger, panel, 4, 1100);
 			panel.style.width = `${Math.min(560, window.innerWidth - 24)}px`;
 		}
 	}
@@ -42,7 +42,7 @@ export function syncOverlayGeometry(model: Model): void {
 		const trigger = document.getElementById('viewMenuButton');
 		const panel = document.getElementById('viewMenu');
 		if (trigger instanceof HTMLElement && panel instanceof HTMLElement) {
-			placeFixedBelowRight(trigger, panel);
+			placeFixedBelowRight(trigger, panel, 4, 1000);
 			panel.style.width = `${Math.min(280, window.innerWidth - 24)}px`;
 		}
 	}
@@ -51,7 +51,7 @@ export function syncOverlayGeometry(model: Model): void {
 		const trigger = document.getElementById('actionsButton');
 		const panel = document.getElementById('actionsMenu');
 		if (trigger instanceof HTMLElement && panel instanceof HTMLElement) {
-			placeFixedBelowRight(trigger, panel);
+			placeFixedBelowRight(trigger, panel, 4, 1050);
 			panel.style.width = `${Math.min(220, window.innerWidth - 24)}px`;
 		}
 	}

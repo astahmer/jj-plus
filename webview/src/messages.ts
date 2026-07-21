@@ -85,6 +85,15 @@ export const PressedMarker = m('PressedMarker', {
 	button: S.Number,
 });
 export const PressedTrack = m('PressedTrack', { clientX: S.Number, button: S.Number });
+export const PressedSidebarResize = m('PressedSidebarResize', {
+	clientX: S.Number,
+	clientY: S.Number,
+	button: S.Number,
+});
+export const PressedTimelineResize = m('PressedTimelineResize', {
+	clientY: S.Number,
+	button: S.Number,
+});
 export const PointerMovedDuringDrag = m('PointerMovedDuringDrag', {
 	clientX: S.Number,
 	clientY: S.Number,
@@ -190,6 +199,8 @@ export const Message = S.Union([
 	PressedRangeFill,
 	PressedMarker,
 	PressedTrack,
+	PressedSidebarResize,
+	PressedTimelineResize,
 	PointerMovedDuringDrag,
 	ReleasedPointerDuringDrag,
 	MovedOverTrack,

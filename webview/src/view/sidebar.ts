@@ -48,7 +48,9 @@ function renderEntry(model: Model, entry: FileRevisionEntry): Html {
 		entry.index >= Math.min(pendingIndex, hoveredIndex) &&
 		entry.index <= Math.max(pendingIndex, hoveredIndex);
 
-	const markers = getEntryTimelineMarkers(entry);
+	const markers = getEntryTimelineMarkers(entry).filter(
+		(marker) => !(model.comparisonSource === 'snapshot' && marker.kind === 'operation'),
+	);
 	const isIntroduced = !entry.isWorkingTree && !entry.hasPreviousEntry;
 	const preview = getPreviewForEntry(model, entry.index);
 	const rowDiffCount = getEntryDiffCount(model, entry.index);
@@ -117,8 +119,6 @@ function renderEntry(model: Model, entry: FileRevisionEntry): Html {
 										),
 									)
 								: h.empty,
-							isFrom ? h.span([h.Class('mini-badge from')], ['FROM']) : h.empty,
-							isTo ? h.span([h.Class('mini-badge to')], ['TO']) : h.empty,
 						],
 					),
 					h.div(

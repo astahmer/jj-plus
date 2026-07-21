@@ -31,6 +31,19 @@ import {
 	DragIdle,
 	DragMarker,
 	DragRange,
+	DragSidebarResize,
+	DragTimelineResize,
+	isResponsiveLayout,
+	RESPONSIVE_SIDEBAR_COLLAPSE_THRESHOLD,
+	RESPONSIVE_SIDEBAR_MAX_HEIGHT,
+	RESPONSIVE_SIDEBAR_MIN_HEIGHT,
+	SIDEBAR_COLLAPSE_THRESHOLD,
+	SIDEBAR_MAX_WIDTH,
+	SIDEBAR_MIN_WIDTH,
+	SIDEBAR_REOPEN_THRESHOLD,
+	TIMELINE_COLLAPSED_HEIGHT,
+	TIMELINE_RESIZE_MAX_HEIGHT,
+	TIMELINE_RESIZE_MIN_HEIGHT,
 	TRACK_ANCHOR_DRAG_START_DISTANCE,
 	type DragState,
 } from './machine/drag.ts';
@@ -83,10 +96,6 @@ import type {
 } from './types.ts';
 
 const TIMELINE_EXPANDED_MIN_HEIGHT = 176;
-const SIDEBAR_MIN_WIDTH = 220;
-const SIDEBAR_MAX_WIDTH = 760;
-const RESPONSIVE_SIDEBAR_MIN_HEIGHT = 136;
-const RESPONSIVE_SIDEBAR_MAX_HEIGHT = 420;
 
 type UpdateReturn = readonly [Model, ReadonlyArray<Command.Command<Message>>];
 
@@ -104,6 +113,10 @@ function clampResponsiveSidebarHeight(height: number) {
 			? RESPONSIVE_SIDEBAR_MAX_HEIGHT
 			: Math.max(RESPONSIVE_SIDEBAR_MIN_HEIGHT, Math.min(RESPONSIVE_SIDEBAR_MAX_HEIGHT, window.innerHeight - 220));
 	return Math.max(RESPONSIVE_SIDEBAR_MIN_HEIGHT, Math.min(max, Math.round(height)));
+}
+
+function clampTimelinePaneHeight(height: number) {
+	return Math.max(TIMELINE_RESIZE_MIN_HEIGHT, Math.min(TIMELINE_RESIZE_MAX_HEIGHT, Math.round(height)));
 }
 
 function persistCommand(model: Model): Command.Command<Message> {
@@ -611,6 +624,109 @@ function beginRangeDrag(model: Model, clientX: number): UpdateReturn {
 	return [nextSelection, []];
 }
 
+function handlePressedSidebarResize(model: Model, clientX: number, clientY: number, button: number): UpdateReturn {
+	if (button !== 0) {
+		return [model, []];
+	}
+	const responsive = isResponsiveLayout();
+	return [
+		evo(model, {
+			dragState: (): DragState =>
+				DragSidebarResize({
+					startClientX: clientX,
+					startClientY: clientY,
+					startWidth: model.sidebarWidth,
+					startHeight: model.responsiveSidebarHeight,
+					wasCollapsed: model.sidebarCollapsed,
+					responsive,
+				}),
+		}),
+		[],
+	];
+}
+
+function handlePressedTimelineResize(model: Model, clientY: number, button: number): UpdateReturn {
+	if (button !== 0) {
+		return [model, []];
+	}
+	const startHeight = model.timelinePaneCollapsed ? TIMELINE_COLLAPSED_HEIGHT : model.timelinePaneHeight;
+	return [
+		evo(model, {
+			timelinePaneCollapsed: () => false as boolean,
+			dragState: (): DragState =>
+				DragTimelineResize({
+					startClientY: clientY,
+					startHeight,
+				}),
+		}),
+		[],
+	];
+}
+
+function applySidebarResize(
+	model: Model,
+	drag: typeof DragSidebarResize.Type,
+	clientX: number,
+	clientY: number,
+): UpdateReturn {
+	if (drag.responsive) {
+		const delta = clientY - drag.startClientY;
+		if (drag.startHeight + delta < RESPONSIVE_SIDEBAR_COLLAPSE_THRESHOLD) {
+			return [evo(model, { sidebarCollapsed: () => true as boolean }), []];
+		}
+		return [
+			evo(model, {
+				sidebarCollapsed: () => false as boolean,
+				responsiveSidebarHeight: () => clampResponsiveSidebarHeight(drag.startHeight + delta),
+			}),
+			[],
+		];
+	}
+
+	const delta = clientX - drag.startClientX;
+	if (drag.wasCollapsed) {
+		if (delta < SIDEBAR_REOPEN_THRESHOLD) {
+			return [model, []];
+		}
+		return [
+			evo(model, {
+				sidebarCollapsed: () => false as boolean,
+				sidebarWidth: () => clampSidebarWidth(SIDEBAR_MIN_WIDTH + (delta - SIDEBAR_REOPEN_THRESHOLD)),
+			}),
+			[],
+		];
+	}
+
+	if (drag.startWidth + delta < SIDEBAR_COLLAPSE_THRESHOLD) {
+		return [
+			evo(model, {
+				sidebarCollapsed: () => true as boolean,
+				dragState: (): DragState => DragIdle(),
+			}),
+			[],
+		];
+	}
+
+	return [
+		evo(model, {
+			sidebarCollapsed: () => false as boolean,
+			sidebarWidth: () => clampSidebarWidth(drag.startWidth + delta),
+		}),
+		[],
+	];
+}
+
+function applyTimelineResize(model: Model, drag: typeof DragTimelineResize.Type, clientY: number): UpdateReturn {
+	const delta = clientY - drag.startClientY;
+	return [
+		evo(model, {
+			timelinePaneHeight: () => clampTimelinePaneHeight(drag.startHeight + delta),
+			timelinePaneCollapsed: () => false as boolean,
+		}),
+		[],
+	];
+}
+
 function handlePointerMovedDuringDrag(model: Model, clientX: number, clientY: number): UpdateReturn {
 	return M.value(model.dragState).pipe(
 		M.withReturnType<UpdateReturn>(),
@@ -648,6 +764,8 @@ function handlePointerMovedDuringDrag(model: Model, clientX: number, clientY: nu
 			},
 			DragRange: (drag) => applyRangeShift(model, drag, clientX),
 			DragMarker: (drag) => applyMarkerShift(model, drag.side, clientX),
+			DragSidebarResize: (drag) => applySidebarResize(model, drag, clientX, clientY),
+			DragTimelineResize: (drag) => applyTimelineResize(model, drag, clientY),
 		}),
 	);
 }
@@ -656,11 +774,15 @@ function handleReleasedPointerDuringDrag(model: Model): UpdateReturn {
 	if (model.dragState._tag === 'DragIdle') {
 		return [model, []];
 	}
-	const wasRangeOrMarker = model.dragState._tag === 'DragRange' || model.dragState._tag === 'DragMarker';
+	const wasLayoutResize =
+		model.dragState._tag === 'DragRange' ||
+		model.dragState._tag === 'DragMarker' ||
+		model.dragState._tag === 'DragSidebarResize' ||
+		model.dragState._tag === 'DragTimelineResize';
 	const next = evo(model, {
 		dragState: (): DragState => DragIdle(),
 	});
-	if (wasRangeOrMarker) {
+	if (wasLayoutResize) {
 		return afterMutate(next, [persistCommand(next)]);
 	}
 	return [next, []];
@@ -1689,6 +1811,9 @@ export function update(model: Model, message: Message): UpdateReturn {
 			PressedRangeFill: ({ clientX, button }) => handlePressedRangeFill(model, clientX, button),
 			PressedMarker: ({ side, clientX, button }) => handlePressedMarker(model, side, clientX, button),
 			PressedTrack: ({ clientX, button }) => handlePressedTrack(model, clientX, button),
+			PressedSidebarResize: ({ clientX, clientY, button }) =>
+				handlePressedSidebarResize(model, clientX, clientY, button),
+			PressedTimelineResize: ({ clientY, button }) => handlePressedTimelineResize(model, clientY, button),
 			PointerMovedDuringDrag: ({ clientX, clientY }) => handlePointerMovedDuringDrag(model, clientX, clientY),
 			ReleasedPointerDuringDrag: () => handleReleasedPointerDuringDrag(model),
 			SelectedFileSwitcherMode: ({ value }) => afterMutate(evo(model, { fileSwitcherMode: () => value })),

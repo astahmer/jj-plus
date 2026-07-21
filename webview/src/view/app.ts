@@ -1,5 +1,8 @@
+import { Option } from 'effect';
 import { html, type Html } from 'foldkit/html';
+import { TIMELINE_COLLAPSED_HEIGHT } from '../machine/drag.ts';
 import type { Message } from '../messages.ts';
+import { PressedSidebarResize } from '../messages.ts';
 import type { Model } from '../model.ts';
 import { queuePierreFileDiffSync } from '../pierre/file-diff-host.ts';
 import { diffPanel, timelineResizeHandle } from './diff-panel.ts';
@@ -9,8 +12,6 @@ import { sessionLoadingOverlay } from './session-loading.ts';
 import { sidebar } from './sidebar.ts';
 import { timelinePane } from './timeline-pane.ts';
 import { trackTooltip } from './tooltip.ts';
-
-const TIMELINE_COLLAPSED_HEIGHT = 128;
 
 export function view(model: Model): Html {
 	if (typeof window !== 'undefined') {
@@ -40,8 +41,20 @@ export function view(model: Model): Html {
 				[h.Class(workspaceClasses)],
 				[
 					sidebar(model),
-					h.div([h.Class('resize-handle'), h.Id('resizeHandle')], []),
-					h.section([h.Class('panel diff-panel')], [timelinePane(model), timelineResizeHandle(), diffPanel(model)]),
+					h.div(
+						[
+							h.Class(`resize-handle${model.dragState._tag === 'DragSidebarResize' ? ' is-dragging' : ''}`),
+							h.Id('resizeHandle'),
+							h.OnPointerDown((_pointerType, button, _sx, _sy, _ts, clientX, clientY) =>
+								Option.some(PressedSidebarResize({ clientX, clientY, button })),
+							),
+						],
+						[],
+					),
+					h.section(
+						[h.Class('panel diff-panel')],
+						[timelinePane(model), timelineResizeHandle(model), diffPanel(model)],
+					),
 				],
 			),
 			trackTooltip(model),
