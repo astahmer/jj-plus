@@ -111,6 +111,26 @@ async function launchStandaloneTimeline(options: ReturnType<typeof parseTimeline
 		throw new Error(`File not found: ${absoluteFilePath}`);
 	}
 
+	if (options.json) {
+		const { createCommandRunner } = await import('./extension/command-runner.ts');
+		const { createTimelineService } = await import('./extension/timeline-service.ts');
+		const { buildTimelineJsonSummary } = await import('./cli/timeline-json.ts');
+		const runner = createCommandRunner();
+		const service = createTimelineService({ runner });
+		const session = await service.buildSession({
+			workspacePath,
+			absolutePath: absoluteFilePath,
+		});
+		const summary = buildTimelineJsonSummary({
+			backend: session.backend,
+			relativePath: session.relativePath,
+			workspacePath: session.workspacePath,
+			entries: session.entries,
+		});
+		process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
+		return;
+	}
+
 	const { startStandaloneTimelineServer } = await import('./standalone/server.ts');
 	const server = await startStandaloneTimelineServer({
 		workspacePath,

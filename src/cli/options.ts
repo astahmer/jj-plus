@@ -18,6 +18,7 @@ type TimelineCliOptions = {
 	help: boolean;
 	filePath?: string;
 	open: boolean;
+	json: boolean;
 	port: number;
 	verbose: boolean;
 	workspacePath?: string;
@@ -179,6 +180,7 @@ export function parseTimelineArgs(argv: string[]): TimelineCliOptions {
 		help: false,
 		filePath: undefined,
 		open: true,
+		json: false,
 		port: 0,
 		verbose: false,
 		workspacePath: undefined,
@@ -189,6 +191,12 @@ export function parseTimelineArgs(argv: string[]): TimelineCliOptions {
 
 		if (arg === '-h' || arg === '--help') {
 			options.help = true;
+			continue;
+		}
+
+		if (arg === '--json') {
+			options.json = true;
+			options.open = false;
 			continue;
 		}
 
@@ -320,6 +328,7 @@ export function usage(): string {
 		'',
 		'Standalone Timeline Options:',
 		'  -f, --file <path>                File path inside the workspace (or absolute path)',
+		'      --json                       Print timeline metadata JSON to stdout (implies --no-open)',
 		'      --no-open                    Start the local server without opening the browser',
 		'      --port <port>                Preferred local port (default: random free port)',
 		'  -w, --workspace <path>           Workspace path containing the file (default: cwd)',

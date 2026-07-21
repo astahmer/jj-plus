@@ -39,9 +39,22 @@ test('parseTimelineArgs accepts positional files and standalone-specific options
 		help: false,
 		filePath: 'README.md',
 		open: false,
+		json: false,
 		port: 4123,
 		verbose: false,
 		workspacePath: '/tmp/repo',
+	});
+});
+
+test('parseTimelineArgs --json implies --no-open', () => {
+	assert.deepEqual(parseTimelineArgs(['--json', 'src/a.ts']), {
+		help: false,
+		filePath: 'src/a.ts',
+		open: false,
+		json: true,
+		port: 0,
+		verbose: false,
+		workspacePath: undefined,
 	});
 });
 
