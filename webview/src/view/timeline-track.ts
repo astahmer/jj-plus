@@ -1,6 +1,7 @@
 import { Option } from 'effect';
 import { html, type Html } from 'foldkit/html';
 import { getTimelineAnchorPercent } from '../domain/timeline-model.ts';
+import { churnFromDiffCount, normalizeTrackChurnBars } from '../domain/track-churn.ts';
 import type { Message } from '../messages.ts';
 import {
 	ClickedStepBackward,
@@ -17,8 +18,7 @@ import {
 } from '../messages.ts';
 import type { Model } from '../model.ts';
 import { canStepBackward, canStepForward } from '../update.ts';
-import { getPendingSelectionIndex, getVisibleEntries } from '../selectors.ts';
-import { getSelectionMeta } from '../selectors.ts';
+import { getEntryDiffCount, getPendingSelectionIndex, getSelectionMeta, getVisibleEntries } from '../selectors.ts';
 
 export function timelineTrack(model: Model): Html {
 	const h = html<Message>();
@@ -31,6 +31,13 @@ export function timelineTrack(model: Model): Html {
 	const toVisibleIndex = visible.findIndex((entry) => entry.index === model.toIndex);
 	const fromPercent = getTimelineAnchorPercent(visible, fromVisibleIndex);
 	const toPercent = getTimelineAnchorPercent(visible, toVisibleIndex);
+	const churnBars = normalizeTrackChurnBars(
+		visible.map((entry) => ({
+			entryIndex: entry.index,
+			churn: churnFromDiffCount(getEntryDiffCount(model, entry.index) ?? undefined),
+		})),
+	);
+	const churnByIndex = new Map(churnBars.map((bar) => [bar.entryIndex, bar]));
 
 	return h.div(
 		[h.Class('timeline-row')],
@@ -83,6 +90,7 @@ export function timelineTrack(model: Model): Html {
 								hoveredIndex !== null &&
 								entry.index >= Math.min(pending, hoveredIndex) &&
 								entry.index <= Math.max(pending, hoveredIndex);
+							const churn = churnByIndex.get(entry.index);
 							const classes = [
 								'track-anchor',
 								inRange ? 'in-range' : '',
@@ -90,15 +98,23 @@ export function timelineTrack(model: Model): Html {
 								isFrom ? 'is-from' : '',
 								isTo ? 'is-to' : '',
 								!entry.touchesFile ? 'is-intermediate' : '',
+								churn && churn.churn > 0 ? 'has-churn' : '',
 							]
 								.filter(Boolean)
 								.join(' ');
+							const heightPx = 4 + Math.round((churn?.heightFactor ?? 0.2) * 14);
 							return h.keyed('button')(
 								`anchor-${entry.index}:${entry.id}`,
 								[
 									h.Class(classes),
-									h.Style({ left: `${percent}%` }),
+									h.Style({
+										left: `${percent}%`,
+										height: `${heightPx}px`,
+										width: `${Math.max(4, Math.round(heightPx / 2))}px`,
+									}),
 									h.DataAttribute('entry-index', String(entry.index)),
+									h.DataAttribute('churn', String(churn?.churn ?? 0)),
+									h.DataAttribute('churn-factor', String(churn?.heightFactor ?? 0.2)),
 									h.Type('button'),
 									h.OnClick(ClickedTrackAnchor({ entryIndex: entry.index })),
 									h.OnPointerDown((_pointerType, button, _sx, _sy, _ts, clientX, clientY) =>

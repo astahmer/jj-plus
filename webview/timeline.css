@@ -1437,9 +1437,13 @@ kbd {
 	padding: 0;
 	background: var(--muted);
 	box-shadow: none;
-	will-change: left, transform;
+	will-change: left, transform, height, width;
 	cursor: pointer;
 	z-index: 3;
+}
+
+.track-anchor.has-churn {
+	background: color-mix(in srgb, var(--accent-alt) 70%, var(--muted));
 }
 
 .track-anchor::after {
