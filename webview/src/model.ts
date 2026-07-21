@@ -85,7 +85,7 @@ export const initialModel: Model = {
 	sidebarWidth: 280,
 	sidebarCollapsed: false,
 	responsiveSidebarHeight: 248,
-	timelinePaneHeight: 278,
+	timelinePaneHeight: 220,
 	timelinePaneCollapsed: false,
 	diffFocusMode: false,
 	actionsMenuOpen: false,

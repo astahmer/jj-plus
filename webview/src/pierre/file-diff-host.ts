@@ -153,6 +153,8 @@ function ensurePortal(): HTMLElement {
 function observeSlot(): void {
 	const slot = document.getElementById(PIERRE_SLOT_ID);
 	const rows = document.getElementById('diffRows');
+	const content = document.querySelector('.diff-content');
+	const workspace = document.querySelector('.workspace');
 	if (!(slot instanceof HTMLElement)) {
 		return;
 	}
@@ -167,6 +169,12 @@ function observeSlot(): void {
 	slotObserver.observe(slot);
 	if (rows instanceof HTMLElement) {
 		slotObserver.observe(rows);
+	}
+	if (content instanceof HTMLElement) {
+		slotObserver.observe(content);
+	}
+	if (workspace instanceof HTMLElement) {
+		slotObserver.observe(workspace);
 	}
 	bindGeometryListeners();
 }
@@ -185,9 +193,11 @@ function syncPortalGeometry(visible: boolean): void {
 	const portal = ensurePortal();
 	const slot = document.getElementById(PIERRE_SLOT_ID);
 	const rows = document.getElementById('diffRows');
+	const content = document.querySelector('.diff-content');
 	if (!(slot instanceof HTMLElement) || !visible) {
 		portal.hidden = true;
 		portal.classList.add('is-pending');
+		portal.style.removeProperty('--pierre-portal-height');
 		return;
 	}
 
@@ -195,12 +205,18 @@ function syncPortalGeometry(visible: boolean): void {
 	// VS Code webviews), fill the remaining viewport under the diff chrome.
 	const slotRect = slot.getBoundingClientRect();
 	const rowsRect = rows instanceof HTMLElement ? rows.getBoundingClientRect() : slotRect;
-	const top = Math.round(Math.max(slotRect.top, rowsRect.top + 6));
-	const left = Math.round(rowsRect.left);
-	const width = Math.max(0, Math.round(rowsRect.width));
+	const contentRect = content instanceof HTMLElement ? content.getBoundingClientRect() : rowsRect;
+	const top = Math.round(Math.max(slotRect.top, rowsRect.top, contentRect.top + 4));
+	const left = Math.round(Math.min(rowsRect.left, contentRect.left));
+	const width = Math.max(0, Math.round(Math.max(rowsRect.width, contentRect.width)));
 	const viewportBottom = Math.round(window.visualViewport?.height ?? window.innerHeight);
-	const heightFromLayout = Math.max(0, Math.round(Math.max(slotRect.height, rowsRect.bottom - top)));
-	const heightFromViewport = Math.max(0, viewportBottom - top - 8);
+	const heightFromLayout = Math.max(
+		0,
+		Math.round(Math.max(slotRect.height, rowsRect.bottom - top, contentRect.bottom - top)),
+	);
+	const heightFromViewport = Math.max(0, viewportBottom - top - 4);
+	// Always prefer filling to the viewport bottom so a collapsed grid chain
+	// cannot leave a black void under a content-sized Pierre strip.
 	const height = Math.max(heightFromLayout, heightFromViewport);
 
 	portal.hidden = width < 2 || height < 2;
@@ -209,6 +225,7 @@ function syncPortalGeometry(visible: boolean): void {
 	portal.style.top = `${top}px`;
 	portal.style.width = `${width}px`;
 	portal.style.height = `${height}px`;
+	portal.style.setProperty('--pierre-portal-height', `${height}px`);
 }
 
 function buildOptions(layoutMode: LayoutMode, contentMode: ContentMode, themeType: 'dark' | 'light') {
@@ -226,9 +243,11 @@ function buildOptions(layoutMode: LayoutMode, contentMode: ContentMode, themeTyp
 		unsafeCSS: `
 			:host {
 				display: block !important;
-				height: 100% !important;
+				height: var(--pierre-portal-height, 100%) !important;
 				min-height: 0 !important;
+				max-height: var(--pierre-portal-height, 100%) !important;
 				overflow: hidden !important;
+				box-sizing: border-box !important;
 			}
 			pre {
 				height: 100% !important;
@@ -239,9 +258,10 @@ function buildOptions(layoutMode: LayoutMode, contentMode: ContentMode, themeTyp
 			[data-diff-type='split'][data-overflow='scroll'] {
 				height: 100% !important;
 				min-height: 0 !important;
+				max-height: 100% !important;
 			}
-			/* Bound the panes to the portal, but keep line rows natural height.
-			   Default align-content:stretch expands each row to fill leftover space. */
+			/* Pierre defaults [data-code] to align-self:flex-start (content height).
+			   Stretch panes to the portal so the scroll viewport fills available space. */
 			[data-diff-type='split'][data-overflow='scroll'] > [data-code],
 			[data-diff-type='split'][data-overflow='scroll'] > code {
 				align-self: stretch !important;

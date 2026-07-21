@@ -661,7 +661,7 @@ test('normalizeTimelinePreferences restores missing values to the persisted defa
 	assert.deepEqual(normalizeTimelinePreferences({ sidebarCollapsed: true, comparisonSource: 'snapshot' }), {
 		sidebarWidth: 276,
 		sidebarCollapsed: true,
-		timelinePaneHeight: 278,
+		timelinePaneHeight: 220,
 		timelinePaneCollapsed: false,
 		layoutMode: 'split',
 		contentMode: 'diffs',

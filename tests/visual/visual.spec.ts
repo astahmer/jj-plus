@@ -42,14 +42,16 @@ async function openFixture(page: Page, fixture: string) {
 		const rows = document.getElementById('diffRows');
 		const container = portal?.querySelector('diffs-container');
 		const lines = [...(container?.shadowRoot?.querySelectorAll('[data-line]') ?? [])] as HTMLElement[];
+		const viewportH = Math.round(window.visualViewport?.height ?? window.innerHeight);
 		return {
+			viewportH,
 			portalH: portal ? Math.round(portal.getBoundingClientRect().height) : 0,
 			rowsH: rows ? Math.round(rows.getBoundingClientRect().height) : 0,
 			maxLineH: Math.max(0, ...lines.map((line) => Math.round(line.getBoundingClientRect().height))),
 		};
 	});
-	expect(layout.portalH).toBeGreaterThan(300);
-	expect(layout.rowsH).toBeGreaterThan(300);
+	expect(layout.portalH).toBeGreaterThan(layout.viewportH * 0.4);
+	expect(layout.rowsH).toBeGreaterThan(layout.viewportH * 0.4);
 	expect(layout.maxLineH).toBeLessThan(40);
 
 	if (fixture === 'jj-basic') {
