@@ -127,6 +127,17 @@ Feature: Revision timeline coverage
     When I search revisions for ""
     Then I should see 4 sidebar revisions
 
+  Scenario: Structured sidebar search supports field filters and OR
+    Given I open the standalone revision timeline app for fixture "git-basic"
+    When I toggle the in-between revisions filter
+    Then I should see 4 sidebar revisions
+    When I search revisions for "revset:f406f829 OR revset:235489e2"
+    Then I should see 2 sidebar revisions
+    When I search revisions for "author:Nobody"
+    Then I should see 0 sidebar revisions
+    When I search revisions for ""
+    Then I should see 4 sidebar revisions
+
   Scenario: Selecting the Last 7D preset keeps a usable selected range
     Given I open the standalone revision timeline app for fixture "git-basic"
     When I select the preset "Last 7D"

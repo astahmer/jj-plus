@@ -1,5 +1,6 @@
 import type { Model } from './model.ts';
 import { filterEntries, buildPreviewKey, buildRangeOverviewKey } from './domain/timeline-selection.ts';
+import { filterEntriesBySidebarSearch } from '../../src/shared/sidebar-search.ts';
 import {
 	getEntriesForSource,
 	getPendingSelectionRange,
@@ -58,27 +59,7 @@ export function getPresetEntries(model: Model): Array<FileRevisionEntry> {
 
 export function getFilteredSidebarEntries(model: Model): Array<FileRevisionEntry> {
 	const visible = getVisibleEntries(model);
-	const query = model.sidebarSearchQuery.trim().toLowerCase();
-	const filtered = !query
-		? visible
-		: visible.filter((entry) =>
-				[
-					entry.shortRevision,
-					entry.description,
-					entry.changeId,
-					...(entry.bookmarkNames || []),
-					...(entry.branchNames || []),
-					entry.shortDate,
-					entry.authorName,
-					entry.operationId,
-					entry.operationIndex,
-					entry.operationKey,
-					entry.monthLabel,
-				]
-					.filter(Boolean)
-					.some((value) => String(value).toLowerCase().includes(query)),
-			);
-
+	const filtered = filterEntriesBySidebarSearch(visible, model.sidebarSearchQuery);
 	return model.oldestFirst ? filtered : filtered.toReversed();
 }
 

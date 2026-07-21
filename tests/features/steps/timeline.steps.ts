@@ -39,7 +39,7 @@ When('I toggle the in-between revisions filter', async ({ page }) => {
 });
 
 When('I search revisions for {string}', async ({ page }, value: string) => {
-	await page.getByPlaceholder('Search revisions').fill(value);
+	await page.locator('#sidebarSearchInput').fill(value);
 });
 
 Then('I should see {int} sidebar revision', async ({ page }, count: number) => {
