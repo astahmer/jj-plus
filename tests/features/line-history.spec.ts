@@ -9,8 +9,7 @@ test.describe('line history filter', () => {
 		const banner = page.locator('#lineHistoryBanner');
 		await expect(banner).toBeVisible();
 		await expect(banner).toContainText('Lines 2–5');
-		await expect(page.locator('#clearLineHistoryButton')).toBeVisible();
-
+		await expect(page.locator('#clearLineHistoryButton')).toContainText('Show full file timeline');
 		await page.locator('#clearLineHistoryButton').click();
 		await expect(banner).toHaveCount(0);
 		await expect(page.getByText('Revision Timeline')).toBeVisible();

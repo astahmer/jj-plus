@@ -81,12 +81,12 @@
 			{
 				"command": "jj-range-diff.openChangesWithPrevious",
 				"title": "jjplus: Open Changes with Previous Revision",
-				"icon": "$(diff)"
+				"icon": "$(history)"
 			},
 			{
 				"command": "jj-range-diff.openFileRevisionTimeline",
 				"title": "jjplus: Open Revision Timeline",
-				"icon": "$(history)"
+				"icon": "$(diff)"
 			},
 			{
 				"command": "jj-range-diff.openFileLineTimeline",

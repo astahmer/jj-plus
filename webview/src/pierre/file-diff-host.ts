@@ -345,6 +345,10 @@ function syncPierreFileDiff(args: PierreDiffSyncArgs): void {
 	});
 
 	const filesChanged = nextOldFile !== lastOldFile || nextNewFile !== lastNewFile;
+	const blameSignaturePreview = `${args.blameOverlayOpen ? 'on' : 'off'}:${args.heatmapOpen ? 'heat' : 'noheat'}:${args.blameLines
+		.map((line) => `${line.line}:${line.revision}:${line.authorTimestamp ?? ''}`)
+		.join('|')}`;
+	const blameChanged = blameSignaturePreview !== lastBlameSignature;
 
 	// Size the portal before FileDiff paints so --pierre-portal-height is real
 	// on first shadow stylesheet application (avoids height:100% collapse).
@@ -371,12 +375,12 @@ function syncPierreFileDiff(args: PierreDiffSyncArgs): void {
 		fileDiff.setOptions(options);
 	}
 
-	if (filesChanged || optionsChanged || portal.childElementCount === 0) {
+	if (filesChanged || optionsChanged || blameChanged || portal.childElementCount === 0) {
 		fileDiff.render({
 			oldFile: nextOldFile,
 			newFile: nextNewFile,
 			containerWrapper: portal,
-			forceRender: optionsChanged,
+			forceRender: optionsChanged || blameChanged,
 		});
 	}
 

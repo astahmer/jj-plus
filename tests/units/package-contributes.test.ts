@@ -24,5 +24,7 @@ test('package.json command titles use jjplus: prefix and editor title actions', 
 	assert.ok(titleCommands.includes('jj-range-diff.openFileRevisionTimeline'));
 
 	const previous = pkg.contributes.commands.find((entry) => entry.command === 'jj-range-diff.openChangesWithPrevious');
-	assert.ok(previous?.icon);
+	const timeline = pkg.contributes.commands.find((entry) => entry.command === 'jj-range-diff.openFileRevisionTimeline');
+	assert.equal(previous?.icon, '$(history)');
+	assert.equal(timeline?.icon, '$(diff)');
 });

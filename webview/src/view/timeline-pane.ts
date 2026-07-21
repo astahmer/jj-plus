@@ -134,7 +134,7 @@ export function timelinePane(model: Model): Html {
 									h.AriaLabel('Clear line history filter'),
 									h.OnClick(ClickedClearLineHistory()),
 								],
-								['Show full history'],
+								['Show full file timeline'],
 							),
 						],
 					)

@@ -25,6 +25,7 @@ import {
 } from './constants.ts';
 import { createCurrentLineBlameLens, createTimelineBlameHoverProvider } from './blame-codelens.ts';
 import { resolveHistoryAdapter, resolveHistoryWorkspacePath } from './history-adapters.ts';
+import { coerceFsPath, resolveCommandFilePath } from './resolve-file-path.ts';
 import { createTimelinePanelController } from './timeline-panel.ts';
 import { createTimelineService, normalizeTimelinePreferences } from './timeline-service.ts';
 import {
@@ -256,9 +257,8 @@ export function activate(context: vscode.ExtensionContext): void {
 		}
 	};
 
-	const openChangesWithPrevious = async (absolutePathArg?: string) => {
-		const editor = vscode.window.activeTextEditor;
-		const absolutePath = absolutePathArg || editor?.document.uri.fsPath;
+	const openChangesWithPrevious = async (arg?: unknown) => {
+		const absolutePath = resolveCommandFilePath(arg);
 		if (!absolutePath) {
 			void vscode.window.showErrorMessage('Open a workspace file to diff against the previous revision');
 			return;
@@ -328,11 +328,11 @@ export function activate(context: vscode.ExtensionContext): void {
 		vscode.workspace.registerTextDocumentContentProvider('jj-range-diff', provider),
 		vscode.commands.registerCommand(HELPER_COMMAND, openRangeMultiDiff),
 		vscode.commands.registerCommand(OPEN_FILE_RANGE_DIFF_COMMAND, openFileRangeDiff),
-		vscode.commands.registerCommand(OPEN_CHANGES_WITH_PREVIOUS_COMMAND, (absolutePath?: string) =>
-			openChangesWithPrevious(absolutePath),
+		vscode.commands.registerCommand(OPEN_CHANGES_WITH_PREVIOUS_COMMAND, (arg?: unknown) =>
+			openChangesWithPrevious(arg),
 		),
-		vscode.commands.registerCommand(OPEN_FILE_TIMELINE_COMMAND, (absolutePath?: string) =>
-			panelController.openFileRevisionTimeline({ context, absolutePath }),
+		vscode.commands.registerCommand(OPEN_FILE_TIMELINE_COMMAND, (arg?: unknown) =>
+			panelController.openFileRevisionTimeline({ context, absolutePath: resolveCommandFilePath(arg) }),
 		),
 		vscode.commands.registerCommand(OPEN_FILE_LINE_TIMELINE_COMMAND, async () => {
 			const editor = vscode.window.activeTextEditor;

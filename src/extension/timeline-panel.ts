@@ -14,6 +14,7 @@ import type {
 import { revisionMatchesBlame } from '../shared/blame.ts';
 import { formatStatusBarLineHistoryChip } from '../shared/line-history.ts';
 import { CLEAR_LINE_HISTORY_COMMAND, OPEN_MULTI_DIFF_COMMAND, TIMELINE_PRESET_DAYS } from './constants.ts';
+import { coerceFsPath } from './resolve-file-path.ts';
 import { createTimelineService } from './timeline-service.ts';
 import { createSnapshotUri } from './uri-utils.ts';
 import type { ExtensionTimelineSession, TimelineDebugState, TimelinePanelController } from './types.ts';
@@ -109,9 +110,10 @@ async function buildSelectedEntryMultiDiffPlan(request: {
 	};
 }
 
-async function resolveTimelineSourcePath(request: { absolutePath?: string }): Promise<string | undefined> {
-	if (request.absolutePath) {
-		return request.absolutePath;
+async function resolveTimelineSourcePath(request: { absolutePath?: unknown }): Promise<string | undefined> {
+	const coerced = coerceFsPath(request.absolutePath);
+	if (coerced) {
+		return coerced;
 	}
 
 	const activeEditor = vscode.window.activeTextEditor;
