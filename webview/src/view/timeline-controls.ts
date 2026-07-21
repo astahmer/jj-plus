@@ -233,11 +233,16 @@ export function timelineControls(model: Model): Html {
 													h.Class(`segmented-toggle${model.heatmapOpen ? ' active' : ''}`),
 													h.Id('heatmapToggle'),
 													h.Type('button'),
-													h.AriaLabel(model.heatmapOpen ? 'Hide blame heatmap' : 'Show blame heatmap'),
+													h.AriaLabel('Blame heatmap'),
 													h.AriaPressed(String(model.heatmapOpen)),
+													h.Title(
+														model.heatmapOpen
+															? 'Heatmap on — newer blame ages glow hotter on the after side'
+															: 'Heatmap off — turn on to color after-side lines by blame recency',
+													),
 													h.OnClick(ToggledHeatmap()),
 												],
-												[model.heatmapOpen ? 'Heatmap on' : 'Heatmap'],
+												['Heatmap'],
 											),
 										],
 									),
@@ -250,8 +255,13 @@ export function timelineControls(model: Model): Html {
 													h.Class(`segmented-toggle${model.showIntermediateRevisions ? ' active' : ''}`),
 													h.Id('intermediateToggle'),
 													h.Type('button'),
-													h.AriaLabel(model.showIntermediateRevisions ? 'Hide In-Between' : 'Show In-Between'),
+													h.AriaLabel('In-Between revisions'),
 													h.AriaPressed(String(model.showIntermediateRevisions)),
+													h.Title(
+														model.showIntermediateRevisions
+															? 'In-Between on — showing revisions that did not touch this file'
+															: 'In-Between off — only revisions that touched this file',
+													),
 													h.Disabled(!hasIntermediate),
 													h.OnClick(ToggledIntermediate()),
 												],

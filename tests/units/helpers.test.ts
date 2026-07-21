@@ -635,9 +635,9 @@ test('timeline model derives the pending selection range from the anchored start
 });
 
 test('timeline model formats the in-between toggle label with visible and total counts', () => {
-	assert.equal(getIntermediateToggleLabel(5, 9, false), 'Show In-Between 5/9');
-	assert.equal(getIntermediateToggleLabel(9, 9, true), 'Hide In-Between 9/9');
-	assert.equal(getIntermediateToggleLabel(0, 0, false), 'Show In-Between');
+	assert.equal(getIntermediateToggleLabel(5, 9, false), 'In-Between 5/9');
+	assert.equal(getIntermediateToggleLabel(9, 9, true), 'In-Between 9/9');
+	assert.equal(getIntermediateToggleLabel(0, 0, false), 'In-Between');
 });
 
 test('timeline model positions anchors with equal spacing across visible entries', () => {

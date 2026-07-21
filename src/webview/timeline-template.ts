@@ -85,7 +85,7 @@ function renderTimelineBodyHtml(): string {
                   <div class="segmented" id="comparisonSources"></div>
                   <div class="segmented" id="layoutModes"></div>
                   <div class="segmented" id="contentModes"></div>
-                  <button class="toggle-chip" id="intermediateToggle" type="button">Show In-Between</button>
+                  <button class="toggle-chip" id="intermediateToggle" type="button" aria-label="In-Between revisions">In-Between</button>
                   <div class="segmented" id="presets"></div>
                 </div>
               </div>

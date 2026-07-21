@@ -22,19 +22,21 @@ test('toggle sidebar collapses the workspace chrome', () => {
 	);
 });
 
-test('toggle intermediate flips the accessible label and re-syncs', () => {
+test('toggle intermediate keeps a stable label and flips pressed state', () => {
 	const ready = hydratedModel();
 
 	Scene.scene(
 		program,
 		Scene.with(ready),
-		Scene.expect(Scene.role('button', { name: 'Show In-Between' })).toBeEnabled(),
-		Scene.click(Scene.role('button', { name: 'Show In-Between' })),
+		Scene.expect(Scene.role('button', { name: 'In-Between revisions' })).toBeEnabled(),
+		Scene.expect(Scene.selector('#intermediateToggle')).toContainText('In-Between'),
+		Scene.click(Scene.role('button', { name: 'In-Between revisions' })),
 		Scene.Command.resolveAll(...hostCommandResolvers()),
-		Scene.expect(Scene.role('button', { name: 'Hide In-Between' })).toExist(),
-		Scene.click(Scene.role('button', { name: 'Hide In-Between' })),
+		Scene.expect(Scene.selector('#intermediateToggle[aria-pressed="true"]')).toExist(),
+		Scene.expect(Scene.selector('#intermediateToggle')).toContainText('In-Between'),
+		Scene.click(Scene.role('button', { name: 'In-Between revisions' })),
 		Scene.Command.resolveAll(...hostCommandResolvers()),
-		Scene.expect(Scene.role('button', { name: 'Show In-Between' })).toExist(),
+		Scene.expect(Scene.selector('#intermediateToggle[aria-pressed="false"]')).toExist(),
 	);
 });
 

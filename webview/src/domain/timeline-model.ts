@@ -225,14 +225,13 @@ export function getPendingSelectionRange(
 export function getIntermediateToggleLabel(
 	visibleCount: number,
 	totalCount: number,
-	showIntermediateRevisions: boolean,
+	_showIntermediateRevisions?: boolean,
 ): string {
-	const action = showIntermediateRevisions ? 'Hide' : 'Show';
 	const safeTotal = Math.max(0, totalCount);
 	if (!safeTotal) {
-		return `${action} In-Between`;
+		return 'In-Between';
 	}
 
 	const safeVisibleCount = Math.min(Math.max(0, visibleCount), safeTotal);
-	return `${action} In-Between ${safeVisibleCount}/${safeTotal}`;
+	return `In-Between ${safeVisibleCount}/${safeTotal}`;
 }

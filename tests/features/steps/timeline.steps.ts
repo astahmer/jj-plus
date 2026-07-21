@@ -387,7 +387,12 @@ async function getTestState(page: Page) {
 }
 
 function buttonByName(page: Page, value: string) {
-	if (value === 'Show In-Between' || value === 'Hide In-Between') {
+	if (
+		value === 'Show In-Between' ||
+		value === 'Hide In-Between' ||
+		value === 'In-Between revisions' ||
+		value === 'In-Between'
+	) {
 		return page.locator('#intermediateToggle');
 	}
 

@@ -28,8 +28,8 @@ Feature: Revision timeline app
     When I toggle the in-between revisions filter
     Then I should see the range count "2/5 snapshots"
     And I should see 5 sidebar revisions
-    And the button "Show In-Between" should not be active
-    And the in-between toggle should contain "Show In-Between 5/7"
+    And the button "In-Between revisions" should not be active
+    And the in-between toggle should contain "In-Between 5/7"
 
   Scenario: Switching the comparison source updates the preview mode
     Given I open the standalone revision timeline app for fixture "jj-basic"

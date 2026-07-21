@@ -254,19 +254,20 @@ export function diffPanel(model: Model): Html {
 													h.Type('button'),
 													h.Title(
 														model.blameOverlayOpen
-															? 'Hide blame gutter (author + date on hover)'
-															: 'Show blame gutter like GitLens (author + date on hover)',
+															? 'Blame on — author chips in the after-side gutter (click a chip to jump)'
+															: 'Blame off — turn on for GitLens-style author chips on the after side',
 													),
+													h.AriaLabel('Blame overlay'),
 													h.AriaPressed(String(model.blameOverlayOpen)),
 													h.OnClick(ToggledBlameOverlay()),
 												],
 												[
 													model.blameLoading
 														? 'Blame…'
-														: model.blameOverlayOpen
-															? Array.isArray(model.blameLines) && (model.blameLines as unknown[]).length
-																? `Blame on (${(model.blameLines as unknown[]).length})`
-																: 'Blame on'
+														: Array.isArray(model.blameLines) &&
+															  (model.blameLines as unknown[]).length &&
+															  model.blameOverlayOpen
+															? `Blame (${(model.blameLines as unknown[]).length})`
 															: 'Blame',
 												],
 											)
