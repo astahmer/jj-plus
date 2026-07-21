@@ -6,6 +6,7 @@ import {
 	diffTouchesLineRange,
 	filterEntriesTouchingLineRange,
 	formatLineHistoryLabel,
+	formatStatusBarLineHistoryChip,
 	normalizeLineHistoryRange,
 	parseGitLineHistoryRevisions,
 } from '../../src/shared/line-history.ts';
@@ -21,8 +22,7 @@ test('formatLineHistoryLabel distinguishes single vs range', () => {
 	assert.equal(formatLineHistoryLabel({ startLine: 2, endLine: 9 }), 'Lines 2–9');
 });
 
-test('formatStatusBarLineHistoryChip formats chip label', async () => {
-	const { formatStatusBarLineHistoryChip } = await import('../../src/shared/line-history.ts');
+test('formatStatusBarLineHistoryChip formats chip label', () => {
 	assert.equal(formatStatusBarLineHistoryChip({ startLine: 12, endLine: 12 }), 'JJ Timeline L12');
 	assert.equal(formatStatusBarLineHistoryChip({ startLine: 12, endLine: 18 }), 'JJ Timeline L12–18');
 });

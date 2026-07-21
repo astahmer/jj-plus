@@ -101,6 +101,23 @@
 					"command": "jj-range-diff.openTimelineAtLine",
 					"group": "navigation@90",
 					"when": "resourceScheme == file"
+				},
+				{
+					"command": "jj-range-diff.openFileLineTimeline",
+					"group": "navigation@91",
+					"when": "resourceScheme == file"
+				}
+			],
+			"editor/title/context": [
+				{
+					"command": "jj-range-diff.openFileRevisionTimeline",
+					"group": "navigation@90",
+					"when": "resourceScheme == file"
+				},
+				{
+					"command": "jj-range-diff.openTimelineAtLine",
+					"group": "navigation@91",
+					"when": "resourceScheme == file"
 				}
 			]
 		}

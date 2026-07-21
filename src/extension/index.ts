@@ -12,6 +12,7 @@ import {
 	DEBUG_SELECT_TIMELINE_RANGE_COMMAND,
 	DEBUG_SET_LAYOUT_MODE_COMMAND,
 	HELPER_COMMAND,
+	CLEAR_LINE_HISTORY_COMMAND,
 	OPEN_FILE_RANGE_DIFF_COMMAND,
 	OPEN_FILE_TIMELINE_COMMAND,
 	OPEN_FILE_LINE_TIMELINE_COMMAND,
@@ -21,7 +22,11 @@ import {
 	SNAPSHOT_SCHEME,
 	TIMELINE_PREFERENCES_KEY,
 } from './constants.ts';
-import { createTimelineBlameCodeLensProvider, createTimelineBlameHoverProvider } from './blame-codelens.ts';
+import {
+	createTimelineAtLineGutterDecoration,
+	createTimelineBlameCodeLensProvider,
+	createTimelineBlameHoverProvider,
+} from './blame-codelens.ts';
 import { resolveHistoryAdapter, resolveHistoryWorkspacePath } from './history-adapters.ts';
 import { createTimelinePanelController } from './timeline-panel.ts';
 import { createTimelineService, normalizeTimelinePreferences } from './timeline-service.ts';
@@ -277,6 +282,7 @@ export function activate(context: vscode.ExtensionContext): void {
 				lineHistory: { startLine, endLine },
 			});
 		}),
+		vscode.commands.registerCommand(CLEAR_LINE_HISTORY_COMMAND, () => panelController.clearLineHistoryFilter()),
 		vscode.commands.registerCommand(
 			OPEN_TIMELINE_AT_LINE_COMMAND,
 			async (args?: { absolutePath?: string; line?: number } | string) => {
@@ -319,6 +325,7 @@ export function activate(context: vscode.ExtensionContext): void {
 		),
 		vscode.languages.registerCodeLensProvider({ scheme: 'file' }, blameCodeLensProvider),
 		blameCodeLensProvider,
+		createTimelineAtLineGutterDecoration(),
 		vscode.languages.registerHoverProvider({ scheme: 'file' }, createTimelineBlameHoverProvider()),
 		vscode.commands.registerCommand(GET_TIMELINE_DEBUG_STATE_COMMAND, () => panelController.getDebugState()),
 		vscode.commands.registerCommand(GET_DIFF_LAYOUT_METRICS_COMMAND, () => panelController.getDiffLayoutMetrics()),
