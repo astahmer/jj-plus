@@ -20,6 +20,7 @@ import {
 	toJjRootFileFileset,
 	buildJjHistoryLogTemplate,
 } from '../shared/history-helpers.ts';
+import { filterFileOpLogPeek, JJ_OP_LOG_TEMPLATE, parseJjOpLogOutput } from '../shared/file-oplog.ts';
 import type {
 	ComparisonSource,
 	DiffPreview,
@@ -268,6 +269,49 @@ async function createStandaloneRuntime(args: { workspacePath: string; filePath: 
 						},
 					};
 					return [message];
+				}
+				case 'load-file-oplog': {
+					const fileFixture = await getActiveFileFixture();
+					if (fileFixture.timelineData.backend !== 'jj') {
+						return [
+							{
+								type: 'file-oplog',
+								payload: { relativePath: fileFixture.timelineData.relativePath, entries: [] },
+							},
+						];
+					}
+					try {
+						const { stdout } = await run({
+							command: 'jj',
+							args: ['op', 'log', '--limit', '80', '-T', JJ_OP_LOG_TEMPLATE],
+							cwd: fileFixture.timelineData.workspacePath || process.cwd(),
+						});
+						const fileEntries = [
+							...(fileFixture.timelineData.snapshotEntries || []),
+							...fileFixture.timelineData.entries.filter((entry) => Boolean(entry.operationId)),
+						];
+						return [
+							{
+								type: 'file-oplog',
+								payload: {
+									relativePath: fileFixture.timelineData.relativePath,
+									entries: filterFileOpLogPeek({
+										opLog: parseJjOpLogOutput(stdout),
+										fileEntries,
+										relativePath: fileFixture.timelineData.relativePath,
+										limit: 12,
+									}),
+								},
+							},
+						];
+					} catch {
+						return [
+							{
+								type: 'file-oplog',
+								payload: { relativePath: fileFixture.timelineData.relativePath, entries: [] },
+							},
+						];
+					}
 				}
 				case 'load-entry-diff-counts': {
 					const fileFixture = await getActiveFileFixture();

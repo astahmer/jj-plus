@@ -904,6 +904,45 @@ function handleEvologEntryClick(model: Model, entryIndex: number): UpdateReturn 
 	return afterMutate(next, [persistCommand(next), ScrollToEntry({ entryIndex })]);
 }
 
+function handleFileOpLogEntryClick(model: Model, operationId: string): UpdateReturn {
+	if (getData(model)?.backend !== 'jj') {
+		return [model, []];
+	}
+	const ops = Array.isArray(model.fileOpLogEntries)
+		? (model.fileOpLogEntries as Array<{ operationId: string; entryIndex?: number }>)
+		: [];
+	const op = ops.find((entry) => entry.operationId === operationId);
+	const snapshotEntries = getEntriesForSource(getData(model), 'snapshot');
+	const revisionEntries = getEntriesForSource(getData(model), 'revision');
+	const byIndex =
+		typeof op?.entryIndex === 'number'
+			? snapshotEntries.find((entry) => entry.index === op.entryIndex) ||
+				revisionEntries.find((entry) => entry.index === op.entryIndex)
+			: undefined;
+	const byOpId =
+		byIndex ||
+		snapshotEntries.find((entry) => (entry.operationId || '').startsWith(operationId) || operationId.startsWith(entry.operationId || '')) ||
+		revisionEntries.find((entry) => (entry.operationId || '').startsWith(operationId) || operationId.startsWith(entry.operationId || ''));
+	if (!byOpId || typeof byOpId.index !== 'number') {
+		return [model, []];
+	}
+	const useSnapshot = snapshotEntries.some((entry) => entry.index === byOpId.index);
+	if (useSnapshot) {
+		return handleEvologEntryClick(model, byOpId.index);
+	}
+	const entryIndex = byOpId.index;
+	const fromIndex = Math.max(0, entryIndex - 1);
+	let next = clearCaches(model);
+	next = evo(next, {
+		comparisonSource: () => 'revision' as ComparisonSource,
+		fromIndex: () => fromIndex,
+		toIndex: () => entryIndex,
+		maybeHoveredSelectionIndex: () => Option.none(),
+	});
+	next = stepSelection(next, CancelledSelection());
+	return afterMutate(next, [persistCommand(next), ScrollToEntry({ entryIndex })]);
+}
+
 function handleSetPreset(model: Model, value: TimelinePreset): UpdateReturn {
 	if (!getData(model) || value === model.preset) {
 		let next = evo(model, {
@@ -1058,6 +1097,7 @@ function handleSubmitFile(model: Model, rawValue: string): UpdateReturn {
 			heatmapOpen: () => false as boolean,
 			blameLines: () => initialModel.blameLines,
 			blameLoading: () => false as boolean,
+			fileOpLogEntries: () => initialModel.fileOpLogEntries,
 			sidebarPreviewInFlightKey: () => '',
 			sidebarPreviewInFlightKeys: () => ({}),
 			sessionKey: (current) => current + 1,
@@ -1117,6 +1157,7 @@ function handleReset(model: Model): UpdateReturn {
 		heatmapOpen: () => false as boolean,
 		blameLines: () => initialModel.blameLines,
 		blameLoading: () => false as boolean,
+		fileOpLogEntries: () => initialModel.fileOpLogEntries,
 		historySearchQuery: () => '',
 		historySearchLoading: () => false as boolean,
 		historySearchResult: () => null,
@@ -1174,6 +1215,9 @@ function handleGotHostMessage(model: Model, payload: unknown): UpdateReturn {
 		),
 		M.when('diff-blame', () =>
 			handleDiffBlameMessage(model, message as Extract<TimelineInboundMessage, { type: 'diff-blame' }>),
+		),
+		M.when('file-oplog', () =>
+			handleFileOpLogMessage(model, message as Extract<TimelineInboundMessage, { type: 'file-oplog' }>),
 		),
 		M.when('history-search', () =>
 			handleHistorySearchMessage(model, message as Extract<TimelineInboundMessage, { type: 'history-search' }>),
@@ -1287,6 +1331,9 @@ function handleTimelineDataMessage(
 	if (visibleEntries.length && !samePath && !cached) {
 		commands.push(ScrollToEntry({ entryIndex: visibleEntries[visibleEntries.length - 1].index }));
 	}
+	if (data.backend === 'jj') {
+		commands.push(SendHostCommand({ command: { command: 'load-file-oplog' } }));
+	}
 	return afterMutate(next, commands);
 }
 
@@ -1352,7 +1399,7 @@ function handleSnapshotEntriesMessage(
 				toIndex: () => nextToIndex ?? model.toIndex,
 			}),
 		);
-		return afterMutate(next);
+		return afterMutate(next, [SendHostCommand({ command: { command: 'load-file-oplog' } })]);
 	}
 
 	const next = evo(model, {
@@ -1360,7 +1407,10 @@ function handleSnapshotEntriesMessage(
 		entryDiffCountByKey: () => ({}),
 		entryDiffCountLoadingKey: () => '',
 	});
-	return afterMutate(next);
+	return afterMutate(
+		next,
+		data.backend === 'jj' ? [SendHostCommand({ command: { command: 'load-file-oplog' } })] : [],
+	);
 }
 
 function handleWorkspaceFilesMessage(
@@ -1476,6 +1526,17 @@ function handleDiffBlameMessage(
 		}),
 		[],
 	];
+}
+
+function handleFileOpLogMessage(
+	model: Model,
+	message: Extract<TimelineInboundMessage, { type: 'file-oplog' }>,
+): UpdateReturn {
+	const data = getData(model);
+	if (!data || data.backend !== 'jj' || message.payload.relativePath !== data.relativePath) {
+		return [model, []];
+	}
+	return [evo(model, { fileOpLogEntries: () => message.payload.entries }), []];
 }
 
 function handleHistorySearchMessage(
@@ -1864,6 +1925,7 @@ export function update(model: Model, message: Message): UpdateReturn {
 			GotHostMessage: ({ payload }) => handleGotHostMessage(model, payload),
 			ClickedHistoryEntry: ({ entryIndex }) => handleTrackAnchorClick(model, entryIndex),
 			ClickedEvologEntry: ({ entryIndex }) => handleEvologEntryClick(model, entryIndex),
+			ClickedFileOpLogEntry: ({ operationId }) => handleFileOpLogEntryClick(model, operationId),
 			ClickedTrackAnchor: ({ entryIndex }) => {
 				if (model.suppressAnchorClick) {
 					return [evo(model, { suppressAnchorClick: () => false }), []];

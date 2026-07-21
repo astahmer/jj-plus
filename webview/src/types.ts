@@ -84,6 +84,7 @@ export type TimelineInboundMessage =
 	| { type: 'debug-set-layout-mode'; layoutMode: LayoutMode }
 	| { type: 'range-stack-previews'; payload: RangeStackPreviewPayload }
 	| { type: 'diff-blame'; payload: DiffBlamePayload }
+	| { type: 'file-oplog'; payload: FileOpLogPayload }
 	| { type: 'history-search'; payload: HistorySearchPayload };
 
 export type TimelineFixtureFile = Omit<SharedTimelineFixtureFile, 'timelineData' | 'previews'> & {

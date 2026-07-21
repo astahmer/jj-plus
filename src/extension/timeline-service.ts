@@ -19,6 +19,7 @@ import {
 	type LineHistoryRange,
 } from '../shared/line-history.ts';
 import { searchHistoryContents } from '../shared/history-search.ts';
+import { filterFileOpLogPeek, JJ_OP_LOG_TEMPLATE, parseJjOpLogOutput } from '../shared/file-oplog.ts';
 import type {
 	ComparisonSource,
 	DiffPreview,
@@ -249,6 +250,7 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 		getComparisonEntries,
 		getDiffPreview,
 		getDiffBlame,
+		getFileOpLog,
 		searchFileHistory,
 		getEntryDiffCounts,
 		getEntriesForSource,
@@ -1018,6 +1020,36 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 			return { relativePath, lines: parseJjFileAnnotate(stdout) };
 		} catch {
 			return { relativePath, lines: [] };
+		}
+	}
+
+	async function getFileOpLog(request: {
+		session: ExtensionTimelineSession;
+	}): Promise<{ relativePath: string; entries: ReturnType<typeof filterFileOpLogPeek> }> {
+		const relativePath = request.session.relativePath;
+		if (request.session.backend !== 'jj') {
+			return { relativePath, entries: [] };
+		}
+		try {
+			const { stdout } = await runner.runJj({
+				workspacePath: request.session.workspacePath,
+				args: ['op', 'log', '--limit', '80', '-T', JJ_OP_LOG_TEMPLATE],
+			});
+			const fileEntries = [
+				...request.session.snapshotEntries,
+				...request.session.entries.filter((entry) => Boolean(entry.operationId)),
+			];
+			return {
+				relativePath,
+				entries: filterFileOpLogPeek({
+					opLog: parseJjOpLogOutput(stdout),
+					fileEntries,
+					relativePath,
+					limit: 12,
+				}),
+			};
+		} catch {
+			return { relativePath, entries: [] };
 		}
 	}
 

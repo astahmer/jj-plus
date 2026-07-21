@@ -3,6 +3,7 @@ import { getEntryTimelineMarkers } from '../domain/timeline-markers.ts';
 import type { Message } from '../messages.ts';
 import {
 	ClickedEvologEntry,
+	ClickedFileOpLogEntry,
 	ClickedHistoryEntry,
 	ClickedOpenRevisionFilesDiff,
 	ClickedOpenRevisionRemote,
@@ -14,6 +15,7 @@ import {
 } from '../messages.ts';
 import type { Model } from '../model.ts';
 import {
+	getBackend,
 	getFilteredSidebarEntries,
 	getEntryDiffCount,
 	getEvologStripEntries,
@@ -265,6 +267,38 @@ export function sidebar(model: Model): Html {
 										h.OnClick(ClickedEvologEntry({ entryIndex: entry.index })),
 									],
 									[entry.shortRevision],
+								),
+							),
+						),
+					],
+				);
+			})(),
+			(() => {
+				const ops = Array.isArray(model.fileOpLogEntries)
+					? (model.fileOpLogEntries as Array<{
+							operationId: string;
+							description: string;
+							entryIndex?: number;
+						}>)
+					: [];
+				if (getBackend(model) !== 'jj' || ops.length === 0) {
+					return h.empty;
+				}
+				return h.div(
+					[h.Class('evolog-strip oplog-strip'), h.Id('fileOpLogStrip')],
+					[
+						h.div([h.Class('eyebrow')], ['Op log']),
+						h.div(
+							[h.Class('evolog-strip-list')],
+							ops.map((entry) =>
+								h.button(
+									[
+										h.Class('evolog-strip-item'),
+										h.Type('button'),
+										h.Title(entry.description),
+										h.OnClick(ClickedFileOpLogEntry({ operationId: entry.operationId })),
+									],
+									[entry.operationId.slice(0, 8)],
 								),
 							),
 						),

@@ -151,6 +151,18 @@ export type DiffBlamePayload = {
 	}>;
 };
 
+export type FileOpLogPayload = {
+	relativePath: string;
+	entries: Array<{
+		operationId: string;
+		description: string;
+		authorDate?: string;
+		entryIndex?: number;
+		changeId?: string;
+		operationIndex?: number;
+	}>;
+};
+
 export type HistorySearchPayload = {
 	query: string;
 	hits: Array<{ entryIndex: number; kind: 'introduced' | 'removed' | 'present' }>;
@@ -196,6 +208,7 @@ export type TimelineInboundMessage =
 	| { type: 'debug-set-layout-mode'; layoutMode: LayoutMode }
 	| { type: 'range-stack-previews'; payload: RangeStackPreviewPayload }
 	| { type: 'diff-blame'; payload: DiffBlamePayload }
+	| { type: 'file-oplog'; payload: FileOpLogPayload }
 	| { type: 'history-search'; payload: HistorySearchPayload };
 
 export type DiffLayoutMetrics = {
@@ -274,6 +287,7 @@ export type TimelineCommand =
 			toIndex: number;
 			comparisonSource: ComparisonSource;
 	  }
+	| { command: 'load-file-oplog' }
 	| { command: 'search-history'; query: string; purpose?: 'history' | 'sidebar' }
 	| {
 			command: 'persist-state';

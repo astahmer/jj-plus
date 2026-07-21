@@ -15,6 +15,7 @@ export const GotHostMessage = m('GotHostMessage', { payload: S.Unknown });
 // Sidebar / entries
 export const ClickedHistoryEntry = m('ClickedHistoryEntry', { entryIndex: S.Number });
 export const ClickedEvologEntry = m('ClickedEvologEntry', { entryIndex: S.Number });
+export const ClickedFileOpLogEntry = m('ClickedFileOpLogEntry', { operationId: S.String });
 export const HoveredEntry = m('HoveredEntry', { entryIndex: S.Number });
 export const UnhoveredEntry = m('UnhoveredEntry');
 export const ClickedOpenRevisionRemote = m('ClickedOpenRevisionRemote', { entryIndex: S.Number });
@@ -157,6 +158,7 @@ export const Message = S.Union([
 	GotHostMessage,
 	ClickedHistoryEntry,
 	ClickedEvologEntry,
+	ClickedFileOpLogEntry,
 	HoveredEntry,
 	UnhoveredEntry,
 	ClickedOpenRevisionRemote,

@@ -658,6 +658,21 @@ export function createTimelinePanelController(args: {
 			return;
 		}
 
+		if (command === 'load-file-oplog') {
+			const oplog = await args.service.getFileOpLog({ session: request.session });
+			await postTimelineMessage({
+				panel: request.panel,
+				message: {
+					type: 'file-oplog',
+					payload: {
+						relativePath: oplog.relativePath,
+						entries: oplog.entries,
+					},
+				},
+			});
+			return;
+		}
+
 		if (command === 'search-history') {
 			const query = String(Reflect.get(request.message, 'query') || '');
 			const purpose = Reflect.get(request.message, 'purpose') === 'sidebar' ? 'sidebar' : 'history';
