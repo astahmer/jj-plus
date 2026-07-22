@@ -28,6 +28,20 @@ test('sidebar search filters revisions and clearing restores the list', () => {
 	);
 });
 
+test('view menu history search input is interactive', () => {
+	const ready = hydratedModel();
+
+	Scene.scene(
+		program,
+		Scene.with(ready),
+		Scene.click(Scene.role('button', { name: 'View options' })),
+		Scene.expect(Scene.selector('#historySearchInput')).toExist(),
+		Scene.type(Scene.selector('#historySearchInput'), 'needle'),
+		Scene.Command.resolveAll(...hostCommandResolvers()),
+		Scene.expect(Scene.selector('#historySearchInput')).toHaveValue('needle'),
+	);
+});
+
 test('from-revision combobox opens options and commits a selected revision', () => {
 	const ready = hydratedModel();
 

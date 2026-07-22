@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { searchHistoryContents } from '../../src/shared/history-search.ts';
+import { searchHistoryContents, searchHistoryDiffContents } from '../../src/shared/history-search.ts';
 
 test('searchHistoryContents finds introduction and removal', () => {
 	const contentsByIndex = new Map<number, string>([
@@ -31,4 +31,23 @@ test('empty query yields no hits', () => {
 	});
 	assert.equal(result.hits.length, 0);
 	assert.equal(result.introducedAt, null);
+});
+
+test('searchHistoryDiffContents only hits revisions where the needle appears in the hunk', () => {
+	const contentsByIndex = new Map<number, string>([
+		[0, 'keep\n'],
+		[1, 'keep\nneedle\n'],
+		[2, 'keep\nneedle\n'],
+		[3, 'keep\n'],
+	]);
+	const result = searchHistoryDiffContents({
+		query: 'needle',
+		orderedEntryIndexes: [0, 1, 2, 3],
+		contentsByIndex,
+	});
+	assert.deepEqual(
+		result.hits.map((hit) => hit.entryIndex),
+		[1, 3],
+	);
+	assert.equal(result.purpose, 'sidebar');
 });

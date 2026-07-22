@@ -355,3 +355,26 @@ test('getFileRevisionHistory follows jj same-name copy boundaries as path histor
 		await rm(repo.workspacePath, { recursive: true, force: true });
 	}
 });
+
+test('listRevisionTreeFiles returns all files in the tip revision for git and jj', async () => {
+	for (const backend of ['git', 'jj'] as const) {
+		const repo = await setupRepository(backend);
+		try {
+			const adapter = await resolveHistoryAdapter({ workspacePath: repo.workspacePath, runner: repo.runner });
+			const revision = backend === 'jj' ? '@' : 'HEAD';
+			const files = await adapter.listRevisionTreeFiles({
+				workspacePath: repo.workspacePath,
+				revision,
+			});
+			assert.ok(files.includes(repo.currentPath), `${backend}: expected ${repo.currentPath} in ${files.join(',')}`);
+			assert.ok(files.length >= 1);
+			const changedOnly = await adapter.listWorkingTreeFiles({ workspacePath: repo.workspacePath });
+			assert.ok(
+				files.length >= changedOnly.length,
+				`${backend}: revision tree (${files.length}) should be >= changed files (${changedOnly.length})`,
+			);
+		} finally {
+			await rm(repo.workspacePath, { recursive: true, force: true });
+		}
+	}
+});

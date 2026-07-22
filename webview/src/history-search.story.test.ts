@@ -14,7 +14,15 @@ test('history search submits query and jumps to introduction', () => {
 		Story.with(ready),
 		Story.message(UpdatedHistorySearchQuery({ value: 'needle' })),
 		Story.message(SubmittedHistorySearch()),
-		Story.Command.expectHas(SendHostCommand),
+		Story.Command.expectExact(
+			SendHostCommand({
+				command: {
+					command: 'search-history',
+					query: 'needle',
+					purpose: 'history',
+				},
+			}),
+		),
 		Story.model((model) => {
 			expect(model.historySearchLoading).toBe(true);
 			expect(model.historySearchQuery).toBe('needle');

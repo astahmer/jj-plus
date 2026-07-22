@@ -20,6 +20,7 @@ test.describe('timeline visuals', () => {
 	test('heatmap paints recency bars in the after gutter', async ({ page }) => {
 		await openFixture(page, 'jj-basic');
 		await page.getByRole('button', { name: 'View' }).click();
+		await expect(page.locator('#blameToggle')).toHaveCount(0);
 		await page.locator('#heatmapToggle').click();
 		await expect(page.locator('#pierre-diff-root')).toHaveClass(/is-heatmap-open/, { timeout: 15000 });
 		await expect

@@ -67,6 +67,19 @@ test.describe('overlay popovers', () => {
 		await page.locator('#toggleDiffFocusButton').click();
 		await expect(page.locator('#toggleDiffFocusButton')).toHaveAttribute('title', /Exit focus \(D\)/);
 	});
+
+	test('view menu search-in-history input accepts clicks and typing', async ({ page }) => {
+		await openFixture(page);
+		await page.getByRole('button', { name: 'View options' }).click();
+		const menu = page.locator('#viewMenu');
+		await expect(menu).toBeVisible();
+		const input = menu.locator('#historySearchInput');
+		await expect(input).toBeVisible();
+		await input.click();
+		await expect(input).toBeFocused();
+		await input.fill('needle-from-e2e');
+		await expect(input).toHaveValue('needle-from-e2e');
+	});
 });
 
 async function openFixture(page: Page) {
