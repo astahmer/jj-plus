@@ -8,6 +8,8 @@ memories/
 playwright-report/
 test-results/
 test-repo/
+git-basic/
+jj-basic/
 webview/public/e2e/
 webview-dist
 dist
