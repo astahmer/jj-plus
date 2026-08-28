@@ -12,14 +12,15 @@ The repository is prepared so the normal release path is a versioned Git tag. Gi
 
 1. Update `version` in `package.json` and add the release notes to `CHANGELOG.md`.
 2. Run `pnpm release:check` locally. It runs lint, both typechecks, unit/webview tests, builds the extension and webview, and packages the VSIX.
-3. Commit the release metadata and push the commit to `main`.
-4. Create and push the matching tag. For version `0.10.3`:
+3. Commit the release metadata. With JJ, `jj commit` leaves the new empty working-copy child at `@`, so the release commit is `@-`.
+4. Move `main` to that release commit, then create and push the matching tag. For version `0.10.3`:
 
    ```sh
-   jj bookmark set main -r @
+   jj commit -m "release: v0.10.3"
+   jj bookmark set main -r @-
    jj git push --bookmark main
-   jj tag set v0.10.3 -r @
-   jj git push --tracked
+   jj tag set v0.10.3 -r @-
+   jj git push --tag v0.10.3
    ```
 
    If the repository is being released from a Git checkout instead, the equivalent final action is `git tag v0.10.3 && git push origin v0.10.3`.
