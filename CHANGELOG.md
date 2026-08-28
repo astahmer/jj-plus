@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.10.5 — 2026-08-28
+
+### JJ Plus
+
+- Add a dedicated Repo Timeline view for browsing repository-wide JJ history.
+- Add revset filtering, history search, bookmark/branch references, revision patches, and remote revision links.
+
 ## 0.10.4 — 2026-08-28
 
 ### JJ Plus
