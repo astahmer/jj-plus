@@ -34,7 +34,7 @@
 		"lint:ox": "oxlint . --disable-nested-config",
 		"pkg": "bun build src/bin.ts --compile --outfile jjdiff ",
 		"release:check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
-		"release:publish": "pnpm release:check && pnpm exec vsce publish --skip-duplicate --githubBranch main",
+		"release:publish": "pnpm release:check && pnpm exec vsce publish --no-dependencies --skip-duplicate --githubBranch main",
 		"seed:test-repo": "node ./scripts/seed-test-repo.mjs",
 		"test": "node --test tests/units/**/*.test.ts && pnpm test:webview",
 		"test:all": "pnpm test && pnpm test:e2e && pnpm test:integration",
