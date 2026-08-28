@@ -61,6 +61,26 @@ pnpm build:webview
 
 `pnpm build` runs both builds and then packages the extension with `vsce`.
 
+## Publishing
+
+After updating `version` in `package.json`, authenticate once with both registries
+(`VSCE_PAT` for the Visual Studio Marketplace and npm login/token for npm), then
+run:
+
+```sh
+pnpm release
+```
+
+The command runs the complete release check, publishes the VSIX to the
+Marketplace, and publishes the `jj-plus` CLI package to npm. It skips an npm
+version that already exists, so retrying after a partial release is safe. Use
+`pnpm release:dry-run` to build and validate without publishing, or add
+`--skip-vscode` / `--skip-npm` when only one registry should be updated.
+
+The GitHub tag workflow remains available for releases made from CI. The tag
+must match the package version (`v<version>`); the local helper deliberately
+does not create or force-push tags.
+
 ## Revision Timeline
 
 `JJ: Open File Revision Timeline` opens a custom webview panel for the active file.
