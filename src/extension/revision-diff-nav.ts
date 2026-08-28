@@ -166,7 +166,7 @@ export function createRevisionDiffNavigator(args: {
 			return;
 		}
 		const absolutePath = path.join(session.workspacePath, session.relativePath);
-		await vscode.commands.executeCommand('jj-range-diff.openFileRevisionTimeline', absolutePath);
+		await vscode.commands.executeCommand('jj-plus.openFileRevisionTimeline', absolutePath);
 	};
 
 	const disposable = vscode.window.onDidChangeActiveTextEditor(() => {

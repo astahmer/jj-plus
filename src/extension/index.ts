@@ -54,7 +54,7 @@ type WorkspaceFileTarget = {
 };
 
 export function activate(context: vscode.ExtensionContext): void {
-	const outputChannel = vscode.window.createOutputChannel('JJ Range Diff');
+	const outputChannel = vscode.window.createOutputChannel('JJ Plus');
 	const runner = createCommandRunner({ outputChannel });
 	const service = createTimelineService({ runner });
 	const panelController = createTimelinePanelController({
@@ -124,7 +124,7 @@ export function activate(context: vscode.ExtensionContext): void {
 			});
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			void vscode.window.showErrorMessage(`Failed to open JJ range diff: ${message}`);
+			void vscode.window.showErrorMessage(`Failed to open JJ Plus range diff: ${message}`);
 		}
 	};
 
@@ -277,7 +277,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
 	context.subscriptions.push(
 		outputChannel,
-		vscode.workspace.registerTextDocumentContentProvider('jj-range-diff', provider),
+		vscode.workspace.registerTextDocumentContentProvider('jj-plus', provider),
 		vscode.commands.registerCommand(HELPER_COMMAND, openRangeMultiDiff),
 		vscode.commands.registerCommand(OPEN_FILE_RANGE_DIFF_COMMAND, openFileRangeDiff),
 		vscode.commands.registerCommand(OPEN_CHANGES_WITH_PREVIOUS_COMMAND, (arg?: unknown) =>
@@ -285,8 +285,8 @@ export function activate(context: vscode.ExtensionContext): void {
 		),
 		vscode.commands.registerCommand(OPEN_REVISION_DIFF_PREVIOUS_COMMAND, () => revisionDiffNav.openPrevious()),
 		vscode.commands.registerCommand(OPEN_REVISION_DIFF_NEXT_COMMAND, () => revisionDiffNav.openNext()),
-		vscode.commands.registerCommand('jj-range-diff.openRevisionDiffPreviousUnavailable', () => undefined),
-		vscode.commands.registerCommand('jj-range-diff.openRevisionDiffNextUnavailable', () => undefined),
+		vscode.commands.registerCommand('jj-plus.openRevisionDiffPreviousUnavailable', () => undefined),
+		vscode.commands.registerCommand('jj-plus.openRevisionDiffNextUnavailable', () => undefined),
 		vscode.commands.registerCommand(OPEN_REVISION_DIFF_TIMELINE_COMMAND, () => revisionDiffNav.openTimelineHere()),
 		vscode.commands.registerCommand(OPEN_FILE_TIMELINE_COMMAND, (arg?: unknown) =>
 			panelController.openFileRevisionTimeline({ context, absolutePath: resolveCommandFilePath(arg) }),
@@ -821,7 +821,7 @@ async function resolveWorkspaceUri(args: {
 	}
 
 	const selected = await vscode.window.showWorkspaceFolderPick({
-		placeHolder: 'Select the workspace to open the JJ range diff in',
+		placeHolder: 'Select the workspace to open the JJ Plus range diff in',
 	});
 	return selected?.uri;
 }

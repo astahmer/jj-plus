@@ -1,6 +1,6 @@
 {
-	"name": "jj-range-diff",
-	"displayName": "JJ Range Diff",
+	"name": "jj-plus",
+	"displayName": "JJ Plus",
 	"version": "0.10.3",
 	"private": true,
 	"description": "Open JJ multi-diff views for revision ranges.",
@@ -11,11 +11,11 @@
 	],
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/astahmer/jj-range-diff.git"
+		"url": "https://github.com/astahmer/visualjj-range-diff-helper.git"
 	},
 	"publisher": "astahmer",
 	"bin": {
-		"jj-range-diff": "./dist/bin.cjs"
+		"jj-plus": "./dist/bin.cjs"
 	},
 	"type": "module",
 	"main": "./dist/extension/index.cjs",
@@ -121,172 +121,172 @@
 		},
 		"commands": [
 			{
-				"command": "jj-range-diff.openRangeMultiDiff",
+				"command": "jj-plus.openRangeMultiDiff",
 				"title": "jjplus: Open Range Multi Diff"
 			},
 			{
-				"command": "jj-range-diff.openFileRangeDiff",
+				"command": "jj-plus.openFileRangeDiff",
 				"title": "jjplus: Open File Diff Between Revisions"
 			},
 			{
-				"command": "jj-range-diff.openChangesWithPrevious",
+				"command": "jj-plus.openChangesWithPrevious",
 				"title": "jjplus: Open Changes with Previous Revision",
 				"icon": "$(history)"
 			},
 			{
-				"command": "jj-range-diff.openFileRevisionTimeline",
+				"command": "jj-plus.openFileRevisionTimeline",
 				"title": "jjplus: Open Revision Timeline",
 				"icon": "$(diff)"
 			},
 			{
-				"command": "jj-range-diff.openRevisionDiffPrevious",
+				"command": "jj-plus.openRevisionDiffPrevious",
 				"title": "jjplus: Open Previous Revision Diff",
 				"icon": "$(arrow-left)",
 				"enablement": "jjplus.revisionDiffHasPrevious"
 			},
 			{
-				"command": "jj-range-diff.openRevisionDiffPreviousUnavailable",
+				"command": "jj-plus.openRevisionDiffPreviousUnavailable",
 				"title": "jjplus: No previous revision available",
 				"icon": "$(arrow-left)",
 				"enablement": "false"
 			},
 			{
-				"command": "jj-range-diff.openRevisionDiffNext",
+				"command": "jj-plus.openRevisionDiffNext",
 				"title": "jjplus: Open Next Revision Diff",
 				"icon": "$(arrow-right)",
 				"enablement": "jjplus.revisionDiffHasNext"
 			},
 			{
-				"command": "jj-range-diff.openRevisionDiffNextUnavailable",
+				"command": "jj-plus.openRevisionDiffNextUnavailable",
 				"title": "jjplus: No next revision available",
 				"icon": "$(arrow-right)",
 				"enablement": "false"
 			},
 			{
-				"command": "jj-range-diff.openRevisionDiffTimeline",
+				"command": "jj-plus.openRevisionDiffTimeline",
 				"title": "jjplus: Open Timeline from Revision Diff",
 				"icon": "$(timeline-view-icon)"
 			},
 			{
-				"command": "jj-range-diff.toggleLineBlame",
+				"command": "jj-plus.toggleLineBlame",
 				"title": "jjplus: Toggle Line Blame"
 			},
 			{
-				"command": "jj-range-diff.compareWithBookmark",
+				"command": "jj-plus.compareWithBookmark",
 				"title": "jjplus: Compare File with Bookmark / Branch"
 			},
 			{
-				"command": "jj-range-diff.peekRevisionAtCursor",
+				"command": "jj-plus.peekRevisionAtCursor",
 				"title": "jjplus: Peek Revision at Cursor"
 			},
 			{
-				"command": "jj-range-diff.openFileAtRevision",
+				"command": "jj-plus.openFileAtRevision",
 				"title": "jjplus: Open File at Revision"
 			},
 			{
-				"command": "jj-range-diff.openWorkingCopyChangesMulti",
+				"command": "jj-plus.openWorkingCopyChangesMulti",
 				"title": "jjplus: Open Working Copy Changes vs Previous"
 			},
 			{
-				"command": "jj-range-diff.jumpNextConflict",
+				"command": "jj-plus.jumpNextConflict",
 				"title": "jjplus: Jump to Next Conflict Marker"
 			},
 			{
-				"command": "jj-range-diff.openFileLineTimeline",
+				"command": "jj-plus.openFileLineTimeline",
 				"title": "jjplus: Open Timeline for Selected Lines"
 			},
 			{
-				"command": "jj-range-diff.openTimelineAtLine",
+				"command": "jj-plus.openTimelineAtLine",
 				"title": "jjplus: Open Timeline at Cursor Line"
 			},
 			{
-				"command": "jj-range-diff.clearLineHistory",
+				"command": "jj-plus.clearLineHistory",
 				"title": "jjplus: Clear Line History Filter"
 			}
 		],
 		"menus": {
 			"editor/context": [
 				{
-					"command": "jj-range-diff.openTimelineAtLine",
+					"command": "jj-plus.openTimelineAtLine",
 					"group": "navigation@90",
 					"when": "resourceScheme == file"
 				},
 				{
-					"command": "jj-range-diff.openFileLineTimeline",
+					"command": "jj-plus.openFileLineTimeline",
 					"group": "navigation@91",
 					"when": "resourceScheme == file"
 				},
 				{
-					"command": "jj-range-diff.openChangesWithPrevious",
+					"command": "jj-plus.openChangesWithPrevious",
 					"group": "navigation@92",
 					"when": "resourceScheme == file"
 				},
 				{
-					"command": "jj-range-diff.compareWithBookmark",
+					"command": "jj-plus.compareWithBookmark",
 					"group": "navigation@93",
 					"when": "resourceScheme == file"
 				},
 				{
-					"command": "jj-range-diff.peekRevisionAtCursor",
+					"command": "jj-plus.peekRevisionAtCursor",
 					"group": "navigation@94",
 					"when": "resourceScheme == file"
 				}
 			],
 			"editor/title": [
 				{
-					"command": "jj-range-diff.openChangesWithPrevious",
+					"command": "jj-plus.openChangesWithPrevious",
 					"group": "navigation@1",
 					"when": "resourceScheme == file"
 				},
 				{
-					"command": "jj-range-diff.openFileRevisionTimeline",
+					"command": "jj-plus.openFileRevisionTimeline",
 					"group": "navigation@2",
 					"when": "resourceScheme == file"
 				},
 				{
-					"command": "jj-range-diff.compareWithBookmark",
+					"command": "jj-plus.compareWithBookmark",
 					"group": "navigation@3",
 					"when": "resourceScheme == file"
 				},
 				{
-					"command": "jj-range-diff.openRevisionDiffPrevious",
+					"command": "jj-plus.openRevisionDiffPrevious",
 					"group": "navigation@4",
 					"when": "jjplus.revisionDiffActive && jjplus.revisionDiffHasPrevious"
 				},
 				{
-					"command": "jj-range-diff.openRevisionDiffPreviousUnavailable",
+					"command": "jj-plus.openRevisionDiffPreviousUnavailable",
 					"group": "navigation@4",
 					"when": "jjplus.revisionDiffActive && !jjplus.revisionDiffHasPrevious"
 				},
 				{
-					"command": "jj-range-diff.openRevisionDiffNext",
+					"command": "jj-plus.openRevisionDiffNext",
 					"group": "navigation@5",
 					"when": "jjplus.revisionDiffActive && jjplus.revisionDiffHasNext"
 				},
 				{
-					"command": "jj-range-diff.openRevisionDiffNextUnavailable",
+					"command": "jj-plus.openRevisionDiffNextUnavailable",
 					"group": "navigation@5",
 					"when": "jjplus.revisionDiffActive && !jjplus.revisionDiffHasNext"
 				},
 				{
-					"command": "jj-range-diff.openRevisionDiffTimeline",
+					"command": "jj-plus.openRevisionDiffTimeline",
 					"group": "navigation@6",
 					"when": "jjplus.revisionDiffActive"
 				}
 			],
 			"editor/title/context": [
 				{
-					"command": "jj-range-diff.openFileRevisionTimeline",
+					"command": "jj-plus.openFileRevisionTimeline",
 					"group": "navigation@90",
 					"when": "resourceScheme == file"
 				},
 				{
-					"command": "jj-range-diff.openTimelineAtLine",
+					"command": "jj-plus.openTimelineAtLine",
 					"group": "navigation@91",
 					"when": "resourceScheme == file"
 				},
 				{
-					"command": "jj-range-diff.openChangesWithPrevious",
+					"command": "jj-plus.openChangesWithPrevious",
 					"group": "navigation@92",
 					"when": "resourceScheme == file"
 				}

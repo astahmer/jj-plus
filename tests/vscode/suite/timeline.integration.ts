@@ -35,14 +35,14 @@ type DiffLayoutMetrics = {
 	isCrushed: boolean;
 };
 
-const DEBUG_COMMAND = 'jj-range-diff._debug.getTimelineState';
-const LAYOUT_COMMAND = 'jj-range-diff._debug.getDiffLayoutMetrics';
-const SELECT_COMMAND = 'jj-range-diff._debug.selectTimelineRange';
-const SET_LAYOUT_COMMAND = 'jj-range-diff._debug.setLayoutMode';
-const OPEN_FILE_DIFF_COMMAND = 'jj-range-diff.openFileRangeDiff';
-const OPEN_TIMELINE_COMMAND = 'jj-range-diff.openFileRevisionTimeline';
-const OPEN_LINE_TIMELINE_COMMAND = 'jj-range-diff.openFileLineTimeline';
-const OPEN_TIMELINE_AT_LINE_COMMAND = 'jj-range-diff.openTimelineAtLine';
+const DEBUG_COMMAND = 'jj-plus._debug.getTimelineState';
+const LAYOUT_COMMAND = 'jj-plus._debug.getDiffLayoutMetrics';
+const SELECT_COMMAND = 'jj-plus._debug.selectTimelineRange';
+const SET_LAYOUT_COMMAND = 'jj-plus._debug.setLayoutMode';
+const OPEN_FILE_DIFF_COMMAND = 'jj-plus.openFileRangeDiff';
+const OPEN_TIMELINE_COMMAND = 'jj-plus.openFileRevisionTimeline';
+const OPEN_LINE_TIMELINE_COMMAND = 'jj-plus.openFileLineTimeline';
+const OPEN_TIMELINE_AT_LINE_COMMAND = 'jj-plus.openTimelineAtLine';
 const TARGET_RELATIVE_PATH = 'apps/backend/instructions/lazy-di-rollout-plan.md';
 const SECONDARY_RELATIVE_PATH = 'apps/backend/src/service.ts';
 
@@ -367,8 +367,8 @@ suite('Revision Timeline integration', () => {
 			diffCall?.title,
 			expectedBackend === 'jj' ? 'lazy-di-rollout-plan.md: @- -> @' : 'lazy-di-rollout-plan.md: HEAD~1 -> HEAD',
 		);
-		equal(diffCall?.originalUri.scheme, 'jj-range-diff');
-		equal(diffCall?.modifiedUri.scheme, 'jj-range-diff');
+		equal(diffCall?.originalUri.scheme, 'jj-plus');
+		equal(diffCall?.modifiedUri.scheme, 'jj-plus');
 
 		const originalSnapshot = diffCall ? parseSnapshotUri(diffCall.originalUri) : undefined;
 		const modifiedSnapshot = diffCall ? parseSnapshotUri(diffCall.modifiedUri) : undefined;

@@ -74,7 +74,7 @@ export function parseRangeDiffArgs(argv: string[]): RangeDiffCliOptions {
 		help: false,
 		confirm: false,
 		from: undefined,
-		ide: process.env.JJ_RANGE_DIFF_IDE || undefined,
+		ide: process.env.JJ_PLUS_IDE || undefined,
 		to: undefined,
 		title: undefined,
 		verbose: false,
@@ -305,9 +305,9 @@ export function formatCommand(command: string, args: string[]): string {
 export function usage(): string {
 	return [
 		'Usage:',
-		'  jj-range-diff [options]',
-		'  jj-range-diff diff [options]',
-		'  jj-range-diff timeline [options] <file>',
+		'  jj-plus [options]',
+		'  jj-plus diff [options]',
+		'  jj-plus timeline [options] <file>',
 		'',
 		'Commands:',
 		'  diff                          Explicit alias for the default range diff deep-link flow',
@@ -336,7 +336,7 @@ export function usage(): string {
 		'  -h, --help                       Show this help message',
 		'',
 		'Environment:',
-		'      JJ_RANGE_DIFF_IDE  Default IDE preset or command for the VS Code deep-link flow',
+		'      JJ_PLUS_IDE  Default IDE preset or command for the VS Code deep-link flow',
 	].join('\n');
 }
 

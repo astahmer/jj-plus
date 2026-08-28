@@ -1541,7 +1541,7 @@ async function openMultiDiffWithEditor(args: {
 	}>;
 }): Promise<void> {
 	const { command, args: baseArgs } = parseEditorCommand(args.editorCommand);
-	const tempRoot = path.join(os.tmpdir(), 'jj-range-diff-editor', `${Date.now()}`);
+	const tempRoot = path.join(os.tmpdir(), 'jj-plus-editor', `${Date.now()}`);
 	await fs.mkdir(tempRoot, { recursive: true });
 
 	for (const [index, file] of args.files.entries()) {
@@ -2005,7 +2005,7 @@ function getUnitPreview(args: {
 }
 
 async function openPreviewDocument(args: { preview: DiffPreview; relativePath: string }): Promise<void> {
-	const previewDirectory = path.join(os.tmpdir(), 'jj-range-diff-previews');
+	const previewDirectory = path.join(os.tmpdir(), 'jj-plus-previews');
 	await fs.mkdir(previewDirectory, { recursive: true });
 	const sanitizedPath = args.relativePath.replace(/[^a-zA-Z0-9._-]+/g, '_');
 	const previewPath = path.join(previewDirectory, `${Date.now()}-${sanitizedPath}.diff.txt`);

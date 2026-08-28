@@ -31,13 +31,13 @@ export function registerEditorExtraFeatures(args: {
 	const disposables: vscode.Disposable[] = [];
 
 	disposables.push(
-		vscode.commands.registerCommand('jj-range-diff.toggleLineBlame', async () => {
+		vscode.commands.registerCommand('jj-plus.toggleLineBlame', async () => {
 			const config = vscode.workspace.getConfiguration(SETTINGS_SECTION);
 			const current = config.get<boolean>('inlineBlameGutter', false);
 			await config.update('inlineBlameGutter', !current, vscode.ConfigurationTarget.Global);
 			void vscode.window.setStatusBarMessage(`jjplus: line blame ${current ? 'off' : 'on'}`, 2500);
 		}),
-		vscode.commands.registerCommand('jj-range-diff.compareWithBookmark', async () => {
+		vscode.commands.registerCommand('jj-plus.compareWithBookmark', async () => {
 			const absolutePath = resolveCommandFilePath();
 			if (!absolutePath) {
 				void vscode.window.showErrorMessage('Open a workspace file first');
@@ -90,7 +90,7 @@ export function registerEditorExtraFeatures(args: {
 				{ preview: true },
 			);
 		}),
-		vscode.commands.registerCommand('jj-range-diff.peekRevisionAtCursor', async () => {
+		vscode.commands.registerCommand('jj-plus.peekRevisionAtCursor', async () => {
 			const editor = vscode.window.activeTextEditor;
 			if (!editor || editor.document.uri.scheme !== 'file') {
 				return;
@@ -133,7 +133,7 @@ export function registerEditorExtraFeatures(args: {
 				[new vscode.Location(uri, new vscode.Position(Math.max(0, line - 1), 0))],
 			);
 		}),
-		vscode.commands.registerCommand('jj-range-diff.openFileAtRevision', async () => {
+		vscode.commands.registerCommand('jj-plus.openFileAtRevision', async () => {
 			const absolutePath = resolveCommandFilePath();
 			if (!absolutePath) {
 				void vscode.window.showErrorMessage('Open a workspace file first');
@@ -165,7 +165,7 @@ export function registerEditorExtraFeatures(args: {
 			const doc = await vscode.workspace.openTextDocument(uri);
 			await vscode.window.showTextDocument(doc, { preview: true });
 		}),
-		vscode.commands.registerCommand('jj-range-diff.openWorkingCopyChangesMulti', async () => {
+		vscode.commands.registerCommand('jj-plus.openWorkingCopyChangesMulti', async () => {
 			const folder = vscode.workspace.workspaceFolders?.[0];
 			if (!folder) {
 				void vscode.window.showErrorMessage('No workspace folder');
@@ -391,7 +391,7 @@ function createConflictHelper(args: { runner: Runner; resolveBackend: ResolveBac
 
 	return vscode.Disposable.from(
 		decoration,
-		vscode.commands.registerCommand('jj-range-diff.jumpNextConflict', async () => {
+		vscode.commands.registerCommand('jj-plus.jumpNextConflict', async () => {
 			const editor = vscode.window.activeTextEditor;
 			if (!editor) {
 				return;

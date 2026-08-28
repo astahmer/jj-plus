@@ -23,17 +23,17 @@ test('package.json command titles use jjplus: prefix and editor title actions', 
 	}
 
 	const titleCommands = pkg.contributes.menus['editor/title'].map((entry) => entry.command);
-	assert.ok(titleCommands.includes('jj-range-diff.openChangesWithPrevious'));
-	assert.ok(titleCommands.includes('jj-range-diff.openFileRevisionTimeline'));
-	assert.ok(titleCommands.includes('jj-range-diff.openRevisionDiffPreviousUnavailable'));
-	assert.ok(titleCommands.includes('jj-range-diff.openRevisionDiffNextUnavailable'));
-	assert.ok(titleCommands.includes('jj-range-diff.toggleLineBlame') === false);
+	assert.ok(titleCommands.includes('jj-plus.openChangesWithPrevious'));
+	assert.ok(titleCommands.includes('jj-plus.openFileRevisionTimeline'));
+	assert.ok(titleCommands.includes('jj-plus.openRevisionDiffPreviousUnavailable'));
+	assert.ok(titleCommands.includes('jj-plus.openRevisionDiffNextUnavailable'));
+	assert.ok(titleCommands.includes('jj-plus.toggleLineBlame') === false);
 
-	const previous = pkg.contributes.commands.find((entry) => entry.command === 'jj-range-diff.openChangesWithPrevious');
-	const timeline = pkg.contributes.commands.find((entry) => entry.command === 'jj-range-diff.openFileRevisionTimeline');
-	const toggleBlame = pkg.contributes.commands.find((entry) => entry.command === 'jj-range-diff.toggleLineBlame');
-	const prevDiff = pkg.contributes.commands.find((entry) => entry.command === 'jj-range-diff.openRevisionDiffPrevious');
-	const nextDiff = pkg.contributes.commands.find((entry) => entry.command === 'jj-range-diff.openRevisionDiffNext');
+	const previous = pkg.contributes.commands.find((entry) => entry.command === 'jj-plus.openChangesWithPrevious');
+	const timeline = pkg.contributes.commands.find((entry) => entry.command === 'jj-plus.openFileRevisionTimeline');
+	const toggleBlame = pkg.contributes.commands.find((entry) => entry.command === 'jj-plus.toggleLineBlame');
+	const prevDiff = pkg.contributes.commands.find((entry) => entry.command === 'jj-plus.openRevisionDiffPrevious');
+	const nextDiff = pkg.contributes.commands.find((entry) => entry.command === 'jj-plus.openRevisionDiffNext');
 	assert.equal(previous?.icon, '$(history)');
 	assert.equal(timeline?.icon, '$(diff)');
 	assert.ok(toggleBlame);

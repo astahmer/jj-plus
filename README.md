@@ -1,4 +1,4 @@
-# JJ Range Diff
+# JJ Plus
 
 Minimal VS Code extension that opens JJ range multi-diff.
 
@@ -23,7 +23,7 @@ It also includes a custom revision timeline panel for the active file. The panel
 2. Once: `pnpm seed:test-repo` (creates `test-repo/` with sample jj history).
 3. Select launch config **Extension: test-repo**, then press `F5`.
    - `preLaunchTask` rebuilds `dist/` + `webview-dist/` so the host always loads the current sources.
-   - `--extensionDevelopmentPath` loads this workspace; `--disable-extension=astahmer.jj-range-diff` blocks any installed VSIX of the same id.
+   - `--extensionDevelopmentPath` loads this workspace; `--disable-extension=astahmer.jj-plus` blocks any installed VSIX of the same id.
 4. In the Extension Development Host window, open a file under `test-repo/` and run `JJ: Open File Revision Timeline` (or `JJ: Open Range Multi Diff`).
 
 For richer fixtures (same as e2e), run `pnpm fixtures:e2e` once, then F5 with **Extension: jj-basic fixture** or **Extension: git-basic fixture**.
@@ -76,7 +76,7 @@ The panel prefers JJ history when the workspace is a JJ repo and falls back to G
 ## Optional Programmatic Invocation
 
 ```js
-await vscode.commands.executeCommand('jj-range-diff.openRangeMultiDiff', {
+await vscode.commands.executeCommand('jj-plus.openRangeMultiDiff', {
 	workspacePath: '/Users/astahmer/dev/work-related/welii',
 	from: 'yvspkqrx',
 	to: 'mvvosnsv',
@@ -97,27 +97,27 @@ When running from this repository directly, build the extension runtime first:
 pnpm build:extension
 ```
 
-Then invoke the local binary with `pnpm exec jj-range-diff ...`. If you prefer, `node ./dist/bin.cjs ...` is equivalent against the built output.
+Then invoke the local binary with `pnpm exec jj-plus ...`. If you prefer, `node ./dist/bin.cjs ...` is equivalent against the built output.
 
 ### Range Diff Deep Link
 
-`jj-range-diff` opens the same flow from your shell by forwarding a deep link into VS Code. `jj-range-diff diff` is the explicit equivalent, and that is the documented form below. The implicit default still works.
+`jj-plus` opens the same flow from your shell by forwarding a deep link into VS Code. `jj-plus diff` is the explicit equivalent, and that is the documented form below. The implicit default still works.
 
 CLI launches now skip the extension input prompts and open the diff directly. Add `--confirm` if you want the prompt flow before opening.
 
 ```sh
-pnpm exec jj-range-diff diff -f closest_bookmark(@) -t @
-pnpm exec jj-range-diff diff --from yvspkqrx --to mvvosnsv --title 'range diff'
-pnpm exec jj-range-diff diff --confirm -f closest_bookmark(@) -t @
-pnpm exec jj-range-diff diff --ide cursor -f closest_bookmark(@) -t @
-pnpm exec jj-range-diff diff --verbose --ide zed -f closest_bookmark(@) -t @
-pnpm exec jj-range-diff diff -f closest_bookmark(@) -t @ -w /path/to/workspace
-pnpm exec jj-range-diff -f closest_bookmark(@) -t @
+pnpm exec jj-plus diff -f closest_bookmark(@) -t @
+pnpm exec jj-plus diff --from yvspkqrx --to mvvosnsv --title 'range diff'
+pnpm exec jj-plus diff --confirm -f closest_bookmark(@) -t @
+pnpm exec jj-plus diff --ide cursor -f closest_bookmark(@) -t @
+pnpm exec jj-plus diff --verbose --ide zed -f closest_bookmark(@) -t @
+pnpm exec jj-plus diff -f closest_bookmark(@) -t @ -w /path/to/workspace
+pnpm exec jj-plus -f closest_bookmark(@) -t @
 ```
 
-If you install the package with `npm link`, the `jj-range-diff` command is also available on your `PATH`.
+If you install the package with `npm link`, the `jj-plus` command is also available on your `PATH`.
 
-`--ide` accepts known presets like `code`, `code-insiders`, `cursor`, `cursor-insiders`, `zed`, `windsurf`, and `codium`. You can also set `JJ_RANGE_DIFF_IDE` to change the default launcher.
+`--ide` accepts known presets like `code`, `code-insiders`, `cursor`, `cursor-insiders`, `zed`, `windsurf`, and `codium`. You can also set `JJ_PLUS_IDE` to change the default launcher.
 
 ### Standalone Timeline
 
@@ -126,23 +126,23 @@ The standalone timeline reuses the same webview UI in your default browser and s
 ```sh
 pnpm build:extension
 pnpm build:webview
-pnpm exec jj-range-diff timeline README.md
-pnpm exec jj-range-diff timeline --no-open --port 4173 README.md
-pnpm exec jj-range-diff timeline -w /path/to/repo apps/backend/src/service.ts
+pnpm exec jj-plus timeline README.md
+pnpm exec jj-plus timeline --no-open --port 4173 README.md
+pnpm exec jj-plus timeline -w /path/to/repo apps/backend/src/service.ts
 ```
 
-With `npm link`, the same commands work through `jj-range-diff timeline ...`.
+With `npm link`, the same commands work through `jj-plus timeline ...`.
 
 Use `--no-open` when you want to keep the server running without launching a browser automatically, and `--port` when you want a predictable local URL.
 
 ## Logs
 
-The extension writes the exact `jj` commands it runs to the `JJ Range Diff` output channel in VS Code. When you run the CLI with `--verbose`, the CLI also logs the IDE/open-url commands it used and opens that output channel so you can see the `jj` commands immediately.
+The extension writes the exact `jj` commands it runs to the `JJ Plus` output channel in VS Code. When you run the CLI with `--verbose`, the CLI also logs the IDE/open-url commands it used and opens that output channel so you can see the `jj` commands immediately.
 
 ## Install
 
 ```sh
-cd /Users/astahmer/dev/work-related/welii/tools/jj-range-diff
+cd /Users/astahmer/dev/visualjj-range-diff-helper
 npx @vscode/vsce package
 ```
 
