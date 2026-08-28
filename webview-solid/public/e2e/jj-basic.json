@@ -1,7 +1,7 @@
 {
 	"timelineData": {
 		"backend": "jj",
-		"workspacePath": "/Users/astahmer/dev/alex/visualjj-range-diff-helper/.e2e-runtime/repos/jj-basic",
+		"workspacePath": "~/dev/alex/visualjj-range-diff-helper/.e2e-runtime/repos/jj-basic",
 		"relativePath": "apps/backend/instructions/lazy-di-rollout-plan.md",
 		"fileName": "lazy-di-rollout-plan.md",
 		"version": "0.0.2",
@@ -3676,7 +3676,7 @@
 		"apps/backend/instructions/lazy-di-rollout-plan.md": {
 			"timelineData": {
 				"backend": "jj",
-				"workspacePath": "/Users/astahmer/dev/alex/visualjj-range-diff-helper/.e2e-runtime/repos/jj-basic",
+				"workspacePath": "~/dev/alex/visualjj-range-diff-helper/.e2e-runtime/repos/jj-basic",
 				"relativePath": "apps/backend/instructions/lazy-di-rollout-plan.md",
 				"fileName": "lazy-di-rollout-plan.md",
 				"version": "0.0.2",
@@ -7351,7 +7351,7 @@
 		"apps/backend/src/service.ts": {
 			"timelineData": {
 				"backend": "jj",
-				"workspacePath": "/Users/astahmer/dev/alex/visualjj-range-diff-helper/.e2e-runtime/repos/jj-basic",
+				"workspacePath": "~/dev/alex/visualjj-range-diff-helper/.e2e-runtime/repos/jj-basic",
 				"relativePath": "apps/backend/src/service.ts",
 				"fileName": "service.ts",
 				"version": "0.0.2",

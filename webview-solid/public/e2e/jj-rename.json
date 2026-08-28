@@ -1,7 +1,7 @@
 {
 	"timelineData": {
 		"backend": "jj",
-		"workspacePath": "/Users/astahmer/dev/alex/visualjj-range-diff-helper/.e2e-runtime/repos/jj-rename",
+		"workspacePath": "~/dev/alex/visualjj-range-diff-helper/.e2e-runtime/repos/jj-rename",
 		"relativePath": "apps/backend/src/commitments/commitment.entity.ts",
 		"fileName": "commitment.entity.ts",
 		"version": "0.0.2",
@@ -244,7 +244,7 @@
 		"apps/backend/src/commitments/commitment.entity.ts": {
 			"timelineData": {
 				"backend": "jj",
-				"workspacePath": "/Users/astahmer/dev/alex/visualjj-range-diff-helper/.e2e-runtime/repos/jj-rename",
+				"workspacePath": "~/dev/alex/visualjj-range-diff-helper/.e2e-runtime/repos/jj-rename",
 				"relativePath": "apps/backend/src/commitments/commitment.entity.ts",
 				"fileName": "commitment.entity.ts",
 				"version": "0.0.2",

@@ -144,12 +144,12 @@ few things to change:
 
 - when a revision range is selected it would be nice to add a "Open diff" button in the header of the sidebar; that would be the same action as when pressing the space key
 - seems like the jj snapshot (rather than revision) diff is not available when the range mode is enabled (but i can see the jj snapshot/revision mode buttons with "single")
-- not sure why but again sometime the "Computing diff preview…" wont end; again due to a +0/-0; see example with `661 days ago · 3d54ba19 659 days ago · 76e8004d +0 / -0` on `/Users/astahmer/dev/work-related/welii-clone/apps/frontend/src/commitments/add/commitments-add-details-step.tsx`
+- not sure why but again sometime the "Computing diff preview…" wont end; again due to a +0/-0; see example with `661 days ago · 3d54ba19 659 days ago · 76e8004d +0 / -0` on `~/dev/work-related/welii-clone/apps/frontend/src/commitments/add/commitments-add-details-step.tsx`
 - we need a way to open a revision's changes on remote (e.g on github)
 - we need to display somewhere the list of hotkeys, either subtly or have a whole section dedicated that can be opened with a ? icon button or somth like that; do it like a pro UI/UX designer would
 - when opening the timeline; the default range should always be of size 1 with a "to" at the rightmost
 - we probably want to add some unit tests right? to prevent regression on the functional/business logic (if any; if nothing applies then forget about this)
-- seems like there's an issue with jj diffing (screen3) on /Users/astahmer/dev/work-related/welii/apps/frontend/src/organizations/auth.hooks.ts "44 days ago · mwouw 35 days ago · ruxzp" -> Timeline action failed: Command failed: jj diff -r 30de1af53d84 -T diff.files().map(|entry| entry.status_char() ++ "\t" ++ entry.display_diff_path() ++ "\n") Error: Failed to parse template: Keyword `diff` doesn't exist Caused by: --> 1:1 | 1 | diff.files().map(|entry| entry.status_char() ++ "\t" ++ entry.display_diff_path() ++ "\n") | ^--^ | = Keyword `diff` doesn't exist
+- seems like there's an issue with jj diffing (screen3) on ~/dev/work-related/welii/apps/frontend/src/organizations/auth.hooks.ts "44 days ago · mwouw 35 days ago · ruxzp" -> Timeline action failed: Command failed: jj diff -r 30de1af53d84 -T diff.files().map(|entry| entry.status_char() ++ "\t" ++ entry.display_diff_path() ++ "\n") Error: Failed to parse template: Keyword `diff` doesn't exist Caused by: --> 1:1 | 1 | diff.files().map(|entry| entry.status_char() ++ "\t" ++ entry.display_diff_path() ++ "\n") | ^--^ | = Keyword `diff` doesn't exist
 
 ---
 
@@ -241,12 +241,12 @@ welii/apps/backend \*​ ≡
 - can confirm the toggle styles are finally working correctly!
 - the track-anchor are still wrongly positioned (everything is on the left)
 - still seeing the duplicate commits on the sidebar items; somth seems wrong? and i can confirm switching from revision mode to snapshot mode still doesnt change the sidebar items (outside of smaller diff per items..)
-- if you need to try stuff you can do so at `/Users/astahmer/dev/work-related/welii`, for example this file `/Users/astahmer/dev/work-related/welii/knip.jsonc` has multiple snapshots i think? find others otherwise
+- if you need to try stuff you can do so at `~/dev/work-related/welii`, for example this file `~/dev/work-related/welii/knip.jsonc` has multiple snapshots i think? find others otherwise
 - after playing a bit with the diffs on the actual jj repo i sent you; add more tests to ensure everything works for us
 
 - not only did it NOT work at all but it also kinda ddos'd jj since it spammed with with so many commands (jj diff with independant revision)
 - the current state failing means we need to add more tests! btw im sure you fixed some stuff but since there's a crash at first i cant confirm anything
-- you can see the full log in /Users/astahmer/dev/alex/visualjj-range-diff-helper/extension-host.log
+- you can see the full log in ~/dev/alex/visualjj-range-diff-helper/extension-host.log
 - we will need to make that way more performant: we should batch stuff whenever possible and also maybe run those commands more lazily (only on visible revisions then when you scroll/move the range to a revision that wasnt part of the selection before we request at that time?)
 - when parsing the operation we probably want to store the operation index ({revisionId}/{index}) and the operation id; see
   jj evolog --no-graph
@@ -291,11 +291,11 @@ welii/apps/backend \*​ ≡
 
 - while there's no major issue; the snapshots still arent shown any differently than the revisions
 - seems like due to the many requests after opening if I try to move the range or do basically anything there might be weird re-renders that i didnt control probably due to race conditions of the initial requests fired that just ended up AFTER the jj requests done in response to my UI actions (?)
-- i've updated the logs file (/Users/astahmer/dev/alex/visualjj-range-diff-helper/extension-host.log) of which jj request are done when opening the timeline on a file
+- i've updated the logs file (~/dev/alex/visualjj-range-diff-helper/extension-host.log) of which jj request are done when opening the timeline on a file
 - in the logs file i still feel like we're doing many requests; cant we reduce that ? or do it more on demand?
 - in the logs file i added the output of some commands to help you debug right below the "# added for debugging purposes #"
 - in the logs file you can see that there are multiple snapshots for the revision 4c3a9ffaaf77; the whole point is to be able to see those granular changes (as long as they apply to the currently seen file at least!)
-- to help you even further i just created a new revision; made 5 distincts change (i saved the file between each change) on the /Users/astahmer/dev/work-related/welii/apps/backend/instructions/lazy-di-rollout-plan.md file; you can see the "jj branching snapshot" in the screen and you can see exactly what jj commands were run in /Users/astahmer/dev/alex/visualjj-range-diff-helper/extension-host2.log (tho i didnt add the output this time; feel free to check it yourself)
+- to help you even further i just created a new revision; made 5 distincts change (i saved the file between each change) on the ~/dev/work-related/welii/apps/backend/instructions/lazy-di-rollout-plan.md file; you can see the "jj branching snapshot" in the screen and you can see exactly what jj commands were run in ~/dev/alex/visualjj-range-diff-helper/extension-host2.log (tho i didnt add the output this time; feel free to check it yourself)
 - think a lot and try to debug stuff before making more changes; the next batch of changes you'll add HAVE to fix the issue cause you now have all of the info/context necessary to fix it. good luck!
 
 i still dont see individual/granular/distinct snapshot changes, the 5 snapshots that sequentially added "another" "change" "to" "the" "plan" words are still collapsed in a single "snapshot"; wording in the UI that do NOT reflect the actual evolog:
@@ -338,7 +338,7 @@ wywrvxml/5 alexandre.stahmer@gmail.com 2026-04-10 19:27:09 9246b5a7 (hidden)
 (empty) (no description set)
 -- operation c92ad6c400cd new empty commit
 
-- logs of the jj request done are available at /Users/astahmer/dev/alex/visualjj-range-diff-helper/extension-host3-revision-mode.log (this one works fine) and /Users/astahmer/dev/alex/visualjj-range-diff-helper/extension-host3-snapshot-mode.log (this one doesnt properly shows granular snapshot operation changes)
+- logs of the jj request done are available at ~/dev/alex/visualjj-range-diff-helper/extension-host3-revision-mode.log (this one works fine) and ~/dev/alex/visualjj-range-diff-helper/extension-host3-snapshot-mode.log (this one doesnt properly shows granular snapshot operation changes)
 - with the snapshot mode we should have sidebar items for those operations: ee269b417d50
   cdf4786256d5
   61b575a8a17f
@@ -362,47 +362,47 @@ if you need anything more to debug it please tell me; otherwise just fix it
 - for revision ids (everywhere); we should display the "shortest" form colored differently like jj log does "wywrv" is in purple in "wywrvxml"
 
 here you can see the logs with the evolog coming later triggering the layout shift i think:
-[2026-04-10T18:10:21.079Z] cwd=/Users/astahmer/dev/work-related/welii
+[2026-04-10T18:10:21.079Z] cwd=~/dev/work-related/welii
 jj root
-[2026-04-10T18:10:21.089Z] cwd=/Users/astahmer/dev/work-related/welii
+[2026-04-10T18:10:21.089Z] cwd=~/dev/work-related/welii
 git ls-files --cached --others --exclude-standard -z
-[2026-04-10T18:10:21.125Z] cwd=/Users/astahmer/dev/work-related/welii
+[2026-04-10T18:10:21.125Z] cwd=~/dev/work-related/welii
 jj log --no-graph --limit 200 -T 'commit_id.short() ++ "\t" ++ change_id.shortest() ++ "\t" ++ author.timestamp().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ author.name() ++ "\t" ++ description.first_line() ++ "\n"' 'root-file:"apps/backend/instructions/lazy-di-rollout-plan.md"'
-[2026-04-10T18:10:21.522Z] cwd=/Users/astahmer/dev/work-related/welii
+[2026-04-10T18:10:21.522Z] cwd=~/dev/work-related/welii
 jj log --no-graph --limit 200 -T 'commit_id.short() ++ "\t" ++ change_id.shortest() ++ "\t" ++ author.timestamp().format("%Y-%m-%dT%H:%M:%S%:z") ++ "\t" ++ author.name() ++ "\t" ++ description.first_line() ++ "\n"'
-[2026-04-10T18:10:21.591Z] cwd=/Users/astahmer/dev/work-related/welii
+[2026-04-10T18:10:21.591Z] cwd=~/dev/work-related/welii
 jj file show -r 76653bbe5d47 apps/backend/instructions/lazy-di-rollout-plan.md
-[2026-04-10T18:10:21.644Z] cwd=/Users/astahmer/dev/work-related/welii
+[2026-04-10T18:10:21.644Z] cwd=~/dev/work-related/welii
 git remote get-url origin
-[2026-04-10T18:10:21.839Z] cwd=/Users/astahmer/dev/work-related/welii
+[2026-04-10T18:10:21.839Z] cwd=~/dev/work-related/welii
 jj evolog --no-graph --summary --limit 200 -r b81c91c2ac8c
-[2026-04-10T18:10:21.854Z] cwd=/Users/astahmer/dev/work-related/welii
+[2026-04-10T18:10:21.854Z] cwd=~/dev/work-related/welii
 jj diff --summary -r 76653bbe5d47
-[2026-04-10T18:10:21.931Z] cwd=/Users/astahmer/dev/work-related/welii
+[2026-04-10T18:10:21.931Z] cwd=~/dev/work-related/welii
 jj file show -r 76653bbe5d47- apps/backend/instructions/lazy-di-rollout-plan.md
-[2026-04-10T18:10:22.008Z] cwd=/Users/astahmer/dev/work-related/welii
+[2026-04-10T18:10:22.008Z] cwd=~/dev/work-related/welii
 jj file show -r 76653bbe5d47 apps/backend/instructions/lazy-di-rollout-plan.md
-[2026-04-10T18:10:22.415Z] cwd=/Users/astahmer/dev/work-related/welii
+[2026-04-10T18:10:22.415Z] cwd=~/dev/work-related/welii
 jj evolog --no-graph --summary --limit 200 -r 76653bbe5d47
-[2026-04-10T18:10:22.508Z] cwd=/Users/astahmer/dev/work-related/welii
+[2026-04-10T18:10:22.508Z] cwd=~/dev/work-related/welii
 jj evolog --no-graph --summary --limit 200 -r 9327aaf3b6cb
-[2026-04-10T18:10:22.666Z] cwd=/Users/astahmer/dev/work-related/welii
+[2026-04-10T18:10:22.666Z] cwd=~/dev/work-related/welii
 jj evolog --no-graph --summary --limit 200 -r 99186447512d
-[2026-04-10T18:10:22.972Z] cwd=/Users/astahmer/dev/work-related/welii
+[2026-04-10T18:10:22.972Z] cwd=~/dev/work-related/welii
 jj evolog --no-graph --summary --limit 200 -r 50422e4c1466
-[2026-04-10T18:10:23.146Z] cwd=/Users/astahmer/dev/work-related/welii
+[2026-04-10T18:10:23.146Z] cwd=~/dev/work-related/welii
 jj evolog --no-graph --summary --limit 200 -r 1f598c19ae79
-[2026-04-10T18:10:23.331Z] cwd=/Users/astahmer/dev/work-related/welii
+[2026-04-10T18:10:23.331Z] cwd=~/dev/work-related/welii
 jj evolog --no-graph --summary --limit 200 -r 160460119a63
-[2026-04-10T18:10:23.539Z] cwd=/Users/astahmer/dev/work-related/welii
+[2026-04-10T18:10:23.539Z] cwd=~/dev/work-related/welii
 jj evolog --no-graph --summary --limit 200 -r 69ceeb779513
-[2026-04-10T18:10:23.674Z] cwd=/Users/astahmer/dev/work-related/welii
+[2026-04-10T18:10:23.674Z] cwd=~/dev/work-related/welii
 jj evolog --no-graph --summary --limit 200 -r 4e841158ae85
-[2026-04-10T18:10:23.681Z] cwd=/Users/astahmer/dev/work-related/welii
+[2026-04-10T18:10:23.681Z] cwd=~/dev/work-related/welii
 jj diff --summary -r b4bcbb72
-[2026-04-10T18:10:23.758Z] cwd=/Users/astahmer/dev/work-related/welii
+[2026-04-10T18:10:23.758Z] cwd=~/dev/work-related/welii
 jj file show -r b4bcbb72- apps/backend/instructions/lazy-di-rollout-plan.md
-[2026-04-10T18:10:23.816Z] cwd=/Users/astahmer/dev/work-related/welii
+[2026-04-10T18:10:23.816Z] cwd=~/dev/work-related/welii
 jj file show -r b4bcbb72 apps/backend/instructions/lazy-di-rollout-plan.md
 
 ---
