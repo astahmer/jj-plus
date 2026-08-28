@@ -7,6 +7,7 @@
 	"files": [
 		"dist/",
 		"webview-dist/",
+		"!webview-dist/e2e/",
 		"assets/",
 		"README.md",
 		"CHANGELOG.md"
