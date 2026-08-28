@@ -367,6 +367,10 @@ export function activate(context: vscode.ExtensionContext): void {
 			runner,
 			resolveBackend: async ({ workspacePath }) => resolveHistoryAdapter({ workspacePath, runner }),
 			createInlineContentUri: (uriArgs) => provider.createInlineContentUri(uriArgs),
+			getRemoteBaseUrl: async ({ workspacePath }) => {
+				const adapter = await resolveHistoryAdapter({ workspacePath, runner });
+				return adapter.getRemoteBaseUrl({ workspacePath });
+			},
 			showFileAtRevision: async ({ workspacePath, revset, filePath }) => {
 				const adapter = await resolveHistoryAdapter({ workspacePath, runner });
 				return adapter.showFileAtRevision({ workspacePath, revset, filePath });
