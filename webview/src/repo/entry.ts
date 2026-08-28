@@ -7,6 +7,8 @@ import { view } from './view.ts';
 
 const container = document.getElementById('timelineApp');
 if (!container) throw new Error('Missing #timelineApp container');
+container.classList.add('repo-timeline-root');
+document.body.classList.add('repo-timeline-body');
 
 Runtime.run(
 	Runtime.makeElement({

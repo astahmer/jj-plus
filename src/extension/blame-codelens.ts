@@ -151,7 +151,9 @@ export function createEditorBlameDecorations(args: {
 					{
 						range: document.lineAt(activeLine).range,
 						renderOptions: { after: { contentText: formatCurrentLineBlameDecoration(blame) } },
-						hoverMessage: hover,
+						// The hover provider owns the card when the timeline-link setting is on.
+						// Keeping both sources here makes VS Code render the same card twice.
+						hoverMessage: settings.hoverTimelineLink ? undefined : hover,
 					},
 				]);
 			} else {
@@ -184,7 +186,7 @@ export function createEditorBlameDecorations(args: {
 									contentText: formatCurrentLineBlameDecoration(entry),
 								},
 							},
-							hoverMessage: hover,
+								hoverMessage: settings.hoverTimelineLink ? undefined : hover,
 						};
 					}),
 			);

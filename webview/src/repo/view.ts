@@ -1,8 +1,23 @@
 import { html, type Html } from 'foldkit/html';
 import type { Message } from './messages.ts';
-import { ClickedRefresh, ClickedRemote, ClickedRevision, ToggledSort, UpdatedQuery, UpdatedRevset } from './messages.ts';
+import {
+	ClearedSearch,
+	ClickedRefresh,
+	ClickedRemote,
+	ClickedRevision,
+	SelectedMatchMode,
+	SelectedSearchMode,
+	SubmittedSearch,
+	ToggledSort,
+	UpdatedAfter,
+	UpdatedPath,
+	UpdatedQuery,
+	UpdatedRevset,
+	UpdatedUntil,
+} from './messages.ts';
 import type { Model } from './model.ts';
-import type { RepoRevisionEntry, RepoTimelineData, RepoTimelineDiff } from './types.ts';
+import type { RepoRevisionEntry, RepoTimelineData, RepoTimelineDiff, RepoTimelineSearchPayload, RepoTimelineSearchResult } from './types.ts';
+import { queueRepoPierreDiffSync } from './pierre.ts';
 
 function dataOf(model: Model): RepoTimelineData | null {
 	return model.data as RepoTimelineData | null;
@@ -10,6 +25,10 @@ function dataOf(model: Model): RepoTimelineData | null {
 
 function diffOf(model: Model): RepoTimelineDiff | null {
 	return model.diff as RepoTimelineDiff | null;
+}
+
+function searchOf(model: Model): RepoTimelineSearchPayload | null {
+	return model.searchResults as RepoTimelineSearchPayload | null;
 }
 
 function matches(entry: RepoRevisionEntry, query: string): boolean {
@@ -23,8 +42,14 @@ function matches(entry: RepoRevisionEntry, query: string): boolean {
 function visibleEntries(model: Model): Array<RepoRevisionEntry> {
 	const data = dataOf(model);
 	if (!data) return [];
-	const entries = data.entries.filter((entry) => matches(entry, model.query));
+	const search = searchOf(model);
+	const resultIndexes = search ? new Set(search.results.map((result) => result.entryIndex)) : undefined;
+	const entries = data.entries.filter((entry) => (resultIndexes ? resultIndexes.has(entry.index) : matches(entry, model.query)));
 	return model.oldestFirst ? entries : entries.toReversed();
+}
+
+function resultForEntry(model: Model, entry: RepoRevisionEntry): RepoTimelineSearchResult | undefined {
+	return searchOf(model)?.results.find((result) => result.entryIndex === entry.index);
 }
 
 function patchStats(patch: string): { additions: number; deletions: number } {
@@ -38,7 +63,7 @@ function patchStats(patch: string): { additions: number; deletions: number } {
 	return { additions, deletions };
 }
 
-function renderEntry(entry: RepoRevisionEntry, selected: boolean): Html {
+function renderEntry(entry: RepoRevisionEntry, selected: boolean, hit?: RepoTimelineSearchResult): Html {
 	const h = html<Message>();
 	const refs = [...(entry.bookmarkNames || []), ...(entry.branchNames || [])];
 	return h.button(
@@ -58,6 +83,7 @@ function renderEntry(entry: RepoRevisionEntry, selected: boolean): Html {
 				],
 			),
 			h.div([h.Class('repo-entry-title')], [entry.description || 'No description']),
+			hit ? h.div([h.Class('repo-entry-hit')], [`${hit.filePath || 'metadata'}${hit.line ? `:${hit.line}` : ''}${hit.detail ? ` · ${hit.detail}` : ''}`]) : h.empty,
 			h.div(
 				[h.Class('repo-entry-meta')],
 				[
@@ -117,17 +143,10 @@ function renderDiff(model: Model): Html {
 				],
 			),
 			diff.files.length
-				? h.div([h.Class('repo-file-list')], diff.files.map((file) => h.span([h.Class('repo-file')], [file])))
+				? h.div([h.Class('repo-file-list')], diff.files.map((file) => h.span([h.Class('repo-file')], [file.path])))
 				: h.div([h.Class('repo-empty-diff')], ['No changed files in this revision.']),
-			h.pre(
-				[h.Class('repo-patch'), h.AriaLabel('Revision patch')],
-				diff.patch.split(/\r?\n/u).map((line) =>
-					h.div(
-						[h.Class(line.startsWith('+') && !line.startsWith('+++') ? 'patch-add' : line.startsWith('-') && !line.startsWith('---') ? 'patch-delete' : line.startsWith('@@') ? 'patch-hunk' : '')],
-						[line || ' '],
-					),
-				),
-			),
+			h.div([h.Class('repo-pierre-slot'), h.Id('repo-pierre-slot'), h.AriaLabel('Revision diff')], []),
+			!diff.files.length && diff.patch ? h.pre([h.Class('repo-patch-fallback'), h.AriaLabel('Raw revision patch')], [diff.patch]) : h.empty,
 		],
 	);
 }
@@ -136,6 +155,9 @@ export function view(model: Model): Html {
 	const h = html<Message>();
 	const data = dataOf(model);
 	const entries = visibleEntries(model);
+	if (typeof window !== 'undefined') queueRepoPierreDiffSync(model);
+	const search = searchOf(model);
+	const resultCount = search?.results.length ?? 0;
 	return h.div(
 		[h.Class('repo-app')],
 		[
@@ -147,25 +169,33 @@ export function view(model: Model): Html {
 						h.div([h.Class('eyebrow')], ['Repository view']),
 						h.h1([], [data?.repositoryName || 'Repo Timeline']),
 					]),
-					h.div([h.Class('repo-header-meta')], [data ? `${data.backend} · ${entries.length}${model.query.trim() ? ' matching' : ''}` : 'Preparing…']),
+					h.div([h.Class('repo-header-meta')], [data ? `${data.backend} · ${search ? `${resultCount} matches` : `${entries.length} revisions`}` : 'Preparing…']),
 				],
 			),
 			h.section(
 				[h.Class('repo-toolbar')],
 				[
 					h.label([h.Class('repo-field repo-query-field')], [
-						h.span([h.Class('repo-field-label')], ['Search history']),
-						h.input([h.Type('search'), h.Value(model.query), h.Placeholder('message, author, bookmark, or revision'), h.OnInput((value) => UpdatedQuery({ value }))]),
+						h.span([h.Class('repo-field-label')], ['Search repository']),
+						h.input([h.Type('search'), h.Value(model.query), h.Placeholder('text, author, or content'), h.OnInput((value) => UpdatedQuery({ value }))]),
 				]),
 					h.label([h.Class('repo-field repo-revset-field')], [
 						h.span([h.Class('repo-field-label')], ['Revset']),
 						h.input([h.Value(model.revset), h.Placeholder('ancestors(@)'), h.OnInput((value) => UpdatedRevset({ value }))]),
 				]),
+					h.div([h.Class('repo-search-mode')], ['Search in', ...(['metadata', 'changes', 'snapshot'] as const).map((value) => h.button([h.Class(`repo-mode-button${model.searchMode === value ? ' is-active' : ''}`), h.Type('button'), h.OnClick(SelectedSearchMode({ value })), h.AriaPressed(String(model.searchMode === value))], [value]))]),
+					h.div([h.Class('repo-search-mode')], ['Match', ...(['literal', 'regex', 'fuzzy'] as const).map((value) => h.button([h.Class(`repo-mode-button${model.matchMode === value ? ' is-active' : ''}`), h.Type('button'), h.OnClick(SelectedMatchMode({ value })), h.AriaPressed(String(model.matchMode === value))], [value]))]),
+					h.label([h.Class('repo-field repo-filter-field')], [h.span([h.Class('repo-field-label')], ['Path']), h.input([h.Value(model.path), h.Placeholder('src/'), h.OnInput((value) => UpdatedPath({ value }))])]),
+					h.label([h.Class('repo-field repo-date-field')], [h.span([h.Class('repo-field-label')], ['After']), h.input([h.Type('date'), h.Value(model.after), h.OnInput((value) => UpdatedAfter({ value }))])]),
+					h.label([h.Class('repo-field repo-date-field')], [h.span([h.Class('repo-field-label')], ['Until']), h.input([h.Type('date'), h.Value(model.until), h.OnInput((value) => UpdatedUntil({ value }))])]),
+					h.button([h.Class('repo-toolbar-action repo-search-action'), h.Type('button'), h.OnClick(SubmittedSearch()), h.Disabled(model.searchLoading)], [model.searchLoading ? 'Searching…' : 'Search']),
+					h.button([h.Class('repo-toolbar-action'), h.Type('button'), h.OnClick(ClearedSearch()), h.Disabled(!model.query && !model.path && !model.after && !model.until)], ['Clear']),
 					h.button([h.Class('repo-toolbar-action'), h.Type('button'), h.OnClick(ClickedRefresh()), h.Disabled(model.loading)], ['Refresh']),
 					h.button([h.Class('repo-toolbar-action repo-sort-action'), h.Type('button'), h.OnClick(ToggledSort())], [model.oldestFirst ? 'Newest first' : 'Oldest first']),
 				],
 			),
 			model.loading && !data ? h.div([h.Class('repo-progress'), h.Role('progressbar')], []) : h.empty,
+			model.searchError ? h.div([h.Class('repo-search-error'), h.Role('alert')], [model.searchError]) : h.empty,
 			h.main(
 				[h.Class('repo-main')],
 				[
@@ -173,7 +203,7 @@ export function view(model: Model): Html {
 						[h.Class('repo-results-panel')],
 						[
 							h.div([h.Class('repo-results-head')], [h.span([], ['Revisions']), h.span([h.Class('repo-results-count')], [data ? `${entries.length}${data.truncated && !model.query ? '+' : ''}` : '—'])]),
-							entries.length ? h.div([h.Class('repo-results-list')], entries.map((entry) => renderEntry(entry, entry.index === model.selectedIndex))) : h.div([h.Class('repo-empty')], [data?.entries.length ? 'No matching revisions.' : 'No revisions in this revset.']),
+							entries.length ? h.div([h.Class('repo-results-list')], entries.map((entry) => renderEntry(entry, entry.index === model.selectedIndex, resultForEntry(model, entry)))) : h.div([h.Class('repo-empty')], [search ? 'No matches for this search.' : data?.entries.length ? 'No revisions in this revset.' : 'Loading revisions…']),
 						],
 					),
 					h.section([h.Class('repo-detail-panel')], [renderDiff(model)]),

@@ -2,7 +2,17 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import * as vscode from 'vscode';
 import { renderTimelineDocumentHtml } from '../webview/timeline-template.ts';
-import type { RepoRevisionEntry, RepoTimelineCommand, RepoTimelineData, RepoTimelineInboundMessage } from '../shared/repo-timeline-types.ts';
+import type {
+	RepoRevisionEntry,
+	RepoTimelineCommand,
+	RepoTimelineData,
+	RepoTimelineDiff,
+	RepoTimelineDiffFile,
+	RepoTimelineInboundMessage,
+	RepoTimelineSearchPayload,
+	RepoTimelineSearchRequest,
+	RepoTimelineSearchResult,
+} from '../shared/repo-timeline-types.ts';
 import type { FileRevisionEntry } from '../shared/timeline-types.ts';
 import { resolveHistoryAdapter, resolveHistoryWorkspacePath } from './history-adapters.ts';
 import type { CommandRunner } from './types.ts';
@@ -68,11 +78,89 @@ function parseDiffFiles(patch: string): Array<string> {
 	return [...files];
 }
 
+function matchesText(value: string, query: string, mode: RepoTimelineSearchRequest['matchMode']): boolean {
+	if (!query) return true;
+	if (mode === 'regex') {
+		try {
+			return new RegExp(query, 'iu').test(value);
+		} catch {
+			return false;
+		}
+	}
+	if (mode === 'fuzzy') {
+		let cursor = 0;
+		const loweredValue = value.toLocaleLowerCase();
+		for (const character of query.toLocaleLowerCase()) {
+			cursor = loweredValue.indexOf(character, cursor);
+			if (cursor < 0) return false;
+			cursor += 1;
+		}
+		return true;
+	}
+	return value.toLocaleLowerCase().includes(query.toLocaleLowerCase());
+}
+
+function timestampInRange(timestamp: number, request: RepoTimelineSearchRequest): boolean {
+	const after = request.after ? Date.parse(request.after) / 1000 : Number.NEGATIVE_INFINITY;
+	const until = request.until ? Date.parse(request.until) / 1000 + 86_399 : Number.POSITIVE_INFINITY;
+	return (!Number.isFinite(after) || timestamp >= after) && (!Number.isFinite(until) || timestamp <= until);
+}
+
+function metadataMatches(entry: RepoRevisionEntry, request: RepoTimelineSearchRequest): boolean {
+	if (!timestampInRange(entry.timestamp, request)) return false;
+	// Repository entries are not file-scoped. Keep the path filter meaningful for
+	// any adapter-provided file entry, but do not make metadata searches silently
+	// return nothing just because the entry has no filePath.
+	if (request.path && entry.filePath && !entry.filePath.toLocaleLowerCase().includes(request.path.toLocaleLowerCase())) return false;
+	const haystack = [
+		entry.revision,
+		entry.changeId,
+		entry.description,
+		entry.authorName,
+		...(entry.bookmarkNames ?? []),
+		...(entry.branchNames ?? []),
+	].filter(Boolean).join('\n');
+	return matchesText(haystack, request.query.trim(), request.matchMode);
+}
+
+function addedLineMatches(patch: string, request: RepoTimelineSearchRequest): Array<{ filePath: string; line: number; detail: string }> {
+	const results: Array<{ filePath: string; line: number; detail: string }> = [];
+	let filePath = '';
+	let line = 0;
+	for (const rawLine of patch.split(/\r?\n/u)) {
+		const fileHeader = /^\+\+\+ b\/(.+)$/u.exec(rawLine);
+		if (fileHeader) {
+			filePath = fileHeader[1] ?? '';
+			continue;
+		}
+		if (rawLine.startsWith('@@')) {
+			const match = /\+(\d+)/u.exec(rawLine);
+			line = match ? Number(match[1]) : 0;
+			continue;
+		}
+		if (rawLine.startsWith('+') && !rawLine.startsWith('+++')) {
+			const detail = rawLine.slice(1);
+			if ((!request.path || filePath.toLocaleLowerCase().includes(request.path.toLocaleLowerCase())) && matchesText(detail, request.query.trim(), request.matchMode)) {
+				results.push({ filePath, line, detail });
+			}
+			line += 1;
+			continue;
+		}
+		if (rawLine.startsWith(' ')) line += 1;
+	}
+	return results;
+}
+
+function revisionParent(adapterBackend: string, revision: string): string {
+	return adapterBackend === 'jj' ? `${revision}-` : `${revision}^`;
+}
+
 function getRepoWebviewHtml(args: { context: vscode.ExtensionContext; webview: vscode.Webview }): string {
 	// Vite currently emits one shared stylesheet because cssCodeSplit is disabled
 	// for the Pierre timeline. The repo view's styles are included in it too.
 	const stylePath = vscode.Uri.joinPath(args.context.extensionUri, 'webview-dist', 'timeline-app.css');
 	const scriptPath = vscode.Uri.joinPath(args.context.extensionUri, 'webview-dist', 'repo-timeline-app.js');
+	const workerPath = vscode.Uri.joinPath(args.context.extensionUri, 'webview-dist', 'pierre-worker-portable.js');
 	if (!fsSync.existsSync(stylePath.fsPath) || !fsSync.existsSync(scriptPath.fsPath)) {
 		return '<!doctype html><html lang="en"><body><p>Repo Timeline bundle is missing. Run pnpm build:webview and reopen it.</p></body></html>';
 	}
@@ -81,6 +169,7 @@ function getRepoWebviewHtml(args: { context: vscode.ExtensionContext; webview: v
 		cspSource: args.webview.cspSource,
 		styleHref: String(args.webview.asWebviewUri(stylePath)),
 		appSrc: String(args.webview.asWebviewUri(scriptPath)),
+		workerSrc: String(args.webview.asWebviewUri(workerPath)),
 	});
 }
 
@@ -143,11 +232,12 @@ export function createRepoTimelinePanelController(args: {
 			const index = Number(Reflect.get(rawMessage, 'index'));
 			const entry = state.entries[index];
 			if (!entry) return;
-			const [patch, files] = await Promise.all([
-				state.adapter.getRevisionDiff({ workspacePath: state.workspacePath, revision: entry.revision }),
-				state.adapter.listRevisionFiles({ workspacePath: state.workspacePath, revision: entry.revision }),
-			]);
-			await post(panel, { type: 'repo-timeline-diff', payload: { revision: entry.revision, patch, files: files.length ? files : parseDiffFiles(patch) } });
+			await post(panel, { type: 'repo-timeline-diff', payload: await buildDiff(state, entry) });
+			return;
+		}
+		if (command === 'search') {
+			const request = Reflect.get(rawMessage, 'request') as RepoTimelineSearchRequest;
+			await post(panel, { type: 'repo-timeline-search', payload: await search(state, request) });
 			return;
 		}
 		if (command === 'open-revision-remote') {
@@ -180,11 +270,75 @@ export function createRepoTimelinePanelController(args: {
 		await post(panel, { type: 'repo-timeline-data', payload });
 		const first = state.entries.at(-1);
 		if (first) {
-			const [patch, files] = await Promise.all([
-				state.adapter.getRevisionDiff({ workspacePath: state.workspacePath, revision: first.revision }),
-				state.adapter.listRevisionFiles({ workspacePath: state.workspacePath, revision: first.revision }),
+			await post(panel, { type: 'repo-timeline-diff', payload: await buildDiff(state, first) });
+		}
+	}
+
+	async function buildDiff(state: RepoPanelState, entry: RepoRevisionEntry): Promise<RepoTimelineDiff> {
+		const patch = await state.adapter.getRevisionDiff({ workspacePath: state.workspacePath, revision: entry.revision });
+		const paths = await state.adapter.listRevisionFiles({ workspacePath: state.workspacePath, revision: entry.revision });
+		const files = paths.length ? paths : parseDiffFiles(patch);
+		const parent = revisionParent(state.adapter.backend, entry.revision);
+		const fileDiffs: Array<RepoTimelineDiffFile> = [];
+		for (const filePath of files) {
+			const [before, after] = await Promise.all([
+				readFileAtRevision(state, parent, filePath),
+				readFileAtRevision(state, entry.revision, filePath),
 			]);
-			await post(panel, { type: 'repo-timeline-diff', payload: { revision: first.revision, patch, files: files.length ? files : parseDiffFiles(patch) } });
+			fileDiffs.push({ path: filePath, before, after });
+		}
+		return { revision: entry.revision, patch, files: fileDiffs };
+	}
+
+	async function search(state: RepoPanelState, request: RepoTimelineSearchRequest): Promise<RepoTimelineSearchPayload> {
+		const query = request.query.trim();
+		if (request.mode === 'metadata') {
+			return {
+				requestId: request.requestId,
+				mode: request.mode,
+				results: state.entries
+					.map((entry, entryIndex) => (metadataMatches(entry, { ...request, query }) ? { entryIndex } : undefined))
+					.filter((result): result is RepoTimelineSearchResult => Boolean(result)),
+				truncated: false,
+			};
+		}
+
+		if (!query) return { requestId: request.requestId, mode: request.mode, results: [], truncated: false };
+		const results: Array<RepoTimelineSearchResult> = [];
+		const candidates = state.entries.filter((entry) => timestampInRange(entry.timestamp, request));
+		if (request.mode === 'changes') {
+			for (const entry of candidates) {
+				const patch = await state.adapter.getRevisionDiff({ workspacePath: state.workspacePath, revision: entry.revision });
+				for (const match of addedLineMatches(patch, request)) {
+					results.push({ entryIndex: entry.index, filePath: match.filePath, line: match.line, detail: match.detail });
+				}
+			}
+		} else {
+			const entry = state.entries[request.selectedIndex ?? state.entries.length - 1];
+			if (entry) {
+				const files = await state.adapter.listRevisionTreeFiles({ workspacePath: state.workspacePath, revision: entry.revision });
+				for (const filePath of files) {
+					if (request.path && !filePath.toLocaleLowerCase().includes(request.path.toLocaleLowerCase())) continue;
+					const content = await readFileAtRevision(state, entry.revision, filePath);
+					for (const [lineIndex, detail] of content.split(/\r?\n/u).entries()) {
+						if (matchesText(detail, query, request.matchMode)) {
+							results.push({ entryIndex: entry.index, filePath, line: lineIndex + 1, detail });
+						}
+					}
+				}
+			}
+		}
+		const limit = 500;
+		return { requestId: request.requestId, mode: request.mode, results: results.slice(0, limit), truncated: results.length > limit };
+	}
+
+	async function readFileAtRevision(state: RepoPanelState, revset: string, filePath: string): Promise<string> {
+		try {
+			return await state.adapter.showFileAtRevision({ workspacePath: state.workspacePath, revset, filePath });
+		} catch {
+			// A root revision has no parent, and deleted files do not exist in the
+			// selected snapshot. Pierre can still render those sides as empty.
+			return '';
 		}
 	}
 }

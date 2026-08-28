@@ -13,7 +13,9 @@ The `JJ Plus: Open Repo Timeline` command opens a sibling webview with:
 - local search across revision, change id, author, description, bookmarks, and branches;
 - a revision list with working-copy-aware metadata and relative dates;
 - a selected-revision detail pane;
-- changed-file summary and a readable patch viewer;
+- changed-file summary and Pierre-rendered, syntax-aware diffs;
+- repository search across metadata, added patch lines, or a selected snapshot;
+- literal, regular-expression, and fuzzy matching, plus path and date filters;
 - remote commit links when the repository has a supported `origin` URL;
 - refresh, oldest/newest ordering, loading, and actionable error states.
 
@@ -23,18 +25,21 @@ history adapters used by the file timeline.
 
 ## Deliberate boundaries
 
-The first slice keeps the surface small enough to be useful without duplicating
-the file timeline’s range-selection model. It currently does not include:
+The view intentionally does not duplicate every part of `itwas web`. The
+current extension surface still does not include:
 
-- changes-lane search for text introduced in patches;
-- snapshot/content search;
-- date and path filters;
-- virtualized result rendering for repositories beyond the adapter limit;
-- opening a selected file directly from the patch list.
+- `itwas`'s separate metadata/changes/snapshot lane layout and grouped
+  cross-lane result table;
+- related-change expansion and a dedicated “open file at result” action;
+- shareable URL state and browser-style back/forward search state;
+- column resizing, virtualization, and the richer large-result navigation;
+- a user-facing theme switcher and the complete `itwas` keyboard shortcut set.
 
-These are follow-up slices, not hidden assumptions. The existing adapter now
-has a repository revision-diff seam so these capabilities can be added without
-changing the panel protocol.
+The extension does support the most important search primitives now, but the
+search implementation is deliberately bounded to the adapter's 200 revision
+history window and 500 returned matches. Very large repositories should get
+lazy/concurrent search and virtualized rows before this becomes a full `itwas`
+replacement.
 
 ## Interaction direction
 

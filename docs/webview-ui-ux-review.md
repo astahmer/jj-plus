@@ -108,6 +108,21 @@ Relevant areas: `webview/src/view/session-loading.ts`, `webview/src/model.ts`, a
 
 ## P2 — polish and resilience
 
+## Editor blame popover review
+
+The supplied screenshot exposed a separate editor-host issue: the same blame card was being offered by both the inline decoration and the hover provider, so VS Code stacked two identical popovers. The decoration now defers to the provider when the timeline-link setting is enabled, leaving one source of truth.
+
+Remaining blame UX improvements, in priority order:
+
+- Keep one compact card: line number and short revision in the title, author/date on one metadata row, and the summary as the only body copy. Avoid repeating `Author`, `Date`, `Revision`, and `Summary` labels after already-designed metadata.
+- Make the primary action explicit: `Open revision timeline at line N` should be the only prominent action; add copy-revision and open-remote actions only when their targets are available.
+- Distinguish current-line blame from sparse inline blame in copy. Current-line cards can say “Current line”; sparse entries should say “Changed here” or expose the hunk range so the user understands why this line was annotated.
+- Make long summaries predictable. Clamp the decoration label, preserve the complete summary in the card, and expose the full revision id through a copy affordance or accessible title rather than widening the hover indefinitely.
+- Handle missing or dirty working-tree data with context. If blame cannot resolve, say whether the file is unsaved, unsupported, or missing its VCS tool and offer a safe retry path.
+- Remove duplicate interaction surfaces. Decorations, the registered hover provider, and CodeLens should not compete to open the same timeline; settings should define one visible entry point per mode.
+- Verify keyboard and screen-reader behavior. The card should have a clear heading, a descriptive link name, no absolute-path leakage in visible copy, and a predictable dismissal path.
+- Test narrow editors, long author names, long summaries, empty descriptions, binary files, renamed files, light/dark themes, and both `currentLineBlame` and `inlineBlameGutter` combinations.
+
 ### Improve responsive behavior
 
 At narrow widths, the sidebar, timeline, path trail, endpoint pickers, and diff controls compete for horizontal space. Define explicit compact breakpoints: collapse the sidebar automatically only when the user has not manually chosen a width, move endpoint metadata under the title, and keep the primary diff action reachable without horizontal scrolling.
