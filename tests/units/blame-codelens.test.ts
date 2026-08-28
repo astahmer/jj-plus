@@ -11,7 +11,7 @@ import {
 
 test('buildTimelineAtLineCodeLens returns jjplus title and command payload', () => {
 	const lens = buildTimelineAtLineCodeLens({ absolutePath: '/tmp/repo/src/a.ts', line: 12 });
-	assert.equal(lens.title, 'jjplus: Open revision timeline · line 12');
+	assert.equal(lens.title, 'JJ Plus: Open revision timeline · line 12');
 	assert.equal(lens.command, OPEN_TIMELINE_AT_LINE_COMMAND);
 	assert.deepEqual(lens.arguments, [{ absolutePath: '/tmp/repo/src/a.ts', line: 12 }]);
 });
@@ -52,11 +52,30 @@ test('buildCurrentLineBlameHoverMarkdown includes open-timeline command link', (
 		line: 4,
 		fullDescription: 'long body\nmore',
 	});
-	assert.match(markdown, /Ada · 2d ago/);
+	assert.match(markdown, /\*\*Ada\*\* · 2d ago/);
 	assert.match(markdown, /short/);
 	assert.match(markdown, /long body/);
 	assert.match(markdown, new RegExp(OPEN_TIMELINE_AT_LINE_COMMAND));
-	assert.match(markdown, /Open revision timeline/);
+	assert.match(markdown, /Open revision timeline at line 4/);
+	assert.match(markdown, /Line 4 · Revision `abcdef123456`/);
+	assert.doesNotMatch(markdown, /Author:|Date:|Revision:|Summary:/);
+});
+
+test('buildCurrentLineBlameHoverMarkdown keeps commit text from changing hover structure', () => {
+	const markdown = buildCurrentLineBlameHoverMarkdown({
+		entry: {
+			line: 2,
+			revision: 'abcdef1234567890',
+			author: 'Ada [Lovelace]',
+			authorDate: 'today',
+			summary: 'fix *hover* [labels]',
+		},
+		absolutePath: '/tmp/repo/a.ts',
+		line: 2,
+	});
+	assert.ok(markdown.includes('Ada \\[Lovelace\\]'));
+	assert.ok(markdown.includes('fix \\*hover\\* \\[labels\\]'));
+	assert.equal(markdown.split('Open revision timeline at line 2').length - 1, 1);
 });
 
 test('truncateBlameSummary ellipsizes long text', () => {

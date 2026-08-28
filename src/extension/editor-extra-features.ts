@@ -35,7 +35,7 @@ export function registerEditorExtraFeatures(args: {
 			const config = vscode.workspace.getConfiguration(SETTINGS_SECTION);
 			const current = config.get<boolean>('inlineBlameGutter', false);
 			await config.update('inlineBlameGutter', !current, vscode.ConfigurationTarget.Global);
-			void vscode.window.setStatusBarMessage(`jjplus: line blame ${current ? 'off' : 'on'}`, 2500);
+			void vscode.window.setStatusBarMessage(`JJ Plus: line blame ${current ? 'off' : 'on'}`, 2500);
 		}),
 		vscode.commands.registerCommand('jj-plus.compareWithBookmark', async () => {
 			const absolutePath = resolveCommandFilePath();
@@ -281,7 +281,7 @@ function createStatusBarChangeChip(args: { runner: Runner; resolveBackend: Resol
 				return;
 			}
 			item.text = `$(git-commit) ${line.slice(0, 48)}`;
-			item.tooltip = 'jjplus: working-copy change — click to open revision timeline';
+			item.tooltip = 'JJ Plus: working-copy change — click to open revision timeline';
 			item.show();
 		} catch {
 			item.hide();
@@ -332,7 +332,7 @@ function createOpLogWatcher(args: { runner: Runner; resolveBackend: ResolveBacke
 				return;
 			}
 			if (lastOp && tip !== lastOp) {
-				void vscode.window.setStatusBarMessage(`jjplus: op log advanced — ${tip}`, 5000);
+				void vscode.window.setStatusBarMessage(`JJ Plus: op log advanced — ${tip}`, 5000);
 				void vscode.window.showInformationMessage(`jj repository changed: ${tip}`);
 			}
 			lastOp = tip;
@@ -382,7 +382,7 @@ function createConflictHelper(): vscode.Disposable {
 			if (text.startsWith('<<<<<<<') || text.startsWith('>>>>>>>') || text.startsWith('%%%%%%%')) {
 				ranges.push({
 					range: editor.document.lineAt(line).range,
-					hoverMessage: 'jjplus: conflict marker — use Jump to Next Conflict',
+					hoverMessage: 'JJ Plus: conflict marker — use Jump to Next Conflict',
 				});
 			}
 		}
@@ -428,7 +428,7 @@ function createWhyCodeActions(): vscode.Disposable {
 					return [];
 				}
 				const line = range.start.line + 1;
-				const action = new vscode.CodeAction(`jjplus: Why is line ${line} here?`, vscode.CodeActionKind.QuickFix);
+				const action = new vscode.CodeAction(`JJ Plus: Why is line ${line} here?`, vscode.CodeActionKind.QuickFix);
 				action.command = {
 					command: OPEN_TIMELINE_AT_LINE_COMMAND,
 					title: 'Open timeline at line',

@@ -2,13 +2,12 @@ import { OPEN_TIMELINE_AT_LINE_COMMAND } from './constants.ts';
 import type { BlameLine } from '../shared/blame.ts';
 import {
 	formatBlameGutterLabel,
-	formatBlameHoverTooltip,
 	shortBlameRevision,
 	truncateBlameSummaryForDecoration,
 } from '../shared/blame.ts';
 
 export function formatTimelineAtLineCodeLensTitle(line: number): string {
-	return `jjplus: Open revision timeline · line ${line}`;
+	return `JJ Plus: Open revision timeline · line ${line}`;
 }
 
 export function formatTimelineAtLineHoverTitle(args: {
@@ -23,7 +22,7 @@ export function formatTimelineAtLineHoverTitle(args: {
 		args.summary ? truncateBlameSummary(args.summary, 40) : undefined,
 	].filter(Boolean);
 	const detail = bits.length ? ` — ${bits.join(' · ')}` : '';
-	return `jjplus: Open revision timeline · line ${args.line}${detail}`;
+	return `JJ Plus: Open revision timeline · line ${args.line}${detail}`;
 }
 
 export function buildTimelineAtLineCodeLens(args: { absolutePath: string; line: number }): {
@@ -57,29 +56,38 @@ export function buildCurrentLineBlameHoverMarkdown(args: {
 	const openLink = `command:${OPEN_TIMELINE_AT_LINE_COMMAND}?${openArgs}`;
 	const author = args.entry.author?.trim() || 'Unknown author';
 	const when = args.entry.authorDate || '';
-	const header = when ? `${author} · ${when}` : author;
 	const shortDesc = args.entry.summary?.trim() || '';
 	const longDesc = args.fullDescription?.trim() || '';
-	const body = longDesc && longDesc !== shortDesc ? `${shortDesc}\n\n${longDesc}` : shortDesc || '_No description_';
+	const body = longDesc && longDesc !== shortDesc ? `${shortDesc}\n\n${longDesc}` : shortDesc;
 	const rev = shortBlameRevision(args.entry.revision, 12);
-	const title = formatTimelineAtLineHoverTitle({
-		line: args.line,
-		author,
-		when,
-		summary: shortDesc,
-	});
 	return [
-		`**${title}**`,
+		`**${escapeMarkdown(author)}**${when ? ` · ${escapeMarkdown(when)}` : ''}`,
+		`Line ${args.line} · Revision \`${escapeMarkdownCode(rev)}\``,
 		'',
-		`**${header}**`,
+		body ? escapeMarkdownBlock(body) : '_No commit description_',
 		'',
-		body,
-		'',
-		`\`${rev}\` | [Open revision timeline](${openLink})`,
-		'',
-		'---',
-		formatBlameHoverTooltip(args.entry),
-	]
-		.filter((line, index, all) => !(line === '' && all[index - 1] === ''))
+		`[Open revision timeline at line ${args.line}](${openLink})`,
+	].join('\n');
+}
+
+function escapeMarkdown(value: string): string {
+	return value
+		.replaceAll('\\', '\\\\')
+		.replaceAll('`', '\\`')
+		.replaceAll('*', '\\*')
+		.replaceAll('_', '\\_')
+		.replaceAll('[', '\\[')
+		.replaceAll(']', '\\]')
+		.replaceAll('>', '\\>');
+}
+
+function escapeMarkdownCode(value: string): string {
+	return value.replace(/[\\`]/gu, '\\$&');
+}
+
+function escapeMarkdownBlock(value: string): string {
+	return value
+		.split(/\r?\n/u)
+		.map((line) => escapeMarkdown(line))
 		.join('\n');
 }

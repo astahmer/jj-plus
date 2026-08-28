@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
-test('package.json command titles use jjplus: prefix and editor title actions', () => {
+test('package.json command titles use JJ Plus branding and editor title actions', () => {
 	const packagePath = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../package.json');
 	const pkg = JSON.parse(readFileSync(packagePath, 'utf8')) as {
 		contributes: {
@@ -19,7 +19,7 @@ test('package.json command titles use jjplus: prefix and editor title actions', 
 	};
 
 	for (const command of pkg.contributes.commands) {
-		assert.match(command.title, /^jjplus:/, command.command);
+		assert.match(command.title, /^JJ Plus:/, command.command);
 	}
 
 	const titleCommands = pkg.contributes.menus['editor/title'].map((entry) => entry.command);
