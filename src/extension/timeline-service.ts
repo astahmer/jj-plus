@@ -237,6 +237,21 @@ async function resolvePreviousPathAcrossRevision(request: {
 	return previousPath;
 }
 
+async function loadRevisionTreeFiles(request: {
+	session: ExtensionTimelineSession;
+	revision: string;
+}): Promise<string[]> {
+	const revision = request.revision.trim() || '@';
+	try {
+		return await request.session.adapter.listRevisionTreeFiles({
+			workspacePath: request.session.workspacePath,
+			revision,
+		});
+	} catch {
+		return [];
+	}
+}
+
 export function createTimelineService(args: { runner: CommandRunner }) {
 	const { runner } = args;
 
@@ -408,21 +423,6 @@ export function createTimelineService(args: { runner: CommandRunner }) {
 		request.session.workspaceFilesLoaded = true;
 		request.session.rangeOverviewCache.clear();
 		return true;
-	}
-
-	async function loadRevisionTreeFiles(request: {
-		session: ExtensionTimelineSession;
-		revision: string;
-	}): Promise<string[]> {
-		const revision = request.revision.trim() || '@';
-		try {
-			return await request.session.adapter.listRevisionTreeFiles({
-				workspacePath: request.session.workspacePath,
-				revision,
-			});
-		} catch {
-			return [];
-		}
 	}
 
 	async function ensureIntermediateRevisions(request: { session: ExtensionTimelineSession }): Promise<boolean> {

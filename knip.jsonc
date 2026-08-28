@@ -8,7 +8,7 @@
 	],
 	"ignoreBinaries": ["tsgo"],
 	"project": ["*.ts", "src/**/*.ts", "tests/**/*.ts", "webview/**/*.{js,ts,tsx}"],
-	"ignore": ["tests/features/support/fixtures.ts", "tests/fixtures/assets/**", "webview/src/vitest-setup.ts"],
+	"ignore": ["tests/fixtures/assets/**", "webview/src/vitest-setup.ts"],
 	"ignoreUnresolved": ["./src/vitest-setup.ts"],
 	"rules": {
 		"exports": "off",

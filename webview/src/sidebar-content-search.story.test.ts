@@ -47,7 +47,7 @@ test('content: sidebar search requests host matches and filters rows', () => {
 			expect(
 				getFilteredSidebarEntries(model)
 					.map((entry) => entry.index)
-					.sort(),
+					.toSorted(),
 			).toEqual([0, 2]);
 		}),
 	);

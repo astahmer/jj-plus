@@ -80,7 +80,7 @@ export function mergePreviewCaches(
 	incoming: Record<string, DiffPreview> | undefined,
 ): Record<string, DiffPreview> {
 	return {
-		...(cached || {}),
-		...(incoming || {}),
+		...cached,
+		...incoming,
 	};
 }

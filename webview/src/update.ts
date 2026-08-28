@@ -1306,12 +1306,12 @@ function handleTimelineDataMessage(
 		samePath ? (model.previewByRange as Record<string, DiffPreview>) : undefined,
 	);
 	const restoredOverviews = {
-		...(cached?.rangeOverviewByRange || {}),
-		...(samePath ? (model.rangeOverviewByRange as Record<string, Array<RangeOverviewItem>>) : {}),
+		...cached?.rangeOverviewByRange,
+		...(samePath ? model.rangeOverviewByRange : undefined),
 	};
 	const restoredDiffCounts = {
-		...(cached?.entryDiffCountByKey || {}),
-		...(samePath ? (model.entryDiffCountByKey as Record<string, number>) : {}),
+		...cached?.entryDiffCountByKey,
+		...(samePath ? model.entryDiffCountByKey : undefined),
 	};
 
 	let next: Model = {

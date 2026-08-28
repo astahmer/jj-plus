@@ -4,6 +4,8 @@
 		".integration-dist/**",
 		".e2e-runtime/**",
 		".features-gen/**",
+		".direnv/**",
+		".references/**",
 		".vscode-test/**",
 		"node_modules/**",
 		"test-results/**",

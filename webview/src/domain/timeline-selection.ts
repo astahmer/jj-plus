@@ -96,16 +96,6 @@ export function mapSelectionAcrossSources(args: {
 	const previousFrom = args.previousEntries.find((entry) => entry.index === args.fromIndex);
 	const previousTo = args.previousEntries.find((entry) => entry.index === args.toIndex);
 
-	const matchesChange = (entry: FileRevisionEntry, previous?: FileRevisionEntry) => {
-		if (!previous) {
-			return false;
-		}
-		if (previous.changeId && entry.changeId === previous.changeId) {
-			return true;
-		}
-		return entry.shortRevision === previous.shortRevision || entry.revision === previous.revision;
-	};
-
 	const mappedToCandidates = args.nextEntries.filter((entry) => matchesChange(entry, previousTo));
 	const mappedTo = mappedToCandidates.at(-1);
 	const mappedFromCandidates = args.nextEntries.filter((entry) => matchesChange(entry, previousFrom));
@@ -123,6 +113,16 @@ export function mapSelectionAcrossSources(args: {
 	}
 
 	return getDefaultSelection(args.nextEntries);
+}
+
+function matchesChange(entry: FileRevisionEntry, previous?: FileRevisionEntry): boolean {
+	if (!previous) {
+		return false;
+	}
+	if (previous.changeId && entry.changeId === previous.changeId) {
+		return true;
+	}
+	return entry.shortRevision === previous.shortRevision || entry.revision === previous.revision;
 }
 
 export function alignStepSelection(entries: Array<FileRevisionEntry>, toIndex: number): [number, number] {

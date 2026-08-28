@@ -54,7 +54,7 @@ test('parseJjFileAnnotate keeps line order and templated author fields', () => {
 
 test('parseJjFileAnnotate keeps separate rows when template emits newlines', () => {
 	// Without trailing \\n in the jj template, annotate rows glue into one line.
-	const glued = parseJjFileAnnotate('abc1234\tAda\t1700000000\thello' + 'def5678\tBea\t1700003600\tworld\n');
+	const glued = parseJjFileAnnotate('abc1234\tAda\t1700000000\thellodef5678\tBea\t1700003600\tworld\n');
 	assert.equal(glued.length, 1);
 	assert.match(glued[0]?.summary || '', /hello/);
 

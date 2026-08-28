@@ -607,7 +607,7 @@ export function createTimelineHost(): TimelineHost {
 							relativePath: fileFixture.timelineData.relativePath,
 							entries: source
 								.slice(-8)
-								.reverse()
+								.toReversed()
 								.map((entry) => ({
 									operationId: entry.operationId || entry.id,
 									description: entry.description || 'Operation',

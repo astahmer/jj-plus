@@ -228,8 +228,8 @@ export function registerEditorExtraFeatures(args: {
 
 	disposables.push(createStatusBarChangeChip(args));
 	disposables.push(createOpLogWatcher(args));
-	disposables.push(createConflictHelper(args));
-	disposables.push(createWhyCodeActions(args));
+	disposables.push(createConflictHelper());
+	disposables.push(createWhyCodeActions());
 	disposables.push(createScmChangedLineDecorations(args));
 
 	return vscode.Disposable.from(...disposables);
@@ -364,7 +364,7 @@ function createOpLogWatcher(args: { runner: Runner; resolveBackend: ResolveBacke
 	});
 }
 
-function createConflictHelper(args: { runner: Runner; resolveBackend: ResolveBackend }): vscode.Disposable {
+function createConflictHelper(): vscode.Disposable {
 	const decoration = vscode.window.createTextEditorDecorationType({
 		overviewRulerColor: new vscode.ThemeColor('editorOverviewRuler.errorForeground'),
 		overviewRulerLane: vscode.OverviewRulerLane.Right,
@@ -419,7 +419,7 @@ function createConflictHelper(args: { runner: Runner; resolveBackend: ResolveBac
 	);
 }
 
-function createWhyCodeActions(args: { runner: Runner; resolveBackend: ResolveBackend }): vscode.Disposable {
+function createWhyCodeActions(): vscode.Disposable {
 	return vscode.languages.registerCodeActionsProvider(
 		{ scheme: 'file' },
 		{

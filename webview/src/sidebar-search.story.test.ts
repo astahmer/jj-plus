@@ -44,7 +44,7 @@ test('structured sidebar search filters by author/path/desc and boolean ops', ()
 			expect(
 				getFilteredSidebarEntries(model)
 					.map((entry) => entry.index)
-					.sort(),
+					.toSorted(),
 			).toEqual([1, 2]);
 		}),
 	);
