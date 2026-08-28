@@ -1,7 +1,8 @@
-import { Match as M } from 'effect';
-import type { Command } from 'foldkit';
+import { Effect, Match as M } from 'effect';
+import { Command } from 'foldkit';
 import { evo } from 'foldkit/struct';
 import { SendHostCommand } from './commands.ts';
+import { CopiedShareLink } from './messages.ts';
 import type { Message } from './messages.ts';
 import { initialModel, type Model } from './model.ts';
 import type { RepoTimelineData, RepoTimelineInboundMessage, RepoTimelineSearchPayload } from './types.ts';
@@ -35,6 +36,15 @@ function searchCommand(model: Model, requestId: number): Command.Command<Message
 	});
 }
 
+function copyShareLinkCommand(): Command.Command<Message> {
+	return Command.define('CopyRepoTimelineLink', {}, CopiedShareLink)(() =>
+		Effect.sync(() => {
+			void navigator.clipboard?.writeText(window.location.href);
+			return CopiedShareLink();
+		}),
+	)({});
+}
+
 function handleHostMessage(model: Model, payload: unknown): UpdateReturn {
 	const message = payload as RepoTimelineInboundMessage;
 	if (message.type === 'repo-timeline-data') {
@@ -58,7 +68,21 @@ function handleHostMessage(model: Model, payload: unknown): UpdateReturn {
 }
 
 export function init(): UpdateReturn {
-	return [initialModel, [SendHostCommand({ command: { command: 'ready' } })]];
+	if (typeof window === 'undefined') return [initialModel, [SendHostCommand({ command: { command: 'ready' } })]];
+	const params = new URLSearchParams(window.location.search);
+	const mode = params.get('mode');
+	const matchMode = params.get('match');
+	const model = evo(initialModel, {
+		query: () => params.get('q') ?? '',
+		revset: () => params.get('revset') || initialModel.revset,
+		path: () => params.get('path') ?? '',
+		after: () => params.get('after') ?? '',
+		until: () => params.get('until') ?? '',
+		selectedIndex: () => Math.max(0, Number(params.get('sel')) || 0),
+		searchMode: () => (['all', 'metadata', 'changes', 'snapshot'].includes(mode || '') ? mode : initialModel.searchMode) as Model['searchMode'],
+		matchMode: () => (['literal', 'regex', 'fuzzy'].includes(matchMode || '') ? matchMode : initialModel.matchMode) as Model['matchMode'],
+	});
+	return [model, [SendHostCommand({ command: { command: 'ready' } })]];
 }
 
 export function update(model: Model, message: Message): UpdateReturn {
@@ -84,6 +108,9 @@ export function update(model: Model, message: Message): UpdateReturn {
 			ClickedRevision: ({ index }) => [evo(model, { selectedIndex: () => index, diff: () => null }), [SendHostCommand({ command: { command: 'select-revision', index } })]],
 			ClickedRemote: ({ index }) => [model, [SendHostCommand({ command: { command: 'open-revision-remote', index } })]],
 			ToggledSort: () => [evo(model, { oldestFirst: (value) => !value }), []],
+			ToggledRelated: () => [evo(model, { relatedExpanded: (value) => !value }), []],
+			OpenedFileResult: ({ entryIndex, filePath, line }) => [model, [SendHostCommand({ command: { command: 'open-file-result', entryIndex, filePath, line } })]],
+			CopiedShareLink: () => [model, [copyShareLinkCommand()]],
 		}),
 	);
 }

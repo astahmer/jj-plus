@@ -5,10 +5,13 @@ import {
 	ClickedRefresh,
 	ClickedRemote,
 	ClickedRevision,
+	CopiedShareLink,
+	OpenedFileResult,
 	SelectedMatchMode,
 	SelectedSearchMode,
 	SubmittedSearch,
 	ToggledSort,
+	ToggledRelated,
 	UpdatedAfter,
 	UpdatedPath,
 	UpdatedQuery,
@@ -52,6 +55,16 @@ function resultForEntry(model: Model, entry: RepoRevisionEntry): RepoTimelineSea
 	return searchOf(model)?.results.find((result) => result.entryIndex === entry.index);
 }
 
+function syncShareUrl(model: Model): void {
+	if (typeof window === 'undefined') return;
+	const params = new URLSearchParams();
+	for (const [key, value] of [['q', model.query], ['revset', model.revset], ['mode', model.searchMode], ['match', model.matchMode], ['path', model.path], ['after', model.after], ['until', model.until]] as const) {
+		if (value) params.set(key, value);
+	}
+	if (model.data) params.set('sel', String(model.selectedIndex));
+	window.history.replaceState(null, '', `${window.location.pathname}?${params}`);
+}
+
 function patchStats(patch: string): { additions: number; deletions: number } {
 	let additions = 0;
 	let deletions = 0;
@@ -83,7 +96,13 @@ function renderEntry(entry: RepoRevisionEntry, selected: boolean, hit?: RepoTime
 				],
 			),
 			h.div([h.Class('repo-entry-title')], [entry.description || 'No description']),
-			hit ? h.div([h.Class('repo-entry-hit')], [`${hit.filePath || 'metadata'}${hit.line ? `:${hit.line}` : ''}${hit.detail ? ` · ${hit.detail}` : ''}`]) : h.empty,
+			hit ? h.div([h.Class('repo-entry-hit')], [
+				hit.lane ? `${hit.lane} · ` : '',
+				hit.filePath && hit.line
+					? h.span([h.Class('repo-entry-hit-link'), h.Role('link'), h.OnClick(OpenedFileResult({ entryIndex: entry.index, filePath: hit.filePath, line: hit.line }))], [`${hit.filePath}:${hit.line}`])
+					: hit.filePath || 'metadata',
+				hit.detail ? ` · ${hit.detail}` : '',
+			]) : h.empty,
 			h.div(
 				[h.Class('repo-entry-meta')],
 				[
@@ -110,6 +129,7 @@ function renderDiff(model: Model): Html {
 		return h.div([h.Class('repo-empty')], ['Select a revision to inspect its changes.']);
 	}
 	const stats = patchStats(diff.patch);
+	const related = data.entries.filter((candidate) => candidate.index !== entry.index && Math.abs(candidate.index - entry.index) <= 2).slice(0, 4);
 	return h.div(
 		[h.Class('repo-detail')],
 		[
@@ -145,6 +165,10 @@ function renderDiff(model: Model): Html {
 			diff.files.length
 				? h.div([h.Class('repo-file-list')], diff.files.map((file) => h.span([h.Class('repo-file')], [file.path])))
 				: h.div([h.Class('repo-empty-diff')], ['No changed files in this revision.']),
+			related.length ? h.div([h.Class('repo-related')], [
+				h.button([h.Class('repo-related-toggle'), h.Type('button'), h.OnClick(ToggledRelated()), h.AriaExpanded(model.relatedExpanded)], [`${model.relatedExpanded ? '▾' : '▸'} Related revisions (${related.length})`]),
+				model.relatedExpanded ? h.div([h.Class('repo-related-list')], related.map((candidate) => h.button([h.Type('button'), h.Class('repo-related-entry'), h.OnClick(ClickedRevision({ index: candidate.index }))], [candidate.shortRevision, ' · ', candidate.description]))) : h.empty,
+			]) : h.empty,
 			h.div([h.Class('repo-pierre-slot'), h.Id('repo-pierre-slot'), h.AriaLabel('Revision diff')], []),
 			!diff.files.length && diff.patch ? h.pre([h.Class('repo-patch-fallback'), h.AriaLabel('Raw revision patch')], [diff.patch]) : h.empty,
 		],
@@ -156,6 +180,7 @@ export function view(model: Model): Html {
 	const data = dataOf(model);
 	const entries = visibleEntries(model);
 	if (typeof window !== 'undefined') queueRepoPierreDiffSync(model);
+	syncShareUrl(model);
 	const search = searchOf(model);
 	const resultCount = search?.results.length ?? 0;
 	return h.div(
@@ -183,7 +208,7 @@ export function view(model: Model): Html {
 						h.span([h.Class('repo-field-label')], ['Revset']),
 						h.input([h.Value(model.revset), h.Placeholder('ancestors(@)'), h.OnInput((value) => UpdatedRevset({ value }))]),
 				]),
-					h.div([h.Class('repo-search-mode')], ['Search in', ...(['metadata', 'changes', 'snapshot'] as const).map((value) => h.button([h.Class(`repo-mode-button${model.searchMode === value ? ' is-active' : ''}`), h.Type('button'), h.OnClick(SelectedSearchMode({ value })), h.AriaPressed(String(model.searchMode === value))], [value]))]),
+					h.div([h.Class('repo-search-mode')], ['Search in', ...(['all', 'metadata', 'changes', 'snapshot'] as const).map((value) => h.button([h.Class(`repo-mode-button${model.searchMode === value ? ' is-active' : ''}`), h.Type('button'), h.OnClick(SelectedSearchMode({ value })), h.AriaPressed(String(model.searchMode === value))], [value]))]),
 					h.div([h.Class('repo-search-mode')], ['Match', ...(['literal', 'regex', 'fuzzy'] as const).map((value) => h.button([h.Class(`repo-mode-button${model.matchMode === value ? ' is-active' : ''}`), h.Type('button'), h.OnClick(SelectedMatchMode({ value })), h.AriaPressed(String(model.matchMode === value))], [value]))]),
 					h.label([h.Class('repo-field repo-filter-field')], [h.span([h.Class('repo-field-label')], ['Path']), h.input([h.Value(model.path), h.Placeholder('src/'), h.OnInput((value) => UpdatedPath({ value }))])]),
 					h.label([h.Class('repo-field repo-date-field')], [h.span([h.Class('repo-field-label')], ['After']), h.input([h.Type('date'), h.Value(model.after), h.OnInput((value) => UpdatedAfter({ value }))])]),
@@ -191,6 +216,7 @@ export function view(model: Model): Html {
 					h.button([h.Class('repo-toolbar-action repo-search-action'), h.Type('button'), h.OnClick(SubmittedSearch()), h.Disabled(model.searchLoading)], [model.searchLoading ? 'Searching…' : 'Search']),
 					h.button([h.Class('repo-toolbar-action'), h.Type('button'), h.OnClick(ClearedSearch()), h.Disabled(!model.query && !model.path && !model.after && !model.until)], ['Clear']),
 					h.button([h.Class('repo-toolbar-action'), h.Type('button'), h.OnClick(ClickedRefresh()), h.Disabled(model.loading)], ['Refresh']),
+					h.button([h.Class('repo-toolbar-action'), h.Type('button'), h.OnClick(CopiedShareLink())], ['Copy link']),
 					h.button([h.Class('repo-toolbar-action repo-sort-action'), h.Type('button'), h.OnClick(ToggledSort())], [model.oldestFirst ? 'Newest first' : 'Oldest first']),
 				],
 			),
@@ -203,7 +229,12 @@ export function view(model: Model): Html {
 						[h.Class('repo-results-panel')],
 						[
 							h.div([h.Class('repo-results-head')], [h.span([], ['Revisions']), h.span([h.Class('repo-results-count')], [data ? `${entries.length}${data.truncated && !model.query ? '+' : ''}` : '—'])]),
-							entries.length ? h.div([h.Class('repo-results-list')], entries.map((entry) => renderEntry(entry, entry.index === model.selectedIndex, resultForEntry(model, entry)))) : h.div([h.Class('repo-empty')], [search ? 'No matches for this search.' : data?.entries.length ? 'No revisions in this revset.' : 'Loading revisions…']),
+							entries.length ? h.div([h.Class('repo-results-list')], model.searchMode === 'all' && search
+								? (['metadata', 'changes', 'snapshot'] as const).flatMap((lane) => {
+									const laneEntries = entries.filter((entry) => resultForEntry(model, entry)?.lane === lane);
+									return laneEntries.length ? [h.h3([h.Class('repo-lane-heading')], [lane]), ...laneEntries.map((entry) => renderEntry(entry, entry.index === model.selectedIndex, resultForEntry(model, entry)))] : [];
+								})
+								: entries.map((entry) => renderEntry(entry, entry.index === model.selectedIndex, resultForEntry(model, entry)))) : h.div([h.Class('repo-empty')], [search ? 'No matches for this search.' : data?.entries.length ? 'No revisions in this revset.' : 'Loading revisions…']),
 						],
 					),
 					h.section([h.Class('repo-detail-panel')], [renderDiff(model)]),

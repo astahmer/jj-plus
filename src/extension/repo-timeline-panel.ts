@@ -244,6 +244,23 @@ export function createRepoTimelinePanelController(args: {
 			const index = Number(Reflect.get(rawMessage, 'index'));
 			const url = state.entries[index]?.remoteUrl;
 			if (url) await vscode.env.openExternal(vscode.Uri.parse(url));
+			return;
+		}
+		if (command === 'open-file-result') {
+			const entryIndex = Number(Reflect.get(rawMessage, 'entryIndex'));
+			const filePath = String(Reflect.get(rawMessage, 'filePath') || '').replaceAll('\\', '/');
+			const line = Math.max(1, Number(Reflect.get(rawMessage, 'line')) || 1);
+			const entry = state.entries[entryIndex];
+			if (!entry || !filePath || path.isAbsolute(filePath) || filePath.split('/').includes('..')) return;
+			const uri = vscode.Uri.from({
+				scheme: 'jj-plus',
+				path: `/${filePath}`,
+				query: JSON.stringify({ workspacePath: state.workspacePath, filePath, revset: entry.revision }),
+			});
+			const document = await vscode.workspace.openTextDocument(uri);
+			const editor = await vscode.window.showTextDocument(document, { preview: true });
+			const position = new vscode.Position(Math.min(line - 1, Math.max(0, document.lineCount - 1)), 0);
+			editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
 		}
 	}
 
@@ -292,13 +309,20 @@ export function createRepoTimelinePanelController(args: {
 
 	async function search(state: RepoPanelState, request: RepoTimelineSearchRequest): Promise<RepoTimelineSearchPayload> {
 		const query = request.query.trim();
+		if (request.mode === 'all') {
+			const [metadata, changes, snapshot] = await Promise.all([
+				search(state, { ...request, mode: 'metadata' }),
+				search(state, { ...request, mode: 'changes' }),
+				search(state, { ...request, mode: 'snapshot' }),
+			]);
+			const results = [...metadata.results, ...changes.results, ...snapshot.results].slice(0, 500);
+			return { requestId: request.requestId, mode: request.mode, results, truncated: metadata.truncated || changes.truncated || snapshot.truncated || results.length < metadata.results.length + changes.results.length + snapshot.results.length };
+		}
 		if (request.mode === 'metadata') {
 			return {
 				requestId: request.requestId,
 				mode: request.mode,
-				results: state.entries
-					.map((entry, entryIndex) => (metadataMatches(entry, { ...request, query }) ? { entryIndex } : undefined))
-					.filter((result): result is RepoTimelineSearchResult => Boolean(result)),
+				results: state.entries.flatMap((entry, entryIndex) => metadataMatches(entry, { ...request, query }) ? [{ entryIndex, lane: 'metadata' as const }] : []),
 				truncated: false,
 			};
 		}
@@ -310,7 +334,7 @@ export function createRepoTimelinePanelController(args: {
 			for (const entry of candidates) {
 				const patch = await state.adapter.getRevisionDiff({ workspacePath: state.workspacePath, revision: entry.revision });
 				for (const match of addedLineMatches(patch, request)) {
-					results.push({ entryIndex: entry.index, filePath: match.filePath, line: match.line, detail: match.detail });
+					results.push({ entryIndex: entry.index, lane: 'changes', filePath: match.filePath, line: match.line, detail: match.detail });
 				}
 			}
 		} else {
@@ -322,7 +346,7 @@ export function createRepoTimelinePanelController(args: {
 					const content = await readFileAtRevision(state, entry.revision, filePath);
 					for (const [lineIndex, detail] of content.split(/\r?\n/u).entries()) {
 						if (matchesText(detail, query, request.matchMode)) {
-							results.push({ entryIndex: entry.index, filePath, line: lineIndex + 1, detail });
+							results.push({ entryIndex: entry.index, lane: 'snapshot', filePath, line: lineIndex + 1, detail });
 						}
 					}
 				}

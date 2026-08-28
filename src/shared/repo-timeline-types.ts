@@ -27,7 +27,7 @@ export type RepoTimelineDiffFile = {
 	after: string;
 };
 
-export type RepoTimelineSearchMode = 'metadata' | 'changes' | 'snapshot';
+export type RepoTimelineSearchMode = 'all' | 'metadata' | 'changes' | 'snapshot';
 export type RepoTimelineMatchMode = 'literal' | 'regex' | 'fuzzy';
 
 export type RepoTimelineSearchRequest = {
@@ -43,6 +43,7 @@ export type RepoTimelineSearchRequest = {
 
 export type RepoTimelineSearchResult = {
 	entryIndex: number;
+	lane?: Exclude<RepoTimelineSearchMode, 'all'>;
 	filePath?: string;
 	line?: number;
 	detail?: string;
@@ -60,6 +61,7 @@ export type RepoTimelineCommand =
 	| { command: 'refresh'; revset?: string }
 	| { command: 'select-revision'; index: number }
 	| { command: 'search'; request: RepoTimelineSearchRequest }
+	| { command: 'open-file-result'; entryIndex: number; filePath: string; line?: number }
 	| { command: 'open-revision-remote'; index: number };
 
 export type RepoTimelineInboundMessage =
