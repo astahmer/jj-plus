@@ -48,6 +48,7 @@ export default defineConfig({
 	build: {
 		outDir: resolve(process.cwd(), 'webview-dist'),
 		emptyOutDir: true,
+		copyPublicDir: false,
 		cssCodeSplit: false,
 		target: 'es2020',
 		chunkSizeWarningLimit: 2000,
