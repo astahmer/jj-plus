@@ -6,6 +6,7 @@ import {
 	buildTimelineAtLineCodeLens,
 	formatCurrentLineBlameDecoration,
 	formatTimelineAtLineHoverTitle,
+	shouldShowBlameHoverAtPosition,
 	truncateBlameSummary,
 } from '../../src/extension/timeline-at-line.ts';
 
@@ -58,7 +59,23 @@ test('buildCurrentLineBlameHoverMarkdown includes open-timeline command link', (
 	assert.match(markdown, new RegExp(OPEN_TIMELINE_AT_LINE_COMMAND));
 	assert.match(markdown, /Open revision timeline at line 4/);
 	assert.match(markdown, /Line 4 · Revision `abcdef123456`/);
+	assert.match(markdown, /Open revision diff/);
+	assert.match(markdown, /openBlameRevisionDiff/);
 	assert.doesNotMatch(markdown, /Author:|Date:|Revision:|Summary:/);
+});
+
+test('blame hover mode only activates over an actual annotation by default', () => {
+	const args = {
+		positionCharacter: 20,
+		lineLength: 20,
+		line: 4,
+		annotatedLines: new Set([4]),
+	} as const;
+	assert.equal(shouldShowBlameHoverAtPosition({ ...args, mode: 'blame' }), true);
+	assert.equal(shouldShowBlameHoverAtPosition({ ...args, positionCharacter: 8, mode: 'blame' }), false);
+	assert.equal(shouldShowBlameHoverAtPosition({ ...args, line: 5, mode: 'blame' }), false);
+	assert.equal(shouldShowBlameHoverAtPosition({ ...args, positionCharacter: 8, mode: 'any' }), true);
+	assert.equal(shouldShowBlameHoverAtPosition({ ...args, mode: 'never' }), false);
 });
 
 test('buildCurrentLineBlameHoverMarkdown keeps commit text from changing hover structure', () => {

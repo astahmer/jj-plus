@@ -375,6 +375,9 @@ export function activate(context: vscode.ExtensionContext): void {
 				const adapter = await resolveHistoryAdapter({ workspacePath, runner });
 				return adapter.showFileAtRevision({ workspacePath, revset, filePath });
 			},
+			openRevisionMultiDiff: async ({ workspacePath, revision }) => {
+				await openRevisionMultiDiff({ workspacePath, revision, runner });
+			},
 		}),
 		revisionDiffNav,
 		vscode.commands.registerCommand(GET_TIMELINE_DEBUG_STATE_COMMAND, () => panelController.getDebugState()),
@@ -556,6 +559,50 @@ async function listRevisionFiles(args: {
 		.split(/\r?\n/u)
 		.map((line) => line.trim())
 		.filter(Boolean);
+}
+
+async function openRevisionMultiDiff(args: {
+	workspacePath: string;
+	revision: string;
+	runner: ReturnType<typeof createCommandRunner>;
+}): Promise<void> {
+	const adapter = await resolveHistoryAdapter({ workspacePath: args.workspacePath, runner: args.runner });
+	const files = await adapter.listRevisionFiles({ workspacePath: args.workspacePath, revision: args.revision });
+	if (!files.length) {
+		void vscode.window.showInformationMessage(`No files changed in ${args.revision.slice(0, 12)}`);
+		return;
+	}
+
+	let parentRevision = `${args.revision}-`;
+	if (adapter.backend === 'git') {
+		try {
+			const { stdout } = await args.runner.runGit({
+				workspacePath: args.workspacePath,
+				args: ['rev-parse', `${args.revision}^`],
+			});
+			parentRevision = stdout.trim() || 'EMPTY';
+		} catch {
+			parentRevision = 'EMPTY';
+		}
+	}
+
+	await vscode.commands.executeCommand(OPEN_MULTI_DIFF_COMMAND, {
+		title: `JJ Plus: ${args.revision.slice(0, 12)} · revision diff`,
+		resources: files.map((relativePath) => ({
+			originalUri: createSnapshotUri({
+				workspacePath: args.workspacePath,
+				revset: parentRevision,
+				relativePath,
+				backend: adapter.backend,
+			}),
+			modifiedUri: createSnapshotUri({
+				workspacePath: args.workspacePath,
+				revset: args.revision,
+				relativePath,
+				backend: adapter.backend,
+			}),
+		})),
+	});
 }
 
 async function createTargetUri(args: {

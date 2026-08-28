@@ -3,14 +3,6 @@
 	"displayName": "JJ Plus",
 	"version": "0.10.5",
 	"description": "Explore JJ file and repository timelines, then open focused multi-diff views.",
-	"icon": "assets/jj-plus-icon.png",
-	"files": [
-		"dist/",
-		"webview-dist/",
-		"assets/",
-		"README.md",
-		"CHANGELOG.md"
-	],
 	"categories": [
 		"Other",
 		"Programming Languages",
@@ -24,6 +16,13 @@
 	"bin": {
 		"jj-plus": "./dist/bin.cjs"
 	},
+	"files": [
+		"dist/",
+		"webview-dist/",
+		"assets/",
+		"README.md",
+		"CHANGELOG.md"
+	],
 	"type": "module",
 	"main": "./dist/extension/index.cjs",
 	"scripts": {
@@ -40,8 +39,8 @@
 		"lint:knip": "knip",
 		"lint:ox": "oxlint . --disable-nested-config",
 		"pkg": "bun build src/bin.ts --compile --outfile jjdiff ",
-		"release:check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
 		"release": "node scripts/release.mjs",
+		"release:check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
 		"release:dry-run": "node scripts/release.mjs --dry-run",
 		"release:publish": "pnpm release:check && pnpm exec vsce publish --no-dependencies --skip-duplicate --githubBranch main",
 		"release:publish:npm": "pnpm release:check && pnpm publish --access public --provenance",
@@ -100,10 +99,25 @@
 					"default": true,
 					"description": "When inline blame is on, only annotate revision hunk starts."
 				},
+				"jjplus.blameHoverMode": {
+					"type": "string",
+					"enum": [
+						"blame",
+						"any",
+						"never"
+					],
+					"enumDescriptions": [
+						"Show the popover only when hovering a blame annotation (default).",
+						"Show the popover when hovering any position in a file.",
+						"Never show the blame popover."
+					],
+					"default": "blame",
+					"description": "Controls when JJ Plus shows the line-blame popover."
+				},
 				"jjplus.hoverTimelineLink": {
 					"type": "boolean",
 					"default": true,
-					"description": "Show JJ Plus timeline hover on lines with author / relative time / description."
+					"markdownDescription": "Deprecated: use `jjplus.blameHoverMode` instead. `false` maps to `never`; `true` maps to `blame`."
 				},
 				"jjplus.statusBarChangeChip": {
 					"type": "boolean",
@@ -140,6 +154,10 @@
 			{
 				"command": "jj-plus.openFileRangeDiff",
 				"title": "JJ Plus: Open File Diff Between Revisions"
+			},
+			{
+				"command": "jj-plus.openBlameRevisionDiff",
+				"title": "JJ Plus: Open Blame Revision Diff"
 			},
 			{
 				"command": "jj-plus.openChangesWithPrevious",
@@ -315,6 +333,7 @@
 		"onStartupFinished",
 		"onUri"
 	],
+	"icon": "assets/jj-plus-icon.png",
 	"engines": {
 		"vscode": "^1.134.0"
 	},

@@ -1,10 +1,6 @@
 import { OPEN_TIMELINE_AT_LINE_COMMAND } from './constants.ts';
 import type { BlameLine } from '../shared/blame.ts';
-import {
-	formatBlameGutterLabel,
-	shortBlameRevision,
-	truncateBlameSummaryForDecoration,
-} from '../shared/blame.ts';
+import { formatBlameGutterLabel, shortBlameRevision, truncateBlameSummaryForDecoration } from '../shared/blame.ts';
 
 export function formatTimelineAtLineCodeLensTitle(line: number): string {
 	return `JJ Plus: Open revision timeline · line ${line}`;
@@ -46,6 +42,22 @@ export function truncateBlameSummary(value: string, maxLength: number): string {
 	return truncateBlameSummaryForDecoration(value, maxLength);
 }
 
+export function shouldShowBlameHoverAtPosition(args: {
+	mode: 'blame' | 'any' | 'never';
+	positionCharacter: number;
+	lineLength: number;
+	line: number;
+	annotatedLines: ReadonlySet<number>;
+}): boolean {
+	if (args.mode === 'never') {
+		return false;
+	}
+	if (args.mode === 'any') {
+		return true;
+	}
+	return args.positionCharacter >= args.lineLength && args.annotatedLines.has(args.line);
+}
+
 export function buildCurrentLineBlameHoverMarkdown(args: {
 	entry: BlameLine;
 	absolutePath: string;
@@ -54,10 +66,13 @@ export function buildCurrentLineBlameHoverMarkdown(args: {
 }): string {
 	const openArgs = encodeURIComponent(JSON.stringify({ absolutePath: args.absolutePath, line: args.line }));
 	const openLink = `command:${OPEN_TIMELINE_AT_LINE_COMMAND}?${openArgs}`;
-	const actionArgs = encodeURIComponent(JSON.stringify({ absolutePath: args.absolutePath, line: args.line, revision: args.entry.revision }));
+	const actionArgs = encodeURIComponent(
+		JSON.stringify({ absolutePath: args.absolutePath, line: args.line, revision: args.entry.revision }),
+	);
 	const copyRevisionLink = `command:jj-plus.copyBlameRevision?${encodeURIComponent(JSON.stringify({ revision: args.entry.revision }))}`;
 	const snapshotLink = `command:jj-plus.openBlameSnapshot?${actionArgs}`;
 	const remoteLink = `command:jj-plus.openBlameRemote?${actionArgs}`;
+	const revisionDiffLink = `command:jj-plus.openBlameRevisionDiff?${actionArgs}`;
 	const author = args.entry.author?.trim() || 'Unknown author';
 	const when = args.entry.authorDate || '';
 	const shortDesc = args.entry.summary?.trim() || '';
@@ -71,7 +86,7 @@ export function buildCurrentLineBlameHoverMarkdown(args: {
 		body ? escapeMarkdownBlock(body) : '_No commit description_',
 		'',
 		`[Open revision timeline at line ${args.line}](${openLink})`,
-		`[Open file snapshot](${snapshotLink}) · [Copy revision](${copyRevisionLink}) · [Open remote](${remoteLink})`,
+		`[Open revision diff](${revisionDiffLink}) · [Open file snapshot](${snapshotLink}) · [Copy revision](${copyRevisionLink}) · [Open remote](${remoteLink})`,
 	].join('\n');
 }
 

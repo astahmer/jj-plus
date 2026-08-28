@@ -28,6 +28,7 @@ export function registerEditorExtraFeatures(args: {
 	}) => vscode.Uri;
 	showFileAtRevision: (args: { workspacePath: string; revset: string; filePath: string }) => Promise<string>;
 	getRemoteBaseUrl: (args: { workspacePath: string }) => Promise<string | undefined>;
+	openRevisionMultiDiff: (args: { workspacePath: string; revision: string }) => Promise<void>;
 }): vscode.Disposable {
 	const disposables: vscode.Disposable[] = [];
 
@@ -172,30 +173,55 @@ export function registerEditorExtraFeatures(args: {
 			await vscode.env.clipboard.writeText(revision);
 			void vscode.window.setStatusBarMessage('JJ Plus: revision copied', 1800);
 		}),
-		vscode.commands.registerCommand('jj-plus.openBlameSnapshot', async (raw?: { absolutePath?: string; revision?: string; line?: number }) => {
-			const absolutePath = raw?.absolutePath;
-			const revision = raw?.revision?.trim();
-			if (!absolutePath || !revision) return;
-			const folder = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(absolutePath));
-			if (!folder) return;
-			const relativePath = path.relative(folder.uri.fsPath, absolutePath).replace(/\\/g, '/');
-			if (!relativePath || relativePath.startsWith('..') || path.isAbsolute(relativePath)) return;
-			const content = await args.showFileAtRevision({ workspacePath: folder.uri.fsPath, revset: revision, filePath: relativePath });
-			const uri = args.createInlineContentUri({ workspacePath: folder.uri.fsPath, revset: revision, relativePath, content });
-			const document = await vscode.workspace.openTextDocument(uri);
-			const editor = await vscode.window.showTextDocument(document, { preview: true });
-			const line = Math.max(1, Number(raw?.line) || 1);
-			const position = new vscode.Position(Math.min(line - 1, Math.max(0, document.lineCount - 1)), 0);
-			editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
-		}),
-		vscode.commands.registerCommand('jj-plus.openBlameRemote', async (raw?: { absolutePath?: string; revision?: string }) => {
-			const revision = raw?.revision?.trim();
-			const absolutePath = raw?.absolutePath;
-			if (!revision || !absolutePath) return;
-			const folder = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(absolutePath));
-			const baseUrl = folder ? await args.getRemoteBaseUrl({ workspacePath: folder.uri.fsPath }) : undefined;
-			if (baseUrl) await vscode.env.openExternal(vscode.Uri.parse(`${baseUrl}/commit/${revision}`));
-		}),
+		vscode.commands.registerCommand(
+			'jj-plus.openBlameSnapshot',
+			async (raw?: { absolutePath?: string; revision?: string; line?: number }) => {
+				const absolutePath = raw?.absolutePath;
+				const revision = raw?.revision?.trim();
+				if (!absolutePath || !revision) return;
+				const folder = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(absolutePath));
+				if (!folder) return;
+				const relativePath = path.relative(folder.uri.fsPath, absolutePath).replace(/\\/g, '/');
+				if (!relativePath || relativePath.startsWith('..') || path.isAbsolute(relativePath)) return;
+				const content = await args.showFileAtRevision({
+					workspacePath: folder.uri.fsPath,
+					revset: revision,
+					filePath: relativePath,
+				});
+				const uri = args.createInlineContentUri({
+					workspacePath: folder.uri.fsPath,
+					revset: revision,
+					relativePath,
+					content,
+				});
+				const document = await vscode.workspace.openTextDocument(uri);
+				const editor = await vscode.window.showTextDocument(document, { preview: true });
+				const line = Math.max(1, Number(raw?.line) || 1);
+				const position = new vscode.Position(Math.min(line - 1, Math.max(0, document.lineCount - 1)), 0);
+				editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenter);
+			},
+		),
+		vscode.commands.registerCommand(
+			'jj-plus.openBlameRemote',
+			async (raw?: { absolutePath?: string; revision?: string }) => {
+				const revision = raw?.revision?.trim();
+				const absolutePath = raw?.absolutePath;
+				if (!revision || !absolutePath) return;
+				const folder = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(absolutePath));
+				const baseUrl = folder ? await args.getRemoteBaseUrl({ workspacePath: folder.uri.fsPath }) : undefined;
+				if (baseUrl) await vscode.env.openExternal(vscode.Uri.parse(`${baseUrl}/commit/${revision}`));
+			},
+		),
+		vscode.commands.registerCommand(
+			'jj-plus.openBlameRevisionDiff',
+			async (raw?: { absolutePath?: string; revision?: string }) => {
+				const revision = raw?.revision?.trim();
+				const absolutePath = raw?.absolutePath;
+				if (!revision || !absolutePath) return;
+				const folder = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(absolutePath));
+				if (folder) await args.openRevisionMultiDiff({ workspacePath: folder.uri.fsPath, revision });
+			},
+		),
 		vscode.commands.registerCommand('jj-plus.openWorkingCopyChangesMulti', async () => {
 			const folder = vscode.workspace.workspaceFolders?.[0];
 			if (!folder) {

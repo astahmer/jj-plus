@@ -15,6 +15,7 @@ import {
 	buildCurrentLineBlameHoverMarkdown,
 	formatCurrentLineBlameDecoration,
 	formatTimelineAtLineHoverTitle,
+	shouldShowBlameHoverAtPosition,
 } from './timeline-at-line.ts';
 
 type BlameRunner = {
@@ -170,7 +171,7 @@ export function createEditorBlameDecorations(args: {
 									contentText: formatCurrentLineBlameDecoration(entry),
 								},
 							},
-								hoverMessage: undefined,
+							hoverMessage: undefined,
 						};
 					}),
 			);
@@ -189,16 +190,37 @@ export function createEditorBlameDecorations(args: {
 	const hoverProvider: vscode.HoverProvider = {
 		async provideHover(document, position) {
 			const settings = readJjplusSettings();
-			if (!settings.hoverTimelineLink || document.uri.scheme !== 'file') {
+			if (settings.blameHoverMode === 'never' || document.uri.scheme !== 'file') {
 				return null;
 			}
 			const line = position.line + 1;
 			let blame: BlameLine | undefined;
+			const annotatedLines = new Set<number>();
 			try {
 				const lines = await getCachedLines(document);
 				blame = lines ? findBlameForLine(lines, line) : undefined;
+				if (lines && settings.inlineBlameGutter) {
+					for (const entry of settings.inlineBlameSparse ? collapseBlameToHunkStarts(lines) : lines) {
+						annotatedLines.add(entry.line);
+					}
+				}
+				const activeEditor = vscode.window.activeTextEditor;
+				if (settings.currentLineBlame && activeEditor?.document.uri.toString() === document.uri.toString()) {
+					annotatedLines.add(activeEditor.selection.active.line + 1);
+				}
 			} catch {
 				blame = undefined;
+			}
+			if (
+				!shouldShowBlameHoverAtPosition({
+					mode: settings.blameHoverMode,
+					positionCharacter: position.character,
+					lineLength: document.lineAt(position.line).text.length,
+					line,
+					annotatedLines,
+				})
+			) {
+				return null;
 			}
 			const markdown = new vscode.MarkdownString(
 				blame
