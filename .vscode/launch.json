@@ -8,7 +8,7 @@
 			"runtimeExecutable": "${execPath}",
 			"args": [
 				"--extensionDevelopmentPath=${workspaceFolder}",
-				"--disable-extension=astahmer.jj-range-diff",
+				"--disable-extension=astahmer.jj-plus",
 				"--disable-workspace-trust",
 				"${workspaceFolder}/test-repo"
 			],
@@ -23,7 +23,7 @@
 			"runtimeExecutable": "${execPath}",
 			"args": [
 				"--extensionDevelopmentPath=${workspaceFolder}",
-				"--disable-extension=astahmer.jj-range-diff",
+				"--disable-extension=astahmer.jj-plus",
 				"--disable-workspace-trust",
 				"${workspaceFolder}/.e2e-runtime/repos/jj-basic"
 			],
@@ -38,7 +38,7 @@
 			"runtimeExecutable": "${execPath}",
 			"args": [
 				"--extensionDevelopmentPath=${workspaceFolder}",
-				"--disable-extension=astahmer.jj-range-diff",
+				"--disable-extension=astahmer.jj-plus",
 				"--disable-workspace-trust",
 				"${workspaceFolder}/.e2e-runtime/repos/git-basic"
 			],
