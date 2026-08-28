@@ -58,7 +58,8 @@ export type HistoryAdapter = {
 		/** Optional jj revset intersected with the default file history window. */
 		customRevset?: string;
 	}): Promise<FileRevisionEntry[]>;
-	getRepositoryRevisionHistory(args: { workspacePath: string; limit?: number }): Promise<FileRevisionEntry[]>;
+	getRepositoryRevisionHistory(args: { workspacePath: string; limit?: number; customRevset?: string }): Promise<FileRevisionEntry[]>;
+	getRevisionDiff(args: { workspacePath: string; revision: string }): Promise<string>;
 	showFileAtRevision(args: { workspacePath: string; revset: string; filePath: string }): Promise<string>;
 	resolvePreviousPath(args: { workspacePath: string; revision: string; currentPath: string }): Promise<string>;
 	listRevisionFiles(args: { workspacePath: string; revision: string; signal?: AbortSignal }): Promise<string[]>;

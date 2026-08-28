@@ -123,6 +123,13 @@ function createGitHistoryAdapter(args: { runner: CommandRunner }): HistoryAdapte
 				}))
 				.toReversed();
 		},
+		async getRevisionDiff({ workspacePath, revision }) {
+			const { stdout } = await runner.runGit({
+				workspacePath,
+				args: ['show', '--format=', '--find-renames', revision],
+			});
+			return stdout;
+		},
 		async showFileAtRevision({ workspacePath, revset, filePath }) {
 			if (revset === 'EMPTY') {
 				return '';
@@ -262,7 +269,7 @@ function createJjHistoryAdapter(args: { runner: CommandRunner }): HistoryAdapter
 				customRevset,
 			});
 		},
-		async getRepositoryRevisionHistory({ workspacePath, limit }) {
+		async getRepositoryRevisionHistory({ workspacePath, limit, customRevset }) {
 			const template = buildJjHistoryLogTemplate();
 			const { stdout } = await runner.runJj({
 				workspacePath,
@@ -272,7 +279,7 @@ function createJjHistoryAdapter(args: { runner: CommandRunner }): HistoryAdapter
 					'--limit',
 					String(limit ?? MAX_TIMELINE_ENTRIES),
 					'-r',
-					'ancestors(@)',
+					customRevset?.trim() || 'ancestors(@)',
 					'-T',
 					template,
 				],
@@ -290,6 +297,13 @@ function createJjHistoryAdapter(args: { runner: CommandRunner }): HistoryAdapter
 					}))
 					.toReversed(),
 			);
+		},
+		async getRevisionDiff({ workspacePath, revision }) {
+			const { stdout } = await runner.runJj({
+				workspacePath,
+				args: ['diff', '--git', '-r', revision],
+			});
+			return stdout;
 		},
 		async showFileAtRevision({ workspacePath, revset, filePath }) {
 			if (revset === 'EMPTY') {

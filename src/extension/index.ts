@@ -15,6 +15,7 @@ import {
 	CLEAR_LINE_HISTORY_COMMAND,
 	OPEN_FILE_RANGE_DIFF_COMMAND,
 	OPEN_FILE_TIMELINE_COMMAND,
+	OPEN_REPO_TIMELINE_COMMAND,
 	OPEN_FILE_LINE_TIMELINE_COMMAND,
 	OPEN_TIMELINE_AT_LINE_COMMAND,
 	OPEN_CHANGES_WITH_PREVIOUS_COMMAND,
@@ -32,6 +33,7 @@ import { resolveHistoryAdapter, resolveHistoryWorkspacePath } from './history-ad
 import { resolveCommandFilePath } from './resolve-file-path.ts';
 import { createRevisionDiffNavigator, listFileRevisionIds } from './revision-diff-nav.ts';
 import { createTimelinePanelController } from './timeline-panel.ts';
+import { createRepoTimelinePanelController } from './repo-timeline-panel.ts';
 import { createTimelineService, normalizeTimelinePreferences } from './timeline-service.ts';
 import {
 	areSamePath,
@@ -62,6 +64,11 @@ export function activate(context: vscode.ExtensionContext): void {
 		service,
 		getPreferences: () => getTimelinePreferences(context),
 		savePreferences: (nextPreferences) => saveTimelinePreferences(context, nextPreferences),
+		version: packageJson.version,
+	});
+	const repoTimelineController = createRepoTimelinePanelController({
+		context,
+		runner,
 		version: packageJson.version,
 	});
 	const provider = new SnapshotContentProvider({ runner });
@@ -291,6 +298,7 @@ export function activate(context: vscode.ExtensionContext): void {
 		vscode.commands.registerCommand(OPEN_FILE_TIMELINE_COMMAND, (arg?: unknown) =>
 			panelController.openFileRevisionTimeline({ context, absolutePath: resolveCommandFilePath(arg) }),
 		),
+		vscode.commands.registerCommand(OPEN_REPO_TIMELINE_COMMAND, () => repoTimelineController.open()),
 		vscode.commands.registerCommand(OPEN_FILE_LINE_TIMELINE_COMMAND, async () => {
 			const editor = vscode.window.activeTextEditor;
 			if (!editor || editor.document.uri.scheme !== 'file') {
@@ -385,6 +393,7 @@ export function activate(context: vscode.ExtensionContext): void {
 			},
 		}),
 		{ dispose: () => panelController.dispose() },
+		{ dispose: () => repoTimelineController.dispose() },
 	);
 
 	void resumePendingRangeDiff({ context, openRangeMultiDiff });

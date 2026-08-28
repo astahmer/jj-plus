@@ -2,7 +2,7 @@
 	"name": "jj-plus",
 	"displayName": "JJ Plus",
 	"version": "0.10.4",
-	"description": "Open JJ multi-diff views for revision ranges.",
+	"description": "Explore JJ file and repository timelines, then open focused multi-diff views.",
 	"icon": "assets/jj-plus-icon.png",
 	"files": [
 		"dist/",
@@ -148,6 +148,11 @@
 				"command": "jj-plus.openFileRevisionTimeline",
 				"title": "JJ Plus: Open Revision Timeline",
 				"icon": "$(diff)"
+			},
+			{
+				"command": "jj-plus.openRepoTimeline",
+				"title": "JJ Plus: Open Repo Timeline",
+				"icon": "$(timeline-view-icon)"
 			},
 			{
 				"command": "jj-plus.openRevisionDiffPrevious",

@@ -2,6 +2,7 @@ export const EXTENSION_ID = 'astahmer.jj-plus';
 export const HELPER_COMMAND = 'jj-plus.openRangeMultiDiff';
 export const OPEN_FILE_RANGE_DIFF_COMMAND = 'jj-plus.openFileRangeDiff';
 export const OPEN_FILE_TIMELINE_COMMAND = 'jj-plus.openFileRevisionTimeline';
+export const OPEN_REPO_TIMELINE_COMMAND = 'jj-plus.openRepoTimeline';
 export const OPEN_FILE_LINE_TIMELINE_COMMAND = 'jj-plus.openFileLineTimeline';
 export const OPEN_TIMELINE_AT_LINE_COMMAND = 'jj-plus.openTimelineAtLine';
 export const OPEN_CHANGES_WITH_PREVIOUS_COMMAND = 'jj-plus.openChangesWithPrevious';

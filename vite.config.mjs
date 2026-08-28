@@ -53,13 +53,16 @@ export default defineConfig({
 		target: 'es2020',
 		chunkSizeWarningLimit: 2000,
 		rollupOptions: {
-			input: resolve(process.cwd(), 'webview', 'index.html'),
+			input: {
+				timeline: resolve(process.cwd(), 'webview', 'index.html'),
+				repoTimeline: resolve(process.cwd(), 'webview', 'repo-timeline.html'),
+			},
 			output: {
-				entryFileNames: 'timeline-app.js',
+				entryFileNames: ({ name }) => (name === 'repoTimeline' ? 'repo-timeline-app.js' : 'timeline-app.js'),
 				chunkFileNames: 'chunks/[name]-[hash].js',
 				assetFileNames(assetInfo) {
 					if (assetInfo.name && assetInfo.name.endsWith('.css')) {
-						return 'timeline-app.css';
+						return assetInfo.name.includes('repo') ? 'repo-timeline-app.css' : 'timeline-app.css';
 					}
 					return 'assets/[name]-[hash][extname]';
 				},
