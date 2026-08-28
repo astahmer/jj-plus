@@ -6,7 +6,6 @@
 		"tests/fixtures/**/*.ts",
 		"webview/src/**/*.test.ts",
 	],
-	"ignoreBinaries": ["tsgo"],
 	"project": ["*.ts", "src/**/*.ts", "tests/**/*.ts", "webview/**/*.{js,ts,tsx}"],
 	"ignore": ["tests/fixtures/assets/**", "webview/src/vitest-setup.ts"],
 	"ignoreUnresolved": ["./src/vitest-setup.ts"],

@@ -1,0 +1,7 @@
+packages:
+  - '.'
+
+allowBuilds:
+  '@vscode/vsce-sign': true
+  keytar: true
+  msgpackr-extract: true

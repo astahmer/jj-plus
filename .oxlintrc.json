@@ -19,6 +19,8 @@
 	},
 	"rules": {
 		"eslint/no-console": "off",
+		"eslint/no-underscore-dangle": "off",
+		"unicorn/consistent-function-scoping": "off",
 		"unicorn/require-post-message-target-origin": "off"
 	}
 }
