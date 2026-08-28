@@ -11,7 +11,7 @@
 	],
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/astahmer/visualjj-range-diff-helper.git"
+		"url": "https://github.com/astahmer/jj-plus.git"
 	},
 	"publisher": "astahmer",
 	"bin": {

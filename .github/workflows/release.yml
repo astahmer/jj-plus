@@ -19,6 +19,14 @@ jobs:
       - name: Check out release tag
         uses: actions/checkout@v5
 
+      - name: Install Jujutsu
+        uses: taiki-e/install-action@v2
+        with:
+          tool: jj-cli@0.44.0
+
+      - name: Verify Jujutsu
+        run: jj --version
+
       - name: Set up pnpm
         uses: pnpm/setup@v2
         with:
