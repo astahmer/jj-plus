@@ -1,149 +1,98 @@
 # JJ Plus
 
-Minimal VS Code extension that opens JJ range multi-diff.
+Explore Jujutsu and Git history without leaving your editor.
 
-It also includes a custom revision timeline panel for the active file. The panel uses a scrubber-style timeline to move through revisions quickly and opens a diff against the previous revision as you select entries.
+JJ Plus is a VS Code extension for comparing revisions, browsing the history of the active file, and jumping from a line directly to the revision that introduced it. It prefers Jujutsu when a workspace is managed by JJ and falls back to Git when it is not.
 
-## Files
+## What you can do
 
-- `package.json`: VS Code extension manifest and workspace scripts
-- `src/extension/`: VS Code entrypoint, timeline controller, and history adapters
-- `src/bin.ts`: CLI entrypoint for deep links and the standalone timeline
-- `src/shared/`: diff helpers, history parsing, and shared timeline contracts
-- `tests/units/`: Node unit tests for CLI, shared helpers, and extracted webview logic
-- `tests/features/`: Playwright browser specs plus BDD features, steps, and fixtures
-- `tests/visual/`: Playwright screenshot baselines
-- `tests/vscode/`: VS Code extension-host integration harness
-- `tests/fixtures/`: generated browser fixture builder for end-to-end tests
-- `webview/src/`: SolidJS webview source
+- Open a multi-file diff between two revisions, bookmarks, or revsets.
+- Browse a file’s revision timeline with a compact history list, scrubber, and focused diff.
+- Compare a revision with its previous or next revision.
+- Search history by author, description, or path.
+- Inspect line blame and open the timeline at the current line.
+- Review JJ evolution and operation history when working in a JJ repository.
+- Use the same timeline from a terminal with the optional `jj-plus` CLI.
 
-## Run Locally
+## Requirements
 
-1. Open this folder as a VS Code / Cursor window (the extension project root).
-2. Once: `pnpm seed:test-repo` (creates `test-repo/` with sample jj history).
-3. Select launch config **Extension: test-repo**, then press `F5`.
-   - `preLaunchTask` rebuilds `dist/` + `webview-dist/` so the host always loads the current sources.
-   - `--extensionDevelopmentPath` loads this workspace; `--disable-extension=astahmer.jj-plus` blocks any installed VSIX of the same id.
-4. In the Extension Development Host window, open a file under `test-repo/` and run `JJ: Open File Revision Timeline` (or `JJ: Open Range Multi Diff`).
-
-For richer fixtures (same as e2e), run `pnpm fixtures:e2e` once, then F5 with **Extension: jj-basic fixture** or **Extension: git-basic fixture**.
-
-For the Vite-powered webview shell during UI work:
-
-```sh
-pnpm install
-pnpm fixtures:e2e
-pnpm dev
-```
-
-The browser fixtures in `webview/public/e2e/` are generated artifacts now, so they should stay ignored and be regenerated with `pnpm fixtures:e2e` instead of being committed.
-
-For typechecking and end-to-end coverage:
-
-```sh
-pnpm lint
-pnpm typecheck
-pnpm fixtures:e2e
-pnpm test
-pnpm test:integration
-pnpm test:e2e
-pnpm test:all
-```
-
-`pnpm lint` now runs both `oxlint` and `knip`, and `pnpm typecheck` validates the Solid webview plus the TypeScript extension, CLI, and standalone server.
-
-For production builds, compile the extension runtime and webview bundle:
-
-```sh
-pnpm build:extension
-pnpm build:webview
-```
-
-`pnpm build` runs both builds and then packages the extension with `vsce`.
-
-## Revision Timeline
-
-`JJ: Open File Revision Timeline` opens a custom webview panel for the active file.
-`JJ: Open File Diff Between Revisions` prompts for `from` and `to` revisions, then opens a regular VS Code diff for just the active file.
-
-- Scrub across file revisions using the timeline slider
-- Filter the visible window with `This month`, `Last 7D`, `30D`, `90D`, and `All`
-- Open a diff between the selected revision and the previous revision
-- Show the working tree as the latest stop on the timeline
-
-The panel prefers JJ history when the workspace is a JJ repo and falls back to Git history otherwise, which makes it easy to iterate on the UI in a normal Git repository.
-
-## Optional Programmatic Invocation
-
-```js
-await vscode.commands.executeCommand('jj-plus.openRangeMultiDiff', {
-	workspacePath: '/Users/astahmer/dev/work-related/welii',
-	from: 'yvspkqrx',
-	to: 'mvvosnsv',
-	title: 'yvspkqrx::mvvosnsv',
-});
-```
-
-## CLI
-
-The CLI supports two flows:
-
-- the deep-link range diff flow into VS Code, available both implicitly and as `diff`
-- a standalone browser timeline for a single file
-
-When running from this repository directly, build the extension runtime first:
-
-```sh
-pnpm build:extension
-```
-
-Then invoke the local binary with `pnpm exec jj-plus ...`. If you prefer, `node ./dist/bin.cjs ...` is equivalent against the built output.
-
-### Range Diff Deep Link
-
-`jj-plus` opens the same flow from your shell by forwarding a deep link into VS Code. `jj-plus diff` is the explicit equivalent, and that is the documented form below. The implicit default still works.
-
-CLI launches now skip the extension input prompts and open the diff directly. Add `--confirm` if you want the prompt flow before opening.
-
-```sh
-pnpm exec jj-plus diff -f closest_bookmark(@) -t @
-pnpm exec jj-plus diff --from yvspkqrx --to mvvosnsv --title 'range diff'
-pnpm exec jj-plus diff --confirm -f closest_bookmark(@) -t @
-pnpm exec jj-plus diff --ide cursor -f closest_bookmark(@) -t @
-pnpm exec jj-plus diff --verbose --ide zed -f closest_bookmark(@) -t @
-pnpm exec jj-plus diff -f closest_bookmark(@) -t @ -w /path/to/workspace
-pnpm exec jj-plus -f closest_bookmark(@) -t @
-```
-
-If you install the package with `npm link`, the `jj-plus` command is also available on your `PATH`.
-
-`--ide` accepts known presets like `code`, `code-insiders`, `cursor`, `cursor-insiders`, `zed`, `windsurf`, and `codium`. You can also set `JJ_PLUS_IDE` to change the default launcher.
-
-### Standalone Timeline
-
-The standalone timeline reuses the same webview UI in your default browser and serves it from a small local HTTP server. The command keeps running until you stop it.
-
-```sh
-pnpm build:extension
-pnpm build:webview
-pnpm exec jj-plus timeline README.md
-pnpm exec jj-plus timeline --no-open --port 4173 README.md
-pnpm exec jj-plus timeline -w /path/to/repo apps/backend/src/service.ts
-```
-
-With `npm link`, the same commands work through `jj-plus timeline ...`.
-
-Use `--no-open` when you want to keep the server running without launching a browser automatically, and `--port` when you want a predictable local URL.
-
-## Logs
-
-The extension writes the exact `jj` commands it runs to the `JJ Plus` output channel in VS Code. When you run the CLI with `--verbose`, the CLI also logs the IDE/open-url commands it used and opens that output channel so you can see the `jj` commands immediately.
+- VS Code 1.134 or newer.
+- [Jujutsu](https://jj-vcs.github.io/jj/latest/install-and-setup/) for JJ history.
+- Git is used automatically for ordinary Git workspaces.
 
 ## Install
 
+Install **JJ Plus** from the [Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=astahmer.jj-plus), then reload VS Code if prompted.
+
+Open the Command Palette and try:
+
+- **JJ Plus: Open Revision Timeline** — browse the active file’s history.
+- **JJ Plus: Open Range Multi Diff** — compare two revisions across files.
+- **JJ Plus: Toggle Line Blame** — show the revision behind the active line.
+
+The extension reads repository history using the `jj` or `git` executable available on your PATH. It does not bundle either VCS or install a global terminal command.
+
+## CLI (optional)
+
+The Marketplace extension and the terminal CLI are separate installation channels. Installing the VSIX does not add `jj-plus` to your shell PATH.
+
+Once the npm package is available, install the CLI separately:
+
 ```sh
-cd /Users/astahmer/dev/visualjj-range-diff-helper
-npx @vscode/vsce package
+npm install --global jj-plus
+# or: pnpm add --global jj-plus
 ```
 
-Then install the generated `.vsix` file in your VS Code instance.
+Then run a range diff or the standalone browser timeline from any repository:
+
+```sh
+jj-plus diff --from <revision> --to <revision>
+jj-plus timeline path/to/file.ts
+```
+
+The CLI needs an installed VS Code-compatible IDE for deep-link diffs. It needs `jj` or `git` for the timeline, depending on the repository. Use `jj-plus --help` for all options, including `--ide`, `--workspace`, `--port`, `--no-open`, and `--verbose`.
+
+## Useful workflows
+
+### Timeline
+
+Open **JJ Plus: Open Revision Timeline** with a file active. Select an entry to inspect its snapshot and use the comparison controls to switch between a single revision diff, a range, or the working tree. The file switcher can show all files in the selected revision or only files changed in the selected range.
+
+### Line history
+
+Enable **JJ Plus: Toggle Line Blame** or hover a line. The compact blame popover identifies the author, age, summary, revision, and line number, with one action to open the timeline at that line.
+
+### Range diffs
+
+The Command Palette command accepts the same revision language as JJ or Git. The CLI is useful for scripts and editor integrations:
+
+```sh
+jj-plus diff --from closest_bookmark(@) --to @ --workspace .
+jj-plus diff --ide cursor --from <revision> --to <revision>
+```
+
+## Configuration
+
+All settings are under `jjplus` in VS Code settings. The most useful ones are:
+
+- `jjplus.currentLineBlame` — annotate the active line.
+- `jjplus.inlineBlameGutter` — annotate revision hunk starts throughout the file.
+- `jjplus.hoverTimelineLink` — offer a timeline link when hovering source lines.
+- `jjplus.scmChangedLines` — show changes against the previous working-copy revision.
+- `jjplus.conflictHelper` — highlight JJ conflict markers and enable next-conflict navigation.
+
+## Troubleshooting
+
+Open the **JJ Plus** output channel to see the exact `jj` or `git` commands used by the extension. For CLI diagnostics, add `--verbose`.
+
+If history is unavailable, verify the repository is open as a VS Code workspace and that `jj --version` or `git --version` works in the same environment as VS Code.
+
+Report problems or request features in the [GitHub issue tracker](https://github.com/astahmer/jj-plus/issues).
+
+## Development
+
+Contributor setup, test commands, fixture generation, and the release checklist live in [`docs/development.md`](docs/development.md). The user-facing Marketplace README intentionally stays short and task-oriented.
+
+## License
+
+The project is currently distributed without a declared open-source license. Check the repository for the latest licensing decision before redistributing it.

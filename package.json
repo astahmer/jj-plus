@@ -1,9 +1,16 @@
 {
 	"name": "jj-plus",
 	"displayName": "JJ Plus",
-	"version": "0.10.3",
-	"private": true,
+	"version": "0.10.4",
 	"description": "Open JJ multi-diff views for revision ranges.",
+	"icon": "assets/jj-plus-icon.png",
+	"files": [
+		"dist/",
+		"webview-dist/",
+		"assets/",
+		"README.md",
+		"CHANGELOG.md"
+	],
 	"categories": [
 		"Other",
 		"Programming Languages",
@@ -35,6 +42,7 @@
 		"pkg": "bun build src/bin.ts --compile --outfile jjdiff ",
 		"release:check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
 		"release:publish": "pnpm release:check && pnpm exec vsce publish --no-dependencies --skip-duplicate --githubBranch main",
+		"release:publish:npm": "pnpm release:check && pnpm publish --access public --provenance",
 		"seed:test-repo": "node ./scripts/seed-test-repo.mjs",
 		"test": "node --test tests/units/**/*.test.ts && pnpm test:webview",
 		"test:all": "pnpm test && pnpm test:e2e && pnpm test:integration",
@@ -73,7 +81,7 @@
 	},
 	"contributes": {
 		"configuration": {
-			"title": "jjplus",
+			"title": "JJ Plus",
 			"properties": {
 				"jjplus.currentLineBlame": {
 					"type": "boolean",
@@ -93,7 +101,7 @@
 				"jjplus.hoverTimelineLink": {
 					"type": "boolean",
 					"default": true,
-					"description": "Show jjplus timeline hover on lines with author / relative time / description."
+					"description": "Show JJ Plus timeline hover on lines with author / relative time / description."
 				},
 				"jjplus.statusBarChangeChip": {
 					"type": "boolean",
@@ -125,86 +133,86 @@
 		"commands": [
 			{
 				"command": "jj-plus.openRangeMultiDiff",
-				"title": "jjplus: Open Range Multi Diff"
+				"title": "JJ Plus: Open Range Multi Diff"
 			},
 			{
 				"command": "jj-plus.openFileRangeDiff",
-				"title": "jjplus: Open File Diff Between Revisions"
+				"title": "JJ Plus: Open File Diff Between Revisions"
 			},
 			{
 				"command": "jj-plus.openChangesWithPrevious",
-				"title": "jjplus: Open Changes with Previous Revision",
+				"title": "JJ Plus: Open Changes with Previous Revision",
 				"icon": "$(history)"
 			},
 			{
 				"command": "jj-plus.openFileRevisionTimeline",
-				"title": "jjplus: Open Revision Timeline",
+				"title": "JJ Plus: Open Revision Timeline",
 				"icon": "$(diff)"
 			},
 			{
 				"command": "jj-plus.openRevisionDiffPrevious",
-				"title": "jjplus: Open Previous Revision Diff",
+				"title": "JJ Plus: Open Previous Revision Diff",
 				"icon": "$(arrow-left)",
 				"enablement": "jjplus.revisionDiffHasPrevious"
 			},
 			{
 				"command": "jj-plus.openRevisionDiffPreviousUnavailable",
-				"title": "jjplus: No previous revision available",
+				"title": "JJ Plus: No previous revision available",
 				"icon": "$(arrow-left)",
 				"enablement": "false"
 			},
 			{
 				"command": "jj-plus.openRevisionDiffNext",
-				"title": "jjplus: Open Next Revision Diff",
+				"title": "JJ Plus: Open Next Revision Diff",
 				"icon": "$(arrow-right)",
 				"enablement": "jjplus.revisionDiffHasNext"
 			},
 			{
 				"command": "jj-plus.openRevisionDiffNextUnavailable",
-				"title": "jjplus: No next revision available",
+				"title": "JJ Plus: No next revision available",
 				"icon": "$(arrow-right)",
 				"enablement": "false"
 			},
 			{
 				"command": "jj-plus.openRevisionDiffTimeline",
-				"title": "jjplus: Open Timeline from Revision Diff",
+				"title": "JJ Plus: Open Timeline from Revision Diff",
 				"icon": "$(timeline-view-icon)"
 			},
 			{
 				"command": "jj-plus.toggleLineBlame",
-				"title": "jjplus: Toggle Line Blame"
+				"title": "JJ Plus: Toggle Line Blame"
 			},
 			{
 				"command": "jj-plus.compareWithBookmark",
-				"title": "jjplus: Compare File with Bookmark / Branch"
+				"title": "JJ Plus: Compare File with Bookmark / Branch"
 			},
 			{
 				"command": "jj-plus.peekRevisionAtCursor",
-				"title": "jjplus: Peek Revision at Cursor"
+				"title": "JJ Plus: Peek Revision at Cursor"
 			},
 			{
 				"command": "jj-plus.openFileAtRevision",
-				"title": "jjplus: Open File at Revision"
+				"title": "JJ Plus: Open File at Revision"
 			},
 			{
 				"command": "jj-plus.openWorkingCopyChangesMulti",
-				"title": "jjplus: Open Working Copy Changes vs Previous"
+				"title": "JJ Plus: Open Working Copy Changes vs Previous"
 			},
 			{
 				"command": "jj-plus.jumpNextConflict",
-				"title": "jjplus: Jump to Next Conflict Marker"
+				"title": "JJ Plus: Jump to Next Conflict Marker"
 			},
 			{
 				"command": "jj-plus.openFileLineTimeline",
-				"title": "jjplus: Open Timeline for Selected Lines"
+				"title": "JJ Plus: Open Timeline for Selected Lines"
 			},
 			{
 				"command": "jj-plus.openTimelineAtLine",
-				"title": "jjplus: Open Timeline at Cursor Line"
+				"title": "JJ Plus: Open Timeline at Cursor Line"
 			},
 			{
 				"command": "jj-plus.clearLineHistory",
-				"title": "jjplus: Clear Line History Filter"
+				"title": "JJ Plus: Clear Line History Filter"
 			}
 		],
 		"menus": {

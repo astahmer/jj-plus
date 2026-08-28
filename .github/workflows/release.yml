@@ -38,6 +38,7 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
+          registry-url: https://registry.npmjs.org
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -52,3 +53,15 @@ jobs:
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
         run: pnpm release:publish
+
+      - name: Publish CLI package to npm
+        if: ${{ secrets.NPM_TOKEN != '' }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          if npm view "jj-plus@${VERSION}" version >/dev/null 2>&1; then
+            echo "jj-plus@${VERSION} is already published; skipping."
+          else
+            pnpm publish --access public --provenance --no-git-checks
+          fi

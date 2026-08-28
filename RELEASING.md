@@ -7,6 +7,7 @@ The repository is prepared so the normal release path is a versioned Git tag. Gi
 1. Sign in to the [Visual Studio Marketplace publisher portal](https://marketplace.visualstudio.com/manage) with the `astahmer` publisher account. Create the publisher if it does not exist.
 2. In Azure DevOps, create a personal access token with Marketplace **Manage** scope. Store it somewhere safe; it is only needed by CI.
 3. In the GitHub repository settings, add an Actions secret named `VSCE_PAT` containing that token.
+4. To publish the optional terminal CLI, create an npm automation token and add it as an Actions secret named `NPM_TOKEN`. Marketplace publishing does not install or expose the CLI, so this is a separate package distribution step.
 
 ## Each release
 
@@ -29,7 +30,7 @@ The repository is prepared so the normal release path is a versioned Git tag. Gi
 
 ## What CI does
 
-The `v*` tag workflow checks that the tag matches `package.json`, installs the pinned pnpm toolchain, runs `pnpm release:publish`, and publishes with `vsce` using `VSCE_PAT`. No local Marketplace credentials or manual VSIX upload are needed.
+The `v*` tag workflow checks that the tag matches `package.json`, installs the pinned pnpm toolchain, runs `pnpm release:publish`, and publishes with `vsce` using `VSCE_PAT`. When `NPM_TOKEN` exists, it also publishes the CLI package to npm and skips that step if the exact version is already present. No local Marketplace credentials or manual VSIX upload are needed.
 
 ## Recovery
 
