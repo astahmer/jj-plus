@@ -139,21 +139,13 @@ export function createEditorBlameDecorations(args: {
 		if (settings.currentLineBlame) {
 			const blame = findBlameForLine(lines, activeLine + 1);
 			if (blame) {
-				const hover = new vscode.MarkdownString(
-					buildCurrentLineBlameHoverMarkdown({
-						entry: blame,
-						absolutePath: document.uri.fsPath,
-						line: activeLine + 1,
-					}),
-				);
-				hover.isTrusted = true;
 				editor.setDecorations(currentLineType, [
 					{
 						range: document.lineAt(activeLine).range,
 						renderOptions: { after: { contentText: formatCurrentLineBlameDecoration(blame) } },
-						// The hover provider owns the card when the timeline-link setting is on.
-						// Keeping both sources here makes VS Code render the same card twice.
-						hoverMessage: settings.hoverTimelineLink ? undefined : hover,
+						// Keep hover ownership exclusively in the provider. VS Code can retain
+						// decoration hovers across refreshes, which otherwise duplicates cards.
+						hoverMessage: undefined,
 					},
 				]);
 			} else {
@@ -171,14 +163,6 @@ export function createEditorBlameDecorations(args: {
 					.filter((entry) => entry.line >= 1 && entry.line <= document.lineCount)
 					.map((entry) => {
 						const line = entry.line - 1;
-						const hover = new vscode.MarkdownString(
-							buildCurrentLineBlameHoverMarkdown({
-								entry,
-								absolutePath: document.uri.fsPath,
-								line: entry.line,
-							}),
-						);
-						hover.isTrusted = true;
 						return {
 							range: document.lineAt(line).range,
 							renderOptions: {
@@ -186,7 +170,7 @@ export function createEditorBlameDecorations(args: {
 									contentText: formatCurrentLineBlameDecoration(entry),
 								},
 							},
-								hoverMessage: settings.hoverTimelineLink ? undefined : hover,
+								hoverMessage: undefined,
 						};
 					}),
 			);
