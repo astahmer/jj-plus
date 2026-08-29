@@ -42,6 +42,7 @@
 		"release": "node scripts/release.mjs",
 		"release:check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
 		"release:dry-run": "node scripts/release.mjs --dry-run",
+		"release:prepare": "node scripts/release-prepare.mjs",
 		"release:publish": "pnpm release:check && pnpm exec vsce publish --no-dependencies --skip-duplicate --githubBranch main",
 		"release:publish:npm": "pnpm release:check && pnpm publish --access public --provenance",
 		"seed:test-repo": "node ./scripts/seed-test-repo.mjs",

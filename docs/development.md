@@ -77,9 +77,23 @@ version that already exists, so retrying after a partial release is safe. Use
 `pnpm release:dry-run` to build and validate without publishing, or add
 `--skip-vscode` / `--skip-npm` when only one registry should be updated.
 
+To bump the version, create the release revision, set `main` and the matching
+JJ tag, run the release check, and push both references in one command:
+
+```sh
+pnpm release:prepare 0.10.7
+```
+
+Preview the plan with `pnpm release:prepare 0.10.7 --dry-run`, or prepare
+locally without pushing with `pnpm release:prepare 0.10.7 --no-push`. The
+command refuses a dirty working copy or an existing tag. Pushing the tag
+triggers the GitHub Actions release workflow, which publishes the Marketplace
+package and npm package using the configured repository secrets.
+
 The GitHub tag workflow remains available for releases made from CI. The tag
-must match the package version (`v<version>`); the local helper deliberately
-does not create or force-push tags.
+must match the package version (`v<version>`). Use `release:prepare` for the
+version/tag/bookmark/push workflow, and `release` when publishing the already
+prepared version directly from a local machine.
 
 ## Revision Timeline
 
