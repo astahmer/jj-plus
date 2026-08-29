@@ -97,8 +97,17 @@ if (dryRun) {
 
 await run('jj', ['describe', '-m', `release: ${tag}`]);
 await run('pnpm', ['release:check']);
+
+// Tagging the working copy can make it immutable. JJ then creates a fresh
+// empty working-copy commit, so capture the release commit before setting the
+// tag instead of using `@` for the bookmark afterwards.
+const releaseCommit = (await capture('jj', ['log', '-r', '@', '-T', 'commit_id', '--no-graph'])).stdout.trim();
+if (!releaseCommit) {
+	throw new Error('Could not resolve the release commit before tagging.');
+}
+
 await run('jj', ['tag', 'set', tag, '-r', '@']);
-await run('jj', ['bookmark', 'set', 'main', '-r', '@']);
+await run('jj', ['bookmark', 'set', 'main', '-r', releaseCommit]);
 
 if (!noPush) {
 	await run('jj', ['git', 'push', '--bookmark', 'main']);
