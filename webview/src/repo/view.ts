@@ -6,6 +6,7 @@ import {
 	ClickedRemote,
 	ClickedRevision,
 	CopiedShareLink,
+	OpenedFileDiff,
 	OpenedFileResult,
 	SelectedMatchMode,
 	SelectedSearchMode,
@@ -21,6 +22,7 @@ import {
 import type { Model } from './model.ts';
 import type { RepoRevisionEntry, RepoTimelineData, RepoTimelineDiff, RepoTimelineSearchPayload, RepoTimelineSearchResult } from './types.ts';
 import { queueRepoPierreDiffSync } from './pierre.ts';
+import { buildCompactGraphRows } from './graph.ts';
 
 function dataOf(model: Model): RepoTimelineData | null {
 	return model.data as RepoTimelineData | null;
@@ -175,10 +177,145 @@ function renderDiff(model: Model): Html {
 	);
 }
 
+function renderCompact(model: Model, entries: RepoRevisionEntry[]): Html {
+	const h = html<Message>();
+	const data = dataOf(model);
+	const diff = diffOf(model);
+	if (model.loading && !data) {
+		return h.div([h.Class('repo-compact-state'), h.Role('status')], ['Loading JJ workspaces…']);
+	}
+	if (model.error) {
+		return h.div([h.Class('repo-compact-state repo-error'), h.Role('alert')], [model.error]);
+	}
+
+	const graphRows = buildCompactGraphRows(entries);
+	return h.div(
+		[h.Class('repo-compact-app')],
+		[
+			h.div(
+				[h.Class('repo-compact-toolbar')],
+				[
+					h.input([
+						h.Class('repo-compact-revset'),
+						h.Value(model.revset),
+						h.Placeholder('JJ revset'),
+						h.Title('Revisions shown in the graph'),
+						h.OnInput((value) => UpdatedRevset({ value })),
+					]),
+					h.button(
+						[h.Class('repo-compact-refresh'), h.Type('button'), h.OnClick(ClickedRefresh()), h.Disabled(model.loading)],
+						[model.loading ? 'Refreshing…' : 'Apply'],
+					),
+				],
+			),
+			data
+				? h.div(
+						[h.Class('repo-compact-summary')],
+						[`${data.repositoryName} · ${entries.length}${data.truncated ? '+' : ''} revisions · auto-refreshes`],
+					)
+				: h.empty,
+			graphRows.length
+				? h.div(
+						[h.Class('repo-compact-list')],
+						graphRows.map(({ entry, lane, lanes }) => {
+							const selected = entry.index === model.selectedIndex;
+							const refs = [
+								...(entry.workingCopyNames || []),
+								...(entry.bookmarkNames || []),
+								...(entry.branchNames || []),
+							];
+							return h.div(
+								[h.Class(`repo-compact-row${selected ? ' is-selected' : ''}`)],
+								[
+									h.button(
+										[
+											h.Class('repo-compact-entry'),
+											h.Type('button'),
+											h.OnClick(ClickedRevision({ index: entry.index })),
+											h.AriaPressed(String(selected)),
+											h.Title(`${entry.description}\n${entry.revision}`),
+										],
+										[
+											h.span(
+												[h.Class('repo-compact-graph'), h.AriaLabel(`Graph lane ${lane + 1}`)],
+												lanes
+													.slice(0, 6)
+													.map((_, cellLane) =>
+														h.span(
+															[h.Class(`repo-compact-lane lane-${cellLane % 6}${cellLane === lane ? ' is-node' : ''}`)],
+															[
+																cellLane === lane
+																	? entry.hasConflict
+																		? '×'
+																		: entry.parentRevisionIds?.length === 2
+																			? '◆'
+																			: entry.isEmpty
+																				? '○'
+																				: '●'
+																	: '│',
+															],
+														),
+													),
+											),
+											h.span(
+												[h.Class('repo-compact-copy')],
+												[
+													h.span([h.Class('repo-compact-title')], [entry.description || 'No description']),
+													refs.length
+														? h.span(
+																[h.Class('repo-compact-refs')],
+																refs.map((ref) =>
+																	h.span([h.Class(entry.workingCopyNames?.includes(ref) ? 'is-workspace' : '')], [ref]),
+																),
+															)
+														: h.empty,
+													h.span(
+														[h.Class('repo-compact-meta')],
+														[
+															entry.changeId || entry.shortRevision,
+															' · ',
+															entry.relativeDate || entry.shortDate || entry.authorName,
+															entry.isCurrentWorkingCopy ? ' · current workspace' : '',
+														],
+													),
+												],
+											),
+										],
+									),
+									selected
+										? diff
+											? h.div(
+													[h.Class('repo-compact-files')],
+													diff.files.length
+														? diff.files.map((file) =>
+																h.button(
+																	[
+																		h.Class('repo-compact-file'),
+																		h.Type('button'),
+																		h.OnClick(OpenedFileDiff({ entryIndex: entry.index, filePath: file.path })),
+																		h.Title(`Open ${file.path} diff`),
+																	],
+																	['↳ ', file.path],
+																),
+															)
+														: [h.span([h.Class('repo-compact-no-files')], ['No changes'])],
+												)
+											: h.div([h.Class('repo-compact-files repo-loading'), h.Role('status')], ['Loading changes…'])
+										: h.empty,
+								],
+							);
+						}),
+					)
+				: h.div([h.Class('repo-compact-state')], ['No revisions match this revset.']),
+		],
+	);
+}
+
 export function view(model: Model): Html {
 	const h = html<Message>();
 	const data = dataOf(model);
 	const entries = visibleEntries(model);
+	if (model.compact) return renderCompact(model, entries);
 	if (typeof window !== 'undefined') queueRepoPierreDiffSync(model);
 	syncShareUrl(model);
 	const search = searchOf(model);

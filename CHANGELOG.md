@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### JJ Plus
+
+- Add a combined JJ workspace graph and revision changes view to the Source Control sidebar.
+- Auto-refresh visible workspace heads and open selected revision files as native VS Code diffs.
+
 ## 0.10.5 — 2026-08-28
 
 ### JJ Plus

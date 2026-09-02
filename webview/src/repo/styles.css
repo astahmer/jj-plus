@@ -116,3 +116,216 @@
 @media (prefers-reduced-motion: reduce) {
 	.repo-progress { animation: none; }
 }
+
+.repo-compact.repo-timeline-body {
+	--repo-bg: var(--vscode-sideBar-background, #181818);
+	--repo-surface: var(--vscode-list-hoverBackground, #252526);
+	--repo-raised: var(--vscode-list-activeSelectionBackground, #04395e);
+	--repo-line: var(--vscode-sideBarSectionHeader-border, var(--vscode-widget-border, #3c3c3c));
+	--repo-text: var(--vscode-foreground, #cccccc);
+	--repo-muted: var(--vscode-descriptionForeground, #9d9d9d);
+	--repo-accent: var(--vscode-textLink-foreground, #3794ff);
+	background: var(--repo-bg);
+	overflow: auto;
+}
+.repo-compact .repo-timeline-root,
+.repo-compact .repo-app {
+	height: auto;
+	min-height: 100%;
+}
+.repo-compact-app {
+	min-width: 0;
+	padding-bottom: 8px;
+}
+.repo-compact-toolbar {
+	display: flex;
+	gap: 5px;
+	padding: 7px 8px;
+	position: sticky;
+	top: 0;
+	z-index: 3;
+	background: var(--repo-bg);
+	border-bottom: 1px solid var(--repo-line);
+}
+.repo-compact-revset {
+	min-width: 0;
+	flex: 1;
+	height: 26px;
+	padding: 3px 6px;
+	border: 1px solid var(--vscode-input-border, transparent);
+	border-radius: 2px;
+	color: var(--vscode-input-foreground, var(--repo-text));
+	background: var(--vscode-input-background, var(--repo-surface));
+	font: inherit;
+}
+.repo-compact-revset:focus {
+	outline: 1px solid var(--vscode-focusBorder, var(--repo-accent));
+	outline-offset: -1px;
+}
+.repo-compact-refresh {
+	flex: 0 0 auto;
+	min-height: 26px;
+	padding: 2px 8px;
+	border: 1px solid var(--vscode-button-border, transparent);
+	border-radius: 2px;
+	color: var(--vscode-button-foreground, #fff);
+	background: var(--vscode-button-background, #0e639c);
+	cursor: pointer;
+	font: inherit;
+}
+.repo-compact-refresh:hover {
+	background: var(--vscode-button-hoverBackground, #1177bb);
+}
+.repo-compact-refresh:disabled {
+	opacity: 0.6;
+	cursor: wait;
+}
+.repo-compact-summary {
+	padding: 5px 9px;
+	border-bottom: 1px solid var(--repo-line);
+	color: var(--repo-muted);
+	font-size: 10px;
+}
+.repo-compact-list {
+	min-width: 0;
+}
+.repo-compact-row {
+	border-bottom: 1px solid color-mix(in srgb, var(--repo-line) 70%, transparent);
+}
+.repo-compact-row.is-selected {
+	background: var(--repo-raised);
+}
+.repo-compact-entry {
+	display: flex;
+	width: 100%;
+	min-width: 0;
+	gap: 6px;
+	align-items: stretch;
+	padding: 6px 8px 6px 4px;
+	border: 0;
+	color: var(--repo-text);
+	background: transparent;
+	text-align: left;
+	cursor: pointer;
+	font: inherit;
+}
+.repo-compact-entry:hover {
+	background: var(--vscode-list-hoverBackground, var(--repo-surface));
+}
+.repo-compact-entry:focus-visible,
+.repo-compact-file:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder, var(--repo-accent));
+	outline-offset: -1px;
+}
+.repo-compact-graph {
+	display: flex;
+	flex: 0 0 auto;
+	align-items: stretch;
+	min-width: 14px;
+	line-height: 1.15;
+	font-size: 14px;
+	font-weight: 800;
+}
+.repo-compact-lane {
+	display: inline-flex;
+	width: 11px;
+	justify-content: center;
+	color: var(--repo-muted);
+}
+.repo-compact-lane.is-node {
+	text-shadow: 0 0 5px currentColor;
+}
+.repo-compact-lane.lane-0 {
+	color: #58a6ff;
+}
+.repo-compact-lane.lane-1 {
+	color: #d2a8ff;
+}
+.repo-compact-lane.lane-2 {
+	color: #56d364;
+}
+.repo-compact-lane.lane-3 {
+	color: #f2cc60;
+}
+.repo-compact-lane.lane-4 {
+	color: #ff7b72;
+}
+.repo-compact-lane.lane-5 {
+	color: #79c0ff;
+}
+.repo-compact-copy {
+	display: flex;
+	flex: 1 1 auto;
+	min-width: 0;
+	flex-direction: column;
+	gap: 3px;
+}
+.repo-compact-title {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.repo-compact-meta {
+	overflow: hidden;
+	color: var(--repo-muted);
+	font-size: 10px;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.repo-compact-refs {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 3px;
+}
+.repo-compact-refs > span {
+	overflow: hidden;
+	max-width: 100%;
+	padding: 0 4px;
+	border: 1px solid var(--repo-line);
+	border-radius: 7px;
+	color: var(--repo-muted);
+	font-size: 9px;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.repo-compact-refs > .is-workspace {
+	border-color: color-mix(in srgb, var(--repo-accent) 55%, var(--repo-line));
+	color: var(--repo-accent);
+}
+.repo-compact-files {
+	display: flex;
+	flex-direction: column;
+	padding: 0 8px 6px 25px;
+}
+.repo-compact-file {
+	overflow: hidden;
+	width: 100%;
+	padding: 3px 5px;
+	border: 0;
+	color: var(--repo-text);
+	background: transparent;
+	text-align: left;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	cursor: pointer;
+	font: inherit;
+	font-size: 11px;
+}
+.repo-compact-file:hover {
+	color: var(--repo-accent);
+	background: var(--vscode-list-hoverBackground, var(--repo-surface));
+}
+.repo-compact-no-files,
+.repo-compact-files.repo-loading {
+	padding: 3px 5px;
+	color: var(--repo-muted);
+	font-size: 11px;
+}
+.repo-compact-state {
+	display: grid;
+	min-height: 90px;
+	place-items: center;
+	padding: 16px;
+	color: var(--repo-muted);
+	text-align: center;
+}

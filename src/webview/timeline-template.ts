@@ -6,6 +6,7 @@ type TimelineDocumentHtmlOptions = {
 	scriptSrc?: string;
 	cspSource?: string;
 	workerSrc?: string;
+	bodyClass?: string;
 };
 
 function renderTimelineBodyHtml(): string {
@@ -178,6 +179,7 @@ export function renderTimelineDocumentHtml(options: TimelineDocumentHtmlOptions)
 	const scriptSrc = escapeAttribute(options.scriptSrc || '');
 	const workerSrc = escapeAttribute(options.workerSrc || '');
 	const cspSource = options.cspSource;
+	const bodyClass = options.bodyClass ? ` class="${escapeAttribute(options.bodyClass)}"` : '';
 	const csp = cspSource
 		? `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${cspSource} https: data:; style-src ${cspSource}; script-src ${cspSource}; worker-src ${cspSource} blob:; connect-src ${cspSource};" />`
 		: '';
@@ -194,7 +196,7 @@ export function renderTimelineDocumentHtml(options: TimelineDocumentHtmlOptions)
     <title>${title}</title>
     <link rel="stylesheet" href="${styleHref}" />
   </head>
-  <body>
+  <body${bodyClass}>
     <div id="timelineApp"></div>
     ${workerBoot}
     <script type="module" src="${appSrc}"></script>
@@ -211,7 +213,7 @@ export function renderTimelineDocumentHtml(options: TimelineDocumentHtmlOptions)
     <title>${title}</title>
     <link rel="stylesheet" href="${styleHref}" />
   </head>
-  <body>
+  <body${bodyClass}>
     ${renderTimelineBodyHtml()}
     ${workerBoot}
     ${modelSrc ? `<script src="${modelSrc}"></script>` : ''}

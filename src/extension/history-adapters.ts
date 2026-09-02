@@ -86,7 +86,7 @@ function createGitHistoryAdapter(args: { runner: CommandRunner }): HistoryAdapte
 					'--follow',
 					'--decorate=short',
 					'--date=iso-strict',
-					'--format=%H%x09%ad%x09%an%x09%D%x09%s',
+					'--format=%H%x09%ad%x09%an%x09%D%x09parents=%P%x09%s',
 					`--max-count=${limit ?? MAX_TIMELINE_ENTRIES}`,
 					'--',
 					relativePath,
@@ -107,7 +107,7 @@ function createGitHistoryAdapter(args: { runner: CommandRunner }): HistoryAdapte
 					'log',
 					'--decorate=short',
 					'--date=iso-strict',
-					'--format=%H%x09%ad%x09%an%x09%D%x09%s',
+					'--format=%H%x09%ad%x09%an%x09%D%x09parents=%P%x09%s',
 					`--max-count=${limit ?? MAX_TIMELINE_ENTRIES}`,
 				],
 			});
@@ -489,16 +489,33 @@ function createJjHistoryAdapter(args: { runner: CommandRunner }): HistoryAdapter
 }
 
 function parseGitHistoryLine(line: string): FileRevisionEntry {
-	const [revision = '', authorDate = '', authorName = '', decorations = '', ...descriptionParts] = line.split('\t');
+	const [
+		revision = '',
+		authorDate = '',
+		authorName = '',
+		decorations = '',
+		graphOrDescription = '',
+		...descriptionParts
+	] = line.split('\t');
+	const hasGraphFields = graphOrDescription.startsWith('parents=');
+	const parentRevisionIds = hasGraphFields
+		? graphOrDescription
+				.slice('parents='.length)
+				.split(' ')
+				.map((value) => value.trim())
+				.filter(Boolean)
+		: undefined;
+	const description = (hasGraphFields ? descriptionParts : [graphOrDescription, ...descriptionParts]).join('\t');
 	return {
 		id: revision,
 		revision,
 		shortRevision: revision.slice(0, 8),
 		branchNames: parseGitBranchNames(decorations),
+		parentRevisionIds,
 		changeId: undefined,
 		authorDate,
 		authorName: authorName || 'Unknown author',
-		description: descriptionParts.join('\t') || 'No description',
+		description: description || 'No description',
 		isWorkingTree: false,
 		touchesFile: true,
 		timestamp: Date.parse(authorDate) || 0,

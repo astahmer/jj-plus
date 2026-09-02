@@ -149,6 +149,11 @@
 		},
 		"commands": [
 			{
+				"command": "jj-plus.refreshGraphChanges",
+				"title": "JJ Plus: Refresh Graph & Changes",
+				"icon": "$(refresh)"
+			},
+			{
 				"command": "jj-plus.openRangeMultiDiff",
 				"title": "JJ Plus: Open Range Multi Diff"
 			},
@@ -241,7 +246,29 @@
 				"title": "JJ Plus: Clear Line History Filter"
 			}
 		],
+		"views": {
+			"scm": [
+				{
+					"id": "jj-plus.graphChanges",
+					"name": "JJ Graph & Changes",
+					"type": "webview",
+					"visibility": "visible"
+				}
+			]
+		},
 		"menus": {
+			"view/title": [
+				{
+					"command": "jj-plus.refreshGraphChanges",
+					"group": "navigation@1",
+					"when": "view == jj-plus.graphChanges"
+				},
+				{
+					"command": "jj-plus.openRepoTimeline",
+					"group": "navigation@2",
+					"when": "view == jj-plus.graphChanges"
+				}
+			],
 			"editor/context": [
 				{
 					"command": "jj-plus.openTimelineAtLine",

@@ -19,6 +19,7 @@ export const Model = S.Struct({
 	oldestFirst: S.Boolean,
 	loading: S.Boolean,
 	error: S.String,
+	compact: S.Boolean,
 });
 export type Model = typeof Model.Type;
 
@@ -41,4 +42,5 @@ export const initialModel: Model = {
 	oldestFirst: false,
 	loading: true,
 	error: '',
+	compact: false,
 };

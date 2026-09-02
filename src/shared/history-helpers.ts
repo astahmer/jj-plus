@@ -303,7 +303,8 @@ export function parseJjBooleanFlag(rawValue: string | undefined): boolean {
 
 /**
  * Shared jj log template fields for file/repo history lines:
- * revision, changeId, date, author, bookmarks, empty, conflict, immutable, description
+ * revision, changeId, date, author, bookmarks, empty, conflict, immutable,
+ * parents, workspaces, description
  */
 export function buildJjHistoryLogTemplate(): string {
 	return [
@@ -322,6 +323,12 @@ export function buildJjHistoryLogTemplate(): string {
 		'if(conflict, "true", "false")',
 		'"\\t"',
 		'if(immutable, "true", "false")',
+		'"\\t"',
+		'"parents=" ++ parents.map(|parent| parent.commit_id().short()).join(",")',
+		'"\\t"',
+		'"workspaces=" ++ self.working_copies().map(|workspace| workspace.name()).join(",")',
+		'"\\t"',
+		'"current=" ++ if(self.current_working_copy(), "true", "false")',
 		'"\\t"',
 		'description.first_line()',
 		'"\\n"',
@@ -347,7 +354,16 @@ export function parseJjHistoryLine(line: string): FileRevisionEntry {
 	const isEmpty = looksLikeFlags ? parseJjBooleanFlag(parts[5]) : undefined;
 	const hasConflict = looksLikeFlags ? parseJjBooleanFlag(parts[6]) : undefined;
 	const isImmutable = looksLikeFlags ? parseJjBooleanFlag(parts[7]) : undefined;
-	const description = looksLikeFlags ? parts.slice(8).join('\t') : parts.slice(5).join('\t');
+	const hasGraphFields = looksLikeFlags && parts[8]?.startsWith('parents=') && parts[9]?.startsWith('workspaces=');
+	const hasCurrentWorkspaceField = hasGraphFields && parts[10]?.startsWith('current=');
+	const parentRevisionIds = hasGraphFields ? parseMarkerNames(parts[8]?.slice('parents='.length) || '') : undefined;
+	const workingCopyNames = hasGraphFields ? parseMarkerNames(parts[9]?.slice('workspaces='.length) || '') : undefined;
+	const isCurrentWorkingCopy = hasCurrentWorkspaceField
+		? parseJjBooleanFlag(parts[10]?.slice('current='.length))
+		: undefined;
+	const description = looksLikeFlags
+		? parts.slice(hasCurrentWorkspaceField ? 11 : hasGraphFields ? 10 : 8).join('\t')
+		: parts.slice(5).join('\t');
 
 	return {
 		id: revision,
@@ -355,10 +371,13 @@ export function parseJjHistoryLine(line: string): FileRevisionEntry {
 		shortRevision: changeId || revision.slice(0, 8),
 		changeId: changeId || undefined,
 		bookmarkNames: parseJjBookmarkNames(bookmarkNames),
+		parentRevisionIds,
+		workingCopyNames,
+		isCurrentWorkingCopy,
 		authorDate,
 		authorName: authorName || 'Unknown author',
 		description: description || 'No description',
-		isWorkingTree: false,
+		isWorkingTree: Boolean(workingCopyNames?.length),
 		touchesFile: true,
 		timestamp: Date.parse(authorDate) || 0,
 		...(isEmpty ? { isEmpty: true } : {}),
