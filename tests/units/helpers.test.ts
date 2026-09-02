@@ -224,6 +224,16 @@ test('parseJjHistoryLine reads empty conflict immutable flags', () => {
 	assert.equal(entry.description, 'empty conflicted change');
 });
 
+test('parseJjHistoryLine reads graph parents and workspace labels', () => {
+	const entry = parseJjHistoryLine(
+		'abcd1234\tkqppukkm\t2026-04-09T12:32:35+02:00\talex\tmain\tfalse\tfalse\tfalse\tparents=11111111,22222222\tworkspaces=default,agent-one\tactive change',
+	);
+	assert.deepEqual(entry.parentRevisionIds, ['11111111', '22222222']);
+	assert.deepEqual(entry.workingCopyNames, ['default', 'agent-one']);
+	assert.equal(entry.isWorkingTree, true);
+	assert.equal(entry.description, 'active change');
+});
+
 test('parseJjHistoryLine keeps legacy bookmark-description format', () => {
 	const entry = parseJjHistoryLine('abcd1234\tkqppukkm\t2026-04-09T12:32:35+02:00\talex\tmain\tlegacy description');
 	assert.equal(entry.description, 'legacy description');

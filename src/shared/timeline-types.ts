@@ -24,6 +24,8 @@ export type FileRevisionEntry = {
 	changeId?: string;
 	bookmarkNames?: string[];
 	branchNames?: string[];
+	parentRevisionIds?: string[];
+	workingCopyNames?: string[];
 	authorDate: string;
 	authorName: string;
 	description: string;
