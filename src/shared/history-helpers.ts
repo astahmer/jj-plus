@@ -328,6 +328,8 @@ export function buildJjHistoryLogTemplate(): string {
 		'"\\t"',
 		'"workspaces=" ++ self.working_copies().map(|workspace| workspace.name()).join(",")',
 		'"\\t"',
+		'"current=" ++ if(self.current_working_copy(), "true", "false")',
+		'"\\t"',
 		'description.first_line()',
 		'"\\n"',
 	].join(' ++ ');
@@ -353,9 +355,15 @@ export function parseJjHistoryLine(line: string): FileRevisionEntry {
 	const hasConflict = looksLikeFlags ? parseJjBooleanFlag(parts[6]) : undefined;
 	const isImmutable = looksLikeFlags ? parseJjBooleanFlag(parts[7]) : undefined;
 	const hasGraphFields = looksLikeFlags && parts[8]?.startsWith('parents=') && parts[9]?.startsWith('workspaces=');
+	const hasCurrentWorkspaceField = hasGraphFields && parts[10]?.startsWith('current=');
 	const parentRevisionIds = hasGraphFields ? parseMarkerNames(parts[8]?.slice('parents='.length) || '') : undefined;
 	const workingCopyNames = hasGraphFields ? parseMarkerNames(parts[9]?.slice('workspaces='.length) || '') : undefined;
-	const description = looksLikeFlags ? parts.slice(hasGraphFields ? 10 : 8).join('\t') : parts.slice(5).join('\t');
+	const isCurrentWorkingCopy = hasCurrentWorkspaceField
+		? parseJjBooleanFlag(parts[10]?.slice('current='.length))
+		: undefined;
+	const description = looksLikeFlags
+		? parts.slice(hasCurrentWorkspaceField ? 11 : hasGraphFields ? 10 : 8).join('\t')
+		: parts.slice(5).join('\t');
 
 	return {
 		id: revision,
@@ -365,6 +373,7 @@ export function parseJjHistoryLine(line: string): FileRevisionEntry {
 		bookmarkNames: parseJjBookmarkNames(bookmarkNames),
 		parentRevisionIds,
 		workingCopyNames,
+		isCurrentWorkingCopy,
 		authorDate,
 		authorName: authorName || 'Unknown author',
 		description: description || 'No description',

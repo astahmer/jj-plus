@@ -26,6 +26,7 @@ export type FileRevisionEntry = {
 	branchNames?: string[];
 	parentRevisionIds?: string[];
 	workingCopyNames?: string[];
+	isCurrentWorkingCopy?: boolean;
 	authorDate: string;
 	authorName: string;
 	description: string;

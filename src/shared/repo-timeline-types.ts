@@ -13,6 +13,7 @@ export type RepoTimelineData = {
 	entries: Array<RepoRevisionEntry>;
 	bookmarks: Array<string>;
 	truncated: boolean;
+	selectedIndex?: number;
 };
 
 export type RepoTimelineDiff = {
@@ -57,11 +58,12 @@ export type RepoTimelineSearchPayload = {
 };
 
 export type RepoTimelineCommand =
-	| { command: 'ready' }
+	| { command: 'ready'; revset?: string }
 	| { command: 'refresh'; revset?: string }
 	| { command: 'select-revision'; index: number }
 	| { command: 'search'; request: RepoTimelineSearchRequest }
 	| { command: 'open-file-result'; entryIndex: number; filePath: string; line?: number }
+	| { command: 'open-file-diff'; entryIndex: number; filePath: string }
 	| { command: 'open-revision-remote'; index: number };
 
 export type RepoTimelineInboundMessage =

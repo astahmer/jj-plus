@@ -9,6 +9,7 @@ JJ Plus is a VS Code extension for comparing revisions, browsing the history of 
 - Open a multi-file diff between two revisions, bookmarks, or revsets.
 - Browse a file’s revision timeline with a compact history list, scrubber, and focused diff.
 - Open a repository timeline to search and inspect revisions across the whole workspace.
+- See every JJ workspace head and its changed files together in the Source Control sidebar.
 - Compare a revision with its previous or next revision.
 - Search history by author, description, or path.
 - Inspect line blame and open the timeline at the current line.
@@ -61,6 +62,10 @@ The CLI needs an installed VS Code-compatible IDE for deep-link diffs. It needs 
 Open **JJ Plus: Open Revision Timeline** with a file active. Select an entry to inspect its snapshot and use the comparison controls to switch between a single revision diff, a range, or the working tree. The file switcher can show all files in the selected revision or only files changed in the selected range.
 
 Open **JJ Plus: Open Repo Timeline** when you are looking for a change across the repository. Search revision messages, authors, bookmarks, branches, and ids, then select a revision to inspect its changed files and patch. The Repo Timeline has its own view so repository discovery does not disturb the active file timeline.
+
+### Source Control graph and changes
+
+Open Source Control and expand **JJ Graph & Changes**. The view follows every JJ workspace head, refreshes while it is visible, and labels the current workspace separately. Select a revision to expand its changed files in place; select a file to open its diff against the revision's first parent. The revset field defaults to `ancestors(working_copies(), 25) | present(trunk())` and can be changed for repository-specific workflows.
 
 ### Line history
 

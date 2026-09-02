@@ -226,11 +226,12 @@ test('parseJjHistoryLine reads empty conflict immutable flags', () => {
 
 test('parseJjHistoryLine reads graph parents and workspace labels', () => {
 	const entry = parseJjHistoryLine(
-		'abcd1234\tkqppukkm\t2026-04-09T12:32:35+02:00\talex\tmain\tfalse\tfalse\tfalse\tparents=11111111,22222222\tworkspaces=default,agent-one\tactive change',
+		'abcd1234\tkqppukkm\t2026-04-09T12:32:35+02:00\talex\tmain\tfalse\tfalse\tfalse\tparents=11111111,22222222\tworkspaces=default,agent-one\tcurrent=true\tactive change',
 	);
 	assert.deepEqual(entry.parentRevisionIds, ['11111111', '22222222']);
 	assert.deepEqual(entry.workingCopyNames, ['default', 'agent-one']);
 	assert.equal(entry.isWorkingTree, true);
+	assert.equal(entry.isCurrentWorkingCopy, true);
 	assert.equal(entry.description, 'active change');
 });
 

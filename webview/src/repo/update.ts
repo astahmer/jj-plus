@@ -49,7 +49,7 @@ function handleHostMessage(model: Model, payload: unknown): UpdateReturn {
 	const message = payload as RepoTimelineInboundMessage;
 	if (message.type === 'repo-timeline-data') {
 		const data = message.payload as RepoTimelineData;
-		const selectedIndex = Math.max(0, data.entries.length - 1);
+		const selectedIndex = data.selectedIndex ?? Math.max(0, data.entries.length - 1);
 		return [evo(model, { data: () => data, selectedIndex: () => selectedIndex, loading: () => false, error: () => '', searchResults: () => null }), []];
 	}
 	if (message.type === 'repo-timeline-diff') {
@@ -70,19 +70,23 @@ function handleHostMessage(model: Model, payload: unknown): UpdateReturn {
 export function init(): UpdateReturn {
 	if (typeof window === 'undefined') return [initialModel, [SendHostCommand({ command: { command: 'ready' } })]];
 	const params = new URLSearchParams(window.location.search);
+	const compact = document.body.classList.contains('repo-compact') || params.get('compact') === '1';
 	const mode = params.get('mode');
 	const matchMode = params.get('match');
 	const model = evo(initialModel, {
 		query: () => params.get('q') ?? '',
-		revset: () => params.get('revset') || initialModel.revset,
+		revset: () =>
+			params.get('revset') ||
+			(compact ? 'ancestors(working_copies(), 25) | present(trunk())' : initialModel.revset),
 		path: () => params.get('path') ?? '',
 		after: () => params.get('after') ?? '',
 		until: () => params.get('until') ?? '',
 		selectedIndex: () => Math.max(0, Number(params.get('sel')) || 0),
 		searchMode: () => (['all', 'metadata', 'changes', 'snapshot'].includes(mode || '') ? mode : initialModel.searchMode) as Model['searchMode'],
 		matchMode: () => (['literal', 'regex', 'fuzzy'].includes(matchMode || '') ? matchMode : initialModel.matchMode) as Model['matchMode'],
+		compact: () => compact,
 	});
-	return [model, [SendHostCommand({ command: { command: 'ready' } })]];
+	return [model, [SendHostCommand({ command: { command: 'ready', revset: model.revset } })]];
 }
 
 export function update(model: Model, message: Message): UpdateReturn {
@@ -110,6 +114,7 @@ export function update(model: Model, message: Message): UpdateReturn {
 			ToggledSort: () => [evo(model, { oldestFirst: (value) => !value }), []],
 			ToggledRelated: () => [evo(model, { relatedExpanded: (value) => !value }), []],
 			OpenedFileResult: ({ entryIndex, filePath, line }) => [model, [SendHostCommand({ command: { command: 'open-file-result', entryIndex, filePath, line } })]],
+			OpenedFileDiff: ({ entryIndex, filePath }) => [model, [SendHostCommand({ command: { command: 'open-file-diff', entryIndex, filePath } })]],
 			CopiedShareLink: () => [model, [copyShareLinkCommand()]],
 		}),
 	);

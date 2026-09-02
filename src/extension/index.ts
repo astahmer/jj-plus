@@ -16,6 +16,7 @@ import {
 	OPEN_FILE_RANGE_DIFF_COMMAND,
 	OPEN_FILE_TIMELINE_COMMAND,
 	OPEN_REPO_TIMELINE_COMMAND,
+	REFRESH_SCM_GRAPH_COMMAND,
 	OPEN_FILE_LINE_TIMELINE_COMMAND,
 	OPEN_TIMELINE_AT_LINE_COMMAND,
 	OPEN_CHANGES_WITH_PREVIOUS_COMMAND,
@@ -299,6 +300,8 @@ export function activate(context: vscode.ExtensionContext): void {
 			panelController.openFileRevisionTimeline({ context, absolutePath: resolveCommandFilePath(arg) }),
 		),
 		vscode.commands.registerCommand(OPEN_REPO_TIMELINE_COMMAND, () => repoTimelineController.open()),
+		vscode.commands.registerCommand(REFRESH_SCM_GRAPH_COMMAND, () => repoTimelineController.refreshScmView()),
+		repoTimelineController.registerScmView(),
 		vscode.commands.registerCommand(OPEN_FILE_LINE_TIMELINE_COMMAND, async () => {
 			const editor = vscode.window.activeTextEditor;
 			if (!editor || editor.document.uri.scheme !== 'file') {
