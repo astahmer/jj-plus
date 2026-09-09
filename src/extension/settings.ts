@@ -30,7 +30,7 @@ export function readJjplusSettings(): JjplusSettings {
 	const configuredMode = config.get<BlameHoverMode>('blameHoverMode', 'blame');
 	const legacyHoverEnabled = config.get<boolean>('hoverTimelineLink', true);
 	return {
-		currentLineBlame: config.get<boolean>('currentLineBlame', false),
+		currentLineBlame: config.get<boolean>('currentLineBlame', true),
 		inlineBlameGutter: config.get<boolean>('inlineBlameGutter', false),
 		inlineBlameSparse: config.get<boolean>('inlineBlameSparse', true),
 		blameHoverMode: hasExplicitMode ? configuredMode : legacyHoverEnabled ? 'blame' : 'never',

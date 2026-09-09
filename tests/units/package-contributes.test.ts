@@ -56,6 +56,6 @@ test('package.json command titles use JJ Plus branding and editor title actions'
 	assert.equal(previousMenu?.when, 'jjplus.revisionDiffActive');
 	assert.equal(nextMenu?.when, 'jjplus.revisionDiffActive');
 	assert.equal(openWithPreviousMenu?.when, 'resourceScheme == file && !jjplus.revisionDiffActive');
-	assert.equal(pkg.contributes.configuration.properties['jjplus.currentLineBlame']?.default, false);
+	assert.equal(pkg.contributes.configuration.properties['jjplus.currentLineBlame']?.default, true);
 	assert.equal(pkg.contributes.configuration.properties['jjplus.codeActions']?.default, false);
 });
