@@ -26,8 +26,10 @@ test('package.json command titles use JJ Plus branding and editor title actions'
 	const titleCommands = pkg.contributes.menus['editor/title'].map((entry) => entry.command);
 	assert.ok(titleCommands.includes('jj-plus.openChangesWithPrevious'));
 	assert.ok(titleCommands.includes('jj-plus.openFileRevisionTimeline'));
-	assert.ok(titleCommands.includes('jj-plus.openRevisionDiffPreviousUnavailable'));
-	assert.ok(titleCommands.includes('jj-plus.openRevisionDiffNextUnavailable'));
+	assert.ok(titleCommands.includes('jj-plus.openRevisionDiffPrevious'));
+	assert.ok(titleCommands.includes('jj-plus.openRevisionDiffNext'));
+	assert.ok(titleCommands.includes('jj-plus.openRevisionDiffPreviousUnavailable') === false);
+	assert.ok(titleCommands.includes('jj-plus.openRevisionDiffNextUnavailable') === false);
 	assert.ok(titleCommands.includes('jj-plus.toggleLineBlame') === false);
 
 	const previous = pkg.contributes.commands.find((entry) => entry.command === 'jj-plus.openChangesWithPrevious');
@@ -46,6 +48,14 @@ test('package.json command titles use JJ Plus branding and editor title actions'
 	assert.ok(toggleBlame);
 	assert.equal(prevDiff?.enablement, 'jjplus.revisionDiffHasPrevious');
 	assert.equal(nextDiff?.enablement, 'jjplus.revisionDiffHasNext');
+	const previousMenu = pkg.contributes.menus['editor/title'].find((entry) => entry.command === prevDiff?.command);
+	const nextMenu = pkg.contributes.menus['editor/title'].find((entry) => entry.command === nextDiff?.command);
+	const openWithPreviousMenu = pkg.contributes.menus['editor/title'].find(
+		(entry) => entry.command === 'jj-plus.openChangesWithPrevious',
+	);
+	assert.equal(previousMenu?.when, 'jjplus.revisionDiffActive');
+	assert.equal(nextMenu?.when, 'jjplus.revisionDiffActive');
+	assert.equal(openWithPreviousMenu?.when, 'resourceScheme == file && !jjplus.revisionDiffActive');
 	assert.equal(pkg.contributes.configuration.properties['jjplus.currentLineBlame']?.default, false);
 	assert.equal(pkg.contributes.configuration.properties['jjplus.codeActions']?.default, false);
 });

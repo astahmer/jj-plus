@@ -1,7 +1,7 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { getRevisionDiffNavAvailability } from '../shared/revision-diff-availability.ts';
-import { resolveNonEmptyRevisionPair } from '../shared/revision-diff-pair.ts';
+import { resolveNextNonEmptyRevisionPair, resolveNonEmptyRevisionPair } from '../shared/revision-diff-pair.ts';
 import { resolveCommandFilePath } from './resolve-file-path.ts';
 
 export type RevisionDiffSession = {
@@ -13,6 +13,10 @@ export type RevisionDiffSession = {
 	revisions: string[];
 	/** Index of the "after" / tip side currently shown. */
 	tipIndex: number;
+	/** Nearest non-empty pair before the current one; null means the edge is known. */
+	previousTipIndex?: number | null;
+	/** Nearest non-empty pair after the current one; null means the edge is known. */
+	nextTipIndex?: number | null;
 };
 
 export { getRevisionDiffNavAvailability } from '../shared/revision-diff-availability.ts';
@@ -49,9 +53,13 @@ export function createRevisionDiffNavigator(args: {
 	dispose: () => void;
 } {
 	let session: RevisionDiffSession | undefined;
+	let activeRevisionDiffUris = new Set<string>();
 
 	const syncContext = async () => {
-		const availability = getRevisionDiffNavAvailability(session);
+		const activeSession = activeRevisionDiffUris.has(vscode.window.activeTextEditor?.document.uri.toString() || '')
+			? session
+			: undefined;
+		const availability = getRevisionDiffNavAvailability(activeSession);
 		await Promise.all([
 			vscode.commands.executeCommand('setContext', CONTEXT_ACTIVE, availability.active),
 			vscode.commands.executeCommand('setContext', CONTEXT_HAS_PREVIOUS, availability.hasPrevious),
@@ -59,16 +67,18 @@ export function createRevisionDiffNavigator(args: {
 		]);
 	};
 
-	const openPair = async (next: RevisionDiffSession) => {
-		const pair = await resolveNonEmptyRevisionPair({
+	const openPair = async (next: RevisionDiffSession, direction: 'backward' | 'forward' = 'backward') => {
+		const resolvePair = direction === 'forward' ? resolveNextNonEmptyRevisionPair : resolveNonEmptyRevisionPair;
+		const showFile = (revset: string) =>
+			args.showFile({
+				workspacePath: next.workspacePath,
+				revset,
+				filePath: next.relativePath,
+			});
+		const pair = await resolvePair({
 			revisions: next.revisions,
 			tipIndex: next.tipIndex,
-			showFile: (revset) =>
-				args.showFile({
-					workspacePath: next.workspacePath,
-					revset,
-					filePath: next.relativePath,
-				}),
+			showFile,
 		});
 		if (!pair) {
 			throw new Error('No non-empty revision pair available for this file');
@@ -85,7 +95,25 @@ export function createRevisionDiffNavigator(args: {
 			relativePath: next.relativePath,
 			content: pair.modifiedContent,
 		});
-		session = { ...next, tipIndex: pair.tipIndex };
+		const nextRevisionDiffUris = new Set([originalUri.toString(), modifiedUri.toString()]);
+		const [previousPair, nextPair] = await Promise.all([
+			resolveNonEmptyRevisionPair({
+				revisions: next.revisions,
+				tipIndex: pair.tipIndex - 1,
+				showFile,
+			}),
+			resolveNextNonEmptyRevisionPair({
+				revisions: next.revisions,
+				tipIndex: pair.tipIndex + 1,
+				showFile,
+			}),
+		]);
+		session = {
+			...next,
+			tipIndex: pair.tipIndex,
+			previousTipIndex: previousPair?.tipIndex ?? null,
+			nextTipIndex: nextPair?.tipIndex ?? null,
+		};
 		await syncContext();
 		await vscode.commands.executeCommand(
 			'vscode.diff',
@@ -94,6 +122,8 @@ export function createRevisionDiffNavigator(args: {
 			`${next.fileName}: ${short(pair.base)} → ${short(pair.tip)}`,
 			{ preview: true },
 		);
+		activeRevisionDiffUris = nextRevisionDiffUris;
+		await syncContext();
 	};
 
 	const openWithPrevious = async (arg?: unknown) => {
@@ -120,14 +150,17 @@ export function createRevisionDiffNavigator(args: {
 			if (revisions.length < 2) {
 				throw new Error('Need at least two revisions touching this file');
 			}
-			await openPair({
-				workspacePath: historyWorkspacePath,
-				relativePath,
-				fileName: path.basename(absolutePath),
-				backend,
-				revisions,
-				tipIndex: revisions.length - 1,
-			});
+			await openPair(
+				{
+					workspacePath: historyWorkspacePath,
+					relativePath,
+					fileName: path.basename(absolutePath),
+					backend,
+					revisions,
+					tipIndex: revisions.length - 1,
+				},
+				'backward',
+			);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			void vscode.window.showErrorMessage(`Failed to open changes with previous revision: ${message}`);
@@ -140,7 +173,11 @@ export function createRevisionDiffNavigator(args: {
 			return;
 		}
 		try {
-			await openPair({ ...session, tipIndex: session.tipIndex - 1 });
+			const previousTipIndex = session.previousTipIndex === undefined ? session.tipIndex - 1 : session.previousTipIndex;
+			if (previousTipIndex === null) {
+				return;
+			}
+			await openPair({ ...session, tipIndex: previousTipIndex }, 'backward');
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			void vscode.window.showErrorMessage(`Failed to open previous revision: ${message}`);
@@ -153,7 +190,11 @@ export function createRevisionDiffNavigator(args: {
 			return;
 		}
 		try {
-			await openPair({ ...session, tipIndex: session.tipIndex + 1 });
+			const nextTipIndex = session.nextTipIndex === undefined ? session.tipIndex + 1 : session.nextTipIndex;
+			if (nextTipIndex === null) {
+				return;
+			}
+			await openPair({ ...session, tipIndex: nextTipIndex }, 'forward');
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			void vscode.window.showErrorMessage(`Failed to open next revision: ${message}`);
@@ -184,6 +225,7 @@ export function createRevisionDiffNavigator(args: {
 		dispose: () => {
 			disposable.dispose();
 			session = undefined;
+			activeRevisionDiffUris.clear();
 			void syncContext();
 		},
 	};

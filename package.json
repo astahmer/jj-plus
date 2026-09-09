@@ -182,22 +182,10 @@
 				"enablement": "jjplus.revisionDiffHasPrevious"
 			},
 			{
-				"command": "jj-plus.openRevisionDiffPreviousUnavailable",
-				"title": "JJ Plus: No previous revision available",
-				"icon": "$(arrow-left)",
-				"enablement": "false"
-			},
-			{
 				"command": "jj-plus.openRevisionDiffNext",
 				"title": "JJ Plus: Open Next Revision Diff",
 				"icon": "$(arrow-right)",
 				"enablement": "jjplus.revisionDiffHasNext"
-			},
-			{
-				"command": "jj-plus.openRevisionDiffNextUnavailable",
-				"title": "JJ Plus: No next revision available",
-				"icon": "$(arrow-right)",
-				"enablement": "false"
 			},
 			{
 				"command": "jj-plus.openRevisionDiffTimeline",
@@ -274,7 +262,7 @@
 				{
 					"command": "jj-plus.openChangesWithPrevious",
 					"group": "navigation@1",
-					"when": "resourceScheme == file"
+					"when": "resourceScheme == file && !jjplus.revisionDiffActive"
 				},
 				{
 					"command": "jj-plus.openFileRevisionTimeline",
@@ -289,22 +277,12 @@
 				{
 					"command": "jj-plus.openRevisionDiffPrevious",
 					"group": "navigation@4",
-					"when": "jjplus.revisionDiffActive && jjplus.revisionDiffHasPrevious"
-				},
-				{
-					"command": "jj-plus.openRevisionDiffPreviousUnavailable",
-					"group": "navigation@4",
-					"when": "jjplus.revisionDiffActive && !jjplus.revisionDiffHasPrevious"
+					"when": "jjplus.revisionDiffActive"
 				},
 				{
 					"command": "jj-plus.openRevisionDiffNext",
 					"group": "navigation@5",
-					"when": "jjplus.revisionDiffActive && jjplus.revisionDiffHasNext"
-				},
-				{
-					"command": "jj-plus.openRevisionDiffNextUnavailable",
-					"group": "navigation@5",
-					"when": "jjplus.revisionDiffActive && !jjplus.revisionDiffHasNext"
+					"when": "jjplus.revisionDiffActive"
 				},
 				{
 					"command": "jj-plus.openRevisionDiffTimeline",
