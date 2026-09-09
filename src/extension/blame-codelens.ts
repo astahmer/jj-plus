@@ -262,6 +262,9 @@ export function createEditorBlameDecorations(args: {
 		vscode.workspace.onDidChangeTextDocument((event) => {
 			if (event.document.uri.toString() === vscode.window.activeTextEditor?.document.uri.toString()) {
 				cache.delete(event.document.uri.toString());
+				if (event.document.isDirty) {
+					clearVisibleDecorations();
+				}
 				scheduleRefresh(180);
 			}
 		}),
