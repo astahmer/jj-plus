@@ -14,6 +14,7 @@ test('package.json command titles use JJ Plus branding and editor title actions'
 			commands: Array<{ command: string; title: string; icon?: string; enablement?: string }>;
 			menus: {
 				'editor/title': Array<{ command: string; when?: string }>;
+				'editor/title/context': Array<{ command: string; group?: string; when?: string }>;
 			};
 		};
 	};
@@ -36,6 +37,12 @@ test('package.json command titles use JJ Plus branding and editor title actions'
 	const nextDiff = pkg.contributes.commands.find((entry) => entry.command === 'jj-plus.openRevisionDiffNext');
 	assert.equal(previous?.icon, '$(history)');
 	assert.equal(timeline?.icon, '$(diff)');
+	const compare = pkg.contributes.commands.find((entry) => entry.command === 'jj-plus.compareWithBookmark');
+	assert.equal(compare?.icon, '$(git-compare)');
+	assert.deepEqual(
+		pkg.contributes.menus['editor/title/context'].map((entry) => entry.group),
+		['zz_jjplus@1', 'zz_jjplus@2', 'zz_jjplus@3'],
+	);
 	assert.ok(toggleBlame);
 	assert.equal(prevDiff?.enablement, 'jjplus.revisionDiffHasPrevious');
 	assert.equal(nextDiff?.enablement, 'jjplus.revisionDiffHasNext');

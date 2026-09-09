@@ -210,7 +210,8 @@
 			},
 			{
 				"command": "jj-plus.compareWithBookmark",
-				"title": "JJ Plus: Compare File with Bookmark / Branch"
+				"title": "JJ Plus: Compare File with Bookmark / Branch",
+				"icon": "$(git-compare)"
 			},
 			{
 				"command": "jj-plus.peekRevisionAtCursor",
@@ -314,17 +315,17 @@
 			"editor/title/context": [
 				{
 					"command": "jj-plus.openFileRevisionTimeline",
-					"group": "navigation@90",
+					"group": "zz_jjplus@1",
 					"when": "resourceScheme == file"
 				},
 				{
 					"command": "jj-plus.openTimelineAtLine",
-					"group": "navigation@91",
+					"group": "zz_jjplus@2",
 					"when": "resourceScheme == file"
 				},
 				{
 					"command": "jj-plus.openChangesWithPrevious",
-					"group": "navigation@92",
+					"group": "zz_jjplus@3",
 					"when": "resourceScheme == file"
 				}
 			]
