@@ -79,7 +79,7 @@ jj-plus diff --ide cursor --from <revision> --to <revision>
 
 All settings are under `jjplus` in VS Code settings. The most useful ones are:
 
-- `jjplus.currentLineBlame` — annotate the active line.
+- `jjplus.currentLineBlame` — optionally annotate the active line in saved, clean files (off by default).
 - `jjplus.inlineBlameGutter` — annotate revision hunk starts throughout the file.
 - `jjplus.hoverTimelineLink` — offer a timeline link when hovering source lines.
 - `jjplus.scmChangedLines` — show changes against the previous working-copy revision.
