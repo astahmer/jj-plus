@@ -39,5 +39,6 @@ test('package.json command titles use JJ Plus branding and editor title actions'
 	assert.ok(toggleBlame);
 	assert.equal(prevDiff?.enablement, 'jjplus.revisionDiffHasPrevious');
 	assert.equal(nextDiff?.enablement, 'jjplus.revisionDiffHasNext');
+	assert.equal(pkg.contributes.configuration.properties['jjplus.currentLineBlame']?.default, false);
 	assert.equal(pkg.contributes.configuration.properties['jjplus.codeActions']?.default, false);
 });

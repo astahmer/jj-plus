@@ -87,8 +87,8 @@
 			"properties": {
 				"jjplus.currentLineBlame": {
 					"type": "boolean",
-					"default": true,
-					"description": "Show GitLens-style current-line blame on the right of the active line."
+					"default": false,
+					"description": "Show GitLens-style current-line blame on clean files (can be distracting while editing)."
 				},
 				"jjplus.inlineBlameGutter": {
 					"type": "boolean",

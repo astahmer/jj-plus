@@ -55,6 +55,15 @@ export function createEditorBlameDecorations(args: {
 		},
 		rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed,
 	});
+	const clearDecorations = (editor: vscode.TextEditor) => {
+		editor.setDecorations(currentLineType, []);
+		editor.setDecorations(inlineGutterType, []);
+	};
+	const clearVisibleDecorations = () => {
+		for (const editor of vscode.window.visibleTextEditors) {
+			clearDecorations(editor);
+		}
+	};
 
 	const cache = new Map<string, CacheEntry>();
 	let generation = 0;
@@ -113,12 +122,14 @@ export function createEditorBlameDecorations(args: {
 		const token = ++generation;
 		const settings = readJjplusSettings();
 		if (!editor || editor.document.uri.scheme !== 'file') {
+			clearVisibleDecorations();
 			return;
 		}
 
-		if (!settings.currentLineBlame && !settings.inlineBlameGutter) {
-			editor.setDecorations(currentLineType, []);
-			editor.setDecorations(inlineGutterType, []);
+		// Blame describes the saved file. Keeping it out of a dirty editor avoids
+		// stale inline text competing with completion and the text being edited.
+		if (editor.document.isDirty || (!settings.currentLineBlame && !settings.inlineBlameGutter)) {
+			clearVisibleDecorations();
 			return;
 		}
 
@@ -126,8 +137,7 @@ export function createEditorBlameDecorations(args: {
 		try {
 			lines = await getCachedLines(editor.document);
 		} catch {
-			editor.setDecorations(currentLineType, []);
-			editor.setDecorations(inlineGutterType, []);
+			clearVisibleDecorations();
 			return;
 		}
 		if (token !== generation || vscode.window.activeTextEditor !== editor || !lines) {
@@ -181,8 +191,7 @@ export function createEditorBlameDecorations(args: {
 
 		for (const other of vscode.window.visibleTextEditors) {
 			if (other !== editor) {
-				other.setDecorations(currentLineType, []);
-				other.setDecorations(inlineGutterType, []);
+				clearDecorations(other);
 			}
 		}
 	};
@@ -190,7 +199,7 @@ export function createEditorBlameDecorations(args: {
 	const hoverProvider: vscode.HoverProvider = {
 		async provideHover(document, position) {
 			const settings = readJjplusSettings();
-			if (settings.blameHoverMode === 'never' || document.uri.scheme !== 'file') {
+			if (document.isDirty || settings.blameHoverMode === 'never' || document.uri.scheme !== 'file') {
 				return null;
 			}
 			const line = position.line + 1;
@@ -254,6 +263,11 @@ export function createEditorBlameDecorations(args: {
 			if (event.document.uri.toString() === vscode.window.activeTextEditor?.document.uri.toString()) {
 				cache.delete(event.document.uri.toString());
 				scheduleRefresh(180);
+			}
+		}),
+		vscode.workspace.onDidSaveTextDocument((document) => {
+			if (document.uri.toString() === vscode.window.activeTextEditor?.document.uri.toString()) {
+				scheduleRefresh(0);
 			}
 		}),
 		onJjplusSettingsChange(() => scheduleRefresh(0)),
