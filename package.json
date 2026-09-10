@@ -39,7 +39,7 @@
 		"lint:knip": "knip",
 		"lint:ox": "oxlint . --disable-nested-config",
 		"pkg": "bun build src/bin.ts --compile --outfile jjdiff ",
-		"release": "node scripts/release.mjs",
+		"release": "node --env-file-if-exists .env scripts/release.mjs",
 		"release:check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
 		"release:dry-run": "node scripts/release.mjs --dry-run",
 		"release:prepare": "node scripts/release-prepare.mjs",
