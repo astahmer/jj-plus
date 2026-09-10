@@ -1,4 +1,7 @@
 *.vsix
+.direnv/
+.env
+.secret.local.json
 .features-gen/
 .integration-dist/
 .e2e-runtime/
