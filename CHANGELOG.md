@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.10.10 — 2026-09-10
+
+### JJ Plus
+
+- Add a reproducible Nix development shell for the Node, pnpm, JJ, and release toolchain.
+- Make local and CI publishing resilient to token-based npm registries.
+
 ## 0.10.5 — 2026-08-28
 
 ### JJ Plus
