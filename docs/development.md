@@ -76,6 +76,8 @@ Marketplace, and publishes the `jj-plus` CLI package to npm. It skips an npm
 version that already exists, so retrying after a partial release is safe. Use
 `pnpm release:dry-run` to build and validate without publishing, or add
 `--skip-vscode` / `--skip-npm` when only one registry should be updated.
+The npm publish path is token-based by default; pass `--provenance` only after
+configuring npm trusted publishing for the repository and workflow.
 
 To bump the version, create the release revision, set `main` and the matching
 JJ tag, run the release check, and push both references in one command:

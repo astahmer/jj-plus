@@ -2,6 +2,10 @@
 
 The repository is prepared so the normal release path is a versioned Git tag. GitHub Actions runs the release checks, packages the VSIX, and publishes it to the Visual Studio Code Marketplace.
 
+## Development shell
+
+The checked-in `flake.nix` provides Node 24, the pinned pnpm toolchain through Corepack, JJ, Git, and the release helpers. Run `direnv allow` once, or use `nix develop` directly. The local `.env` file is ignored; `secret env --merge --output .env` can populate the Marketplace credential from the value-free `.secret.json` alias.
+
 ## One-time manual setup
 
 1. Sign in to the [Visual Studio Marketplace publisher portal](https://marketplace.visualstudio.com/manage) with the `astahmer` publisher account. Create the publisher if it does not exist.
@@ -27,6 +31,8 @@ The repository is prepared so the normal release path is a versioned Git tag. Gi
    If the repository is being released from a Git checkout instead, the equivalent final action is `git tag v0.10.3 && git push origin v0.10.3`.
 5. Open the GitHub Actions run for the tag and wait for it to finish.
 6. Check the published [JJ Plus Marketplace listing](https://marketplace.visualstudio.com/) and install the VSIX once in a clean VS Code profile.
+
+For a local Marketplace-only retry, use `secret run -- pnpm release --skip-npm`. The release command accepts `--provenance` as an explicit opt-in; the default token-based npm path deliberately omits provenance because the configured registry rejected the attestation during the previous release.
 
 ## What CI does
 
